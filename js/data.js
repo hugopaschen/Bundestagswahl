@@ -30,7 +30,7 @@
   // Spielbare Parteien. "competence" = zugeschriebene Kompetenz je Thema (0–100).
   var PARTIES = [
     {
-      id: 'union', flyerLogo: 'CDU · CSU', short: 'Union', name: 'CDU/CSU',
+      id: 'union', flyerLogo: 'CDU', short: 'Union', name: 'CDU/CSU',
       budget: 30, goal: 32,
       goalText: 'Stärkste Kraft werden und über 32 % holen',
       desc: 'Die Volkspartei der Mitte. Stark bei Wirtschaft und Sicherheit, großes Budget.',

@@ -340,6 +340,8 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
   background: var(--fl-hl); color: var(--fl-hl-ink, inherit); padding: 0 .12em;
   -webkit-box-decoration-break: clone; box-decoration-break: clone;
 }
+.flyer-slogan .fw { padding: 0; background: none; color: inherit; }
+.flyer-kicker, .flyer-stoerer, .flyer-logo .bogen { display: none; }
 .flyer-candidate { position: relative; margin: 0; font-size: 1.1rem; font-weight: 600; opacity: .92; }
 
 .flyer-section { padding: 20px 28px; border-bottom: 2px dashed var(--border); }
@@ -470,21 +472,126 @@ h2 .flyer-hint { margin: 0; }
 .flyer[data-party] .fp-title,
 .flyer[data-party] .fp-ballot-call { font-family: var(--fl-head-font); }
 
-/* CDU/CSU: Anthrazit, Türkis, Schwarz-Rot-Gold-Linie */
+/* CDU: nach Corporate Design Manual (Stand Mai 2026)
+   Cadenabbia-Türkis #52b7c1, Rhöndorf-Blau #2d3c4b, Union-Gold #ffa600, Weiß;
+   Headlines Inter Extrabold weiß auf Rhöndorf-Blau, Blöcke Stoß an Stoß aus dem linken Rand;
+   Sublines/Copy IBM Plex Serif; Logo oben rechts mit Bogen; Störer in Union-Gold, 10° gedreht. */
 .flyer[data-party="union"] {
-  --fl-head: #18252f; --fl-head-ink: #ffffff;
-  --fl-accent: #1e9fb4; --fl-accent-ink: #ffffff;
-  --fl-logo-bg: #2fb4c8; --fl-logo-ink: #ffffff;
-  --fl-head-font: "Montserrat", system-ui, sans-serif;
+  --fl-paper: #ffffff;
+  --fl-head: #52b7c1; --fl-head-ink: #ffffff;
+  --fl-accent: #2d3c4b; --fl-accent-ink: #ffffff;
+  --fl-logo-bg: #ffffff; --fl-logo-ink: #1b191d;
+  --fl-head-font: "Inter", system-ui, sans-serif;
+  --fl-font: "IBM Plex Serif", Georgia, serif;
+  --text: #2d3c4b; --text-2: #2d3c4b; --muted: #737986; --border: #ddeef1; --surface-2: #f2f8fa;
 }
-.flyer[data-party="union"] .flyer-head { padding-bottom: 40px; }
-.flyer[data-party="union"] .flyer-head::after {
-  left: 0; right: 0; bottom: 0; height: 8px; transform: none;
-  background: linear-gradient(90deg, #000 0 33.33%, #dd0000 33.33% 66.66%, #ffce00 66.66%);
+.flyer[data-party="union"] .flyer-head { padding: 24px 28px 34px; }
+.flyer[data-party="union"] .flyer-head::after { display: none; }
+/* Bogen als dekoratives Gestaltungselement, 10 % Weiß, Rundung vollständig sichtbar */
+.flyer[data-party="union"] .flyer-head::before {
+  top: auto; bottom: -10px; right: 6%; width: 240px; height: 168px; border-radius: 0; opacity: .1;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 70'%3E%3Cpath fill='%23fff' d='M0 50h26v20H0zM34 38h26v32H34zM68 22L100 0v70H68z'/%3E%3C/svg%3E") no-repeat center / contain;
 }
-.flyer[data-party="union"] .flyer-head::before { background: #2fb4c8; opacity: .22; }
-.flyer[data-party="union"] .flyer-logo { transform: none; border-radius: 3px; }
-.flyer[data-party="union"] .flyer-candidate { color: #7fd6e3; }
+.flyer[data-party="union"] .flyer-brand { flex-direction: row-reverse; }
+.flyer[data-party="union"] .flyer-date { display: none; }
+.flyer[data-party="union"] .flyer-logo {
+  display: inline-flex; align-items: flex-end; gap: .22em; transform: none; border-radius: 0;
+  padding: .32em .5em .28em; font-weight: 800; font-size: 1.5rem; letter-spacing: -.02em; line-height: .8;
+}
+.flyer[data-party="union"] .bogen { display: inline-flex; align-items: flex-end; gap: .07em; height: .56em; }
+.flyer[data-party="union"] .bogen i { display: block; width: .2em; }
+.flyer[data-party="union"] .bogen i:nth-child(1) { height: 32%; background: #1b191d; }
+.flyer[data-party="union"] .bogen i:nth-child(2) { height: 58%; background: #bf111b; }
+.flyer[data-party="union"] .bogen i:nth-child(3) { height: 100%; background: #ffa600; clip-path: polygon(0 32%, 100% 0, 100% 100%, 0 100%); }
+
+/* Headline-Mechanik: Subline B (Gold) – Headline-Blöcke – Subline A (Weiß), Stoß an Stoß */
+.flyer[data-party="union"] .flyer-kicker,
+.flyer[data-party="union"] .flyer-candidate {
+  display: table; margin: 0; padding: .12em .45em .12em 28px; margin-left: -28px;
+  font-family: "IBM Plex Serif", Georgia, serif; font-weight: 400; font-size: .95rem; opacity: 1; position: relative;
+}
+.flyer[data-party="union"] .flyer-kicker { margin-top: 30px; background: #ffa600; color: #2d3c4b; }
+.flyer[data-party="union"] .flyer-candidate { background: #ffffff; color: #2d3c4b; }
+.flyer[data-party="union"] .flyer-slogan {
+  margin: 0 0 0 -28px; text-transform: none; font-weight: 800; letter-spacing: -.01em; line-height: 1.22;
+  font-size: clamp(1.9rem, 6.4vw, 3.2rem);
+}
+.flyer[data-party="union"] .flyer-slogan > span {
+  background: #2d3c4b; color: #ffffff; padding: .06em .3em .1em 28px;
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
+/* Störer */
+.flyer[data-party="union"] .flyer-stoerer {
+  display: flex; position: absolute; right: 28px; bottom: 26px; width: 118px; height: 118px; border-radius: 50%;
+  background: #ffa600; color: #ffffff; flex-direction: column; align-items: center; justify-content: center;
+  font-family: "Inter", system-ui, sans-serif; font-weight: 800; text-transform: uppercase; line-height: .98;
+  font-size: 1.05rem; letter-spacing: -.01em; transform: rotate(-10deg); text-align: center;
+}
+.flyer[data-party="union"] .flyer-stoerer .dark { color: #1b191d; font-size: 1.12em; }
+.flyer[data-party="union"] .flyer-head:has(.flyer-stoerer:not(:empty)) .flyer-slogan { padding-right: 130px; }
+@media (max-width: 600px) {
+  .flyer[data-party="union"] .flyer-stoerer { position: relative; right: auto; bottom: auto; margin: 18px 0 0 auto; width: 96px; height: 96px; font-size: .85rem; }
+  .flyer[data-party="union"] .flyer-head:has(.flyer-stoerer:not(:empty)) .flyer-slogan { padding-right: 0; }
+  .flyer[data-party="union"] .flyer-kicker, .flyer[data-party="union"] .flyer-candidate,
+  .flyer[data-party="union"] .flyer-slogan { margin-left: -18px; }
+  .flyer[data-party="union"] .flyer-kicker, .flyer[data-party="union"] .flyer-candidate,
+  .flyer[data-party="union"] .flyer-slogan > span { padding-left: 18px; }
+}
+
+/* Abschnitte: Überschriften als Rhöndorf-Blau-Block aus dem linken Rand */
+.flyer[data-party="union"] .flyer-section h2 {
+  display: table; background: #2d3c4b; color: #ffffff; margin-left: -28px; padding: .18em .5em .18em 28px;
+  font-weight: 800; letter-spacing: -.01em;
+}
+.flyer[data-party="union"] .flyer-section h2 .flyer-hint { color: #a7d5dc; }
+.flyer[data-party="union"] .flyer-num { background: #52b7c1; color: #ffffff; border-radius: 0; width: 28px; height: 28px; }
+.flyer[data-party="union"] .flyer-section { border-bottom: 1px solid #ddeef1; }
+.flyer[data-party="union"] .chip, .flyer[data-party="union"] .option .olabel, .flyer[data-party="union"] .topic-set legend {
+  font-family: "Inter", system-ui, sans-serif;
+}
+.flyer[data-party="union"] .option .olabel { font-weight: 800; letter-spacing: -.01em; }
+.flyer[data-party="union"] .option { border-radius: 0; }
+.flyer[data-party="union"] .option:has(input:checked) { border-color: #52b7c1; box-shadow: inset 0 0 0 1px #52b7c1; }
+.flyer[data-party="union"] .option:has(input:checked)::after { background: #52b7c1; color: #ffffff; border-radius: 0; }
+.flyer[data-party="union"] .topic-set:has([data-core]:not([hidden])) { border-left-color: #ffa600; }
+.flyer[data-party="union"] .topic-set .core-mark { background: #ffa600; color: #ffffff; border-radius: 0; font-family: "Inter", system-ui, sans-serif; }
+
+/* Programmteil: Türkis-Fläche, Headline-Blöcke, Infoboxen */
+.flyer[data-party="union"] .flyer-program { background: #52b7c1; color: #2d3c4b; --border: rgba(255, 255, 255, .5); }
+.flyer[data-party="union"] .fp-title {
+  display: table; margin: 0 0 0 -28px; padding: .08em .35em .1em 28px; background: #2d3c4b; color: #ffffff;
+  text-transform: none; font-weight: 800; letter-spacing: -.01em; font-size: 2rem;
+}
+.flyer[data-party="union"] .fp-sub {
+  display: table; margin: 0 0 18px -28px; padding: .12em .45em .12em 28px; background: #ffffff; color: #2d3c4b;
+  font-family: "IBM Plex Serif", Georgia, serif;
+}
+.flyer[data-party="union"] .fp-core-item { background: #2d3c4b; color: #ffffff; border-radius: 0; }
+.flyer[data-party="union"] .fp-core-item .fp-topic { color: #ffa600; opacity: 1; font-family: "Inter", system-ui, sans-serif; font-weight: 800; }
+.flyer[data-party="union"] .fp-core-item .fp-label { font-family: "Inter", system-ui, sans-serif; font-weight: 800; letter-spacing: -.01em; }
+.flyer[data-party="union"] .fp-list li { background: #f2f8fa; padding: 8px 10px; border-bottom: 0; }
+.flyer[data-party="union"] .fp-list { gap: 6px 10px; }
+.flyer[data-party="union"] .fp-check { background: #52b7c1; color: #ffffff; border-radius: 0; }
+.flyer[data-party="union"] .fp-list .fp-label { font-family: "Inter", system-ui, sans-serif; font-weight: 800; letter-spacing: -.01em; }
+.flyer[data-party="union"] .fp-list .fp-topic { color: #737986; }
+.flyer[data-party="union"] .fp-stamp { background: #ffffff; font-family: "Inter", system-ui, sans-serif; }
+.flyer[data-party="union"] .fp-ballot { background: #52b7c1; color: #ffffff; border-top: 1px solid rgba(255, 255, 255, .5); }
+.flyer[data-party="union"] .fp-ballot-call {
+  text-transform: none; font-family: "Inter", system-ui, sans-serif; font-weight: 800; letter-spacing: -.01em;
+  background: #2d3c4b; padding: .1em .4em .14em 28px; margin-left: -28px;
+}
+.flyer[data-party="union"] .fp-ballot-call small {
+  display: table; background: #ffa600; color: #2d3c4b; padding: .1em .4em; margin: -.1em 0 .2em -.4em;
+  font-family: "IBM Plex Serif", Georgia, serif; font-weight: 400; letter-spacing: 0; text-transform: none;
+}
+.flyer[data-party="union"] .fp-ballot-box { border-color: #2d3c4b; border-radius: 0; color: #2d3c4b; font-family: "Inter", system-ui, sans-serif; }
+.flyer.mini[data-party="union"] .flyer-slogan { font-size: 1.35rem; margin-left: -16px; }
+.flyer.mini[data-party="union"] .flyer-slogan > span,
+.flyer.mini[data-party="union"] .flyer-kicker, .flyer.mini[data-party="union"] .flyer-candidate { padding-left: 16px; }
+.flyer.mini[data-party="union"] .flyer-kicker, .flyer.mini[data-party="union"] .flyer-candidate { margin-left: -16px; font-size: .8rem; }
+.flyer.mini[data-party="union"] .flyer-kicker { margin-top: 14px; }
+.flyer.mini[data-party="union"] .flyer-logo { font-size: 1.1rem; }
+.flyer.mini[data-party="union"] .flyer-head::before { width: 120px; height: 84px; }
 
 /* AfD: Hellblau mit Verlauf, Rot als Akzent, kräftige Versalien */
 .flyer[data-party="afd"] {

@@ -542,7 +542,8 @@
     flyer.style.setProperty('--pc', col(chosenParty));
     flyer.style.setProperty('--pon', onCol(chosenParty));
     flyer.dataset.party = chosenParty;
-    $('flyer-logo').textContent = p.flyerLogo;
+    $('flyer-logo').innerHTML = logoHtml(chosenParty);
+    $('flyer-stoerer').innerHTML = STOERER[chosenParty] || '';
     $('flyer-candidate').textContent = candidateLine($('candidate').value);
 
     const sc = $('slogan-chips');
@@ -627,6 +628,15 @@
   }
 
   const DEFAULT_CANDIDATE = 'Unsere Spitzenkandidatin';
+
+  // Text-Logo der Partei; die CDU bekommt zusätzlich den angedeuteten Bogen.
+  function logoHtml(partyId) {
+    const p = E.party(partyId);
+    return (partyId === 'union' ? '<span class="bogen" aria-hidden="true"><i></i><i></i><i></i></span>' : '') + esc(p.flyerLogo);
+  }
+
+  // Störer (nur bei Parteien, deren Design einen vorsieht).
+  const STOERER = { union: '<span>Beide</span><span class="dark">Stimmen</span><span>CDU</span>' };
 
   // Slogan mit markiertem ersten Wort (für Gestaltungselemente wie den FDP-Balken).
   function sloganHtml(text) {
@@ -717,7 +727,8 @@
     const p = E.party(g.party);
     $('program-view').innerHTML =
       '<article class="flyer mini" data-party="' + g.party + '" style="--pc:' + col(g.party) + ';--pon:' + onCol(g.party) + '">' +
-      '<header class="flyer-head"><div class="flyer-brand"><span class="flyer-logo">' + esc(p.flyerLogo) + '</span></div>' +
+      '<header class="flyer-head"><div class="flyer-brand"><span class="flyer-logo">' + logoHtml(g.party) + '</span></div>' +
+      '<p class="flyer-kicker">Bundestagswahl – Ihre Stimme zählt.</p>' +
       '<p class="flyer-slogan">' + sloganHtml(g.program.slogan) + '</p>' +
       '<p class="flyer-candidate">' + esc(candidateLine(g.candidate)) + '</p></header>' +
       '<section class="flyer-program">' + flyerProgramHtml(g.party, g.program, g.finance) + '</section></article>';
