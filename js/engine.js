@@ -73,6 +73,17 @@
     return errors;
   }
 
+  // Wirkung einer einzelnen Position (Bundes- und Ost-Effekt in Punkten):
+  //  - Parteilinie: neutral.
+  //  - Leichte Abweichung: Die Popularität zählt voll, abzüglich eines kleinen Abschlags
+  //    für verärgerte Stammwähler. Populäre Positionen (pop ≥ 0,3) bringen also Stimmen.
+  //  - Starke Abweichung: immer negativ, egal wie populär – Glaubwürdigkeit verspielt.
+  function positionEffect(opt, line, deviation) {
+    if (deviation === 0) return { nat: 0, east: 0 };
+    if (deviation === 1) return { nat: 1.5 * opt.pop - 0.25, east: opt.east - line.east };
+    return { nat: Math.min(-0.5, 0.5 * opt.pop - 1.1), east: Math.min(0, opt.east - line.east) };
+  }
+
   // Wirkung eines Programms im Vergleich zur traditionellen Parteilinie:
   // Populäre Positionen bringen Stimmen, Abweichungen von der Linie kosten Stammwähler und Glaubwürdigkeit.
   function programEffects(partyId, prog) {
@@ -87,8 +98,7 @@
       const line = D.PROGRAM[t].find(o => o.lean === p.lean[t]);
       const deviation = Math.abs(opt.lean - p.lean[t]);
       const core = prog.core.indexOf(t) !== -1;
-      const dNat = (opt.pop - line.pop) - 0.7 * deviation;
-      const dEast = opt.east - line.east;
+      const { nat: dNat, east: dEast } = positionEffect(opt, line, deviation);
       const dComp = -10 * deviation + (core ? 12 : 0);
       competence[t] += dComp;
       nat += dNat;
@@ -871,7 +881,7 @@
     MAX_WEEKS, AP_PER_WEEK, DUEL_WEEK, THRESHOLD, MAJORITY,
     ACTIONS, EVENTS, DUEL_STYLES,
     party, stateById, topicById, eventById, eventText,
-    defaultProgram, validateProgram, programEffects, competenceOf, isCore,
+    defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     actionCost, canAct, performAction,
     drawEvent, resolveEvent,

@@ -571,7 +571,14 @@
         const dev = Math.abs(o.lean - p.lean[t.id]);
         const tags = [];
         if (dev === 0) tags.push('<span class="tag line">Parteilinie</span>');
-        else tags.push('<span class="tag dev">' + (dev === 2 ? 'Starke Abweichung' : 'Abweichung') + '</span>');
+        else {
+          const line = D.PROGRAM[t.id].find(x => x.lean === p.lean[t.id]);
+          const fx = E.positionEffect(o, line, dev);
+          tags.push('<span class="tag dev">' + (dev === 2 ? 'Starke Abweichung' : 'Abweichung') + '</span>');
+          tags.push(fx.nat > 0
+            ? '<span class="tag line">📈 gewinnt neue Wähler</span>'
+            : '<span class="tag dev">📉 ' + (dev === 2 ? 'verprellt Stammwähler' : 'kostet Stimmen') + '</span>');
+        }
         if (o.pop >= 0.3) tags.push('<span class="tag">👍 populär</span>');
         if (o.pop < 0) tags.push('<span class="tag">👎 unpopulär</span>');
         if (o.east >= 0.3) tags.push('<span class="tag">im Osten beliebt</span>');

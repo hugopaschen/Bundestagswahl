@@ -128,3 +128,22 @@ test('Spielstände ohne das Thema Wohnen werden ergänzt', () => {
   assert.ok(Number.isFinite(E.nationalShares(loaded).spd));
   assert.ok(E.performAction(loaded, 'presse', { topic: 'wohnen' }).ok);
 });
+
+test('Wahlprogramm: leichte Abweichung zu populärer Position nützt, starke Abweichung schadet immer', () => {
+  const eastShare = D.STATES.filter(s => s.east).reduce((a, s) => a + s.voters, 0) / D.STATES.reduce((a, s) => a + s.voters, 0);
+  let checked = 0;
+  for (const p of D.PARTIES) {
+    for (const t of D.TOPICS) {
+      const line = D.PROGRAM[t.id].find(o => o.lean === p.lean[t.id]);
+      D.PROGRAM[t.id].forEach(o => {
+        const dev = Math.abs(o.lean - p.lean[t.id]);
+        const fx = E.positionEffect(o, line, dev);
+        const total = fx.nat + eastShare * fx.east;
+        if (dev === 0) assert.strictEqual(total, 0);
+        if (dev === 1 && o.pop >= 0.3) { assert.ok(total > 0, p.id + '/' + t.id + ': ' + o.label); checked++; }
+        if (dev === 2) { assert.ok(total < 0, p.id + '/' + t.id + ': ' + o.label); checked++; }
+      });
+    }
+  }
+  assert.ok(checked > 20);
+});
