@@ -17,7 +17,7 @@ Der Spielstand wird automatisch im Browser gespeichert (localStorage).
 | Element | Beschreibung |
 |---|---|
 | **Parteien** | CDU/CSU, AfD, SPD, Grüne, Linke, BSW, FDP – mit unterschiedlichem Budget, eigenen Themenstärken und Wahlziel |
-| **Wahlprogramm** | Gestaltet als Wahlflyer in Parteifarben, an dessen Ende das gewählte Programm steht. Nach der Parteiwahl: Slogan, 2 Kernthemen und je Thema eine von drei Positionen. Populäre Positionen bringen Stimmen, Abweichungen von der Parteilinie kosten Stammwähler und Glaubwürdigkeit, und das Programm muss in den Finanzierungsrahmen (10 💶) passen |
+| **Wahlprogramm** | Gestaltet als Wahlflyer im Stil der jeweiligen Partei (angelehnt an die Kampagnen 2025, ohne Originallogos), an dessen Ende das gewählte Programm steht. Nach der Parteiwahl: Slogan, 2 Kernthemen und je Thema eine von drei Positionen. Populäre Positionen bringen Stimmen, Abweichungen von der Parteilinie kosten Stammwähler und Glaubwürdigkeit, und das Programm muss in den Finanzierungsrahmen (10 💶) passen |
 | **Wochen** | 8 Wochen Wahlkampf, je 3 Aktionen pro Woche |
 | **Regionale Aktionen** | Kundgebung, Plakatkampagne, Haustürwahlkampf – wirken im gewählten Bundesland |
 | **Bundesweite Aktionen** | TV-Spot, Social Media (Shitstorm-Risiko), Pressekonferenz (setzt Themen), Talkshow |

@@ -541,7 +541,8 @@
     const flyer = $('flyer');
     flyer.style.setProperty('--pc', col(chosenParty));
     flyer.style.setProperty('--pon', onCol(chosenParty));
-    $('flyer-logo').textContent = p.short;
+    flyer.dataset.party = chosenParty;
+    $('flyer-logo').textContent = p.flyerLogo;
     $('flyer-candidate').textContent = candidateLine($('candidate').value);
 
     const sc = $('slogan-chips');
@@ -654,7 +655,7 @@
       html += '<span class="fp-stamp ' + finance + '">' +
         { solid: 'Solide finanziert', ok: 'Durchgerechnet', over: 'Nicht gegenfinanziert' }[finance] + '</span>';
     }
-    html += '<div class="fp-ballot"><div class="fp-ballot-call"><small>Am Wahlsonntag</small>' + esc(p.short) + ' wählen!</div>' +
+    html += '<div class="fp-ballot"><div class="fp-ballot-call"><small>Am Wahlsonntag</small>' + esc(partyId === 'union' ? 'CDU/CSU' : p.short) + ' wählen!</div>' +
       '<div class="fp-ballot-box"><span>Zweitstimme</span><span>' + esc(p.name) + '</span><span class="fp-cross" aria-hidden="true"></span></div></div>';
     return html;
   }
@@ -666,7 +667,7 @@
     const fx = coreReady ? E.programEffects(chosenParty, draft) : null;
 
     // Flyer
-    $('flyer-slogan').textContent = String(draft.slogan || '').trim() || 'Euer Slogan';
+    $('flyer-slogan').innerHTML = '<span>' + esc(String(draft.slogan || '').trim() || 'Euer Slogan') + '</span>';
     $('flyer-program').innerHTML = flyerProgramHtml(chosenParty, draft, fx && fx.finance);
 
     // Aktionsleiste
@@ -709,9 +710,9 @@
   function renderProgramView() {
     const p = E.party(g.party);
     $('program-view').innerHTML =
-      '<article class="flyer mini" style="--pc:' + col(g.party) + ';--pon:' + onCol(g.party) + '">' +
-      '<header class="flyer-head"><div class="flyer-brand"><span class="flyer-logo">' + esc(p.short) + '</span></div>' +
-      '<p class="flyer-slogan">' + esc(g.program.slogan) + '</p>' +
+      '<article class="flyer mini" data-party="' + g.party + '" style="--pc:' + col(g.party) + ';--pon:' + onCol(g.party) + '">' +
+      '<header class="flyer-head"><div class="flyer-brand"><span class="flyer-logo">' + esc(p.flyerLogo) + '</span></div>' +
+      '<p class="flyer-slogan"><span>' + esc(g.program.slogan) + '</span></p>' +
       '<p class="flyer-candidate">' + esc(candidateLine(g.candidate)) + '</p></header>' +
       '<section class="flyer-program">' + flyerProgramHtml(g.party, g.program, g.finance) + '</section></article>';
   }
