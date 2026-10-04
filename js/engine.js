@@ -2,7 +2,7 @@
  * Spiel-Engine: reine Spiellogik ohne DOM, damit sie auch in Node getestet werden kann.
  *
  * Modell in Kürze:
- *  - Jede Partei hat pro Bundesland einen Ausgangswert (Ergebnis 2025).
+ *  - Jede Partei hat pro Bundesland einen Startwert (aktuelle Sonntagsfrage, regional verteilt).
  *  - Dazu kommen bundesweite Boni (nat), regionale Boni (reg) und ein Themen-Effekt:
  *    Je wichtiger ein Thema wird, desto mehr profitieren Parteien, denen dort
  *    überdurchschnittlich viel Kompetenz zugeschrieben wird.
@@ -160,7 +160,7 @@
       g.reg[s.id] = {};
       PARTY_IDS.forEach(p => { g.reg[s.id][p] = 0; });
     });
-    // Startpunkt ist das Ergebnis 2025, das Programm wirkt ab der ersten Umfrage.
+    // Startpunkt ist die aktuelle Sonntagsfrage, das Programm wirkt ab der ersten Umfrage.
     g.startShares = nationalShares(g);
     g.history.push({ week: 0, shares: g.startShares });
     addLog(g, 'start', 'Der Wahlkampf beginnt! Noch ' + MAX_WEEKS + ' Wochen bis zur Bundestagswahl.');
@@ -823,7 +823,7 @@
     else if (r.government && r.government.indexOf(p) !== -1) status = 'regierung';
     else status = 'opposition';
 
-    const goal = share >= party(p).goal && (p !== 'union' || r.strongest === 'union');
+    const goal = share >= party(p).goal && (!party(p).mustLead || r.strongest === p);
     const bonus = { kanzler: 50, regierung: 30, opposition: 10, raus: 0 }[status];
     const score = Math.max(0, Math.round(50 + (share - start) * 10 + bonus + (goal ? 25 : 0)));
     r.outcome = { status, goal, delta: share - start, score, rating: rating(score) };

@@ -27,7 +27,7 @@ Der Spielstand wird automatisch im Browser gespeichert (localStorage).
 | **Elefantenrunde** | In Woche 7: drei Fragen, drei Strategien |
 | **Wahlabend** | 630 Sitze, 5-%-Hürde, Sainte-Laguë, Koalitionsbildung (Brandmauer zur AfD, kein Union-Linke-Bündnis) |
 
-Die Startwerte orientieren sich an den Zweitstimmen der Bundestagswahl 2025 (nach Bundesland, gerundet).
+Die Startwerte entsprechen bundesweit der Sonntagsfrage von Infratest dimap (Anfang Oktober 2026: Union 20, AfD 27, SPD 13, Grüne 16, Linke 11, FDP 4, BSW 3, Sonstige 6 %). Die Verteilung auf die Bundesländer folgt proportional dem Muster der Bundestagswahl 2025.
 Vereinfachungen: keine Wahlkreise/Erststimmen, keine Grundmandatsklausel. Alle Ereignisse sind fiktiv.
 
 ## Projektstruktur

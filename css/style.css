@@ -130,7 +130,7 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
 .party-option[aria-checked="true"] { border-color: var(--pc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc) 25%, transparent); }
 .party-option .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .party-option .pname { font-weight: 700; font-size: 1.05rem; }
-.party-option .pct { font-variant-numeric: tabular-nums; font-weight: 700; }
+.party-option .pct { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
 .party-option p { margin: 0; color: var(--text-2); font-size: .88rem; }
 .strengths { display: flex; flex-wrap: wrap; gap: 4px; }
 .tag { font-size: .75rem; padding: 2px 8px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2); }

@@ -67,7 +67,7 @@
   function renderStart() {
     const list = $('party-list');
     list.innerHTML = '';
-    const start = E.nationalShares(E.newGame('union', '', 1));
+    const start = E.newGame('union', '', 1).startShares;
     D.PARTIES.forEach(p => {
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -520,7 +520,7 @@
     $('outcome').innerHTML =
       '<p class="eyebrow">Euer Wahlabend</p><h2>' + esc(o.rating) + '</h2>' +
       '<div class="score">' + o.score + '</div><p class="muted small">Punkte</p>' +
-      '<p><strong>' + esc(p.name) + ': ' + pct(r.shares[g.party]) + '</strong> (' + signed(o.delta) + ' gegenüber 2025)</p>' +
+      '<p><strong>' + esc(p.name) + ': ' + pct(r.shares[g.party]) + '</strong> (' + signed(o.delta) + ' seit Wahlkampfstart)</p>' +
       '<p>' + esc(statusText) + '</p>' +
       '<p>' + (o.goal ? '✅ Wahlziel erreicht: ' : '❌ Wahlziel verfehlt: ') + esc(p.goalText) + '</p>';
     card.hidden = false;
@@ -678,7 +678,7 @@
         { solid: 'Solide finanziert', ok: 'Durchgerechnet', over: 'Nicht gegenfinanziert' }[finance] + '</span>';
     }
     html += '<div class="fp-ballot"><div class="fp-ballot-call"><small>Am Wahlsonntag</small>' + esc(partyId === 'union' ? 'CDU/CSU' : p.short) + ' wählen!</div>' +
-      '<div class="fp-ballot-box"><span>Zweitstimme</span><span>' + esc(p.name) + '</span><span class="fp-cross" aria-hidden="true"></span></div></div>';
+      '<div class="fp-ballot-box"><span>Zweitstimme</span><span>' + esc(p.name.length > 24 ? p.short : p.name) + '</span><span class="fp-cross" aria-hidden="true"></span></div></div>';
     return html;
   }
 

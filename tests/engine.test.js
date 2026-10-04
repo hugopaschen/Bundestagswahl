@@ -5,12 +5,11 @@ const E = require('../js/engine.js');
 
 const sum = obj => Object.values(obj).reduce((a, b) => a + b, 0);
 
-test('Startwerte entsprechen ungefähr dem Ergebnis 2025', () => {
-  const s = E.nationalShares(E.newGame('spd', 'Test', 1));
+test('Startwerte entsprechen der Sonntagsfrage (Infratest dimap)', () => {
+  const s = E.newGame('spd', 'Test', 1).startShares;
   assert.ok(Math.abs(sum(s) - 100) < 1e-9);
-  assert.ok(Math.abs(s.union - 28.5) < 1);
-  assert.ok(Math.abs(s.afd - 20.8) < 1);
-  assert.ok(Math.abs(s.spd - 16.4) < 1);
+  const expected = { union: 20, afd: 27, spd: 13, gruene: 16, linke: 11, fdp: 4, bsw: 3, sonstige: 6 };
+  Object.keys(expected).forEach(p => assert.ok(Math.abs(s[p] - expected[p]) < 0.15, p + ': ' + s[p]));
 });
 
 test('Sainte-Laguë verteilt alle Sitze proportional', () => {
@@ -62,12 +61,12 @@ test('Eine komplette Partie endet mit Wahlergebnis und Bewertung', () => {
   }
 });
 
-test('Wahlprogramm: Parteilinie ist gültig und verändert die Startwerte 2025 nicht', () => {
+test('Wahlprogramm: Parteilinie ist gültig und verändert die Startwerte nicht', () => {
   for (const p of D.PARTIES) {
     const prog = E.defaultProgram(p.id);
     assert.deepStrictEqual(E.validateProgram(prog), []);
     const g = E.newGame(p.id, 'Test', 1, prog);
-    // Der Startpunkt (Ergebnis 2025) hängt nicht vom Programm ab.
+    // Der Startpunkt (Sonntagsfrage) hängt nicht vom Programm ab.
     const other = JSON.parse(JSON.stringify(prog));
     D.TOPICS.forEach(t => { other.positions[t.id] = 1; });
     const g2 = E.newGame(p.id, 'Test', 1, other);
