@@ -607,18 +607,102 @@ h2 .flyer-hint { margin: 0; }
 .flyer[data-party="afd"] .flyer-logo { transform: none; border-radius: 3px; }
 .flyer[data-party="afd"] .flyer-slogan { letter-spacing: 0; }
 
-/* SPD: Rot, weiße Textfelder, gerade Kanten */
+/* SPD: nach CD-Manual (Stand August 2024)
+   Rot #E3000F als Markenraum (größter Farbanteil), Weiß, Schwarz nur als Akzent;
+   Headlines groß in Versalien, Extra Bold (Ersatzschrift für SPD The Sans: Open Sans);
+   Logo mit Claim „Soziale Politik für Dich.“ weiß auf Rot, rechts oben;
+   Doppelpfeile und Störer (rund/rechteckig, 10° gedreht). */
 .flyer[data-party="spd"] {
+  --fl-paper: #ffffff;
   --fl-head: #e3000f; --fl-head-ink: #ffffff;
   --fl-accent: #e3000f; --fl-accent-ink: #ffffff;
-  --fl-logo-bg: #ffffff; --fl-logo-ink: #e3000f;
-  --fl-head-font: "Montserrat", system-ui, sans-serif;
+  --fl-logo-bg: transparent; --fl-logo-ink: #ffffff;
+  --fl-head-font: "Open Sans", system-ui, sans-serif;
+  --fl-font: "Open Sans", system-ui, sans-serif;
+  --text: #000000; --text-2: #333333; --muted: #666666; --border: #f2c4c7; --surface-2: #ffffff;
 }
-.flyer[data-party="spd"] .flyer-head { padding-bottom: 30px; }
+.flyer[data-party="spd"] .flyer-head { padding: 24px 28px 34px; }
 .flyer[data-party="spd"] .flyer-head::before, .flyer[data-party="spd"] .flyer-head::after { display: none; }
-.flyer[data-party="spd"] .flyer-logo { transform: none; border-radius: 0; padding: 8px 12px; }
-.flyer[data-party="spd"] .flyer-slogan { text-transform: none; }
-.flyer[data-party="spd"] .flyer-candidate { display: inline-block; background: #ffffff; color: #e3000f; padding: 4px 10px; opacity: 1; }
+.flyer[data-party="spd"] .flyer-brand { flex-direction: row-reverse; }
+.flyer[data-party="spd"] .flyer-date { display: none; }
+.flyer[data-party="spd"] .flyer-logo {
+  display: inline-flex; align-items: center; gap: .3em; padding: 0; transform: none; border-radius: 0;
+  font-family: "Open Sans", system-ui, sans-serif;
+}
+.flyer[data-party="spd"] .flyer-logo .word { font-size: 2.2rem; font-weight: 800; letter-spacing: -.04em; line-height: .8; }
+.flyer[data-party="spd"] .flyer-logo .claim { font-size: .62rem; font-weight: 800; line-height: 1.05; letter-spacing: -.01em; }
+.flyer[data-party="spd"] .flyer-slogan {
+  margin-top: 30px; text-transform: uppercase; font-weight: 800; letter-spacing: -.01em; line-height: 1.0;
+  font-size: clamp(2.1rem, 7.4vw, 3.8rem); padding-right: 140px;
+}
+.flyer[data-party="spd"] .flyer-candidate {
+  display: flex; align-items: center; gap: 14px; margin-top: 16px; background: none; color: #ffffff; padding: 0;
+  font-weight: 800; font-size: 1.05rem; opacity: 1;
+}
+.flyer[data-party="spd"] .flyer-candidate::before {
+  content: ""; flex: 0 0 auto; width: 52px; height: 32px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 60'%3E%3Cpath fill='%23fff' d='M0 0h22l30 30-30 30H0l30-30zM42 0h22l30 30-30 30H42l30-30z'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+/* Störer: rund, weiß mit roter Schrift, 10° gedreht */
+.flyer[data-party="spd"] .flyer-stoerer {
+  display: flex; position: absolute; right: 28px; bottom: 28px; width: 116px; height: 116px; border-radius: 50%;
+  background: #ffffff; color: #e3000f; flex-direction: column; align-items: center; justify-content: center;
+  font-family: "Open Sans", system-ui, sans-serif; font-weight: 400; font-size: .95rem; line-height: 1.1;
+  transform: rotate(-10deg); text-align: center;
+}
+.flyer[data-party="spd"] .flyer-stoerer .b { font-weight: 800; font-size: 1.15em; }
+@media (max-width: 600px) {
+  .flyer[data-party="spd"] .flyer-slogan { padding-right: 0; }
+  .flyer[data-party="spd"] .flyer-stoerer { position: relative; right: auto; bottom: auto; margin: 18px 0 0 auto; width: 96px; height: 96px; font-size: .8rem; }
+}
+
+/* Abschnitte auf Weiß: rote Versal-Überschriften, rote Akzente */
+.flyer[data-party="spd"] .flyer-section { border-bottom: 2px solid #e3000f; }
+.flyer[data-party="spd"] .flyer-section h2 { color: #e3000f; text-transform: uppercase; font-weight: 800; letter-spacing: -.01em; }
+.flyer[data-party="spd"] .flyer-section h2 .flyer-hint { text-transform: none; }
+.flyer[data-party="spd"] .flyer-num { border-radius: 0; transform: rotate(-10deg); }
+.flyer[data-party="spd"] .option { border-radius: 0; border-color: #f2c4c7; }
+.flyer[data-party="spd"] .option .olabel { font-weight: 800; }
+.flyer[data-party="spd"] .option:has(input:checked) { border-color: #e3000f; box-shadow: inset 0 0 0 1px #e3000f; }
+.flyer[data-party="spd"] .option:has(input:checked)::after { border-radius: 0; transform: rotate(-10deg); }
+.flyer[data-party="spd"] .chip { border-radius: 0; }
+.flyer[data-party="spd"] .topic-set legend { text-transform: uppercase; font-weight: 800; }
+.flyer[data-party="spd"] .topic-set .core-mark { border-radius: 0; text-transform: none; transform: rotate(-10deg); display: inline-block; }
+
+/* Programmteil im roten Markenraum */
+.flyer[data-party="spd"] .flyer-program { background: #e3000f; color: #ffffff; --border: rgba(255, 255, 255, .35); }
+.flyer[data-party="spd"] .fp-title { color: #ffffff; text-transform: uppercase; font-weight: 800; font-size: 2.2rem; letter-spacing: -.01em; line-height: 1; }
+.flyer[data-party="spd"] .fp-sub {
+  display: flex; align-items: center; gap: 12px; color: #ffffff; font-weight: 800;
+}
+.flyer[data-party="spd"] .fp-sub::before {
+  content: ""; flex: 0 0 auto; width: 40px; height: 24px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 60'%3E%3Cpath fill='%23fff' d='M0 0h22l30 30-30 30H0l30-30zM42 0h22l30 30-30 30H42l30-30z'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+.flyer[data-party="spd"] .fp-core-item { background: #ffffff; color: #e3000f; border-radius: 0; }
+.flyer[data-party="spd"] .fp-core-item .fp-topic { color: #000000; opacity: 1; font-weight: 700; }
+.flyer[data-party="spd"] .fp-core-item .fp-label { text-transform: uppercase; font-weight: 800; letter-spacing: -.01em; }
+.flyer[data-party="spd"] .fp-core-item .fp-desc { color: #333333; opacity: 1; }
+.flyer[data-party="spd"] .fp-check { background: none; width: 26px; font-size: 0; }
+.flyer[data-party="spd"] .fp-check::before {
+  content: ""; width: 26px; height: 16px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 60'%3E%3Cpath fill='%23fff' d='M0 0h22l30 30-30 30H0l30-30zM42 0h22l30 30-30 30H42l30-30z'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+.flyer[data-party="spd"] .fp-list .fp-topic { color: rgba(255, 255, 255, .8); }
+.flyer[data-party="spd"] .fp-list .fp-label { font-weight: 800; }
+.flyer[data-party="spd"] .fp-stamp { background: #ffffff; border-radius: 0; transform: rotate(-10deg); }
+.flyer[data-party="spd"] .fp-stamp.solid, .flyer[data-party="spd"] .fp-stamp.ok { color: #e3000f; }
+.flyer[data-party="spd"] .fp-stamp.over { color: #000000; }
+/* Abschluss: rechteckiger Störer „SPD wählen!“ und Wahlkreuz */
+.flyer[data-party="spd"] .fp-ballot { background: #e3000f; color: #e3000f; border-top: 2px solid rgba(255, 255, 255, .35); padding-top: 26px; padding-bottom: 28px; }
+.flyer[data-party="spd"] .fp-ballot-call {
+  background: #ffffff; padding: .35em .7em; transform: rotate(-10deg); text-transform: none; font-weight: 800; font-size: 1.25rem; line-height: 1.15;
+}
+.flyer[data-party="spd"] .fp-ballot-call small { font-weight: 400; letter-spacing: 0; font-size: .85rem; text-transform: none; opacity: 1; }
+.flyer[data-party="spd"] .fp-ballot-box { border-radius: 0; border-color: #ffffff; }
+.flyer[data-party="spd"] .fp-cross::before, .flyer[data-party="spd"] .fp-cross::after { background: #e3000f; }
+.flyer.mini[data-party="spd"] .flyer-slogan { font-size: 1.5rem; padding-right: 0; margin-top: 16px; }
+.flyer.mini[data-party="spd"] .flyer-logo .word { font-size: 1.4rem; }
+.flyer.mini[data-party="spd"] .flyer-logo .claim { font-size: .48rem; }
+.flyer.mini[data-party="spd"] .flyer-candidate { font-size: .85rem; }
+.flyer.mini[data-party="spd"] .flyer-candidate::before { width: 34px; height: 20px; }
 
 /* Grüne: Tannengrün, Sonnengelb, Sand-Papier, schmale Versalien */
 .flyer[data-party="gruene"] {
