@@ -563,6 +563,18 @@
       ]
     },
     {
+      id: 'mieten', title: 'Mietenexplosion in den Großstädten',
+      text: 'Neue Zahlen zeigen: In Berlin, Hamburg und München sind die Angebotsmieten binnen eines Jahres um über zehn Prozent gestiegen.',
+      before: g => changeSalience(g, 'wohnen', 0.06),
+      choices: [
+        { label: 'Mietenstopp fordern', hint: 'Wirkt je nach Wohnkompetenz, Plus in den Stadtstaaten',
+          apply: g => { const d = 0.2 + 0.8 * compMod(g, 'wohnen'); g.nat[g.party] += d; ['BE', 'HH', 'HB'].forEach(s => { g.reg[s][g.party] += 1.0; }); return 'Reaktion der Wähler: ' + fmt(d) + ', in den Stadtstaaten noch mehr.'; } },
+        { label: 'Bauoffensive ankündigen', hint: 'Wirkt je nach Wirtschaftskompetenz',
+          apply: g => { const d = 0.2 + 0.6 * compMod(g, 'wirtschaft'); g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + '.'; } },
+        { label: 'Auf die Länder verweisen', hint: 'Kein Risiko', apply: () => 'Ihr verweist auf die Zuständigkeit der Länder.' }
+      ]
+    },
+    {
       id: 'faktencheck', title: 'Faktencheck zum Wahlprogramm',
       text: g => 'Ökonomen haben euer Wahlprogramm „' + g.program.slogan + '“ durchgerechnet. ' +
         (g.finance === 'over' ? 'Ihr Urteil: Die Versprechen sind nicht gegenfinanziert.'
@@ -841,6 +853,17 @@
       g.finance = 'ok';
       g.version = 2;
     }
+    // Themen, die nach dem Speichern dazugekommen sind (z. B. Wohnen), mit Ausgangswerten ergänzen.
+    if (TOPIC_IDS.some(t => !(t in g.salience))) {
+      TOPIC_IDS.forEach(t => { if (!(t in g.salience)) g.salience[t] = D.SALIENCE0[t]; });
+      const sum = TOPIC_IDS.reduce((acc, t) => acc + g.salience[t], 0);
+      TOPIC_IDS.forEach(t => { g.salience[t] /= sum; });
+    }
+    const line = defaultProgram(g.party);
+    TOPIC_IDS.forEach(t => {
+      if (!(t in g.program.positions)) g.program.positions[t] = line.positions[t];
+      if (!(t in g.competence)) g.competence[t] = party(g.party).competence[t];
+    });
     return g;
   }
 

@@ -17,12 +17,12 @@ Der Spielstand wird automatisch im Browser gespeichert (localStorage).
 | Element | Beschreibung |
 |---|---|
 | **Parteien** | CDU/CSU, AfD, SPD, Grüne, Linke, BSW, FDP – mit unterschiedlichem Budget, eigenen Themenstärken und Wahlziel |
-| **Wahlprogramm** | Nach der Parteiwahl: Slogan, 2 Kernthemen und je Thema eine von drei Positionen. Populäre Positionen bringen Stimmen, Abweichungen von der Parteilinie kosten Stammwähler und Glaubwürdigkeit, und das Programm muss in den Finanzierungsrahmen (9 💶) passen |
+| **Wahlprogramm** | Nach der Parteiwahl: Slogan, 2 Kernthemen und je Thema eine von drei Positionen. Populäre Positionen bringen Stimmen, Abweichungen von der Parteilinie kosten Stammwähler und Glaubwürdigkeit, und das Programm muss in den Finanzierungsrahmen (10 💶) passen |
 | **Wochen** | 8 Wochen Wahlkampf, je 3 Aktionen pro Woche |
 | **Regionale Aktionen** | Kundgebung, Plakatkampagne, Haustürwahlkampf – wirken im gewählten Bundesland |
 | **Bundesweite Aktionen** | TV-Spot, Social Media (Shitstorm-Risiko), Pressekonferenz (setzt Themen), Talkshow |
 | **Geld** | Spendendinner füllt die Wahlkampfkasse |
-| **Themen** | Wird ein Thema wichtiger, profitieren Parteien mit hoher Kompetenz dort |
+| **Themen** | Wirtschaft, Migration, Soziales, Klima, Sicherheit, Bildung, Digitalisierung, Wohnen. Wird ein Thema wichtiger, profitieren Parteien mit hoher Kompetenz dort |
 | **Ereignisse** | Jede Woche eine Eilmeldung (Hochwasser, Bahnstreik, Spendenaffäre …) mit Entscheidungen |
 | **Elefantenrunde** | In Woche 7: drei Fragen, drei Strategien |
 | **Wahlabend** | 630 Sitze, 5-%-Hürde, Sainte-Laguë, Koalitionsbildung (Brandmauer zur AfD, kein Union-Linke-Bündnis) |

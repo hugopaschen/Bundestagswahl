@@ -11,18 +11,20 @@
     { id: 'klima', name: 'Klima & Energie', icon: '🌱' },
     { id: 'sicherheit', name: 'Innere Sicherheit', icon: '🛡️' },
     { id: 'bildung', name: 'Bildung', icon: '🎓' },
-    { id: 'digitales', name: 'Digitalisierung', icon: '💻' }
+    { id: 'digitales', name: 'Digitalisierung', icon: '💻' },
+    { id: 'wohnen', name: 'Wohnen & Mieten', icon: '🏠' }
   ];
 
   // Wie wichtig ist ein Thema den Wählerinnen und Wählern zu Beginn (Summe = 1)?
   var SALIENCE0 = {
-    wirtschaft: 0.25,
-    migration: 0.2,
-    soziales: 0.16,
-    klima: 0.12,
-    sicherheit: 0.12,
-    bildung: 0.08,
-    digitales: 0.07
+    wirtschaft: 0.23,
+    migration: 0.19,
+    soziales: 0.15,
+    klima: 0.11,
+    sicherheit: 0.11,
+    bildung: 0.07,
+    digitales: 0.06,
+    wohnen: 0.08
   };
 
   // Spielbare Parteien. "competence" = zugeschriebene Kompetenz je Thema (0–100).
@@ -32,63 +34,63 @@
       budget: 30, goal: 32,
       goalText: 'Stärkste Kraft werden und über 32 % holen',
       desc: 'Die Volkspartei der Mitte. Stark bei Wirtschaft und Sicherheit, großes Budget.',
-      competence: { wirtschaft: 70, migration: 55, soziales: 40, klima: 35, sicherheit: 65, bildung: 50, digitales: 45 },
+      competence: { wirtschaft: 70, migration: 55, soziales: 40, klima: 35, sicherheit: 65, bildung: 50, digitales: 45, wohnen: 45 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
-      lean: { wirtschaft: 1, migration: 1, soziales: 0, klima: 0, sicherheit: 1, bildung: 1, digitales: 0 }
+      lean: { wirtschaft: 1, migration: 1, soziales: 0, klima: 0, sicherheit: 1, bildung: 1, digitales: 0, wohnen: 1 }
     },
     {
       id: 'afd', short: 'AfD', name: 'AfD',
       budget: 15, goal: 25,
       goalText: 'Über 25 % der Zweitstimmen holen',
       desc: 'Rechtspopulistische Oppositionspartei, besonders stark im Osten. Kein anderer Partner will koalieren.',
-      competence: { wirtschaft: 35, migration: 75, soziales: 35, klima: 15, sicherheit: 55, bildung: 25, digitales: 20 },
+      competence: { wirtschaft: 35, migration: 75, soziales: 35, klima: 15, sicherheit: 55, bildung: 25, digitales: 20, wohnen: 25 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
-      lean: { wirtschaft: 1, migration: 1, soziales: 0, klima: 1, sicherheit: 1, bildung: 1, digitales: 0 }
+      lean: { wirtschaft: 1, migration: 1, soziales: 0, klima: 1, sicherheit: 1, bildung: 1, digitales: 0, wohnen: 1 }
     },
     {
       id: 'spd', short: 'SPD', name: 'SPD',
       budget: 20, goal: 20,
       goalText: 'Wieder über 20 % kommen',
       desc: 'Die traditionsreiche Sozialdemokratie. Stark bei Sozialem und Rente.',
-      competence: { wirtschaft: 45, migration: 30, soziales: 70, klima: 45, sicherheit: 40, bildung: 50, digitales: 35 },
+      competence: { wirtschaft: 45, migration: 30, soziales: 70, klima: 45, sicherheit: 40, bildung: 50, digitales: 35, wohnen: 55 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
-      lean: { wirtschaft: 0, migration: 0, soziales: -1, klima: 0, sicherheit: 0, bildung: -1, digitales: 0 }
+      lean: { wirtschaft: 0, migration: 0, soziales: -1, klima: 0, sicherheit: 0, bildung: -1, digitales: 0, wohnen: 0 }
     },
     {
       id: 'gruene', short: 'Grüne', name: 'Bündnis 90/Die Grünen',
       budget: 12, goal: 15,
       goalText: 'Über 15 % holen',
       desc: 'Die Ökopartei mit Hochburgen in den Großstädten. Unschlagbar beim Klima.',
-      competence: { wirtschaft: 35, migration: 25, soziales: 40, klima: 85, sicherheit: 25, bildung: 50, digitales: 45 },
+      competence: { wirtschaft: 35, migration: 25, soziales: 40, klima: 85, sicherheit: 25, bildung: 50, digitales: 45, wohnen: 40 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
-      lean: { wirtschaft: 0, migration: -1, soziales: -1, klima: -1, sicherheit: -1, bildung: -1, digitales: -1 }
+      lean: { wirtschaft: 0, migration: -1, soziales: -1, klima: -1, sicherheit: -1, bildung: -1, digitales: -1, wohnen: 0 }
     },
     {
       id: 'linke', short: 'Linke', name: 'Die Linke',
       budget: 6, goal: 10,
       goalText: 'Zweistellig werden (über 10 %)',
       desc: 'Linke Oppositionspartei mit junger Basis. Stark bei Mieten, Preisen und sozialer Gerechtigkeit.',
-      competence: { wirtschaft: 25, migration: 25, soziales: 75, klima: 40, sicherheit: 15, bildung: 40, digitales: 25 },
+      competence: { wirtschaft: 25, migration: 25, soziales: 75, klima: 40, sicherheit: 15, bildung: 40, digitales: 25, wohnen: 75 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
-      lean: { wirtschaft: -1, migration: -1, soziales: -1, klima: -1, sicherheit: -1, bildung: -1, digitales: -1 }
+      lean: { wirtschaft: -1, migration: -1, soziales: -1, klima: -1, sicherheit: -1, bildung: -1, digitales: -1, wohnen: -1 }
     },
     {
       id: 'bsw', short: 'BSW', name: 'Bündnis Sahra Wagenknecht',
       budget: 5, goal: 5,
       goalText: 'Die 5-%-Hürde knacken',
       desc: 'Junge Partei, 2025 knapp an der Hürde gescheitert. Kleines Budget, viel zu gewinnen.',
-      competence: { wirtschaft: 35, migration: 55, soziales: 55, klima: 20, sicherheit: 35, bildung: 30, digitales: 20 },
+      competence: { wirtschaft: 35, migration: 55, soziales: 55, klima: 20, sicherheit: 35, bildung: 30, digitales: 20, wohnen: 40 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
-      lean: { wirtschaft: -1, migration: 1, soziales: -1, klima: 1, sicherheit: 0, bildung: 0, digitales: 0 }
+      lean: { wirtschaft: -1, migration: 1, soziales: -1, klima: 1, sicherheit: 0, bildung: 0, digitales: 0, wohnen: 0 }
     },
     {
       id: 'fdp', short: 'FDP', name: 'FDP',
       budget: 8, goal: 5,
       goalText: 'Zurück in den Bundestag (über 5 %)',
       desc: 'Die Liberalen kämpfen um den Wiedereinzug. Stark bei Wirtschaft und Digitalisierung.',
-      competence: { wirtschaft: 60, migration: 30, soziales: 20, klima: 25, sicherheit: 30, bildung: 50, digitales: 70 },
+      competence: { wirtschaft: 60, migration: 30, soziales: 20, klima: 25, sicherheit: 30, bildung: 50, digitales: 70, wohnen: 40 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
-      lean: { wirtschaft: 1, migration: 0, soziales: 1, klima: 1, sicherheit: -1, bildung: 1, digitales: 1 }
+      lean: { wirtschaft: 1, migration: 0, soziales: 1, klima: 1, sicherheit: -1, bildung: 1, digitales: 1, wohnen: 1 }
     }
   ];
 
@@ -147,7 +149,7 @@
       { lean: 1, label: 'Strikte Begrenzung', desc: 'Zurückweisungen an den Grenzen, Leistungen für Asylbewerber kürzen.', pop: 0.3, east: 0.5, cost: 1 }
     ],
     soziales: [
-      { lean: -1, label: 'Mindestlohn 15 €, Rentenniveau 53 %', desc: 'Höhere Löhne und Renten, Mietendeckel bundesweit.', pop: 0.5, east: 0.3, cost: 2 },
+      { lean: -1, label: 'Mindestlohn 15 €, Rentenniveau 53 %', desc: 'Höhere Löhne und Renten, mehr Geld für Pflege und Familien.', pop: 0.5, east: 0.3, cost: 2 },
       { lean: 0, label: 'Rentenniveau 48 % sichern', desc: 'Stabile Renten, Bürgergeld reformieren, Pflege stärken.', pop: 0.3, east: 0, cost: 1 },
       { lean: 1, label: 'Sozialstaat verschlanken, Aktienrente', desc: 'Mehr Eigenvorsorge, Leistungen zielgenauer, Anreize zur Arbeit.', pop: -0.2, east: -0.2, cost: 0 }
     ],
@@ -170,12 +172,17 @@
       { lean: -1, label: 'Datenschutz und Open Source', desc: 'Freie Software in Behörden, Recht auf Verschlüsselung.', pop: 0.0, east: 0, cost: 1 },
       { lean: 0, label: 'Digitale Verwaltung bis 2030', desc: 'Jeder Behördengang online, Glasfaser für alle Regionen.', pop: 0.3, east: 0.1, cost: 1 },
       { lean: 1, label: 'Digitalministerium und KI-Offensive', desc: 'Eigenes Ministerium, Regeln lockern, Start-ups fördern.', pop: 0.2, east: 0, cost: 1 }
+    ],
+    wohnen: [
+      { lean: -1, label: 'Mietendeckel und Vergesellschaftung', desc: 'Mieten bundesweit einfrieren, große Wohnungskonzerne in öffentliche Hand.', pop: 0.3, east: 0.2, cost: 1 },
+      { lean: 0, label: 'Mietpreisbremse und sozialer Wohnungsbau', desc: 'Mietpreisbremse verlängern, 100.000 Sozialwohnungen pro Jahr fördern.', pop: 0.4, east: 0, cost: 1 },
+      { lean: 1, label: 'Bauen, bauen, bauen', desc: 'Bauvorschriften entrümpeln, Grunderwerbsteuer senken, Eigentum fördern.', pop: 0.2, east: 0, cost: 1 }
     ]
   };
 
   var PROGRAM_RULES = {
     coreCount: 2,        // Anzahl Kernthemen
-    budget: 9,           // Finanzierungsrahmen in Punkten
+    budget: 10,          // Finanzierungsrahmen in Punkten
     slogans: [
       'Zukunft. Jetzt.',
       'Anpacken statt abwarten',

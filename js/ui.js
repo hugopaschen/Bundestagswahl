@@ -23,7 +23,8 @@
     klima: 'Wie erreichen wir die Klimaziele, ohne die Menschen zu überfordern?',
     sicherheit: 'Viele fühlen sich nicht mehr sicher. Was tun Sie dagegen?',
     bildung: 'Unsere Schulen fallen zurück. Was wollen Sie ändern?',
-    digitales: 'Warum ist Deutschland bei der Digitalisierung so langsam?'
+    digitales: 'Warum ist Deutschland bei der Digitalisierung so langsam?',
+    wohnen: 'Viele finden keine bezahlbare Wohnung mehr. Was tun Sie gegen steigende Mieten?'
   };
 
   let g = null;

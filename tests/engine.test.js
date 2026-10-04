@@ -117,3 +117,15 @@ test('Alte Spielstände ohne Wahlprogramm lassen sich laden', () => {
   assert.ok(loaded.program && loaded.competence);
   assert.ok(E.performAction(loaded, 'presse', { topic: 'digitales' }).ok);
 });
+
+test('Spielstände ohne das Thema Wohnen werden ergänzt', () => {
+  const g = JSON.parse(E.serialize(E.newGame('spd', 'Test', 4)));
+  delete g.salience.wohnen;
+  delete g.program.positions.wohnen;
+  delete g.competence.wohnen;
+  const loaded = E.deserialize(JSON.stringify(g));
+  assert.ok(Math.abs(sum(loaded.salience) - 1) < 1e-9);
+  assert.ok(Number.isInteger(loaded.program.positions.wohnen));
+  assert.ok(Number.isFinite(E.nationalShares(loaded).spd));
+  assert.ok(E.performAction(loaded, 'presse', { topic: 'wohnen' }).ok);
+});
