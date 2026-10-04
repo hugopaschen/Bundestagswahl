@@ -76,7 +76,8 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
 .pos { color: var(--good); }
 .neg { color: var(--bad); }
 
-.screen { max-width: 1280px; margin: 0 auto; padding: 16px; }
+/* Vollbild: die Bildschirme nutzen die ganze Breite, nur mit seitlichem Rand */
+.screen { max-width: none; margin: 0; padding: 16px clamp(16px, 2.5vw, 40px); }
 
 .card {
   background: var(--surface);
@@ -111,7 +112,7 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
 .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: .75rem; font-weight: 700; color: var(--accent); margin: 0 0 .4rem; }
 .lead { max-width: 640px; margin: 0 auto; color: var(--text-2); font-size: 1.05rem; }
 
-.setup, .howto { max-width: 980px; margin: 0 auto 16px; }
+.setup, .howto { max-width: none; margin: 0 0 16px; }
 .resume { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--surface-2); border-radius: 10px; margin-bottom: 16px; }
 .resume p { margin: 0; }
 .field { display: block; margin-bottom: 20px; }
@@ -120,7 +121,7 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
   width: 100%; max-width: 420px; font: inherit; padding: .6rem .8rem;
   border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
 }
-.party-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.party-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 12px; }
 .party-option {
   text-align: left; font: inherit; color: inherit; cursor: pointer;
   border: 2px solid var(--border); border-radius: 12px; background: var(--surface);
@@ -177,7 +178,7 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
 }
 
 /* Karte */
-.map svg { width: 100%; height: auto; display: block; max-width: 420px; margin: 0 auto; }
+.map svg { width: 100%; height: auto; display: block; max-width: 560px; margin: 0 auto; }
 .tile { cursor: pointer; }
 .tile rect { stroke: var(--surface); stroke-width: 3; transition: opacity .2s; }
 .tile.selected rect { stroke: var(--accent); stroke-width: 4; }
@@ -269,7 +270,7 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
 @media (max-width: 860px) { .election-grid { grid-template-columns: 1fr; } }
 .result-bars { display: flex; align-items: flex-end; gap: 8px; height: 240px; position: relative; padding-top: 24px; border-bottom: 1px solid var(--border); }
 .result-bars .col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; position: relative; min-width: 0; }
-.result-bars .rbar { width: 100%; max-width: 56px; border-radius: 4px 4px 0 0; height: 0; transition: height 1.4s cubic-bezier(.2,.8,.2,1); position: relative; }
+.result-bars .rbar { width: 100%; max-width: 110px; border-radius: 4px 4px 0 0; height: 0; transition: height 1.4s cubic-bezier(.2,.8,.2,1); position: relative; }
 .result-bars .rval { font-weight: 800; font-variant-numeric: tabular-nums; font-size: .9rem; margin-bottom: 4px; }
 .result-labels .rdiff { display: block; font-size: .72rem; font-weight: 500; font-variant-numeric: tabular-nums; }
 .result-bars .rhurdle { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--muted); }
@@ -291,7 +292,7 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
 .outcome h2 { font-size: 1.6rem; }
 
 /* ---------- Wahlprogramm (Wahlflyer) ---------- */
-.program-screen { max-width: 920px; padding-bottom: 120px; }
+.program-screen { max-width: 1000px; margin: 0 auto; padding-bottom: 120px; }
 .flyer-intro { text-align: center; color: var(--text-2); margin: 8px auto 16px; max-width: 620px; }
 .flyer-intro .eyebrow { display: block; }
 

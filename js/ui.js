@@ -235,8 +235,9 @@
   }
 
   function renderChart() {
-    const W = 320;
-    const H = 170;
+    // Breite an den Platz anpassen, damit Beschriftungen bei Vollbild nicht mitwachsen.
+    const W = Math.max(300, Math.round($('poll-chart').clientWidth || 320));
+    const H = Math.round(Math.min(260, Math.max(170, W * 0.42)));
     const L = 26;
     const R = 8;
     const T = 8;
@@ -808,6 +809,12 @@
     $('btn-start').disabled = true;
     renderStart();
     show('start');
+  });
+
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { if (g && !$('screen-game').hidden) renderChart(); }, 150);
   });
 
   renderStart();
