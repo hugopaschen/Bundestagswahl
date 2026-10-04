@@ -20,7 +20,7 @@
   --c-gruene: #3f8f29;  --on-gruene: #ffffff;
   --c-linke: #be3075;   --on-linke: #ffffff;
   --c-bsw: #e8821e;     --on-bsw: #1b1b1b;
-  --c-fdp: #f2d500;     --on-fdp: #1b1b1b;
+  --c-fdp: #ffe000;     --on-fdp: #032d67;
   --c-sonstige: #a3a19b; --on-sonstige: #1b1b1b;
 }
 
@@ -469,7 +469,6 @@ h2 .flyer-hint { margin: 0; }
 .flyer[data-party] .flyer-section h2,
 .flyer[data-party] .fp-title,
 .flyer[data-party] .fp-ballot-call { font-family: var(--fl-head-font); }
-.flyer[data-party="fdp"] .fp-ballot-call { color: #ffed00; }
 
 /* CDU/CSU: Anthrazit, Türkis, Schwarz-Rot-Gold-Linie */
 .flyer[data-party="union"] {
@@ -559,23 +558,66 @@ h2 .flyer-hint { margin: 0; }
 .flyer[data-party="bsw"] .flyer-candidate { color: #fbbf5a; }
 .flyer[data-party="bsw"] .fp-check { background: #f39200; }
 
-/* FDP: Schwarz-Weiß mit gelben Textfeldern, Magenta als Akzent */
+/* FDP: nach Corporate Design Guideline (Stand 24.07.2026)
+   Gelb #FFE000, Dunkelblau #032D67, Hellblau #00A7E7; Public Sans; Logo frei auf der Fläche;
+   hellblauer Balken als Gestaltungselement (Länge des ersten Wortes, Höhe ca. 1/3 Logohöhe). */
 .flyer[data-party="fdp"] {
-  --fl-head: #141414; --fl-head-ink: #ffffff;
-  --fl-accent: #ffed00; --fl-accent-ink: #141414;
-  --fl-logo-bg: #ffed00; --fl-logo-ink: #141414;
-  --fl-hl: #ffed00; --fl-hl-ink: #141414;
-  --fl-head-font: "Montserrat", system-ui, sans-serif;
+  --fl-paper: #ffe000;
+  --fl-head: #ffe000; --fl-head-ink: #032d67;
+  --fl-accent: #032d67; --fl-accent-ink: #ffe000;
+  --fl-logo-bg: transparent; --fl-logo-ink: #032d67;
+  --fl-head-font: "Public Sans", system-ui, sans-serif;
+  --fl-font: "Public Sans", system-ui, sans-serif;
+  --text: #032d67; --text-2: #1f3f73; --muted: #2c4a78; --border: rgba(3, 45, 103, .2);
 }
-.flyer[data-party="fdp"] .flyer-head { padding-bottom: 40px; }
-.flyer[data-party="fdp"] .flyer-head::after {
-  left: 0; right: 0; bottom: 0; height: 8px; transform: none;
-  background: linear-gradient(90deg, #ffed00 0 33.33%, #009ee0 33.33% 66.66%, #e5007d 66.66%);
+.flyer[data-party="fdp"] .flyer-head { padding: 24px 28px 30px; }
+.flyer[data-party="fdp"] .flyer-head::before,
+.flyer[data-party="fdp"] .flyer-head::after { display: none; }
+.flyer[data-party="fdp"] .flyer-brand { flex-direction: row-reverse; justify-content: flex-start; align-items: flex-start; }
+.flyer[data-party="fdp"] .flyer-logo {
+  transform: none; padding: 0; border-radius: 0; font-size: 2.6rem; font-weight: 900;
+  letter-spacing: -.04em; line-height: .8;
 }
-.flyer[data-party="fdp"] .flyer-head::before { display: none; }
-.flyer[data-party="fdp"] .flyer-logo { transform: none; border-radius: 0; }
-.flyer[data-party="fdp"] .flyer-slogan { line-height: 1.15; }
-.flyer[data-party="fdp"] .flyer-candidate { display: inline-block; background: #e5007d; color: #ffffff; padding: 4px 10px; opacity: 1; }
+.flyer[data-party="fdp"] .flyer-date { text-transform: none; letter-spacing: 0; font-weight: 800; font-size: .8rem; line-height: 1.2; padding-top: 2px; }
+.flyer[data-party="fdp"] .flyer-date strong { font-weight: 800; }
+.flyer[data-party="fdp"] .flyer-slogan {
+  text-transform: none; font-weight: 900; letter-spacing: -.03em; line-height: .95; margin-top: 46px;
+}
+.flyer[data-party="fdp"] .flyer-slogan > span { padding: 0; }
+.flyer[data-party="fdp"] .flyer-slogan .fw { position: relative; display: inline-block; }
+.flyer[data-party="fdp"] .flyer-slogan .fw::before {
+  content: ""; position: absolute; left: 0; right: 0; top: -.48em; height: .26em; background: #00a7e7;
+}
+.flyer[data-party="fdp"] .flyer-candidate { color: #00a7e7; font-weight: 800; opacity: 1; margin-top: 10px; }
+.flyer[data-party="fdp"] .flyer-section { border-bottom: 2px solid rgba(3, 45, 103, .15); }
+.flyer[data-party="fdp"] .flyer-section h2 { font-weight: 900; letter-spacing: -.03em; }
+.flyer[data-party="fdp"] .flyer-num { border-radius: 4px; }
+.flyer[data-party="fdp"] .option { border-color: transparent; }
+.flyer[data-party="fdp"] .option:has(input:checked) { border-color: #032d67; box-shadow: none; }
+
+/* Programmteil im Stil der blauen Postkarte, Abschluss als gelber Aufruf mit blauem Button */
+.flyer[data-party="fdp"] .flyer-program { background: #032d67; color: #ffffff; --border: rgba(255, 255, 255, .18); }
+.flyer[data-party="fdp"] .fp-title {
+  position: relative; color: #ffe000; text-transform: none; font-weight: 900; letter-spacing: -.03em;
+  font-size: 2rem; padding-top: 18px;
+}
+.flyer[data-party="fdp"] .fp-title::before { content: ""; position: absolute; left: 0; top: 0; width: 3.6em; height: .3em; background: #00a7e7; }
+.flyer[data-party="fdp"] .fp-sub { color: #00a7e7; font-weight: 800; }
+.flyer[data-party="fdp"] .fp-core-item { background: rgba(255, 255, 255, .07); color: #ffffff; border-top: 6px solid #00a7e7; border-radius: 4px; }
+.flyer[data-party="fdp"] .fp-core-item .fp-label { color: #ffe000; font-weight: 900; letter-spacing: -.02em; }
+.flyer[data-party="fdp"] .fp-core-item .fp-topic { color: #00a7e7; opacity: 1; font-weight: 700; }
+.flyer[data-party="fdp"] .fp-check { background: #00a7e7; color: #032d67; border-radius: 2px; }
+.flyer[data-party="fdp"] .fp-list .fp-topic { color: #00a7e7; }
+.flyer[data-party="fdp"] .fp-list .fp-label { color: #ffffff; }
+.flyer[data-party="fdp"] .fp-stamp.solid, .flyer[data-party="fdp"] .fp-stamp.ok { color: #ffe000; }
+.flyer[data-party="fdp"] .fp-stamp.over { color: #ff8f80; }
+.flyer[data-party="fdp"] .fp-ballot { background: #ffe000; color: #032d67; }
+.flyer[data-party="fdp"] .fp-ballot-call { text-transform: none; font-weight: 900; letter-spacing: -.03em; }
+.flyer[data-party="fdp"] .fp-ballot-box { background: #032d67; color: #ffe000; border: 0; border-radius: 10px; padding: 10px 16px; }
+.flyer[data-party="fdp"] .fp-cross { border-color: #ffe000; }
+.flyer[data-party="fdp"] .fp-cross::before, .flyer[data-party="fdp"] .fp-cross::after { background: #00a7e7; }
+.flyer.mini[data-party="fdp"] .flyer-logo { font-size: 1.6rem; }
+.flyer.mini[data-party="fdp"] .flyer-slogan { margin-top: 26px; }
 
 .flyer.mini[data-party] .flyer-head { padding-bottom: 30px; }
 .flyer.mini[data-party="gruene"] .flyer-slogan { font-size: 1.8rem; }

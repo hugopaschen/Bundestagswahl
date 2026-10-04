@@ -628,6 +628,12 @@
 
   const DEFAULT_CANDIDATE = 'Unsere Spitzenkandidatin';
 
+  // Slogan mit markiertem ersten Wort (für Gestaltungselemente wie den FDP-Balken).
+  function sloganHtml(text) {
+    const m = String(text).match(/^(\S+)(.*)$/s);
+    return '<span>' + (m ? '<span class="fw">' + esc(m[1]) + '</span>' + esc(m[2]) : esc(text)) + '</span>';
+  }
+
   function candidateLine(name) {
     name = String(name || '').trim();
     return name && name !== DEFAULT_CANDIDATE ? 'Mit ' + name + ' für Deutschland' : 'Für ein Deutschland, das mehr kann';
@@ -667,7 +673,7 @@
     const fx = coreReady ? E.programEffects(chosenParty, draft) : null;
 
     // Flyer
-    $('flyer-slogan').innerHTML = '<span>' + esc(String(draft.slogan || '').trim() || 'Euer Slogan') + '</span>';
+    $('flyer-slogan').innerHTML = sloganHtml(String(draft.slogan || '').trim() || 'Euer Slogan');
     $('flyer-program').innerHTML = flyerProgramHtml(chosenParty, draft, fx && fx.finance);
 
     // Aktionsleiste
@@ -712,7 +718,7 @@
     $('program-view').innerHTML =
       '<article class="flyer mini" data-party="' + g.party + '" style="--pc:' + col(g.party) + ';--pon:' + onCol(g.party) + '">' +
       '<header class="flyer-head"><div class="flyer-brand"><span class="flyer-logo">' + esc(p.flyerLogo) + '</span></div>' +
-      '<p class="flyer-slogan"><span>' + esc(g.program.slogan) + '</span></p>' +
+      '<p class="flyer-slogan">' + sloganHtml(g.program.slogan) + '</p>' +
       '<p class="flyer-candidate">' + esc(candidateLine(g.candidate)) + '</p></header>' +
       '<section class="flyer-program">' + flyerProgramHtml(g.party, g.program, g.finance) + '</section></article>';
   }
