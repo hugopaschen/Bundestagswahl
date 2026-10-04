@@ -632,6 +632,7 @@
   // Text-Logo der Partei; die CDU bekommt zusätzlich den angedeuteten Bogen.
   function logoHtml(partyId) {
     const p = E.party(partyId);
+    if (partyId === 'afd') return '<span class="lang">Alternative<small>für</small>Deutschland</span><span class="pfeil" aria-hidden="true"></span>';
     if (partyId === 'spd') return '<span class="word">SPD</span><span class="claim">Soziale<br>Politik für<br>Dich.</span>';
     return (partyId === 'union' ? '<span class="bogen" aria-hidden="true"><i></i><i></i><i></i></span>' : '') + esc(p.flyerLogo);
   }
@@ -639,7 +640,8 @@
   // Störer (nur bei Parteien, deren Design einen vorsieht).
   const STOERER = {
     union: '<span>Beide</span><span class="dark">Stimmen</span><span>CDU</span>',
-    spd: '<span>Am Wahltag</span><span class="b">SPD</span><span class="b">wählen!</span>'
+    spd: '<span>Am Wahltag</span><span class="b">SPD</span><span class="b">wählen!</span>',
+    afd: '<span class="x">✘</span><span>Am Wahlsonntag AfD wählen!</span>'
   };
 
   // Slogan mit markiertem ersten Wort (für Gestaltungselemente wie den FDP-Balken).

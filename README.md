@@ -17,7 +17,7 @@ Der Spielstand wird automatisch im Browser gespeichert (localStorage).
 | Element | Beschreibung |
 |---|---|
 | **Parteien** | CDU/CSU, AfD, SPD, Grüne, Linke, BSW, FDP – mit unterschiedlichem Budget, eigenen Themenstärken und Wahlziel |
-| **Wahlprogramm** | Gestaltet als Wahlflyer im Stil der jeweiligen Partei (angelehnt an die Kampagnen 2025, FDP nach ihrer Corporate Design Guideline vom 24.07.2026, CDU nach ihrem Corporate Design Manual vom Mai 2026, SPD nach ihrem CD-Manual vom August 2024; ohne Originallogos), an dessen Ende das gewählte Programm steht. Nach der Parteiwahl: Slogan, 2 Kernthemen und je Thema eine von drei Positionen. Populäre Positionen bringen Stimmen, Abweichungen von der Parteilinie kosten Stammwähler und Glaubwürdigkeit, und das Programm muss in den Finanzierungsrahmen (10 💶) passen |
+| **Wahlprogramm** | Gestaltet als Wahlflyer im Stil der jeweiligen Partei (angelehnt an die Kampagnen 2025, FDP nach ihrer Corporate Design Guideline vom 24.07.2026, CDU nach ihrem Corporate Design Manual vom Mai 2026, SPD nach ihrem CD-Manual vom August 2024, AfD nach ihrem Corporate Design vom 14.03.2017; ohne Originallogos), an dessen Ende das gewählte Programm steht. Nach der Parteiwahl: Slogan, 2 Kernthemen und je Thema eine von drei Positionen. Populäre Positionen bringen Stimmen, Abweichungen von der Parteilinie kosten Stammwähler und Glaubwürdigkeit, und das Programm muss in den Finanzierungsrahmen (10 💶) passen |
 | **Wochen** | 8 Wochen Wahlkampf, je 3 Aktionen pro Woche |
 | **Regionale Aktionen** | Kundgebung, Plakatkampagne, Haustürwahlkampf – wirken im gewählten Bundesland |
 | **Bundesweite Aktionen** | TV-Spot, Social Media (Shitstorm-Risiko), Pressekonferenz (setzt Themen), Talkshow |

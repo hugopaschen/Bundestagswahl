@@ -593,19 +593,100 @@ h2 .flyer-hint { margin: 0; }
 .flyer.mini[data-party="union"] .flyer-logo { font-size: 1.1rem; }
 .flyer.mini[data-party="union"] .flyer-head::before { width: 120px; height: 84px; }
 
-/* AfD: Hellblau mit Verlauf, Rot als Akzent, kräftige Versalien */
+/* AfD: nach Corporate Design (Stand 14.03.2017), Bildschirmwerte
+   Hellblau #009ee0 (Primär), Dunkelblau #003366 (Botschafts-Bereich), Rot #e10000 (Störer, Auszeichnungen);
+   Head-/Sublines Oswald Bold/Regular (Bildschirm-Ersatz für Futura), Fließtext Open Sans; linksbündig;
+   Absender-Bereich als hellblauer Schwung mit Logo rechtsbündig; Blick-Störer rot, 4–7° gedreht. */
 .flyer[data-party="afd"] {
-  --fl-head: linear-gradient(160deg, #0a86cc 0%, #00a0e3 55%, #45bff0 100%); --fl-head-ink: #ffffff;
-  --fl-accent: #0087cf; --fl-accent-ink: #ffffff;
-  --fl-logo-bg: #ffffff; --fl-logo-ink: #0087cf;
+  --fl-paper: #ffffff;
+  --fl-head: #003366; --fl-head-ink: #ffffff;
+  --fl-accent: #003366; --fl-accent-ink: #ffffff;
+  --fl-logo-bg: transparent; --fl-logo-ink: #ffffff;
   --fl-head-font: "Oswald", "Arial Narrow", system-ui, sans-serif;
+  --fl-font: "Open Sans", system-ui, sans-serif;
+  --text: #003366; --text-2: #1f4a73; --muted: #5a7591; --border: #cfe6f3; --surface-2: #f2f9fd;
 }
-.flyer[data-party="afd"] .flyer-head::before {
-  top: auto; bottom: 70px; right: 24px; width: 150px; height: 22px; border-radius: 0;
-  background: #e30613; opacity: 1; transform: skewX(-25deg) rotate(-10deg);
+.flyer[data-party="afd"] .flyer-head { display: flex; flex-direction: column; padding: 30px 28px 18px; }
+.flyer[data-party="afd"] .flyer-head::before { display: none; }
+/* Absender-Bereich: hellblauer Schwung */
+.flyer[data-party="afd"] .flyer-head::after {
+  left: 0; right: 0; bottom: 0; height: 128px; transform: none; background: #009ee0;
+  clip-path: ellipse(125% 100% at 100% 100%);
 }
-.flyer[data-party="afd"] .flyer-logo { transform: none; border-radius: 3px; }
-.flyer[data-party="afd"] .flyer-slogan { letter-spacing: 0; }
+.flyer[data-party="afd"] .flyer-slogan > span { padding: 0; }
+.flyer[data-party="afd"] .flyer-brand { order: 4; position: relative; z-index: 1; margin-top: 62px; align-items: flex-end; flex-direction: row-reverse; }
+.flyer[data-party="afd"] .flyer-date {
+  text-align: left; text-transform: none; letter-spacing: 0; font-family: "Oswald", sans-serif; font-weight: 400; font-size: 1.05rem;
+}
+.flyer[data-party="afd"] .flyer-date strong { font-weight: 400; }
+.flyer[data-party="afd"] .flyer-logo {
+  display: inline-flex; align-items: flex-end; gap: 4px; padding: 0; transform: none; border-radius: 0;
+}
+.flyer[data-party="afd"] .flyer-logo .lang {
+  display: flex; flex-direction: column; font-family: "Open Sans", system-ui, sans-serif; font-weight: 800;
+  font-size: 1.25rem; line-height: 1; letter-spacing: -.02em; text-align: right;
+}
+.flyer[data-party="afd"] .flyer-logo .lang small { font-size: .62em; font-weight: 700; }
+.flyer[data-party="afd"] .flyer-logo .pfeil { width: 44px; height: 40px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 90'%3E%3Cpath d='M6 80 C40 96 74 76 84 34' stroke='%23e10000' stroke-width='15' fill='none'/%3E%3Cpath d='M66 36 L94 4 L100 46 Z' fill='%23e10000'/%3E%3C/svg%3E") no-repeat center / contain; margin-bottom: 8px; }
+/* Botschafts-Bereich: Headline so groß wie möglich, Subline bündig darunter */
+.flyer[data-party="afd"] .flyer-slogan {
+  order: 2; margin: 0; text-transform: none; font-weight: 700; letter-spacing: -.01em; line-height: 1.02;
+  font-size: clamp(2.4rem, 8.6vw, 4.4rem); padding-right: 0;
+}
+.flyer[data-party="afd"] .flyer-candidate {
+  order: 3; margin-top: .55em; font-family: "Oswald", sans-serif; font-weight: 400; font-size: 1.3rem; opacity: 1; letter-spacing: 0;
+}
+/* Blick-Störer: längliches rotes Rechteck, weiße Schrift, Wahlkreuz, gegen den Uhrzeigersinn gedreht */
+.flyer[data-party="afd"] .flyer-stoerer {
+  order: 1; display: inline-flex; align-self: flex-start; align-items: center; gap: .5em; margin-bottom: 22px;
+  background: #e10000; color: #ffffff; padding: .35em .9em; transform: rotate(-5deg);
+  font-family: "Oswald", sans-serif; font-weight: 700; font-size: 1.1rem; letter-spacing: 0;
+}
+.flyer[data-party="afd"] .flyer-stoerer .x { font-size: 1.3em; line-height: 1; }
+
+/* Abschnitte */
+.flyer[data-party="afd"] .flyer-section h2 { font-family: "Oswald", sans-serif; font-weight: 700; color: #003366; letter-spacing: 0; }
+.flyer[data-party="afd"] .flyer-section h2 .flyer-hint { font-family: "Open Sans", sans-serif; }
+.flyer[data-party="afd"] .flyer-num { background: #009ee0; border-radius: 0; }
+.flyer[data-party="afd"] .topic-set legend { font-family: "Oswald", sans-serif; font-weight: 700; font-size: 1.05rem; }
+.flyer[data-party="afd"] .topic-set:has([data-core]:not([hidden])) { border-left-color: #009ee0; }
+.flyer[data-party="afd"] .topic-set .core-mark { background: #e10000; border-radius: 0; transform: rotate(-5deg); display: inline-block; }
+.flyer[data-party="afd"] .option { border-radius: 0; border-color: #cfe6f3; }
+.flyer[data-party="afd"] .option .olabel { font-family: "Oswald", sans-serif; font-weight: 700; font-size: .98rem; letter-spacing: 0; }
+.flyer[data-party="afd"] .option:has(input:checked) { border-color: #009ee0; box-shadow: inset 0 0 0 1px #009ee0; }
+.flyer[data-party="afd"] .option:has(input:checked)::after { background: #009ee0; border-radius: 0; }
+.flyer[data-party="afd"] .chip { border-radius: 0; }
+
+/* Programmteil im Botschafts-Bereich, Abschluss im Absender-Bereich */
+.flyer[data-party="afd"] .flyer-program { background: #003366; color: #ffffff; --border: rgba(255, 255, 255, .2); }
+.flyer[data-party="afd"] .fp-title { font-family: "Oswald", sans-serif; text-transform: none; font-weight: 700; font-size: 2.3rem; letter-spacing: -.01em; color: #ffffff; }
+.flyer[data-party="afd"] .fp-sub { font-family: "Oswald", sans-serif; font-size: 1.1rem; color: #ffffff; }
+.flyer[data-party="afd"] .fp-core-item { background: #009ee0; color: #ffffff; border-radius: 0; }
+.flyer[data-party="afd"] .fp-core-item .fp-label { font-family: "Oswald", sans-serif; font-weight: 700; font-size: 1.2rem; letter-spacing: 0; }
+.flyer[data-party="afd"] .fp-core-item .fp-topic { opacity: 1; }
+.flyer[data-party="afd"] .fp-check { background: #009ee0; border-radius: 0; }
+.flyer[data-party="afd"] .fp-list .fp-topic { color: #8fd3f2; }
+.flyer[data-party="afd"] .fp-list .fp-label { font-family: "Oswald", sans-serif; font-weight: 400; font-size: 1.02rem; color: #ffffff; }
+.flyer[data-party="afd"] .fp-stamp { background: #ffffff; border-radius: 0; transform: rotate(-5deg); }
+.flyer[data-party="afd"] .fp-stamp.solid, .flyer[data-party="afd"] .fp-stamp.ok { color: #003366; }
+.flyer[data-party="afd"] .fp-stamp.over { color: #e10000; }
+.flyer[data-party="afd"] .fp-ballot {
+  position: relative; background: #009ee0; color: #ffffff; padding-top: 34px; margin-top: 30px;
+  clip-path: ellipse(160% 100% at 100% 100%);
+}
+.flyer[data-party="afd"] .fp-ballot-call {
+  background: #e10000; padding: .3em .8em; transform: rotate(-5deg); text-transform: none;
+  font-family: "Oswald", sans-serif; font-weight: 700; font-size: 1.3rem; letter-spacing: 0;
+}
+.flyer[data-party="afd"] .fp-ballot-call small { font-weight: 400; letter-spacing: 0; text-transform: none; font-size: .8rem; }
+.flyer[data-party="afd"] .fp-ballot-box { border-radius: 0; border-color: #003366; color: #003366; font-family: "Oswald", sans-serif; font-weight: 700; }
+.flyer[data-party="afd"] .fp-cross::before, .flyer[data-party="afd"] .fp-cross::after { background: #e10000; }
+.flyer.mini[data-party="afd"] .flyer-slogan { font-size: 1.7rem; }
+.flyer.mini[data-party="afd"] .flyer-candidate { font-size: .95rem; }
+.flyer.mini[data-party="afd"] .flyer-head::after { height: 74px; }
+.flyer.mini[data-party="afd"] .flyer-brand { margin-top: 22px; }
+.flyer.mini[data-party="afd"] .flyer-logo .lang { font-size: .85rem; }
+.flyer.mini[data-party="afd"] .flyer-logo .pfeil { width: 28px; height: 26px; margin-bottom: 4px; }
 
 /* SPD: nach CD-Manual (Stand August 2024)
    Rot #E3000F als Markenraum (größter Farbanteil), Weiß, Schwarz nur als Akzent;
