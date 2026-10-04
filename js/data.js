@@ -32,49 +32,63 @@
       budget: 30, goal: 32,
       goalText: 'Stärkste Kraft werden und über 32 % holen',
       desc: 'Die Volkspartei der Mitte. Stark bei Wirtschaft und Sicherheit, großes Budget.',
-      competence: { wirtschaft: 70, migration: 55, soziales: 40, klima: 35, sicherheit: 65, bildung: 50, digitales: 45 }
+      competence: { wirtschaft: 70, migration: 55, soziales: 40, klima: 35, sicherheit: 65, bildung: 50, digitales: 45 },
+      // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
+      lean: { wirtschaft: 1, migration: 1, soziales: 0, klima: 0, sicherheit: 1, bildung: 1, digitales: 0 }
     },
     {
       id: 'afd', short: 'AfD', name: 'AfD',
       budget: 15, goal: 25,
       goalText: 'Über 25 % der Zweitstimmen holen',
       desc: 'Rechtspopulistische Oppositionspartei, besonders stark im Osten. Kein anderer Partner will koalieren.',
-      competence: { wirtschaft: 35, migration: 75, soziales: 35, klima: 15, sicherheit: 55, bildung: 25, digitales: 20 }
+      competence: { wirtschaft: 35, migration: 75, soziales: 35, klima: 15, sicherheit: 55, bildung: 25, digitales: 20 },
+      // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
+      lean: { wirtschaft: 1, migration: 1, soziales: 0, klima: 1, sicherheit: 1, bildung: 1, digitales: 0 }
     },
     {
       id: 'spd', short: 'SPD', name: 'SPD',
       budget: 20, goal: 20,
       goalText: 'Wieder über 20 % kommen',
       desc: 'Die traditionsreiche Sozialdemokratie. Stark bei Sozialem und Rente.',
-      competence: { wirtschaft: 45, migration: 30, soziales: 70, klima: 45, sicherheit: 40, bildung: 50, digitales: 35 }
+      competence: { wirtschaft: 45, migration: 30, soziales: 70, klima: 45, sicherheit: 40, bildung: 50, digitales: 35 },
+      // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
+      lean: { wirtschaft: 0, migration: 0, soziales: -1, klima: 0, sicherheit: 0, bildung: -1, digitales: 0 }
     },
     {
       id: 'gruene', short: 'Grüne', name: 'Bündnis 90/Die Grünen',
       budget: 12, goal: 15,
       goalText: 'Über 15 % holen',
       desc: 'Die Ökopartei mit Hochburgen in den Großstädten. Unschlagbar beim Klima.',
-      competence: { wirtschaft: 35, migration: 25, soziales: 40, klima: 85, sicherheit: 25, bildung: 50, digitales: 45 }
+      competence: { wirtschaft: 35, migration: 25, soziales: 40, klima: 85, sicherheit: 25, bildung: 50, digitales: 45 },
+      // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
+      lean: { wirtschaft: 0, migration: -1, soziales: -1, klima: -1, sicherheit: -1, bildung: -1, digitales: -1 }
     },
     {
       id: 'linke', short: 'Linke', name: 'Die Linke',
       budget: 6, goal: 10,
       goalText: 'Zweistellig werden (über 10 %)',
       desc: 'Linke Oppositionspartei mit junger Basis. Stark bei Mieten, Preisen und sozialer Gerechtigkeit.',
-      competence: { wirtschaft: 25, migration: 25, soziales: 75, klima: 40, sicherheit: 15, bildung: 40, digitales: 25 }
+      competence: { wirtschaft: 25, migration: 25, soziales: 75, klima: 40, sicherheit: 15, bildung: 40, digitales: 25 },
+      // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
+      lean: { wirtschaft: -1, migration: -1, soziales: -1, klima: -1, sicherheit: -1, bildung: -1, digitales: -1 }
     },
     {
       id: 'bsw', short: 'BSW', name: 'Bündnis Sahra Wagenknecht',
       budget: 5, goal: 5,
       goalText: 'Die 5-%-Hürde knacken',
       desc: 'Junge Partei, 2025 knapp an der Hürde gescheitert. Kleines Budget, viel zu gewinnen.',
-      competence: { wirtschaft: 35, migration: 55, soziales: 55, klima: 20, sicherheit: 35, bildung: 30, digitales: 20 }
+      competence: { wirtschaft: 35, migration: 55, soziales: 55, klima: 20, sicherheit: 35, bildung: 30, digitales: 20 },
+      // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
+      lean: { wirtschaft: -1, migration: 1, soziales: -1, klima: 1, sicherheit: 0, bildung: 0, digitales: 0 }
     },
     {
       id: 'fdp', short: 'FDP', name: 'FDP',
       budget: 8, goal: 5,
       goalText: 'Zurück in den Bundestag (über 5 %)',
       desc: 'Die Liberalen kämpfen um den Wiedereinzug. Stark bei Wirtschaft und Digitalisierung.',
-      competence: { wirtschaft: 60, migration: 30, soziales: 20, klima: 25, sicherheit: 30, bildung: 50, digitales: 70 }
+      competence: { wirtschaft: 60, migration: 30, soziales: 20, klima: 25, sicherheit: 30, bildung: 50, digitales: 70 },
+      // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
+      lean: { wirtschaft: 1, migration: 0, soziales: 1, klima: 1, sicherheit: -1, bildung: 1, digitales: 1 }
     }
   ];
 
@@ -117,6 +131,61 @@
       result: { union: 37.2, afd: 19.0, spd: 11.6, gruene: 12.0, linke: 5.7, bsw: 3.4, fdp: 4.2 } }
   ];
 
+
+  // Wahlprogramm: drei Positionen je Thema.
+  // lean = Richtung (-1/0/1), pop = Zustimmung bundesweit, east = zusätzliche Zustimmung im Osten,
+  // cost = Belastung des Haushalts (Finanzierungspunkte).
+  var PROGRAM = {
+    wirtschaft: [
+      { lean: -1, label: 'Vermögensteuer und Investitionsoffensive', desc: 'Superreiche stärker besteuern, Milliarden in Bahn, Brücken und Schulen.', pop: 0.2, east: 0.1, cost: 1 },
+      { lean: 0, label: 'Schuldenbremse reformieren, gezielt investieren', desc: 'Investitionen erleichtern, Mittelstand entlasten, Haushalt solide halten.', pop: 0.3, east: 0, cost: 1 },
+      { lean: 1, label: 'Steuern senken, Bürokratie abbauen', desc: 'Unternehmenssteuern runter, Soli abschaffen, Regeln entrümpeln.', pop: 0.3, east: 0, cost: 2 }
+    ],
+    migration: [
+      { lean: -1, label: 'Humanitäre Aufnahme, schnellere Einbürgerung', desc: 'Sichere Fluchtwege, Arbeitsverbote abschaffen, Integration fördern.', pop: -0.3, east: -0.3, cost: 1 },
+      { lean: 0, label: 'Steuern und ordnen', desc: 'Fachkräfteeinwanderung erleichtern, Rückführungen konsequent umsetzen.', pop: 0.4, east: 0, cost: 1 },
+      { lean: 1, label: 'Strikte Begrenzung', desc: 'Zurückweisungen an den Grenzen, Leistungen für Asylbewerber kürzen.', pop: 0.3, east: 0.5, cost: 1 }
+    ],
+    soziales: [
+      { lean: -1, label: 'Mindestlohn 15 €, Rentenniveau 53 %', desc: 'Höhere Löhne und Renten, Mietendeckel bundesweit.', pop: 0.5, east: 0.3, cost: 2 },
+      { lean: 0, label: 'Rentenniveau 48 % sichern', desc: 'Stabile Renten, Bürgergeld reformieren, Pflege stärken.', pop: 0.3, east: 0, cost: 1 },
+      { lean: 1, label: 'Sozialstaat verschlanken, Aktienrente', desc: 'Mehr Eigenvorsorge, Leistungen zielgenauer, Anreize zur Arbeit.', pop: -0.2, east: -0.2, cost: 0 }
+    ],
+    klima: [
+      { lean: -1, label: 'Klimaneutral bis 2040', desc: 'Kohleausstieg 2030, Tempolimit, massiver Ausbau der Erneuerbaren.', pop: -0.1, east: -0.4, cost: 2 },
+      { lean: 0, label: 'Klimaziele halten, Klimageld auszahlen', desc: 'CO₂-Preis sozial ausgleichen, Netze und Speicher ausbauen.', pop: 0.3, east: 0, cost: 1 },
+      { lean: 1, label: 'Technologieoffenheit statt Verbote', desc: 'Verbrenner-Aus stoppen, Heizungsgesetz zurücknehmen.', pop: 0.2, east: 0.3, cost: 0 }
+    ],
+    sicherheit: [
+      { lean: -1, label: 'Prävention und Bürgerrechte', desc: 'Sozialarbeit statt Überwachung, unabhängige Polizeibeauftragte.', pop: -0.1, east: -0.1, cost: 1 },
+      { lean: 0, label: 'Mehr Polizei, bessere Ausstattung', desc: '10.000 zusätzliche Stellen, moderne Technik, schnellere Verfahren.', pop: 0.4, east: 0, cost: 1 },
+      { lean: 1, label: 'Härtere Strafen, mehr Überwachung', desc: 'Videoüberwachung ausbauen, Strafrahmen verschärfen.', pop: 0.2, east: 0.2, cost: 1 }
+    ],
+    bildung: [
+      { lean: -1, label: 'Gemeinschaftsschule und kostenlose Kitas', desc: 'Längeres gemeinsames Lernen, gebührenfreie Bildung von Anfang an.', pop: 0.2, east: 0.1, cost: 2 },
+      { lean: 0, label: 'Schulen sanieren, Digitalpakt 2.0', desc: 'Bundesprogramm für marode Schulen und digitale Ausstattung.', pop: 0.3, east: 0, cost: 1 },
+      { lean: 1, label: 'Leistung zählt', desc: 'Gymnasium stärken, verbindliche Deutschtests vor der Einschulung.', pop: 0.1, east: 0, cost: 0 }
+    ],
+    digitales: [
+      { lean: -1, label: 'Datenschutz und Open Source', desc: 'Freie Software in Behörden, Recht auf Verschlüsselung.', pop: 0.0, east: 0, cost: 1 },
+      { lean: 0, label: 'Digitale Verwaltung bis 2030', desc: 'Jeder Behördengang online, Glasfaser für alle Regionen.', pop: 0.3, east: 0.1, cost: 1 },
+      { lean: 1, label: 'Digitalministerium und KI-Offensive', desc: 'Eigenes Ministerium, Regeln lockern, Start-ups fördern.', pop: 0.2, east: 0, cost: 1 }
+    ]
+  };
+
+  var PROGRAM_RULES = {
+    coreCount: 2,        // Anzahl Kernthemen
+    budget: 9,           // Finanzierungsrahmen in Punkten
+    slogans: [
+      'Zukunft. Jetzt.',
+      'Anpacken statt abwarten',
+      'Für alle, nicht für wenige',
+      'Sicher. Stark. Gerecht.',
+      'Mut für Deutschland',
+      'Das Land kann mehr'
+    ]
+  };
+
   var SEATS = 630;
 
   var data = {
@@ -125,7 +194,9 @@
     PARTIES: PARTIES,
     OTHER: OTHER,
     STATES: STATES,
-    SEATS: SEATS
+    SEATS: SEATS,
+    PROGRAM: PROGRAM,
+    PROGRAM_RULES: PROGRAM_RULES
   };
 
   if (typeof module !== 'undefined' && module.exports) {

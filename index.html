@@ -33,13 +33,15 @@
       <div id="party-list" class="party-list" role="radiogroup" aria-label="Partei"></div>
 
       <div class="setup-actions">
-        <button type="button" class="btn primary big" id="btn-start" disabled>Wahlkampf starten</button>
+        <button type="button" class="btn primary big" id="btn-start" disabled>Weiter zum Wahlprogramm</button>
       </div>
     </section>
 
     <section class="card howto">
       <h2>So funktioniert's</h2>
       <ul>
+        <li><strong>Wahlprogramm:</strong> Lege Slogan, zwei Kernthemen und deine Positionen fest. Populäre Positionen
+          bringen Stimmen, wer von der Parteilinie abweicht, verprellt Stammwähler. Und alles muss finanzierbar bleiben.</li>
         <li><strong>3 Aktionen pro Woche:</strong> Kundgebungen, Plakate und Haustürwahlkampf wirken in einem Bundesland,
           TV-Spots, Social Media, Pressekonferenzen und Talkshows bundesweit.</li>
         <li><strong>Themen setzen:</strong> Jede Partei hat Stärken. Wird dein Thema wichtiger, steigen deine Werte.</li>
@@ -49,6 +51,47 @@
       </ul>
       <p class="muted small">Ausgangswerte angelehnt an die Bundestagswahl 2025, stark vereinfacht. Alle Ereignisse sind fiktiv.</p>
     </section>
+  </main>
+
+  <!-- Wahlprogramm -->
+  <main id="screen-program" class="screen" hidden>
+    <header class="hero compact">
+      <p class="eyebrow" id="program-party"></p>
+      <h1>Euer Wahlprogramm</h1>
+      <p class="lead">Bevor es losgeht, beschließt der Parteitag das Programm. Bleibt ihr auf Parteilinie oder wagt ihr neue Positionen?</p>
+    </header>
+    <div class="program-layout">
+      <div class="program-main">
+        <section class="card">
+          <h2>1. Wahlslogan</h2>
+          <div id="slogan-chips" class="chips"></div>
+          <label class="field">
+            <span>Oder eigenen Slogan schreiben</span>
+            <input id="slogan" type="text" maxlength="60" autocomplete="off">
+          </label>
+        </section>
+        <section class="card">
+          <h2>2. Kernthemen <span id="core-count" class="muted small"></span></h2>
+          <p class="muted small">Wähle zwei Themen, mit denen ihr in den Wahlkampf zieht: mehr Kompetenz, mehr Aufmerksamkeit,
+            und TV-Spots, Social Media, Pressekonferenzen und Talkshows zu diesen Themen wirken 25&nbsp;% stärker.</p>
+          <div id="core-chips" class="chips"></div>
+        </section>
+        <section class="card">
+          <h2>3. Positionen</h2>
+          <p class="muted small">„Parteilinie“ ist die traditionelle Haltung deiner Partei. Jede Abweichung kostet Stammwähler und Glaubwürdigkeit
+            beim Thema, kann aber neue Wählergruppen erschließen. 💶 = Belastung für den Haushalt.</p>
+          <div id="positions" class="positions"></div>
+        </section>
+      </div>
+      <aside class="card program-summary">
+        <div id="program-summary"></div>
+        <div class="program-buttons">
+          <button type="button" class="btn primary big" id="btn-program-confirm">Programm beschließen &amp; Wahlkampf starten</button>
+          <button type="button" class="btn" id="btn-program-reset">Auf Parteilinie zurücksetzen</button>
+          <button type="button" class="btn" id="btn-program-back">Zurück zur Parteiwahl</button>
+        </div>
+      </aside>
+    </div>
   </main>
 
   <!-- Spielbildschirm -->
@@ -99,6 +142,11 @@
         <div id="poll-chart" class="chart"></div>
         <h3>Was die Wähler bewegt</h3>
         <div id="agenda" class="agenda"></div>
+      </section>
+
+      <section class="card program-card">
+        <h2>Euer Wahlprogramm</h2>
+        <div id="program-view"></div>
       </section>
 
       <section class="card news-card">

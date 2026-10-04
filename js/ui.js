@@ -31,6 +31,7 @@
   let selState = 'NW';
   let selTopic = null;
   let toastTimer = null;
+  let draft = null; // Wahlprogramm in Bearbeitung
 
   // ---------- Speichern ----------
 
@@ -48,7 +49,7 @@
   }
 
   function show(screen) {
-    ['start', 'game', 'election'].forEach(s => { $('screen-' + s).hidden = s !== screen; });
+    ['start', 'program', 'game', 'election'].forEach(s => { $('screen-' + s).hidden = s !== screen; });
     window.scrollTo(0, 0);
   }
 
@@ -102,7 +103,7 @@
     badge.style.setProperty('--pc', col(me));
     badge.style.setProperty('--pon', onCol(me));
     $('candidate-name').textContent = g.candidate;
-    $('party-goal').textContent = 'Ziel: ' + p.goalText;
+    $('party-goal').textContent = '„' + g.program.slogan + '“ · Ziel: ' + p.goalText;
     $('stat-week').textContent = g.week + ' / ' + g.maxWeeks;
     $('stat-money').textContent = money(g.money);
     $('stat-ap').textContent = '●'.repeat(g.ap) + '○'.repeat(g.apMax - g.ap);
@@ -121,6 +122,7 @@
     renderChart();
     renderAgenda();
     renderNews();
+    renderProgramView();
   }
 
   function renderMap() {
@@ -170,7 +172,7 @@
   }
 
   function renderTopics() {
-    const comp = E.party(g.party).competence;
+    const comp = E.competenceOf(g, g.party);
     const list = $('topic-list');
     list.innerHTML = '';
     D.TOPICS.forEach(t => {
@@ -178,7 +180,7 @@
       b.type = 'button';
       b.className = 'chip';
       b.setAttribute('aria-pressed', String(t.id === selTopic));
-      b.textContent = t.icon + ' ' + t.name + (comp[t.id] >= 60 ? ' ★' : '');
+      b.textContent = t.icon + ' ' + t.name + (comp[t.id] >= 60 ? ' ★' : '') + (E.isCore(g, t.id) ? ' 🎯' : '');
       b.title = 'Kompetenz deiner Partei: ' + comp[t.id] + '/100';
       b.addEventListener('click', () => { selTopic = t.id; renderGame(); });
       list.appendChild(b);
@@ -287,7 +289,7 @@
   }
 
   function renderAgenda() {
-    const comp = E.party(g.party).competence;
+    const comp = E.competenceOf(g, g.party);
     const ids = D.TOPICS.slice().sort((a, b) => g.salience[b.id] - g.salience[a.id]);
     const max = g.salience[ids[0].id];
     let html = '';
@@ -373,7 +375,8 @@
     const topic = d.topics[d.round];
     openModal('Elefantenrunde · Frage ' + (d.round + 1) + ' von ' + d.topics.length, E.topicById(topic).icon + ' ' + E.topicById(topic).name,
       duelScoreHtml(d.results) + '<p class="duel-question">„' + esc(QUESTIONS[topic]) + '“</p>' +
-      '<p class="muted small">Kompetenz deiner Partei bei diesem Thema: ' + E.party(g.party).competence[topic] + '/100</p>',
+      '<p class="muted small">Kompetenz deiner Partei bei diesem Thema: ' + E.competenceOf(g, g.party)[topic] + '/100' +
+        (E.isCore(g, topic) ? ' · 🎯 Kernthema eures Programms' : '') + '</p>',
       E.DUEL_STYLES.map(s => ({
         label: s.name,
         hint: s.desc,
@@ -522,6 +525,143 @@
     card.hidden = false;
   }
 
+  // ---------- Wahlprogramm ----------
+
+  function enterProgram() {
+    draft = E.defaultProgram(chosenParty);
+    show('program');
+    renderProgram();
+  }
+
+  function renderProgram() {
+    const p = E.party(chosenParty);
+    $('program-party').textContent = p.name + ' · Programmparteitag';
+    $('slogan').value = draft.slogan;
+
+    const sc = $('slogan-chips');
+    sc.innerHTML = '';
+    D.PROGRAM_RULES.slogans.forEach(sl => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.textContent = sl;
+      b.setAttribute('aria-pressed', String(sl === draft.slogan));
+      b.addEventListener('click', () => {
+        draft.slogan = sl;
+        $('slogan').value = sl;
+        sc.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', String(c === b)));
+        renderProgramSummary();
+      });
+      sc.appendChild(b);
+    });
+
+    renderCoreChips();
+
+    $('positions').innerHTML = D.TOPICS.map(t => {
+      const options = D.PROGRAM[t.id].map((o, i) => {
+        const dev = Math.abs(o.lean - p.lean[t.id]);
+        const tags = [];
+        if (dev === 0) tags.push('<span class="tag line">Parteilinie</span>');
+        else tags.push('<span class="tag dev">' + (dev === 2 ? 'Starke Abweichung' : 'Abweichung') + '</span>');
+        if (o.pop >= 0.3) tags.push('<span class="tag">👍 populär</span>');
+        if (o.pop < 0) tags.push('<span class="tag">👎 unpopulär</span>');
+        if (o.east >= 0.3) tags.push('<span class="tag">im Osten beliebt</span>');
+        if (o.east <= -0.3) tags.push('<span class="tag">im Osten unbeliebt</span>');
+        tags.push('<span class="tag">' + (o.cost ? '💶'.repeat(o.cost) : 'kostenneutral') + '</span>');
+        return '<label class="option"><input type="radio" name="pos-' + t.id + '" value="' + i + '"' +
+          (draft.positions[t.id] === i ? ' checked' : '') + '>' +
+          '<span class="olabel">' + esc(o.label) + '</span><span class="odesc">' + esc(o.desc) + '</span>' +
+          '<span class="ometa">' + tags.join('') + '</span></label>';
+      }).join('');
+      return '<fieldset class="topic-set"><legend>' + t.icon + ' ' + esc(t.name) +
+        '<span class="core-mark" data-core="' + t.id + '" hidden>🎯 Kernthema</span></legend>' +
+        '<div class="options">' + options + '</div></fieldset>';
+    }).join('');
+    $('positions').querySelectorAll('input[type=radio]').forEach(inp => {
+      inp.addEventListener('change', () => {
+        draft.positions[inp.name.slice(4)] = Number(inp.value);
+        renderProgramSummary();
+      });
+    });
+    updateCoreMarks();
+    renderProgramSummary();
+  }
+
+  function renderCoreChips() {
+    const p = E.party(chosenParty);
+    const max = D.PROGRAM_RULES.coreCount;
+    const box = $('core-chips');
+    box.innerHTML = '';
+    D.TOPICS.forEach(t => {
+      const on = draft.core.indexOf(t.id) !== -1;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.setAttribute('aria-pressed', String(on));
+      b.disabled = !on && draft.core.length >= max;
+      b.textContent = t.icon + ' ' + t.name + ' · ' + p.competence[t.id];
+      b.title = 'Kompetenz deiner Partei: ' + p.competence[t.id] + '/100';
+      b.addEventListener('click', () => {
+        if (on) draft.core = draft.core.filter(c => c !== t.id);
+        else if (draft.core.length < max) draft.core.push(t.id);
+        renderCoreChips();
+        updateCoreMarks();
+        renderProgramSummary();
+        const again = Array.from(box.querySelectorAll('.chip')).find(c => c.textContent === b.textContent);
+        if (again) again.focus();
+      });
+      box.appendChild(b);
+    });
+    $('core-count').textContent = '(' + draft.core.length + '/' + max + ' gewählt)';
+  }
+
+  function updateCoreMarks() {
+    document.querySelectorAll('[data-core]').forEach(el => { el.hidden = draft.core.indexOf(el.dataset.core) === -1; });
+  }
+
+  function renderProgramSummary() {
+    const p = E.party(chosenParty);
+    const errors = E.validateProgram(draft);
+    let html = '<h2>Bilanz des Programms</h2>';
+    if (draft.core.length === D.PROGRAM_RULES.coreCount) {
+      const fx = E.programEffects(chosenParty, draft);
+      const over = fx.cost > fx.budget;
+      const financeText = {
+        over: '⚠️ Nicht gegenfinanziert: kostet Stimmen und Wirtschaftskompetenz.',
+        ok: 'Im Rahmen des Haushalts.',
+        solid: '✅ Solide finanziert: +5 Wirtschaftskompetenz.'
+      }[fx.finance];
+      html += '<div class="summary-row"><span>Finanzierung</span><strong>' + fx.cost + ' / ' + fx.budget + ' 💶</strong></div>' +
+        '<div class="meter' + (over ? ' over' : '') + '"><div style="width:' + Math.min(100, fx.cost / fx.budget * 100) + '%"></div></div>' +
+        '<p class="small ' + (over ? 'neg' : 'muted') + '" style="margin:0 0 10px">' + financeText + '</p>';
+      if (!errors.length) {
+        const tmp = E.newGame(chosenParty, '', 1, draft);
+        const now = E.nationalShares(tmp)[chosenParty];
+        const d = now - tmp.startShares[chosenParty];
+        html += '<div class="summary-row"><span>Erste Umfrage (erwartet)</span><strong>' + pct(now) +
+          ' <span class="small ' + (d >= 0 ? 'pos' : 'neg') + '">' + signed(d) + '</span></strong></div>';
+      }
+      html += '<div class="summary-row"><span>Zusätzlich im Osten</span><strong class="' + (fx.east >= 0 ? 'pos' : 'neg') + '">' + signed(fx.east) + '</strong></div>';
+      html += '<h3>Kompetenz in den Augen der Wähler</h3><div class="comp-list">' + D.TOPICS.map(t => {
+        const d = fx.competence[t.id] - p.competence[t.id];
+        return '<span>' + t.icon + ' ' + esc(t.name) + (fx.details[t.id].core ? ' 🎯' : '') + '</span><span>' + fx.competence[t.id] + '</span>' +
+          '<span class="small ' + (d > 0 ? 'pos' : d < 0 ? 'neg' : 'muted') + '">' + (d ? (d > 0 ? '+' : '−') + Math.abs(d) : '±0') + '</span>';
+      }).join('') + '</div>';
+    }
+    if (errors.length) html += '<ul class="errors">' + errors.map(e => '<li>' + esc(e) + '</li>').join('') + '</ul>';
+    $('program-summary').innerHTML = html;
+    $('btn-program-confirm').disabled = errors.length > 0;
+  }
+
+  function renderProgramView() {
+    const pr = g.program;
+    const finance = { over: '⚠️ Nicht gegenfinanziert', ok: 'Im Haushaltsrahmen', solid: '✅ Solide finanziert' }[g.finance] || '';
+    $('program-view').innerHTML = '<div class="program-view"><p class="slogan">„' + esc(pr.slogan) + '“</p>' +
+      '<p class="small">🎯 Kernthemen: <strong>' + pr.core.map(t => esc(E.topicById(t).name)).join(', ') + '</strong> · ' + finance + '</p>' +
+      '<ul>' + D.TOPICS.map(t => '<li><span>' + t.icon + '</span><span>' + esc(D.PROGRAM[t.id][pr.positions[t.id]].label) + '</span></li>').join('') +
+      '</ul></div>';
+  }
+
   // ---------- Ereignis-Handler ----------
 
   function startGame(game) {
@@ -536,8 +676,27 @@
   }
 
   $('btn-start').addEventListener('click', () => {
-    if (!chosenParty) return;
-    startGame(E.newGame(chosenParty, $('candidate').value));
+    if (chosenParty) enterProgram();
+  });
+
+  $('slogan').addEventListener('input', () => {
+    draft.slogan = $('slogan').value;
+    $('slogan-chips').querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', String(c.textContent === draft.slogan)));
+    renderProgramSummary();
+  });
+
+  $('btn-program-reset').addEventListener('click', () => {
+    const slogan = draft.slogan;
+    draft = E.defaultProgram(chosenParty);
+    draft.slogan = slogan;
+    renderProgram();
+  });
+
+  $('btn-program-back').addEventListener('click', () => show('start'));
+
+  $('btn-program-confirm').addEventListener('click', () => {
+    if (E.validateProgram(draft).length) return;
+    startGame(E.newGame(chosenParty, $('candidate').value, undefined, draft));
     save();
   });
 

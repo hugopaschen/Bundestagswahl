@@ -61,3 +61,59 @@ test('Eine komplette Partie endet mit Wahlergebnis und Bewertung', () => {
     assert.deepStrictEqual(E.deserialize(E.serialize(g)), g);
   }
 });
+
+test('Wahlprogramm: Parteilinie ist gültig und verändert die Startwerte 2025 nicht', () => {
+  for (const p of D.PARTIES) {
+    const prog = E.defaultProgram(p.id);
+    assert.deepStrictEqual(E.validateProgram(prog), []);
+    const g = E.newGame(p.id, 'Test', 1, prog);
+    // Der Startpunkt (Ergebnis 2025) hängt nicht vom Programm ab.
+    const other = JSON.parse(JSON.stringify(prog));
+    D.TOPICS.forEach(t => { other.positions[t.id] = 1; });
+    const g2 = E.newGame(p.id, 'Test', 1, other);
+    assert.ok(Math.abs(g.startShares[p.id] - g2.startShares[p.id]) < 1e-9);
+    // Auf Parteilinie bleibt die Wirkung des Programms klein.
+    assert.ok(Math.abs(E.nationalShares(g)[p.id] - g.startShares[p.id]) < 1.5);
+    assert.ok(g.program.core.length === D.PROGRAM_RULES.coreCount);
+  }
+});
+
+test('Wahlprogramm: ungültige Programme werden abgelehnt', () => {
+  const prog = E.defaultProgram('spd');
+  assert.ok(E.validateProgram(Object.assign({}, prog, { core: ['klima'] })).length > 0);
+  assert.ok(E.validateProgram(Object.assign({}, prog, { core: ['klima', 'klima'] })).length > 0);
+  assert.ok(E.validateProgram(Object.assign({}, prog, { slogan: '  ' })).length > 0);
+  assert.ok(E.validateProgram(Object.assign({}, prog, { positions: Object.assign({}, prog.positions, { klima: 7 }) })).length > 0);
+  assert.throws(() => E.newGame('spd', 'Test', 1, Object.assign({}, prog, { core: [] })));
+});
+
+test('Wahlprogramm: Abweichung kostet Glaubwürdigkeit, Kernthemen steigern Kompetenz', () => {
+  const line = E.defaultProgram('gruene');
+  const base = E.programEffects('gruene', line);
+  const moved = JSON.parse(JSON.stringify(line));
+  moved.positions.klima = 2; // starke Abweichung beim Kernthema Klima
+  const fx = E.programEffects('gruene', moved);
+  assert.ok(fx.competence.klima < base.competence.klima);
+  assert.ok(fx.nat < base.nat);
+  assert.strictEqual(fx.details.klima.deviation, 2);
+  assert.ok(base.competence.klima > D.PARTIES.find(p => p.id === 'gruene').competence.klima, 'Kernthema-Bonus');
+});
+
+test('Wahlprogramm: teure Programme sind nicht gegenfinanziert', () => {
+  const prog = E.defaultProgram('linke');
+  D.TOPICS.forEach(t => { prog.positions[t.id] = D.PROGRAM[t.id].reduce((best, o, i, all) => (o.cost > all[best].cost ? i : best), 0); });
+  const fx = E.programEffects('linke', prog);
+  assert.ok(fx.cost > fx.budget);
+  assert.strictEqual(fx.finance, 'over');
+});
+
+test('Alte Spielstände ohne Wahlprogramm lassen sich laden', () => {
+  const g = E.newGame('fdp', 'Test', 3);
+  const old = JSON.parse(E.serialize(g));
+  old.version = 1;
+  delete old.program; delete old.competence; delete old.prog; delete old.finance;
+  const loaded = E.deserialize(JSON.stringify(old));
+  assert.strictEqual(loaded.version, 2);
+  assert.ok(loaded.program && loaded.competence);
+  assert.ok(E.performAction(loaded, 'presse', { topic: 'digitales' }).ok);
+});

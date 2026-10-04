@@ -48,10 +48,92 @@
 
   // ---------- Spielzustand ----------
 
-  function newGame(partyId, candidate, seed) {
+  // ---------- Wahlprogramm ----------
+
+  function defaultProgram(partyId) {
+    const p = party(partyId);
+    const positions = {};
+    TOPIC_IDS.forEach(t => { positions[t] = D.PROGRAM[t].findIndex(o => o.lean === p.lean[t]); });
+    const core = TOPIC_IDS.slice().sort((a, b) => p.competence[b] - p.competence[a]).slice(0, D.PROGRAM_RULES.coreCount);
+    return { slogan: D.PROGRAM_RULES.slogans[0], core, positions };
+  }
+
+  function validateProgram(prog) {
+    const errors = [];
+    if (!prog || typeof prog !== 'object') return ['Kein Wahlprogramm.'];
+    TOPIC_IDS.forEach(t => {
+      const i = prog.positions && prog.positions[t];
+      if (!Number.isInteger(i) || !D.PROGRAM[t][i]) errors.push('Position zum Thema ' + topicById(t).name + ' fehlt.');
+    });
+    const core = Array.isArray(prog.core) ? prog.core : [];
+    if (core.length !== D.PROGRAM_RULES.coreCount || new Set(core).size !== core.length || !core.every(t => topicById(t))) {
+      errors.push('Bitte genau ' + D.PROGRAM_RULES.coreCount + ' Kernthemen wählen.');
+    }
+    if (!String(prog.slogan || '').trim()) errors.push('Bitte einen Wahlslogan festlegen.');
+    return errors;
+  }
+
+  // Wirkung eines Programms im Vergleich zur traditionellen Parteilinie:
+  // Populäre Positionen bringen Stimmen, Abweichungen von der Linie kosten Stammwähler und Glaubwürdigkeit.
+  function programEffects(partyId, prog) {
+    const p = party(partyId);
+    const competence = Object.assign({}, p.competence);
+    const details = {};
+    let nat = 0;
+    let east = 0;
+    let cost = 0;
+    TOPIC_IDS.forEach(t => {
+      const opt = D.PROGRAM[t][prog.positions[t]];
+      const line = D.PROGRAM[t].find(o => o.lean === p.lean[t]);
+      const deviation = Math.abs(opt.lean - p.lean[t]);
+      const core = prog.core.indexOf(t) !== -1;
+      const dNat = (opt.pop - line.pop) - 0.7 * deviation;
+      const dEast = opt.east - line.east;
+      const dComp = -10 * deviation + (core ? 12 : 0);
+      competence[t] += dComp;
+      nat += dNat;
+      east += dEast;
+      cost += opt.cost;
+      details[t] = { deviation, nat: dNat, east: dEast, comp: dComp, core };
+    });
+    const budget = D.PROGRAM_RULES.budget;
+    let finance = 'ok';
+    if (cost > budget) {
+      finance = 'over';
+      nat -= 0.25 * (cost - budget);
+      competence.wirtschaft -= 4 * (cost - budget);
+    } else if (cost <= budget - 3) {
+      finance = 'solid';
+      competence.wirtschaft += 5;
+    }
+    TOPIC_IDS.forEach(t => { competence[t] = Math.max(5, Math.min(95, competence[t])); });
+    return { competence, nat, east, cost, budget, finance, details };
+  }
+
+  function applyProgram(g, prog) {
+    const fx = programEffects(g.party, prog);
+    g.program = { slogan: String(prog.slogan).trim().slice(0, 60), core: prog.core.slice(), positions: Object.assign({}, prog.positions) };
+    g.competence = fx.competence;
+    g.prog = { nat: fx.nat, east: fx.east };
+    g.finance = fx.finance;
+    g.program.core.forEach(t => changeSalience(g, t, 0.02));
+  }
+
+  function competenceOf(g, p) {
+    return p === g.party && g.competence ? g.competence : party(p).competence;
+  }
+
+  function isCore(g, topic) {
+    return !!(g.program && g.program.core.indexOf(topic) !== -1);
+  }
+
+  function newGame(partyId, candidate, seed, program) {
     if (!party(partyId)) throw new Error('Unbekannte Partei: ' + partyId);
+    program = program || defaultProgram(partyId);
+    const errors = validateProgram(program);
+    if (errors.length) throw new Error(errors.join(' '));
     const g = {
-      version: 1,
+      version: 2,
       party: partyId,
       candidate: (candidate || '').trim() || 'Unsere Spitzenkandidatin',
       week: 1,
@@ -78,9 +160,14 @@
       g.reg[s.id] = {};
       PARTY_IDS.forEach(p => { g.reg[s.id][p] = 0; });
     });
+    // Startpunkt ist das Ergebnis 2025, das Programm wirkt ab der ersten Umfrage.
     g.startShares = nationalShares(g);
     g.history.push({ week: 0, shares: g.startShares });
     addLog(g, 'start', 'Der Wahlkampf beginnt! Noch ' + MAX_WEEKS + ' Wochen bis zur Bundestagswahl.');
+    applyProgram(g, program);
+    const now = nationalShares(g)[partyId];
+    addLog(g, 'event', 'Wahlprogramm „' + g.program.slogan + '“ vorgestellt. Erste Umfrage: ' +
+      now.toFixed(1).replace('.', ',') + ' % (' + fmt(now - g.startShares[partyId]) + ').');
     return g;
   }
 
@@ -92,7 +179,7 @@
   // ---------- Umfragewerte ----------
 
   function issueEffect(g, p) {
-    const comp = party(p).competence;
+    const comp = competenceOf(g, p);
     let e = 0;
     TOPIC_IDS.forEach(t => {
       e += (g.salience[t] - D.SALIENCE0[t]) * (comp[t] - MEAN_COMPETENCE[t]) / 100;
@@ -106,7 +193,8 @@
     let other = 100;
     PARTY_IDS.forEach(p => {
       other -= st.result[p];
-      raw[p] = Math.max(0.2, st.result[p] + g.nat[p] + g.reg[stateId][p] + issueEffect(g, p));
+      const prog = p === g.party && g.prog ? g.prog.nat + (st.east ? g.prog.east : 0) : 0;
+      raw[p] = Math.max(0.2, st.result[p] + g.nat[p] + g.reg[stateId][p] + prog + issueEffect(g, p));
     });
     raw[D.OTHER.id] = Math.max(0.5, other);
     const sum = ALL_IDS.reduce((s, p) => s + raw[p], 0);
@@ -132,7 +220,7 @@
   // ---------- Hilfsfunktionen für Effekte ----------
 
   function compMod(g, topic) {
-    return (party(g.party).competence[topic] - 50) / 50;
+    return (competenceOf(g, g.party)[topic] - 50) / 50;
   }
 
   function changeSalience(g, topic, delta) {
@@ -207,7 +295,8 @@
     g.ap -= 1;
     g.money = Math.round((g.money - cost) * 100) / 100;
     const p = g.party;
-    const r = reach(g);
+    // Aktionen zu Kernthemen des Wahlprogramms wirken stärker.
+    const r = reach(g) * (action.scope === 'topic' && isCore(g, topic) ? 1.25 : 1);
     let text;
 
     switch (actionId) {
@@ -259,7 +348,7 @@
         break;
       }
       case 'talkshow': {
-        const comp = party(p).competence[topic];
+        const comp = competenceOf(g, p)[topic];
         if (rand(g) < 0.35 + 0.45 * comp / 100) {
           const d = 0.7 * wear(g, 'talkshow') * r;
           g.nat[p] += d;
@@ -472,6 +561,19 @@
         { label: 'Fair bleiben', hint: 'Kleiner Imagegewinn',
           apply: g => { g.nat[g.party] += 0.2; return 'Souverän (+0.2).'; } }
       ]
+    },
+    {
+      id: 'faktencheck', title: 'Faktencheck zum Wahlprogramm',
+      text: g => 'Ökonomen haben euer Wahlprogramm „' + g.program.slogan + '“ durchgerechnet. ' +
+        (g.finance === 'over' ? 'Ihr Urteil: Die Versprechen sind nicht gegenfinanziert.'
+          : g.finance === 'solid' ? 'Ihr Urteil: Solide gerechnet, sogar mit Spielraum.'
+            : 'Ihr Urteil: Ehrgeizig, aber machbar.'),
+      choices: [
+        { label: 'Offensiv verteidigen', hint: 'Wirkt je nach Finanzierung des Programms',
+          apply: g => { const d = { over: -0.8, ok: 0.2, solid: 0.6 }[g.finance] || 0; g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + '.'; } },
+        { label: 'Das Thema wechseln', hint: 'Begrenzt den Schaden',
+          apply: g => { const d = g.finance === 'over' ? -0.3 : 0; g.nat[g.party] += d; return d ? 'Ganz los werdet ihr die Debatte nicht (' + fmt(d) + ').' : 'Die Debatte verläuft im Sand.'; } }
+      ]
     }
   ];
 
@@ -524,7 +626,7 @@
   function duelAnswer(g, styleId) {
     if (!g.duel) return { ok: false, text: 'Kein TV-Duell aktiv.' };
     const topic = g.duel.topics[g.duel.round];
-    const comp = party(g.party).competence[topic] / 100;
+    const comp = competenceOf(g, g.party)[topic] / 100;
     let score;
     if (styleId === 'sachlich') score = 0.15 + comp * 0.8 + between(g, -0.15, 0.15);
     else if (styleId === 'angriff') score = between(g, 0.0, 1.05);
@@ -730,7 +832,15 @@
   function serialize(g) { return JSON.stringify(g); }
   function deserialize(json) {
     const g = JSON.parse(json);
-    if (!g || g.version !== 1 || !party(g.party)) throw new Error('Ungültiger Spielstand');
+    if (!g || !party(g.party) || (g.version !== 1 && g.version !== 2)) throw new Error('Ungültiger Spielstand');
+    if (g.version === 1) {
+      // Spielstände aus der Zeit vor dem Wahlprogramm: Parteilinie übernehmen, ohne Werte zu verändern.
+      g.program = defaultProgram(g.party);
+      g.competence = Object.assign({}, party(g.party).competence);
+      g.prog = { nat: 0, east: 0 };
+      g.finance = 'ok';
+      g.version = 2;
+    }
     return g;
   }
 
@@ -738,6 +848,7 @@
     MAX_WEEKS, AP_PER_WEEK, DUEL_WEEK, THRESHOLD, MAJORITY,
     ACTIONS, EVENTS, DUEL_STYLES,
     party, stateById, topicById, eventById, eventText,
+    defaultProgram, validateProgram, programEffects, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     actionCost, canAct, performAction,
     drawEvent, resolveEvent,
