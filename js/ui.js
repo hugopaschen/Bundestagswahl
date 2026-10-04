@@ -1,0 +1,573 @@
+/* Oberfläche: verbindet die Spiel-Engine mit dem DOM. */
+(function () {
+  const D = window.BTW_DATA;
+  const E = window.BTW_ENGINE;
+  const SAVE_KEY = 'btw-wahlkampf-save';
+
+  const $ = id => document.getElementById(id);
+  const col = p => 'var(--c-' + p + ')';
+  const onCol = p => 'var(--on-' + p + ')';
+  const num1 = x => x.toFixed(1).replace('.', ',');
+  const pct = x => num1(x) + ' %';
+  const signed = x => (x >= 0 ? '+' : '−') + num1(Math.abs(x));
+  const money = x => num1(x) + ' Mio. €';
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const ALL_IDS = D.PARTIES.map(p => p.id).concat([D.OTHER.id]);
+  const SPECTRUM = ['linke', 'gruene', 'spd', 'bsw', 'fdp', 'union', 'afd'];
+  const short = p => (p === D.OTHER.id ? D.OTHER.short : E.party(p).short);
+
+  const QUESTIONS = {
+    wirtschaft: 'Die Wirtschaft schwächelt. Wie wollen Sie Arbeitsplätze sichern?',
+    migration: 'Wie wollen Sie Migration steuern und Integration verbessern?',
+    soziales: 'Viele Menschen haben Angst vor Altersarmut. Was ist Ihr Plan für die Rente?',
+    klima: 'Wie erreichen wir die Klimaziele, ohne die Menschen zu überfordern?',
+    sicherheit: 'Viele fühlen sich nicht mehr sicher. Was tun Sie dagegen?',
+    bildung: 'Unsere Schulen fallen zurück. Was wollen Sie ändern?',
+    digitales: 'Warum ist Deutschland bei der Digitalisierung so langsam?'
+  };
+
+  let g = null;
+  let chosenParty = null;
+  let selState = 'NW';
+  let selTopic = null;
+  let toastTimer = null;
+
+  // ---------- Speichern ----------
+
+  function save() {
+    try { localStorage.setItem(SAVE_KEY, E.serialize(g)); } catch (e) { /* Speichern optional */ }
+  }
+  function loadSave() {
+    try {
+      const s = localStorage.getItem(SAVE_KEY);
+      return s ? E.deserialize(s) : null;
+    } catch (e) { return null; }
+  }
+  function clearSave() {
+    try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignorieren */ }
+  }
+
+  function show(screen) {
+    ['start', 'game', 'election'].forEach(s => { $('screen-' + s).hidden = s !== screen; });
+    window.scrollTo(0, 0);
+  }
+
+  function toast(text) {
+    const t = $('toast');
+    t.textContent = text;
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.hidden = true; }, 3500);
+  }
+
+  // ---------- Startbildschirm ----------
+
+  function renderStart() {
+    const list = $('party-list');
+    list.innerHTML = '';
+    const start = E.nationalShares(E.newGame('union', '', 1));
+    D.PARTIES.forEach(p => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'party-option';
+      btn.setAttribute('role', 'radio');
+      btn.setAttribute('aria-checked', String(p.id === chosenParty));
+      btn.style.setProperty('--pc', col(p.id));
+      const strengths = D.TOPICS.slice().sort((a, b) => p.competence[b.id] - p.competence[a.id]).slice(0, 2);
+      btn.innerHTML =
+        '<div class="row"><span class="pname">' + esc(p.name) + '</span><span class="pct">' + pct(start[p.id]) + '</span></div>' +
+        '<p>' + esc(p.desc) + '</p>' +
+        '<div class="strengths">' + strengths.map(t => '<span class="tag">' + t.icon + ' ' + esc(t.name) + '</span>').join('') +
+        '<span class="tag">💶 ' + p.budget + ' Mio. €</span></div>' +
+        '<p class="small"><strong>Ziel:</strong> ' + esc(p.goalText) + '</p>';
+      btn.addEventListener('click', () => {
+        chosenParty = p.id;
+        list.querySelectorAll('.party-option').forEach(b => b.setAttribute('aria-checked', String(b === btn)));
+        $('btn-start').disabled = false;
+      });
+      list.appendChild(btn);
+    });
+    $('resume').hidden = !loadSave();
+  }
+
+  // ---------- Spielbildschirm ----------
+
+  function renderGame() {
+    const shares = E.nationalShares(g);
+    const me = g.party;
+    const p = E.party(me);
+
+    const badge = $('party-badge');
+    badge.textContent = p.short;
+    badge.style.setProperty('--pc', col(me));
+    badge.style.setProperty('--pon', onCol(me));
+    $('candidate-name').textContent = g.candidate;
+    $('party-goal').textContent = 'Ziel: ' + p.goalText;
+    $('stat-week').textContent = g.week + ' / ' + g.maxWeeks;
+    $('stat-money').textContent = money(g.money);
+    $('stat-ap').textContent = '●'.repeat(g.ap) + '○'.repeat(g.apMax - g.ap);
+    $('stat-ap').setAttribute('aria-label', g.ap + ' von ' + g.apMax + ' Aktionen übrig');
+    const diff = shares[me] - g.startShares[me];
+    $('stat-poll').innerHTML = pct(shares[me]) + ' <span class="small ' + (diff >= 0 ? 'pos' : 'neg') + '">' + signed(diff) + '</span>';
+    $('week-bar').style.width = ((g.week - 1) / g.maxWeeks * 100) + '%';
+    $('btn-end-week').textContent = g.week >= g.maxWeeks ? 'Zur Wahl! 🗳️' : 'Woche beenden';
+    $('btn-end-week').disabled = !!(g.pendingEvent || g.duel || (g.week === E.DUEL_WEEK && !g.duelDone));
+
+    renderMap();
+    renderStateDetail();
+    renderTopics();
+    renderActions();
+    renderPollBars(shares);
+    renderChart();
+    renderAgenda();
+    renderNews();
+  }
+
+  function renderMap() {
+    const size = 72;
+    const gap = 4;
+    const cols = 5;
+    const rows = 5;
+    let svg = '<svg viewBox="0 0 ' + (cols * size) + ' ' + (rows * size) + '" role="group" aria-label="Kachelkarte der Bundesländer">';
+    D.STATES.forEach(st => {
+      const s = E.stateShares(g, st.id);
+      const lead = E.leader(s);
+      const x = st.x * size + gap / 2;
+      const y = st.y * size + gap / 2;
+      const w = size - gap;
+      const sel = st.id === selState ? ' selected' : '';
+      svg += '<g class="tile' + sel + '" data-state="' + st.id + '" tabindex="0" role="button" aria-pressed="' + (st.id === selState) + '" ' +
+        'aria-label="' + esc(st.name) + ': ' + E.party(lead).short + ' vorn, ihr ' + pct(s[g.party]) + '">' +
+        '<title>' + esc(st.name) + ' – ' + E.party(lead).short + ' vorn</title>' +
+        '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + w + '" rx="10" style="fill:' + col(lead) + '"></rect>' +
+        '<text x="' + (x + w / 2) + '" y="' + (y + 28) + '" text-anchor="middle" font-size="17" style="fill:' + onCol(lead) + '">' + st.id + '</text>' +
+        '<text x="' + (x + w / 2) + '" y="' + (y + 50) + '" text-anchor="middle" font-size="13" style="fill:' + onCol(lead) + '">' + num1(s[g.party]) + '</text>' +
+        '</g>';
+    });
+    svg += '</svg>';
+    const map = $('map');
+    map.innerHTML = svg;
+    map.querySelectorAll('.tile').forEach(t => {
+      const choose = () => { selState = t.dataset.state; renderGame(); };
+      t.addEventListener('click', choose);
+      t.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(); } });
+    });
+  }
+
+  function renderStateDetail() {
+    const st = E.stateById(selState);
+    const s = E.stateShares(g, st.id);
+    const ids = ALL_IDS.slice().sort((a, b) => s[b] - s[a]);
+    const max = Math.max.apply(null, ids.map(p => s[p]));
+    let html = '<h3>' + esc(st.name) + ' <span class="muted small">· ' + num1(st.voters) + ' Mio. Wahlberechtigte</span></h3><div class="mini-bars">';
+    ids.forEach(p => {
+      html += '<span' + (p === g.party ? ' style="font-weight:700"' : '') + '>' + short(p) + '</span>' +
+        '<div class="bar" style="width:' + (s[p] / max * 100) + '%;background:' + col(p) + '"></div>' +
+        '<span class="num">' + pct(s[p]) + '</span>';
+    });
+    $('state-detail').innerHTML = html + '</div>';
+    $('target-state').textContent = st.name;
+  }
+
+  function renderTopics() {
+    const comp = E.party(g.party).competence;
+    const list = $('topic-list');
+    list.innerHTML = '';
+    D.TOPICS.forEach(t => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.setAttribute('aria-pressed', String(t.id === selTopic));
+      b.textContent = t.icon + ' ' + t.name + (comp[t.id] >= 60 ? ' ★' : '');
+      b.title = 'Kompetenz deiner Partei: ' + comp[t.id] + '/100';
+      b.addEventListener('click', () => { selTopic = t.id; renderGame(); });
+      list.appendChild(b);
+    });
+  }
+
+  function renderActions() {
+    const list = $('action-list');
+    list.innerHTML = '';
+    E.ACTIONS.forEach(a => {
+      const cost = E.actionCost(a.id, selState);
+      let where = '';
+      if (a.scope === 'region') where = 'in ' + selState;
+      if (a.scope === 'topic') where = selTopic ? E.topicById(selTopic).name : 'Thema wählen';
+      const disabled = !E.canAct(g) || (a.scope === 'topic' && !selTopic) || g.money + 1e-9 < cost;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'action';
+      b.disabled = disabled;
+      b.innerHTML = '<span class="aname">' + a.icon + ' ' + esc(a.name) + '</span>' +
+        '<span class="adesc">' + esc(a.desc) + '</span>' +
+        '<span class="ameta">' + (cost ? money(cost) : 'kostenlos') + (where ? ' · ' + esc(where) : '') + '</span>';
+      b.addEventListener('click', () => {
+        const res = E.performAction(g, a.id, { state: selState, topic: selTopic });
+        $('feedback').textContent = res.text;
+        save();
+        renderGame();
+      });
+      list.appendChild(b);
+    });
+    const hint = 'Keine Aktionen mehr – Zeit, die Woche zu beenden.';
+    const fb = $('feedback');
+    if (g.phase === 'campaign' && g.ap === 0 && !fb.textContent.includes(hint)) {
+      fb.textContent += (fb.textContent ? ' ' : '') + hint;
+    }
+  }
+
+  function renderPollBars(shares) {
+    const ids = ALL_IDS.slice().sort((a, b) => (a === D.OTHER.id) - (b === D.OTHER.id) || shares[b] - shares[a]);
+    const scale = Math.max(35, Math.max.apply(null, ids.map(p => shares[p])) + 3);
+    let html = '';
+    ids.forEach(p => {
+      const d = p === D.OTHER.id ? null : shares[p] - g.startShares[p];
+      html += '<span class="label' + (p === g.party ? ' me' : '') + '">' + short(p) + '</span>' +
+        '<div class="track"><div class="bar" style="width:' + (shares[p] / scale * 100) + '%;background:' + col(p) + '"></div>' +
+        '<div class="hurdle" style="left:' + (5 / scale * 100) + '%" title="5-%-Hürde"></div></div>' +
+        '<span class="num">' + pct(shares[p]) + '</span>' +
+        '<span class="diff ' + (d === null ? '' : d >= 0 ? 'pos' : 'neg') + '">' + (d === null ? '' : signed(d)) + '</span>';
+    });
+    $('poll-bars').innerHTML = html;
+  }
+
+  function renderChart() {
+    const W = 320;
+    const H = 170;
+    const L = 26;
+    const R = 8;
+    const T = 8;
+    const B = 20;
+    const hist = g.history;
+    const ids = D.PARTIES.map(p => p.id);
+    let maxV = 0;
+    hist.forEach(h => ids.forEach(p => { maxV = Math.max(maxV, h.shares[p]); }));
+    const yMax = Math.ceil((maxV + 2) / 10) * 10;
+    const x = i => L + (W - L - R) * i / g.maxWeeks;
+    const y = v => T + (H - T - B) * (1 - v / yMax);
+
+    let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Umfrageverlauf nach Wochen"><g class="grid">';
+    for (let v = 0; v <= yMax; v += 10) svg += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '"></line>';
+    svg += '</g><g class="axis">';
+    for (let v = 0; v <= yMax; v += 10) svg += '<text x="' + (L - 5) + '" y="' + (y(v) + 3) + '" text-anchor="end">' + v + '</text>';
+    for (let i = 0; i <= g.maxWeeks; i++) svg += '<text x="' + x(i) + '" y="' + (H - 5) + '" text-anchor="middle">' + (i === 0 ? 'Start' : i) + '</text>';
+    svg += '</g>';
+    ids.slice().sort((a, b) => (a === g.party) - (b === g.party)).forEach(p => {
+      const pts = hist.map((h, i) => x(i) + ',' + y(h.shares[p])).join(' ');
+      svg += '<polyline class="series' + (p === g.party ? ' me' : '') + '" points="' + pts + '" style="stroke:' + col(p) + '"></polyline>';
+    });
+    svg += '<line class="crosshair" y1="' + T + '" y2="' + (H - B) + '" x1="0" x2="0" visibility="hidden"></line>';
+    svg += '<rect class="hit" x="' + L + '" y="0" width="' + (W - L - R) + '" height="' + H + '" fill="transparent"></rect></svg>';
+    svg += '<div class="tooltip" hidden></div>';
+
+    const box = $('poll-chart');
+    box.innerHTML = svg;
+    const svgEl = box.querySelector('svg');
+    const cross = box.querySelector('.crosshair');
+    const tip = box.querySelector('.tooltip');
+    const hit = box.querySelector('.hit');
+    const move = e => {
+      const rect = svgEl.getBoundingClientRect();
+      const px = (e.clientX - rect.left) / rect.width * W;
+      const i = Math.max(0, Math.min(hist.length - 1, Math.round((px - L) / (W - L - R) * g.maxWeeks)));
+      cross.setAttribute('x1', x(i));
+      cross.setAttribute('x2', x(i));
+      cross.setAttribute('visibility', 'visible');
+      const sh = hist[i].shares;
+      tip.innerHTML = '<strong>' + (i === 0 ? 'Start' : 'Woche ' + i) + '</strong><br>' +
+        ids.slice().sort((a, b) => sh[b] - sh[a]).map(p => '<span class="sw" style="background:' + col(p) + '"></span>' + short(p) + ' ' + pct(sh[p])).join('<br>');
+      tip.hidden = false;
+      const left = x(i) / W * rect.width;
+      tip.style.left = (left > rect.width / 2 ? left - tip.offsetWidth - 10 : left + 10) + 'px';
+      tip.style.top = '4px';
+    };
+    hit.addEventListener('pointermove', move);
+    hit.addEventListener('pointerdown', move);
+    hit.addEventListener('pointerleave', () => { tip.hidden = true; cross.setAttribute('visibility', 'hidden'); });
+  }
+
+  function renderAgenda() {
+    const comp = E.party(g.party).competence;
+    const ids = D.TOPICS.slice().sort((a, b) => g.salience[b.id] - g.salience[a.id]);
+    const max = g.salience[ids[0].id];
+    let html = '';
+    ids.forEach(t => {
+      html += '<span class="' + (comp[t.id] >= 60 ? 'strong' : '') + '">' + t.icon + ' ' + esc(t.name) + (comp[t.id] >= 60 ? ' ★' : '') + '</span>' +
+        '<div class="track"><div class="fill" style="width:' + (g.salience[t.id] / max * 100) + '%"></div></div>' +
+        '<span class="num">' + Math.round(g.salience[t.id] * 100) + ' %</span>';
+    });
+    $('agenda').innerHTML = html + '<span class="muted small" style="grid-column:1/-1">★ = Stärke deiner Partei. Mach deine Themen wichtiger!</span>';
+  }
+
+  function renderNews() {
+    $('news').innerHTML = g.log.map(l =>
+      '<li><span class="wk">Woche ' + l.week + '</span><span class="' + (l.type === 'event' || l.type === 'duel' ? 'event' : '') + '">' + esc(l.text) + '</span></li>'
+    ).join('');
+  }
+
+  // ---------- Dialoge ----------
+
+  function openModal(eyebrow, title, bodyHtml, actions) {
+    $('modal-eyebrow').textContent = eyebrow;
+    $('modal-title').textContent = title;
+    $('modal-body').innerHTML = bodyHtml;
+    const box = $('modal-actions');
+    box.innerHTML = '';
+    actions.forEach(a => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn choice' + (a.primary ? ' primary' : '');
+      b.innerHTML = '<span>' + esc(a.label) + '</span>' + (a.hint ? '<span class="hint">' + esc(a.hint) + '</span>' : '');
+      b.addEventListener('click', a.onClick);
+      box.appendChild(b);
+    });
+    $('modal').hidden = false;
+    const first = box.querySelector('button');
+    if (first) first.focus();
+  }
+
+  function closeModal() { $('modal').hidden = true; }
+
+  function checkPending() {
+    if (g.phase !== 'campaign') { closeModal(); showElection(); return; }
+    if (g.pendingEvent) { showEvent(); return; }
+    if (g.week === E.DUEL_WEEK && !g.duelDone) {
+      if (g.duel) showDuelRound(); else showDuelIntro();
+      return;
+    }
+    closeModal();
+  }
+
+  function showEvent() {
+    const ev = E.eventById(g.pendingEvent);
+    openModal('Woche ' + g.week + ' · Eilmeldung', ev.title, '<p>' + esc(E.eventText(g, ev)) + '</p><p class="muted small">Wie reagiert ihr?</p>',
+      ev.choices.map((c, i) => ({
+        label: c.label,
+        hint: c.hint,
+        onClick: () => {
+          const res = E.resolveEvent(g, i);
+          save();
+          renderGame();
+          openModal('Woche ' + g.week + ' · ' + ev.title, 'Eure Reaktion: ' + c.label, '<p>' + esc(res.text) + '</p>',
+            [{ label: 'Weiter', primary: true, onClick: () => { renderGame(); checkPending(); } }]);
+        }
+      })));
+  }
+
+  function showDuelIntro() {
+    const topics = D.TOPICS.slice().sort((a, b) => g.salience[b.id] - g.salience[a.id]).slice(0, 3);
+    openModal('Woche ' + g.week + ' · Live im Fernsehen', 'Die große Elefantenrunde',
+      '<p>Eine Woche vor der Wahl treffen alle Spitzenkandidierenden im Fernsehstudio aufeinander. Millionen schauen zu.</p>' +
+      '<p>Es wird um die wichtigsten Themen gehen: <strong>' + topics.map(t => esc(t.name)).join(', ') + '</strong>.</p>' +
+      '<p class="muted small">Wähle für jede Frage deine Strategie. Sachliche Antworten gelingen bei deinen Stärken, Angriffe sind ein Glücksspiel.</p>',
+      [{ label: 'Ab ins Studio', primary: true, onClick: () => { E.startDuel(g); save(); showDuelRound(); } }]);
+  }
+
+  function duelScoreHtml(results) {
+    if (!results.length) return '';
+    return '<div class="duel-score">' + results.map(r => '<span>' + esc(E.topicById(r.topic).name) + ': ' + signed(r.delta) + '</span>').join('') + '</div>';
+  }
+
+  function showDuelRound() {
+    const d = g.duel;
+    const topic = d.topics[d.round];
+    openModal('Elefantenrunde · Frage ' + (d.round + 1) + ' von ' + d.topics.length, E.topicById(topic).icon + ' ' + E.topicById(topic).name,
+      duelScoreHtml(d.results) + '<p class="duel-question">„' + esc(QUESTIONS[topic]) + '“</p>' +
+      '<p class="muted small">Kompetenz deiner Partei bei diesem Thema: ' + E.party(g.party).competence[topic] + '/100</p>',
+      E.DUEL_STYLES.map(s => ({
+        label: s.name,
+        hint: s.desc,
+        onClick: () => {
+          const results = d.results;
+          const res = E.duelAnswer(g, s.id);
+          save();
+          const body = '<p><strong>' + esc(res.verdict) + '</strong> Wirkung: ' + signed(res.delta) + ' Punkte.</p>' + duelScoreHtml(results);
+          if (res.done) {
+            renderGame();
+            openModal('Elefantenrunde · Blitzumfrage', res.total >= 0 ? 'Die Zuschauer sehen euch vorn!' : 'Kein guter Abend für euch',
+              body + '<p>Gesamtwirkung der Elefantenrunde: <strong>' + signed(res.total) + ' Punkte</strong>.</p>',
+              [{ label: 'Zurück in den Wahlkampf', primary: true, onClick: () => { closeModal(); renderGame(); } }]);
+          } else {
+            openModal('Elefantenrunde', 'Antwort: ' + s.name, body, [{ label: 'Nächste Frage', primary: true, onClick: showDuelRound }]);
+          }
+        }
+      })));
+  }
+
+  // ---------- Wahlabend ----------
+
+  function showElection() {
+    $('toast').hidden = true;
+    show('election');
+    renderElection(true);
+  }
+
+  function renderElection(animate) {
+    const r = g.result;
+    const me = g.party;
+
+    // Balken
+    const ids = ALL_IDS.slice().sort((a, b) => (a === D.OTHER.id) - (b === D.OTHER.id) || r.shares[b] - r.shares[a]);
+    const max = Math.max.apply(null, ids.map(p => r.shares[p])) * 1.15;
+    let bars = '<div class="rhurdle" style="bottom:' + (5 / max * 100) + '%"></div>';
+    ids.forEach(p => {
+      bars += '<div class="col"><span class="rval">' + num1(r.shares[p]) + '</span>' +
+        '<div class="rbar" data-h="' + (r.shares[p] / max * 100) + '" style="background:' + col(p) + '"></div></div>';
+    });
+    $('result-bars').innerHTML = bars;
+    $('result-labels').innerHTML = ids.map(p => {
+      const d = r.shares[p] - g.startShares[p];
+      return '<div class="' + (p === me ? 'me' : '') + '">' + short(p) +
+        '<span class="rdiff ' + (d >= 0 ? 'pos' : 'neg') + '">' + signed(d) + '</span></div>';
+    }).join('');
+    const grow = () => document.querySelectorAll('.rbar').forEach(b => { b.style.height = b.dataset.h + '%'; });
+    if (animate) requestAnimationFrame(() => requestAnimationFrame(grow)); else grow();
+
+    // Sitze
+    $('seat-total').textContent = '(' + D.SEATS + ' Sitze, Mehrheit ab ' + E.MAJORITY + ')';
+    $('hemicycle').innerHTML = hemicycle(r.seats);
+    $('seat-legend').innerHTML = SPECTRUM.filter(p => r.seats[p] > 0)
+      .map(p => '<span><i style="background:' + col(p) + '"></i>' + short(p) + ' ' + r.seats[p] + '</span>').join('');
+
+    renderCoalition();
+    renderOutcome();
+  }
+
+  function hemicycle(seats) {
+    const total = SPECTRUM.reduce((s, p) => s + (seats[p] || 0), 0);
+    const rows = 12;
+    const r0 = 0.38;
+    const radii = [];
+    for (let i = 0; i < rows; i++) radii.push(r0 + (1 - r0) * i / (rows - 1));
+    const sumR = radii.reduce((a, b) => a + b, 0);
+    const counts = radii.map(rad => Math.round(total * rad / sumR));
+    counts[rows - 1] += total - counts.reduce((a, b) => a + b, 0);
+    const pts = [];
+    radii.forEach((rad, i) => {
+      const n = counts[i];
+      for (let j = 0; j < n; j++) {
+        const a = n === 1 ? Math.PI / 2 : Math.PI * (1 - j / (n - 1));
+        pts.push({ a, x: Math.cos(a) * rad, y: -Math.sin(a) * rad });
+      }
+    });
+    pts.sort((p, q) => q.a - p.a);
+    const owners = [];
+    SPECTRUM.forEach(p => { for (let i = 0; i < (seats[p] || 0); i++) owners.push(p); });
+    let svg = '<svg viewBox="-1.05 -1.05 2.1 1.12" role="img" aria-label="Sitzverteilung im Bundestag">';
+    pts.forEach((pt, i) => {
+      svg += '<circle cx="' + pt.x.toFixed(4) + '" cy="' + pt.y.toFixed(4) + '" r="0.0165" style="fill:' + col(owners[i]) + '"></circle>';
+    });
+    svg += '<text x="0" y="-0.05" text-anchor="middle" font-size="0.13" font-weight="800" style="fill:var(--text)">' + total + '</text>';
+    svg += '<text x="0" y="0.05" text-anchor="middle" font-size="0.06" style="fill:var(--muted)">Sitze</text></svg>';
+    return svg;
+  }
+
+  function pills(members, seats) {
+    return '<span class="coal-members">' + members.map(p =>
+      '<span class="pill" style="--pc:' + col(p) + ';--pon:' + onCol(p) + '">' + short(p) + (seats ? ' ' + seats[p] : '') + '</span>').join('') + '</span>';
+  }
+
+  function renderCoalition() {
+    const r = g.result;
+    const box = $('coalition');
+    if (r.awaitingChoice) {
+      box.innerHTML = '<p><strong>Ihr seid stärkste Kraft und habt den Auftrag zur Regierungsbildung!</strong> Mit wem wollt ihr koalieren?</p>';
+      r.options.forEach((o, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn coalition-option choice';
+        b.innerHTML = pills(o.members, r.seats) + '<span class="hint">' + o.seats + ' Sitze · Mehrheit +' + (o.seats - E.MAJORITY + 1) + '</span>';
+        b.addEventListener('click', () => { E.chooseCoalition(g, i); save(); renderElection(false); });
+        box.appendChild(b);
+      });
+      return;
+    }
+    let html;
+    if (r.government) {
+      const seats = r.government.reduce((s, p) => s + r.seats[p], 0);
+      html = '<p>Neue Bundesregierung (' + seats + ' Sitze):</p><p>' + pills(r.government) + '</p>' +
+        '<p class="muted small">Das Kanzleramt geht an: <strong>' + esc(E.party(r.government[0]).name) + '</strong>' +
+        (r.government[0] === g.party ? ' – ' + esc(g.candidate) + ' wird Regierungschef:in!' : '') + '</p>';
+    } else {
+      html = '<p><strong>Keine regierungsfähige Mehrheit.</strong> Es droht eine Minderheitsregierung oder sogar eine Neuwahl.</p>';
+    }
+    const list = r.coalitions.filter(c => c.viable).concat(r.coalitions.filter(c => !c.viable)).slice(0, 6);
+    if (list.length) {
+      html += '<h3>Rechnerische Mehrheiten</h3><ul class="coal-list">' + list.map(c =>
+        '<li class="' + (c.viable ? '' : 'nope') + '">' + pills(c.members) + '<span class="small">' + c.seats + ' Sitze' +
+        (c.viable ? '' : ' · ausgeschlossen') + '</span></li>').join('') + '</ul>' +
+        '<p class="muted small">Ausgeschlossen: Koalitionen mit der AfD (Brandmauer) sowie CDU/CSU mit der Linken.</p>';
+    }
+    box.innerHTML = html;
+  }
+
+  function renderOutcome() {
+    const r = g.result;
+    const card = $('outcome-card');
+    if (!r.outcome) { card.hidden = true; return; }
+    const o = r.outcome;
+    const p = E.party(g.party);
+    const statusText = {
+      kanzler: '🏛️ ' + g.candidate + ' zieht ins Kanzleramt ein!',
+      regierung: '🤝 Ihr seid Teil der neuen Bundesregierung.',
+      opposition: '🪑 Ihr geht in die Opposition.',
+      raus: '🚪 An der 5-%-Hürde gescheitert – ihr seid nicht im Bundestag.'
+    }[o.status];
+    $('outcome').innerHTML =
+      '<p class="eyebrow">Euer Wahlabend</p><h2>' + esc(o.rating) + '</h2>' +
+      '<div class="score">' + o.score + '</div><p class="muted small">Punkte</p>' +
+      '<p><strong>' + esc(p.name) + ': ' + pct(r.shares[g.party]) + '</strong> (' + signed(o.delta) + ' gegenüber 2025)</p>' +
+      '<p>' + esc(statusText) + '</p>' +
+      '<p>' + (o.goal ? '✅ Wahlziel erreicht: ' : '❌ Wahlziel verfehlt: ') + esc(p.goalText) + '</p>';
+    card.hidden = false;
+  }
+
+  // ---------- Ereignis-Handler ----------
+
+  function startGame(game) {
+    g = game;
+    selState = 'NW';
+    selTopic = null;
+    $('feedback').textContent = '';
+    if (g.phase !== 'campaign') { showElection(); return; }
+    show('game');
+    renderGame();
+    checkPending();
+  }
+
+  $('btn-start').addEventListener('click', () => {
+    if (!chosenParty) return;
+    startGame(E.newGame(chosenParty, $('candidate').value));
+    save();
+  });
+
+  $('btn-resume').addEventListener('click', () => {
+    const saved = loadSave();
+    if (saved) startGame(saved);
+  });
+
+  $('btn-end-week').addEventListener('click', () => {
+    if (g.ap > 0 && !window.confirm('Du hast noch ' + g.ap + ' Aktion(en) übrig. Woche trotzdem beenden?')) return;
+    const before = E.nationalShares(g)[g.party];
+    const res = E.endWeek(g);
+    if (!res.ok) { if (res.text) toast(res.text); return; }
+    save();
+    $('feedback').textContent = '';
+    if (res.election) { closeModal(); showElection(); return; }
+    const after = E.nationalShares(g)[g.party];
+    toast('Neue Umfrage: ' + pct(after) + ' (' + signed(after - before) + ' zur Vorwoche)');
+    renderGame();
+    checkPending();
+  });
+
+  $('btn-restart').addEventListener('click', () => {
+    clearSave();
+    g = null;
+    chosenParty = null;
+    $('btn-start').disabled = true;
+    renderStart();
+    show('start');
+  });
+
+  renderStart();
+})();
