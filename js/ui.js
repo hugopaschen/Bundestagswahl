@@ -538,6 +538,11 @@
     const p = E.party(chosenParty);
     $('program-party').textContent = p.name + ' · Programmparteitag';
     $('slogan').value = draft.slogan;
+    const flyer = $('flyer');
+    flyer.style.setProperty('--pc', col(chosenParty));
+    flyer.style.setProperty('--pon', onCol(chosenParty));
+    $('flyer-logo').textContent = p.short;
+    $('flyer-candidate').textContent = candidateLine($('candidate').value);
 
     const sc = $('slogan-chips');
     sc.innerHTML = '';
@@ -620,13 +625,68 @@
     document.querySelectorAll('[data-core]').forEach(el => { el.hidden = draft.core.indexOf(el.dataset.core) === -1; });
   }
 
+  const DEFAULT_CANDIDATE = 'Unsere Spitzenkandidatin';
+
+  function candidateLine(name) {
+    name = String(name || '').trim();
+    return name && name !== DEFAULT_CANDIDATE ? 'Mit ' + name + ' für Deutschland' : 'Für ein Deutschland, das mehr kann';
+  }
+
+  // Inhalt des fertigen Programms am Ende des Flyers (auch für den Mini-Flyer im Spiel).
+  function flyerProgramHtml(partyId, prog, finance) {
+    const p = E.party(partyId);
+    const core = prog.core.filter(t => E.topicById(t));
+    let html = '<h2 class="fp-title">Unser Programm</h2>' +
+      '<p class="fp-sub">Das packen wir an, wenn Sie uns am Wahltag Ihre Stimme geben.</p><div class="fp-core">';
+    for (let i = 0; i < D.PROGRAM_RULES.coreCount; i++) {
+      const t = core[i];
+      if (!t) { html += '<div class="fp-core-empty">🎯 Kernthema wählen …</div>'; continue; }
+      const topic = E.topicById(t);
+      const o = D.PROGRAM[t][prog.positions[t]];
+      html += '<div class="fp-core-item"><div class="fp-icon">' + topic.icon + '</div>' +
+        '<div class="fp-topic">Kernthema · ' + esc(topic.name) + '</div>' +
+        '<div class="fp-label">' + esc(o.label) + '</div><div class="fp-desc">' + esc(o.desc) + '</div></div>';
+    }
+    html += '</div><ul class="fp-list">' + D.TOPICS.filter(t => core.indexOf(t.id) === -1).map(t =>
+      '<li><span class="fp-check">✔</span><span><span class="fp-topic">' + t.icon + ' ' + esc(t.name) + '</span>' +
+      '<span class="fp-label">' + esc(D.PROGRAM[t.id][prog.positions[t.id]].label) + '</span></span></li>').join('') + '</ul>';
+    if (finance) {
+      html += '<span class="fp-stamp ' + finance + '">' +
+        { solid: 'Solide finanziert', ok: 'Durchgerechnet', over: 'Nicht gegenfinanziert' }[finance] + '</span>';
+    }
+    html += '<div class="fp-ballot"><div class="fp-ballot-call"><small>Am Wahlsonntag</small>' + esc(p.short) + ' wählen!</div>' +
+      '<div class="fp-ballot-box"><span>Zweitstimme</span><span>' + esc(p.name) + '</span><span class="fp-cross" aria-hidden="true"></span></div></div>';
+    return html;
+  }
+
   function renderProgramSummary() {
     const p = E.party(chosenParty);
     const errors = E.validateProgram(draft);
-    let html = '<h2>Bilanz des Programms</h2>';
-    if (draft.core.length === D.PROGRAM_RULES.coreCount) {
-      const fx = E.programEffects(chosenParty, draft);
-      const over = fx.cost > fx.budget;
+    const coreReady = draft.core.length === D.PROGRAM_RULES.coreCount;
+    const fx = coreReady ? E.programEffects(chosenParty, draft) : null;
+
+    // Flyer
+    $('flyer-slogan').textContent = String(draft.slogan || '').trim() || 'Euer Slogan';
+    $('flyer-program').innerHTML = flyerProgramHtml(chosenParty, draft, fx && fx.finance);
+
+    // Aktionsleiste
+    let bar = '';
+    if (!errors.length) {
+      const tmp = E.newGame(chosenParty, '', 1, draft);
+      const now = E.nationalShares(tmp)[chosenParty];
+      const d = now - tmp.startShares[chosenParty];
+      bar += '<span>Erste Umfrage: <strong>' + pct(now) + '</strong> <span class="' + (d >= 0 ? 'pos' : 'neg') + '">' + signed(d) + '</span></span>';
+    }
+    if (fx) bar += '<span>Finanzierung: <strong class="' + (fx.finance === 'over' ? 'neg' : '') + '">' + fx.cost + ' / ' + fx.budget + ' 💶</strong></span>';
+    bar += '<span>Kernthemen: <strong>' + draft.core.length + ' / ' + D.PROGRAM_RULES.coreCount + '</strong></span>';
+    if (errors.length) bar += '<span class="neg">' + esc(errors[0]) + '</span>';
+    $('program-bar-stats').innerHTML = bar;
+    $('btn-program-confirm').disabled = errors.length > 0;
+
+    // Details für Strategen
+    let html = '';
+    if (fx) {
+      const over = fx.finance === 'over';
       const financeText = {
         over: '⚠️ Nicht gegenfinanziert: kostet Stimmen und Wirtschaftskompetenz.',
         ok: 'Im Rahmen des Haushalts.',
@@ -634,33 +694,26 @@
       }[fx.finance];
       html += '<div class="summary-row"><span>Finanzierung</span><strong>' + fx.cost + ' / ' + fx.budget + ' 💶</strong></div>' +
         '<div class="meter' + (over ? ' over' : '') + '"><div style="width:' + Math.min(100, fx.cost / fx.budget * 100) + '%"></div></div>' +
-        '<p class="small ' + (over ? 'neg' : 'muted') + '" style="margin:0 0 10px">' + financeText + '</p>';
-      if (!errors.length) {
-        const tmp = E.newGame(chosenParty, '', 1, draft);
-        const now = E.nationalShares(tmp)[chosenParty];
-        const d = now - tmp.startShares[chosenParty];
-        html += '<div class="summary-row"><span>Erste Umfrage (erwartet)</span><strong>' + pct(now) +
-          ' <span class="small ' + (d >= 0 ? 'pos' : 'neg') + '">' + signed(d) + '</span></strong></div>';
-      }
-      html += '<div class="summary-row"><span>Zusätzlich im Osten</span><strong class="' + (fx.east >= 0 ? 'pos' : 'neg') + '">' + signed(fx.east) + '</strong></div>';
-      html += '<h3>Kompetenz in den Augen der Wähler</h3><div class="comp-list">' + D.TOPICS.map(t => {
-        const d = fx.competence[t.id] - p.competence[t.id];
-        return '<span>' + t.icon + ' ' + esc(t.name) + (fx.details[t.id].core ? ' 🎯' : '') + '</span><span>' + fx.competence[t.id] + '</span>' +
-          '<span class="small ' + (d > 0 ? 'pos' : d < 0 ? 'neg' : 'muted') + '">' + (d ? (d > 0 ? '+' : '−') + Math.abs(d) : '±0') + '</span>';
-      }).join('') + '</div>';
+        '<p class="small ' + (over ? 'neg' : 'muted') + '" style="margin:0 0 10px">' + financeText + '</p>' +
+        '<div class="summary-row"><span>Zusätzlich im Osten</span><strong class="' + (fx.east >= 0 ? 'pos' : 'neg') + '">' + signed(fx.east) + '</strong></div>' +
+        '<h3>Kompetenz in den Augen der Wähler</h3><div class="comp-list">' + D.TOPICS.map(t => {
+          const d = fx.competence[t.id] - p.competence[t.id];
+          return '<span>' + t.icon + ' ' + esc(t.name) + (fx.details[t.id].core ? ' 🎯' : '') + '</span><span>' + fx.competence[t.id] + '</span>' +
+            '<span class="small ' + (d > 0 ? 'pos' : d < 0 ? 'neg' : 'muted') + '">' + (d ? (d > 0 ? '+' : '−') + Math.abs(d) : '±0') + '</span>';
+        }).join('') + '</div>';
     }
     if (errors.length) html += '<ul class="errors">' + errors.map(e => '<li>' + esc(e) + '</li>').join('') + '</ul>';
     $('program-summary').innerHTML = html;
-    $('btn-program-confirm').disabled = errors.length > 0;
   }
 
   function renderProgramView() {
-    const pr = g.program;
-    const finance = { over: '⚠️ Nicht gegenfinanziert', ok: 'Im Haushaltsrahmen', solid: '✅ Solide finanziert' }[g.finance] || '';
-    $('program-view').innerHTML = '<div class="program-view"><p class="slogan">„' + esc(pr.slogan) + '“</p>' +
-      '<p class="small">🎯 Kernthemen: <strong>' + pr.core.map(t => esc(E.topicById(t).name)).join(', ') + '</strong> · ' + finance + '</p>' +
-      '<ul>' + D.TOPICS.map(t => '<li><span>' + t.icon + '</span><span>' + esc(D.PROGRAM[t.id][pr.positions[t.id]].label) + '</span></li>').join('') +
-      '</ul></div>';
+    const p = E.party(g.party);
+    $('program-view').innerHTML =
+      '<article class="flyer mini" style="--pc:' + col(g.party) + ';--pon:' + onCol(g.party) + '">' +
+      '<header class="flyer-head"><div class="flyer-brand"><span class="flyer-logo">' + esc(p.short) + '</span></div>' +
+      '<p class="flyer-slogan">' + esc(g.program.slogan) + '</p>' +
+      '<p class="flyer-candidate">' + esc(candidateLine(g.candidate)) + '</p></header>' +
+      '<section class="flyer-program">' + flyerProgramHtml(g.party, g.program, g.finance) + '</section></article>';
   }
 
   // ---------- Ereignis-Handler ----------
@@ -678,6 +731,10 @@
 
   $('btn-start').addEventListener('click', () => {
     if (chosenParty) enterProgram();
+  });
+
+  $('candidate').addEventListener('input', () => {
+    if (!$('screen-program').hidden) $('flyer-candidate').textContent = candidateLine($('candidate').value);
   });
 
   $('slogan').addEventListener('input', () => {

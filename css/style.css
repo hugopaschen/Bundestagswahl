@@ -290,33 +290,141 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
 .outcome .score { font-size: 3rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .outcome h2 { font-size: 1.6rem; }
 
-/* ---------- Wahlprogramm ---------- */
-.program-layout { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
-.program-main { display: grid; gap: 16px; min-width: 0; }
-.program-main .field { margin: 10px 0 0; }
-.program-summary { position: sticky; top: 16px; }
-@media (max-width: 900px) {
-  .program-layout { grid-template-columns: 1fr; }
-  .program-summary { position: static; }
+/* ---------- Wahlprogramm (Wahlflyer) ---------- */
+.program-screen { max-width: 920px; padding-bottom: 120px; }
+.flyer-intro { text-align: center; color: var(--text-2); margin: 8px auto 16px; max-width: 620px; }
+.flyer-intro .eyebrow { display: block; }
+
+/* Der Flyer ist "Papier": immer hell, unabhängig vom Farbschema. */
+.flyer {
+  --c-union: #1b1b1b; --on-union: #ffffff;
+  --surface: #ffffff; --surface-2: #f6f3ec; --border: #e4ded1;
+  --text: #1d1d1f; --text-2: #4a4843; --muted: #7a776f;
+  --good: #1e7d3c; --bad: #c0392b;
+  --accent: var(--pc); --accent-ink: var(--pon);
+  background: #fffdf8; color: var(--text);
+  border-radius: 6px; overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, .08), 0 18px 50px rgba(0, 0, 0, .18);
 }
-.program-buttons { display: grid; gap: 8px; margin-top: 16px; }
-.chip:disabled { opacity: .45; cursor: not-allowed; }
+.flyer-head {
+  position: relative; overflow: hidden; background: var(--pc); color: var(--pon);
+  padding: 22px 28px 64px;
+}
+.flyer-head::after {
+  content: ""; position: absolute; left: -5%; right: -5%; bottom: -42px; height: 84px;
+  background: #fffdf8; transform: rotate(-3deg);
+}
+.flyer-head::before {
+  content: ""; position: absolute; right: -60px; top: -60px; width: 220px; height: 220px; border-radius: 50%;
+  background: currentColor; opacity: .08;
+}
+.flyer-brand { display: flex; justify-content: space-between; align-items: center; gap: 12px; position: relative; }
+.flyer-logo {
+  display: inline-block; padding: 6px 14px; font-weight: 900; font-size: 1.3rem; letter-spacing: .02em;
+  background: var(--pon); color: var(--pc); border-radius: 6px; transform: rotate(-2deg);
+}
+.flyer-date { text-align: right; font-size: .78rem; text-transform: uppercase; letter-spacing: .1em; line-height: 1.35; }
+.flyer-slogan {
+  position: relative; margin: 26px 0 8px; font-size: clamp(2rem, 7vw, 3.6rem); font-weight: 900;
+  line-height: 1.02; letter-spacing: -.02em; text-transform: uppercase; overflow-wrap: anywhere;
+}
+.flyer-candidate { position: relative; margin: 0; font-size: 1.1rem; font-weight: 600; opacity: .92; }
+
+.flyer-section { padding: 20px 28px; border-bottom: 2px dashed var(--border); }
+.flyer-section h2 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 1.25rem; font-weight: 800; margin-bottom: 10px; }
+.flyer-num {
+  display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex: 0 0 auto;
+  border-radius: 50%; background: var(--pc); color: var(--pon); font-size: 1rem; font-weight: 900;
+}
+.flyer-hint { font-size: .82rem; color: var(--muted); font-weight: 400; margin: 0 0 10px; }
+h2 .flyer-hint { margin: 0; }
+.flyer .field { margin: 10px 0 0; }
+.flyer .field input { max-width: 100%; background: #fff; }
+.flyer .chip { background: #fff; }
+.flyer .chip[aria-pressed="true"] { background: var(--pc); border-color: var(--pc); color: var(--pon); font-weight: 600; }
+
 .positions { display: grid; gap: 14px; }
-.topic-set { border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin: 0; min-width: 0; }
-.topic-set legend { font-weight: 700; padding: 0 6px; }
-.topic-set .core-mark { font-size: .75rem; font-weight: 600; color: var(--accent); margin-left: 6px; }
+.topic-set { border: 0; border-left: 4px solid var(--border); padding: 4px 0 4px 14px; margin: 0; min-width: 0; }
+.topic-set:has([data-core]:not([hidden])) { border-left-color: var(--pc); }
+.topic-set legend { font-weight: 800; padding: 0; margin-bottom: 8px; font-size: 1rem; }
+.topic-set .core-mark { font-size: .72rem; font-weight: 700; margin-left: 8px; padding: 2px 8px; border-radius: 99px; background: var(--pc); color: var(--pon); }
 .options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 @media (max-width: 720px) { .options { grid-template-columns: 1fr; } }
 .option { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 10px; border: 2px solid var(--border);
-  border-radius: 10px; background: var(--surface-2); cursor: pointer; }
+  border-radius: 8px; background: #fff; cursor: pointer; }
 .option input { position: absolute; opacity: 0; pointer-events: none; }
-.option:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
-.option:has(input:focus-visible) { outline: 3px solid var(--accent); outline-offset: 2px; }
+.option:has(input:checked) { border-color: var(--pc); box-shadow: inset 0 0 0 1px var(--pc); }
+.option:has(input:checked)::after {
+  content: "✔"; position: absolute; top: -9px; right: -9px; width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: .75rem; background: var(--pc); color: var(--pon);
+}
+.option:has(input:focus-visible) { outline: 3px solid var(--text); outline-offset: 2px; }
 .option .olabel { font-weight: 700; font-size: .9rem; }
 .option .odesc { font-size: .78rem; color: var(--text-2); }
 .option .ometa { display: flex; flex-wrap: wrap; gap: 4px; margin-top: auto; padding-top: 4px; }
+.flyer .tag { background: var(--surface-2); }
 .tag.line { border-color: var(--good); color: var(--good); }
 .tag.dev { border-color: var(--bad); color: var(--bad); }
+
+/* Fertiges Programm am Ende des Flyers */
+.flyer-program { padding: 26px 28px 0; position: relative; }
+.fp-title { font-size: 1.6rem; font-weight: 900; text-transform: uppercase; letter-spacing: -.01em; margin: 0 0 4px; }
+.fp-sub { margin: 0 0 16px; color: var(--text-2); }
+.fp-core { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.fp-core-item { background: var(--pc); color: var(--pon); border-radius: 8px; padding: 14px 16px; }
+.fp-core-item .fp-icon { font-size: 1.8rem; line-height: 1; }
+.fp-core-item .fp-topic { font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; opacity: .85; margin-top: 6px; }
+.fp-core-item .fp-label { font-size: 1.1rem; font-weight: 800; line-height: 1.2; margin: 2px 0 4px; }
+.fp-core-item .fp-desc { font-size: .82rem; opacity: .9; }
+.fp-core-empty { border: 2px dashed var(--border); border-radius: 8px; padding: 14px 16px; color: var(--muted); font-size: .9rem; }
+.fp-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 4px 18px; }
+.fp-list li { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.fp-check { flex: 0 0 auto; width: 22px; height: 22px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--pc); color: var(--pon); font-size: .75rem; font-weight: 900; margin-top: 1px; }
+.fp-list .fp-topic { display: block; font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.fp-list .fp-label { font-weight: 700; font-size: .92rem; }
+.fp-stamp {
+  display: inline-block; margin: 18px 0 0; padding: 6px 14px; border: 3px solid currentColor; border-radius: 6px;
+  font-weight: 900; text-transform: uppercase; letter-spacing: .06em; font-size: .85rem; transform: rotate(-3deg);
+}
+.fp-stamp.solid, .fp-stamp.ok { color: var(--good); }
+.fp-stamp.over { color: var(--bad); }
+.fp-ballot {
+  margin: 22px -28px 0; padding: 18px 28px 22px; background: var(--pc); color: var(--pon);
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px;
+}
+.fp-ballot-call { font-size: 1.3rem; font-weight: 900; text-transform: uppercase; line-height: 1.1; }
+.fp-ballot-call small { display: block; font-size: .75rem; font-weight: 600; letter-spacing: .08em; opacity: .9; }
+.fp-ballot-box {
+  display: flex; align-items: center; gap: 12px; background: #fff; color: #1d1d1f; border: 2px solid #1d1d1f;
+  padding: 8px 12px; border-radius: 4px; font-weight: 800;
+}
+.fp-cross {
+  width: 34px; height: 34px; border: 2px solid #1d1d1f; border-radius: 50%; position: relative; flex: 0 0 auto;
+}
+.fp-cross::before, .fp-cross::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 40px; height: 4px; border-radius: 2px;
+  background: #1d4ed8; transform: translate(-50%, -50%) rotate(45deg);
+}
+.fp-cross::after { transform: translate(-50%, -50%) rotate(-45deg); }
+
+/* Strategie-Details und Aktionsleiste (außerhalb des Flyers) */
+.program-details { margin-top: 20px; }
+.program-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.program-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px 24px;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  background: var(--surface); border-top: 1px solid var(--border); box-shadow: 0 -6px 20px rgba(0, 0, 0, .08);
+}
+.program-bar-stats { display: flex; flex-wrap: wrap; gap: 4px 20px; font-size: .88rem; }
+.program-bar-stats strong { font-variant-numeric: tabular-nums; }
+@media (max-width: 600px) {
+  .program-bar .btn { width: 100%; }
+  .flyer-head, .flyer-section, .flyer-program { padding-left: 18px; padding-right: 18px; }
+  .fp-ballot { margin-left: -18px; margin-right: -18px; padding-left: 18px; padding-right: 18px; }
+}
+.chip:disabled { opacity: .45; cursor: not-allowed; }
 .meter { height: 10px; border-radius: 5px; background: var(--surface-2); border: 1px solid var(--border); overflow: hidden; margin: 6px 0 4px; }
 .meter div { height: 100%; background: var(--good); transition: width .3s; }
 .meter.over div { background: var(--bad); }
@@ -324,9 +432,21 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
 .summary-row strong { font-variant-numeric: tabular-nums; }
 .comp-list { display: grid; grid-template-columns: 1fr auto auto; gap: 3px 10px; font-size: .85rem; margin-top: 6px; }
 .comp-list span:nth-child(3n+2), .comp-list span:nth-child(3n) { text-align: right; font-variant-numeric: tabular-nums; }
-.errors { color: var(--bad); font-size: .85rem; margin: 10px 0 0; padding-left: 1.1rem; }
-.program-view .slogan { font-size: 1.1rem; font-weight: 700; margin: 0 0 8px; }
-.program-view ul { list-style: none; padding: 0; margin: 8px 0 0; font-size: .85rem; }
-.program-view li { padding: 5px 0; border-bottom: 1px solid var(--border); display: flex; gap: 8px; }
-.program-view li:last-child { border-bottom: 0; }
-.program-view li span:first-child { flex: 0 0 auto; }
+.errors { color: var(--bad); font-size: .85rem; margin: 6px 0 0; padding-left: 1.1rem; }
+
+/* Mini-Flyer im Spiel */
+.flyer.mini { box-shadow: none; border: 1px solid var(--border); }
+.flyer.mini .flyer-head { padding: 14px 16px 36px; }
+.flyer.mini .flyer-head::after { bottom: -30px; height: 56px; }
+.flyer.mini .flyer-slogan { font-size: 1.5rem; margin: 12px 0 4px; }
+.flyer.mini .flyer-logo { font-size: .95rem; padding: 3px 10px; }
+.flyer.mini .flyer-candidate { font-size: .85rem; }
+.flyer.mini .flyer-program { padding: 10px 16px 0; }
+.flyer.mini .fp-core { grid-template-columns: 1fr; gap: 8px; margin-bottom: 10px; }
+.flyer.mini .fp-core-item { padding: 10px 12px; }
+.flyer.mini .fp-core-item .fp-label { font-size: .95rem; }
+.flyer.mini .fp-core-item .fp-desc, .flyer.mini .fp-title, .flyer.mini .fp-sub { display: none; }
+.flyer.mini .fp-list { grid-template-columns: 1fr; }
+.flyer.mini .fp-list li { padding: 5px 0; }
+.flyer.mini .fp-stamp { margin: 10px 0 14px; font-size: .72rem; }
+.flyer.mini .fp-ballot { display: none; }
