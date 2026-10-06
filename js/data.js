@@ -26,22 +26,25 @@
   ];
 
   // Wie wichtig ist ein Thema den Wählerinnen und Wählern zu Beginn (Summe = 1)?
+  // Durchschnitt der Nennungen „wichtigstes Problem“ (ARD-DeutschlandTrend 6/2026 und 7/2025,
+  // Landtagswahlen 2026 Baden-Württemberg und Sachsen-Anhalt), auf 100 % umgerechnet.
+  // Themen ohne Umfragewert behalten ihr bisheriges Verhältnis zu den gemessenen Themen.
   var SALIENCE0 = {
-    wirtschaft: 0.15,
-    migration: 0.14,
-    soziales: 0.11,
-    klima: 0.07,
+    wirtschaft: 0.14,
+    migration: 0.10,
+    soziales: 0.10,
+    klima: 0.06,
     sicherheit: 0.07,
-    bildung: 0.04,
+    bildung: 0.07,
     digitales: 0.03,
     wohnen: 0.05,
     verteidigung: 0.07,
     gesundheit: 0.07,
-    verkehr: 0.03,
+    verkehr: 0.05,
     europa: 0.03,
     familie: 0.03,
     land: 0.03,
-    demokratie: 0.03,
+    demokratie: 0.05,
     finanzen: 0.05
   };
 
