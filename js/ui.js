@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261006-185407';
+  const APP_VERSION = '20261006-190845';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -590,11 +590,66 @@
 
   // ---------- Wahlprogramm ----------
 
+  // Der Programmparteitag läuft in Schritten: jeweils nur ein Abschnitt ist sichtbar.
+  const PROGRAM_STEPS = [
+    { id: 'sec-slogan', name: 'Slogan' },
+    { id: 'sec-kern', name: 'Kernthemen' },
+    { id: 'sec-positionen', name: 'Positionen' },
+    { id: 'sec-bilanz', name: 'Bilanz' },
+    { id: 'flyer-program', name: 'Unser Programm' }
+  ];
+  let programStep = 0;
+  let programMaxStep = 0;
+
   function enterProgram() {
     draft = E.defaultProgram(chosenParty);
     draft.core = []; // Kernthemen wählt der Spieler selbst, ohne Vorauswahl
+    programStep = 0;
+    programMaxStep = 0;
     show('program');
     renderProgram();
+  }
+
+  // Warum man den aktuellen Schritt noch nicht verlassen kann (oder null).
+  function stepBlocker(step) {
+    const max = D.PROGRAM_RULES.coreCount;
+    if (step === 0 && !String(draft.slogan || '').trim()) return 'Bitte einen Wahlslogan festlegen.';
+    if (step === 1 && draft.core.length !== max) return 'Bitte ' + max + ' Kernthemen wählen (' + draft.core.length + ' / ' + max + ').';
+    return null;
+  }
+
+  function goToStep(n) {
+    for (let i = 0; i < n; i++) if (stepBlocker(i)) n = i; // nicht an offenen Schritten vorbei
+    programStep = n;
+    programMaxStep = Math.max(programMaxStep, n);
+    renderProgramStep();
+    if (n === 0) window.scrollTo({ top: 0, behavior: 'instant' });
+    else $(PROGRAM_STEPS[n].id).scrollIntoView({ behavior: 'instant', block: 'start' });
+  }
+
+  function renderProgramStep() {
+    const last = PROGRAM_STEPS.length - 1;
+    PROGRAM_STEPS.forEach((st, i) => { $(st.id).hidden = i !== programStep; });
+    document.querySelectorAll('.flyer-nav .step-link').forEach(b => {
+      const i = Number(b.dataset.step);
+      if (i === programStep) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
+      b.disabled = i > programMaxStep;
+    });
+    const blocker = stepBlocker(programStep);
+    const next = $('btn-program-next');
+    next.hidden = programStep === last;
+    next.disabled = !!blocker;
+    if (programStep < last) next.textContent = 'Weiter: ' + PROGRAM_STEPS[programStep + 1].name + ' →';
+    $('btn-program-prev').textContent = programStep === 0 ? '← Parteiwahl' : '← Zurück';
+    const confirm = $('btn-program-confirm');
+    confirm.hidden = programStep !== last;
+    confirm.disabled = E.validateProgram(draft).length > 0;
+    const label = programStep === last ? 'Zusammenfassung' : 'Schritt ' + (programStep + 1) + ' von ' + last + ': ' + PROGRAM_STEPS[programStep].name;
+    const stats = $('program-bar-stats');
+    stats.querySelector('.step-label').textContent = label;
+    const hint = stats.querySelector('.step-hint');
+    hint.textContent = blocker || '';
+    hint.hidden = !blocker;
   }
 
   function renderProgram() {
@@ -764,7 +819,7 @@
     $('flyer-program').innerHTML = flyerProgramHtml(chosenParty, draft, fx && fx.finance);
 
     // Aktionsleiste
-    let bar = '';
+    let bar = '<span class="step-label"></span>';
     if (!errors.length) {
       const tmp = E.newGame(chosenParty, '', 1, draft);
       const now = E.nationalShares(tmp)[chosenParty];
@@ -773,9 +828,9 @@
     }
     if (fx) bar += '<span>Finanzierung: <strong class="' + (fx.finance === 'over' ? 'neg' : '') + '">' + fx.cost + ' / ' + fx.budget + ' 💶</strong></span>';
     bar += '<span>Kernthemen: <strong>' + draft.core.length + ' / ' + D.PROGRAM_RULES.coreCount + '</strong></span>';
-    if (errors.length) bar += '<span class="neg">' + esc(errors[0]) + '</span>';
+    bar += '<span class="neg step-hint" hidden></span>';
     $('program-bar-stats').innerHTML = bar;
-    $('btn-program-confirm').disabled = errors.length > 0;
+    renderProgramStep();
 
     // Details für Strategen
     let html = '';
@@ -862,6 +917,16 @@
     show('start');
   });
   $('btn-to-name').addEventListener('click', () => show('name'));
+
+  $('btn-program-next').addEventListener('click', () => {
+    if (!stepBlocker(programStep)) goToStep(programStep + 1);
+  });
+  $('btn-program-prev').addEventListener('click', () => {
+    if (programStep === 0) show('start'); else goToStep(programStep - 1);
+  });
+  document.querySelectorAll('.flyer-nav .step-link').forEach(b => {
+    b.addEventListener('click', () => goToStep(Number(b.dataset.step)));
+  });
 
   $('btn-program-confirm').addEventListener('click', () => {
     if (E.validateProgram(draft).length) return;
