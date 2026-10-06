@@ -669,17 +669,17 @@ h2 .flyer-hint { margin: 0; }
 /* Headline-Mechanik: Subline B (Gold) – Headline-Blöcke – Subline A (Weiß), Stoß an Stoß */
 .flyer[data-party="union"] .flyer-kicker,
 .flyer[data-party="union"] .flyer-candidate {
-  display: table; margin: 0; padding: .12em .45em .12em var(--pad); margin-left: calc(-1 * var(--pad));
+  display: table; margin: 0; padding: .12em .45em;
   font-family: "IBM Plex Serif", Georgia, serif; font-weight: 400; font-size: .95rem; opacity: 1; position: relative;
 }
 .flyer[data-party="union"] .flyer-kicker { margin-top: 30px; background: #ffa600; color: #2d3c4b; }
 .flyer[data-party="union"] .flyer-candidate { background: #ffffff; color: #2d3c4b; }
 .flyer[data-party="union"] .flyer-slogan {
-  margin: 0 0 0 calc(-1 * var(--pad)); text-transform: none; font-weight: 800; letter-spacing: -.01em; line-height: 1.22;
+  margin: 0; text-transform: none; font-weight: 800; letter-spacing: -.01em; line-height: 1.22;
   font-size: clamp(1.9rem, 6.4vw, 3.2rem);
 }
 .flyer[data-party="union"] .flyer-slogan > span {
-  background: #2d3c4b; color: #ffffff; padding: .06em .3em .1em var(--pad);
+  background: #2d3c4b; color: #ffffff; padding: .06em .3em .1em;
   -webkit-box-decoration-break: clone; box-decoration-break: clone;
 }
 /* Störer */
@@ -698,7 +698,7 @@ h2 .flyer-hint { margin: 0; }
 
 /* Abschnitte: Überschriften als Rhöndorf-Blau-Block aus dem linken Rand */
 .flyer[data-party="union"] .flyer-section h2 {
-  display: table; background: #2d3c4b; color: #ffffff; margin-left: calc(-1 * var(--pad)); padding: .18em .5em .18em var(--pad);
+  display: table; background: #2d3c4b; color: #ffffff; padding: .18em .5em;
   font-weight: 800; letter-spacing: -.01em;
 }
 .flyer[data-party="union"] .flyer-section h2 .flyer-hint { color: #a7d5dc; }
@@ -714,11 +714,11 @@ h2 .flyer-hint { margin: 0; }
 /* Programmteil: Türkis-Fläche, Headline-Blöcke, Infoboxen */
 .flyer[data-party="union"] .flyer-program { background: #52b7c1; color: #2d3c4b; --border: rgba(255, 255, 255, .5); }
 .flyer[data-party="union"] .fp-title {
-  display: table; margin: 0 0 0 calc(-1 * var(--pad)); padding: .08em .35em .1em var(--pad); background: #2d3c4b; color: #ffffff;
+  display: table; margin: 0; padding: .08em .35em .1em; background: #2d3c4b; color: #ffffff;
   text-transform: none; font-weight: 800; letter-spacing: -.01em; font-size: 2rem;
 }
 .flyer[data-party="union"] .fp-sub {
-  display: table; margin: 0 0 18px calc(-1 * var(--pad)); padding: .12em .45em .12em var(--pad); background: #ffffff; color: #2d3c4b;
+  display: table; margin: 0 0 18px; padding: .12em .45em; background: #ffffff; color: #2d3c4b;
   font-family: "IBM Plex Serif", Georgia, serif;
 }
 .flyer[data-party="union"] .fp-core-item { background: #2d3c4b; color: #ffffff; border-radius: 0; }
@@ -733,17 +733,15 @@ h2 .flyer-hint { margin: 0; }
 .flyer[data-party="union"] .fp-ballot { background: #52b7c1; color: #ffffff; border-top: 1px solid rgba(255, 255, 255, .5); }
 .flyer[data-party="union"] .fp-ballot-call {
   text-transform: none; font-family: "Inter", system-ui, sans-serif; font-weight: 800; letter-spacing: -.01em;
-  background: #2d3c4b; padding: .1em .4em .14em var(--pad); margin-left: calc(-1 * var(--pad));
+  background: #2d3c4b; padding: .1em .4em .14em;
 }
 .flyer[data-party="union"] .fp-ballot-call small {
   display: table; background: #ffa600; color: #2d3c4b; padding: .1em .4em; margin: -.1em 0 .2em -.4em;
   font-family: "IBM Plex Serif", Georgia, serif; font-weight: 400; letter-spacing: 0; text-transform: none;
 }
 .flyer[data-party="union"] .fp-ballot-box { border-color: #2d3c4b; border-radius: 0; color: #2d3c4b; font-family: "Inter", system-ui, sans-serif; }
-.flyer.mini[data-party="union"] .flyer-slogan { font-size: 1.35rem; margin-left: -16px; }
-.flyer.mini[data-party="union"] .flyer-slogan > span,
-.flyer.mini[data-party="union"] .flyer-kicker, .flyer.mini[data-party="union"] .flyer-candidate { padding-left: 16px; }
-.flyer.mini[data-party="union"] .flyer-kicker, .flyer.mini[data-party="union"] .flyer-candidate { margin-left: -16px; font-size: .8rem; }
+.flyer.mini[data-party="union"] .flyer-slogan { font-size: 1.35rem; }
+.flyer.mini[data-party="union"] .flyer-kicker, .flyer.mini[data-party="union"] .flyer-candidate { font-size: .8rem; }
 .flyer.mini[data-party="union"] .flyer-kicker { margin-top: 14px; }
 .flyer.mini[data-party="union"] .flyer-logo { font-size: 1.1rem; }
 .flyer.mini[data-party="union"] .flyer-head::before { width: 120px; height: 84px; }
@@ -1248,3 +1246,5 @@ h2 .flyer-hint { margin: 0; }
 .flyer.site > .flyer-program > .fp-stamp { align-self: flex-start; }
 .flyer.site > .flyer-program > :nth-last-child(2) { margin-bottom: 22px; }
 .flyer.site[data-party] > .flyer-program > .fp-ballot { margin-top: auto; }
+.flyer.site[data-party="union"] > .flyer-program > .fp-title,
+.flyer.site[data-party="union"] > .flyer-program > .fp-sub { align-self: flex-start; }
