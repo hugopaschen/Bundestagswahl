@@ -1316,3 +1316,7 @@ h2 .flyer-hint { margin: 0; }
   .quiz-steps { gap: 6px; }
   .quiz-steps li { padding: 5px 10px; font-size: .82rem; }
 }
+
+/* Programmparteitag: keine Trennlinie am Seitenende der einzelnen Schritte */
+.flyer.site[data-party] .flyer-section { border-bottom: 0; }
+.program-bar { border-top: 0; }
