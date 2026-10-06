@@ -87,6 +87,19 @@
     return { nat: Math.min(-0.5, 0.5 * opt.pop - 1.1), east: Math.min(0, opt.east - line.east) };
   }
 
+  function quizEffect(prog, t) {
+    const n = prog.quiz && prog.quiz[t];
+    return Number.isInteger(n) && D.PROGRAM_RULES.quizEffect[n] !== undefined ? D.PROGRAM_RULES.quizEffect[n] : 0;
+  }
+
+  // Kernthema mit Patzer-Gefahr: höchstens eine richtige Antwort in der Fachkonferenz (schwächstes zuerst).
+  function gaffeTopic(prog) {
+    if (!prog || !prog.quiz) return null;
+    const weak = (prog.core || []).filter(t => Number.isInteger(prog.quiz[t]) && prog.quiz[t] <= 1);
+    weak.sort((a, b) => prog.quiz[a] - prog.quiz[b]);
+    return weak[0] || null;
+  }
+
   // Wirkung eines Programms im Vergleich zur traditionellen Parteilinie:
   // Populäre Positionen bringen Stimmen, Abweichungen von der Linie kosten Stammwähler und Glaubwürdigkeit.
   function programEffects(partyId, prog) {
@@ -106,12 +119,14 @@
       const pe = positionEffect(opt, line, deviation);
       const dNat = pe.nat * w;
       const dEast = pe.east * w;
-      const dComp = -10 * deviation + (core ? 12 : 0);
+      // Fachkonferenz: richtige Antworten zu einem Kernthema stärken die Kompetenz, Wissenslücken schwächen sie.
+      const quiz = core ? quizEffect(prog, t) : 0;
+      const dComp = -10 * deviation + (core ? 12 : 0) + quiz;
       competence[t] += dComp;
       nat += dNat;
       east += dEast;
       cost += opt.cost;
-      details[t] = { deviation, nat: dNat, east: dEast, comp: dComp, core };
+      details[t] = { deviation, nat: dNat, east: dEast, comp: dComp, core, quiz };
     });
     const budget = D.PROGRAM_RULES.budget;
     let finance = 'ok';
@@ -129,7 +144,9 @@
 
   function applyProgram(g, prog) {
     const fx = programEffects(g.party, prog);
-    g.program = { slogan: String(prog.slogan).trim().slice(0, 60), core: prog.core.slice(), positions: Object.assign({}, prog.positions) };
+    g.program = { slogan: String(prog.slogan).trim().slice(0, 60), core: prog.core.slice(), positions: Object.assign({}, prog.positions),
+      quiz: Object.assign({}, prog.quiz || {}) };
+    g.gaffe = gaffeTopic(prog);
     g.competence = fx.competence;
     g.prog = { nat: fx.nat, east: fx.east };
     g.finance = fx.finance;
@@ -703,6 +720,21 @@
       ]
     },
     {
+      id: 'patzer', title: 'Peinlicher Patzer im Interview',
+      cond: g => !!g.gaffe,
+      text: g => 'Im Interview zum Kernthema „' + topicById(g.gaffe).name + '“ liegt eure Spitzenkandidatur bei einfachen Fakten daneben. ' +
+        'Das Video verbreitet sich rasend schnell, eure Umfragewerte geben nach (−0.4).',
+      before: g => { g.nat[g.party] -= 0.4; changeSalience(g, g.gaffe, 0.02); },
+      choices: [
+        { label: 'Fehler offen eingestehen', hint: 'Kleiner, sicherer Schaden',
+          apply: g => { g.nat[g.party] -= 0.2; return 'Ehrlichkeit wird anerkannt, ganz vergessen ist der Patzer nicht (−0.2).'; } },
+        { label: 'Als Versprecher abtun', hint: 'Riskant',
+          apply: g => { if (rand(g) < 0.5) { g.nat[g.party] += 0.1; return 'Die Erklärung verfängt, die Debatte ebbt ab (+0.1).'; } g.nat[g.party] -= 0.8; return 'Ein zweites Video zeigt denselben Fehler – jetzt wird es richtig peinlich (−0.8).'; } },
+        { label: 'Den Medien eine Kampagne vorwerfen', hint: 'Kostet Kompetenz beim Thema',
+          apply: g => { g.competence[g.gaffe] = Math.max(5, g.competence[g.gaffe] - 8); g.nat[g.party] -= 0.1; return 'Die eigenen Anhänger jubeln, doch beim Thema verliert ihr an Glaubwürdigkeit.'; } }
+      ]
+    },
+    {
       id: 'faktencheck', title: 'Faktencheck zum Wahlprogramm',
       text: g => 'Ökonomen haben euer Wahlprogramm „' + g.program.slogan + '“ durchgerechnet. ' +
         (g.finance === 'over' ? 'Ihr Urteil: Die Versprechen sind nicht gegenfinanziert.'
@@ -728,9 +760,12 @@
   }
 
   function drawEvent(g) {
-    const pool = EVENTS.filter(e => g.usedEvents.indexOf(e.id) === -1);
+    const pool = EVENTS.filter(e => g.usedEvents.indexOf(e.id) === -1 && (!e.cond || e.cond(g)));
     if (!pool.length) return null;
-    const ev = pick(g, pool);
+    // Ein Patzer aus der Fachkonferenz holt einen spätestens in Woche 3 ein.
+    const gaffe = pool.find(e => e.id === 'patzer');
+    const rest = pool.filter(e => e.id !== 'patzer');
+    const ev = gaffe && (g.week >= 3 || !rest.length) ? gaffe : pick(g, rest);
     g.usedEvents.push(ev.id);
     if (ev.before) ev.before(g);
     g.pendingEvent = ev.id;
@@ -1013,7 +1048,7 @@
     MAX_WEEKS, AP_PER_WEEK, DUEL_WEEK, THRESHOLD, MAJORITY,
     ACTIONS, EVENTS, DUEL_STYLES,
     party, stateById, topicById, eventById, eventText,
-    goalReached, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
+    goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     actionCost, canAct, performAction, moneyWarning,
     drawEvent, resolveEvent,

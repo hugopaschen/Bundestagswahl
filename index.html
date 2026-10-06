@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de" data-version="20261006-223937">
+<html lang="de" data-version="20261006-231107">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Montserrat:wght@700;800;900&family=Oswald:wght@600;700&family=Public+Sans:wght@500;700;800;900&family=Inter:wght@800&family=Open+Sans:wght@400;700;800&family=Caveat:wght@600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,700;1,400&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20261006-223937">
+  <link rel="stylesheet" href="css/style.css?v=20261006-231107">
 </head>
 <body>
   <!-- Startseite: Eröffnungsbild, ein eigener Bildschirm -->
@@ -112,9 +112,10 @@
         <span class="flyer-nav-label" id="program-party"></span>
         <button type="button" class="step-link" data-step="0">1 Slogan</button>
         <button type="button" class="step-link" data-step="1">2 Kernthemen</button>
-        <button type="button" class="step-link" data-step="2">3 Positionen</button>
-        <button type="button" class="step-link" data-step="3">4 Bilanz</button>
-        <button type="button" class="step-link" data-step="4">Unser Programm</button>
+        <button type="button" class="step-link" data-step="2">3 Fachkonferenz</button>
+        <button type="button" class="step-link" data-step="3">4 Positionen</button>
+        <button type="button" class="step-link" data-step="4">5 Bilanz</button>
+        <button type="button" class="step-link" data-step="5">Unser Programm</button>
       </nav>
       <header class="flyer-head">
         <div class="flyer-brand">
@@ -144,8 +145,15 @@
         <div id="core-chips" class="core-grid"></div>
       </section>
 
+      <section class="flyer-section" id="sec-quiz">
+        <h2><span class="flyer-num">3</span> Fachkonferenz</h2>
+        <p class="flyer-hint core-intro">Eure Fachleute bereiten euch auf die Kernthemen vor: fünf Fragen je Thema. Jede richtige Antwort
+          macht euch dort glaubwürdiger – wer patzt, verliert Kompetenz und riskiert im Wahlkampf eine peinliche Schlagzeile.</p>
+        <div id="quiz"></div>
+      </section>
+
       <section class="flyer-section" id="sec-positionen">
-        <h2><span class="flyer-num">3</span> Dafür stehen wir</h2>
+        <h2><span class="flyer-num">4</span> Dafür stehen wir</h2>
         <p class="flyer-hint">„Parteilinie“ ist die traditionelle Haltung eurer Partei. Eine leichte Abweichung hin zu einer populären Position
           gewinnt neue Wähler, eine starke Abweichung verprellt dagegen immer die Stammwähler, egal wie populär sie ist.
           Jede Abweichung kostet etwas Glaubwürdigkeit beim Thema. Themen, die den Wählern wichtiger sind, bewegen mehr Stimmen. 💶 = Belastung für den Haushalt.</p>
@@ -153,7 +161,7 @@
       </section>
 
       <section class="flyer-section program-details" id="sec-bilanz">
-        <h2><span class="flyer-num">4</span> Bilanz für Strategen</h2>
+        <h2><span class="flyer-num">5</span> Bilanz für Strategen</h2>
         <p class="flyer-hint core-intro">Was kostet euer Programm, wie kommt es an – und bei welchen Themen trauen euch die Wähler jetzt mehr zu?</p>
         <div id="program-summary"></div>
         <div class="program-buttons">
@@ -277,8 +285,9 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="js/data.js?v=20261006-223937"></script>
-  <script src="js/engine.js?v=20261006-223937"></script>
-  <script src="js/ui.js?v=20261006-223937"></script>
+  <script src="js/data.js?v=20261006-231107"></script>
+  <script src="js/questions.js?v=20261006-231107"></script>
+  <script src="js/engine.js?v=20261006-231107"></script>
+  <script src="js/ui.js?v=20261006-231107"></script>
 </body>
 </html>

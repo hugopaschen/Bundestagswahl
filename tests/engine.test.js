@@ -204,3 +204,49 @@ test('Wahlziele: stärkste Kraft, absolute Mehrheit, Prozentziel und Koalitionsm
   assert.strictEqual(E.goalReached('fdp', r), false);
   assert.strictEqual(E.goalReached('fdp', Object.assign({}, r, { shares: Object.assign({}, shares, { fdp: 5 }) })), true);
 });
+
+test('Fachkonferenz: richtige Antworten verändern die Kompetenz im Kernthema', () => {
+  const prog = E.defaultProgram('spd');
+  prog.core = ['soziales', 'gesundheit', 'wohnen'];
+  const base = E.programEffects('spd', prog).competence;
+  prog.quiz = { soziales: 5, gesundheit: 0, wohnen: 2, klima: 5 };
+  const fx = E.programEffects('spd', prog);
+  assert.strictEqual(fx.competence.soziales - base.soziales, 15);
+  assert.strictEqual(fx.competence.gesundheit - base.gesundheit, -10);
+  assert.strictEqual(fx.competence.wohnen, base.wohnen);
+  assert.strictEqual(fx.competence.klima, base.klima); // kein Kernthema: keine Wirkung
+  assert.strictEqual(E.gaffeTopic(prog), 'gesundheit');
+});
+
+test('Patzer: Wer in der Fachkonferenz scheitert, bekommt spätestens in Woche 3 das Patzer-Ereignis', () => {
+  const prog = E.defaultProgram('gruene');
+  prog.quiz = {}; prog.core.forEach(t => { prog.quiz[t] = 4; });
+  prog.quiz[prog.core[1]] = 1;
+  const g = E.newGame('gruene', 'Test', 9, prog);
+  assert.strictEqual(g.gaffe, prog.core[1]);
+  const seen = [];
+  while (g.phase === 'campaign' && g.week < 4) {
+    if (g.pendingEvent) { seen.push(g.pendingEvent); E.resolveEvent(g, 0); }
+    if (g.week === E.DUEL_WEEK && !g.duelDone) { E.startDuel(g); while (g.duel) E.duelAnswer(g, 'sachlich'); }
+    E.endWeek(g);
+  }
+  if (g.pendingEvent) seen.push(g.pendingEvent);
+  assert.ok(seen.includes('patzer'), seen.join(','));
+  const ok = E.newGame('gruene', 'Test', 9, Object.assign({}, prog, { quiz: { [prog.core[0]]: 3, [prog.core[1]]: 3, [prog.core[2]]: 3 } }));
+  assert.strictEqual(ok.gaffe, null);
+});
+
+test('Fragen der Fachkonferenz: 30 gültige Fragen je Thema', () => {
+  const Q = require('../js/questions.js');
+  for (const t of D.TOPICS) {
+    const list = Q[t.id];
+    assert.strictEqual(list.length, 30, t.id);
+    assert.strictEqual(new Set(list.map(x => x.q)).size, 30, t.id + ': doppelte Frage');
+    for (const x of list) {
+      assert.strictEqual(x.a.length, 4, x.q);
+      assert.strictEqual(new Set(x.a).size, 4, x.q);
+      assert.ok(Number.isInteger(x.c) && x.c >= 0 && x.c < 4, x.q);
+      assert.ok(x.e && x.e.length > 10, x.q);
+    }
+  }
+});

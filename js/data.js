@@ -250,6 +250,9 @@
     coreCount: 3,        // Anzahl Kernthemen
     budget: 18,          // Finanzierungsrahmen in Punkten
     solidMargin: 4,      // so viele Punkte unter dem Rahmen gilt ein Programm als solide finanziert
+    quizCount: 5,        // Fragen der Fachkonferenz je Kernthema
+    // Kompetenzänderung je Kernthema nach Zahl der richtigen Antworten (0 bis 5)
+    quizEffect: [-10, -5, 0, 5, 10, 15],
     slogans: [
       'Zukunft. Jetzt.',
       'Anpacken statt abwarten',

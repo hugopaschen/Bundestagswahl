@@ -17,7 +17,7 @@ Der Spielstand wird automatisch im Browser gespeichert (localStorage).
 | Element | Beschreibung |
 |---|---|
 | **Parteien** | CDU/CSU, AfD, SPD, Grüne, Linke, BSW, FDP – mit unterschiedlichem Budget, eigenen Themenstärken und Wahlziel |
-| **Wahlprogramm** | Gestaltet als ganzseitige Partei-Website (mit Navigation) im Stil der jeweiligen Partei (angelehnt an die Kampagnen 2025, FDP nach ihrer Corporate Design Guideline vom 24.07.2026, CDU nach ihrem Corporate Design Manual vom Mai 2026, SPD nach ihrem CD-Manual vom August 2024, AfD nach ihrem Corporate Design vom 14.03.2017; ohne Originallogos), an dessen Ende das gewählte Programm steht. Nach der Parteiwahl: Slogan, 3 Kernthemen und je Thema eine von drei Positionen. Leichte Abweichungen von der Parteilinie hin zu populären Positionen bringen Stimmen, starke Abweichungen kosten immer Stammwähler; jede Abweichung kostet etwas Themenkompetenz, wichtige Themen bewegen mehr Stimmen, und das Programm muss in den Finanzierungsrahmen (18 💶) passen – Steuererhöhungen oder ein Sparkurs schaffen Spielraum |
+| **Wahlprogramm** | Gestaltet als ganzseitige Partei-Website (mit Navigation) im Stil der jeweiligen Partei (angelehnt an die Kampagnen 2025, FDP nach ihrer Corporate Design Guideline vom 24.07.2026, CDU nach ihrem Corporate Design Manual vom Mai 2026, SPD nach ihrem CD-Manual vom August 2024, AfD nach ihrem Corporate Design vom 14.03.2017; ohne Originallogos), an dessen Ende das gewählte Programm steht. Nach der Parteiwahl: Slogan, 3 Kernthemen, Fachkonferenz (5 Faktenfragen je Kernthema aus einem Pool von 30 pro Thema; 0–5 richtige Antworten ändern die Kompetenz um −10 bis +15, wer höchstens eine Frage richtig hat, erlebt im Wahlkampf einen Interview-Patzer) und je Thema eine von drei Positionen. Leichte Abweichungen von der Parteilinie hin zu populären Positionen bringen Stimmen, starke Abweichungen kosten immer Stammwähler; jede Abweichung kostet etwas Themenkompetenz, wichtige Themen bewegen mehr Stimmen, und das Programm muss in den Finanzierungsrahmen (18 💶) passen – Steuererhöhungen oder ein Sparkurs schaffen Spielraum |
 | **Wochen** | 8 Wochen Wahlkampf, je 3 Aktionen pro Woche |
 | **Regionale Aktionen** | Kundgebung, Plakatkampagne, Haustürwahlkampf – wirken im gewählten Bundesland |
 | **Bundesweite Aktionen** | TV-Spot, Social Media (Shitstorm-Risiko), Pressekonferenz (setzt Themen), Talkshow |
@@ -43,6 +43,7 @@ lädt das Spiel die Seite einmal automatisch neu.
 index.html        Seitengerüst (Start, Wahlkampf, Wahlabend)
 css/style.css     Gestaltung inkl. Dark Mode und Mobilansicht
 js/data.js        Parteien, Bundesländer, Themen, Programmpositionen
+js/questions.js   Fragen der Fachkonferenz (30 je Thema)
 js/engine.js      Spiellogik ohne DOM (Umfragemodell, Aktionen, Ereignisse, Sitzverteilung)
 js/ui.js          Oberfläche
 tests/            Tests der Spiellogik (`npm test`, Node ≥ 18)

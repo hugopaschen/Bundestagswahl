@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261006-223937';
+  const APP_VERSION = '20261006-231107';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -613,6 +613,7 @@
   const PROGRAM_STEPS = [
     { id: 'sec-slogan', name: 'Slogan' },
     { id: 'sec-kern', name: 'Kernthemen' },
+    { id: 'sec-quiz', name: 'Fachkonferenz' },
     { id: 'sec-positionen', name: 'Positionen' },
     { id: 'sec-bilanz', name: 'Bilanz' },
     { id: 'flyer-program', name: 'Unser Programm' }
@@ -623,6 +624,8 @@
   function enterProgram() {
     draft = E.defaultProgram(chosenParty);
     draft.core = []; // Kernthemen wählt der Spieler selbst, ohne Vorauswahl
+    draft.quiz = {};
+    quiz = {};
     programStep = 0;
     programMaxStep = 0;
     show('program');
@@ -634,6 +637,10 @@
     const max = D.PROGRAM_RULES.coreCount;
     if (step === 0 && !String(draft.slogan || '').trim()) return 'Bitte einen Wahlslogan festlegen.';
     if (step === 1 && draft.core.length !== max) return 'Bitte ' + max + ' Kernthemen wählen (' + draft.core.length + ' / ' + max + ').';
+    if (step === 2) {
+      const done = draft.core.filter(t => Number.isInteger(draft.quiz[t])).length;
+      if (done < draft.core.length) return 'Bitte die Fachkonferenz abschließen (' + done + ' / ' + draft.core.length + ' Themen).';
+    }
     return null;
   }
 
@@ -641,6 +648,7 @@
     for (let i = 0; i < n; i++) if (stepBlocker(i)) n = i; // nicht an offenen Schritten vorbei
     programStep = n;
     programMaxStep = Math.max(programMaxStep, n);
+    if (PROGRAM_STEPS[n].id === 'sec-quiz') renderQuiz();
     renderProgramStep();
     if (n === 0) window.scrollTo({ top: 0, behavior: 'instant' });
     else $(PROGRAM_STEPS[n].id).scrollIntoView({ behavior: 'instant', block: 'start' });
@@ -669,6 +677,110 @@
     const hint = stats.querySelector('.step-hint');
     hint.textContent = blocker || '';
     hint.hidden = !blocker;
+  }
+
+
+  // ---------- Fachkonferenz (Quiz je Kernthema) ----------
+  // quiz[topic] = { qs: [Fragenindizes], i: aktuelle Frage, correct: Anzahl, answer: gewählte Antwort oder null }
+  let quiz = {};
+  const QUIZ_EFFECT = D.PROGRAM_RULES.quizEffect;
+  const QUIZ_COUNT = D.PROGRAM_RULES.quizCount;
+  const QBANK = (typeof window !== 'undefined' && window.BTW_QUESTIONS) || {};
+
+  function drawQuestions(topic) {
+    const all = (QBANK[topic] || []).map((_, i) => i);
+    for (let i = all.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [all[i], all[j]] = [all[j], all[i]]; }
+    return all.slice(0, QUIZ_COUNT);
+  }
+
+  function quizState(topic) {
+    if (!quiz[topic]) quiz[topic] = { qs: drawQuestions(topic), i: 0, correct: 0, answer: null };
+    return quiz[topic];
+  }
+
+  function signedInt(n) { return n > 0 ? '+' + n : n < 0 ? '−' + Math.abs(n) : '±0'; }
+
+  function renderQuiz() {
+    const box = $('quiz');
+    const topics = draft.core.slice();
+    const current = topics.find(t => !Number.isInteger(draft.quiz[t]));
+    let html = '<ol class="quiz-steps">' + topics.map((t, k) => {
+      const tp = E.topicById(t);
+      const done = Number.isInteger(draft.quiz[t]);
+      const cls = done ? 'done' : t === current ? 'active' : '';
+      return '<li class="' + cls + '"><span class="quiz-step-num">' + (k + 1) + '</span>' + tp.icon + ' ' + cardName(tp.name) +
+        (done ? ' <b>' + (quiz[t] && quiz[t].skipped ? 'übersprungen' : draft.quiz[t] + '/' + QUIZ_COUNT) + ' · ' + signedInt(QUIZ_EFFECT[draft.quiz[t]]) + '</b>' : '') + '</li>';
+    }).join('') + '</ol>';
+
+    if (current) {
+      const st = quizState(current);
+      const tp = E.topicById(current);
+      const q = QBANK[current] && QBANK[current][st.qs[st.i]];
+      if (!q) {
+        html += '<p class="quiz-empty">Für dieses Thema liegen noch keine Fragen vor.</p>';
+      } else {
+        const answered = st.answer !== null;
+        html += '<div class="quiz-card">' +
+          '<div class="quiz-meta"><span>' + tp.icon + ' ' + esc(tp.name) + '</span><span>Frage ' + (st.i + 1) + ' von ' + st.qs.length + '</span></div>' +
+          '<div class="quiz-dots" aria-hidden="true">' + st.qs.map((_, k) => '<i class="' + (k < st.i ? 'past' : k === st.i ? 'now' : '') + '"></i>').join('') + '</div>' +
+          '<p class="quiz-q">' + esc(q.q) + '</p><div class="quiz-answers">' +
+          q.a.map((a, k) => {
+            let cls = 'quiz-answer';
+            if (answered && k === q.c) cls += ' right';
+            else if (answered && k === st.answer) cls += ' wrong';
+            return '<button type="button" class="' + cls + '" data-k="' + k + '"' + (answered ? ' disabled' : '') + '><span class="quiz-letter">' + 'ABCD'[k] + '</span>' + esc(a) + '</button>';
+          }).join('') + '</div>';
+        if (answered) {
+          const ok = st.answer === q.c;
+          const last = st.i === st.qs.length - 1;
+          html += '<div class="quiz-feedback ' + (ok ? 'ok' : 'no') + '" role="status"><b>' + (ok ? '✓ Richtig!' : '✗ Leider falsch.') + '</b> ' + esc(q.e) + '</div>' +
+            '<button type="button" class="btn primary quiz-next">' + (last ? 'Auswertung „' + esc(tp.name) + '“ →' : 'Nächste Frage →') + '</button>';
+        }
+        html += '</div>';
+      }
+      html += '<button type="button" class="quiz-skip">Fachkonferenz zu „' + esc(tp.name) + '“ überspringen (Kompetenz ±0)</button>';
+    } else {
+      html += '<div class="quiz-card quiz-summary"><p class="quiz-q">Fachkonferenz abgeschlossen</p><ul>' + topics.map(t => {
+        const tp = E.topicById(t);
+        const n = draft.quiz[t];
+        const fx = QUIZ_EFFECT[n];
+        return '<li><span>' + tp.icon + ' ' + esc(tp.name) + '</span><span>' + (quiz[t] && quiz[t].skipped ? 'übersprungen' : n + ' von ' + QUIZ_COUNT + ' richtig') + '</span><b class="' + (fx > 0 ? 'pos' : fx < 0 ? 'neg' : '') + '">Kompetenz ' + signedInt(fx) + '</b></li>';
+      }).join('') + '</ul>' +
+        (E.gaffeTopic(draft) ? '<p class="quiz-warn">⚠️ Bei „' + esc(E.topicById(E.gaffeTopic(draft)).name) + '“ sitzt das Wissen nicht – im Wahlkampf droht ein peinlicher Patzer.</p>' : '') +
+        '</div>';
+    }
+    box.innerHTML = html;
+
+    box.querySelectorAll('.quiz-answer').forEach(b => b.addEventListener('click', () => {
+      const st = quiz[current];
+      st.answer = Number(b.dataset.k);
+      if (st.answer === QBANK[current][st.qs[st.i]].c) st.correct += 1;
+      renderQuiz();
+      const next = box.querySelector('.quiz-next');
+      if (next) { next.focus({ preventScroll: true }); next.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+    }));
+    const next = box.querySelector('.quiz-next');
+    if (next) next.addEventListener('click', () => {
+      const st = quiz[current];
+      if (st.i < st.qs.length - 1) { st.i += 1; st.answer = null; }
+      else draft.quiz[current] = st.correct;
+      afterQuizChange();
+      const first = box.querySelector('.quiz-answer');
+      if (first) first.focus({ preventScroll: true });
+      const card = box.querySelector('.quiz-card');
+      if (card && card.getBoundingClientRect().top < 60) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    const skip = box.querySelector('.quiz-skip');
+    if (skip) skip.addEventListener('click', () => {
+      draft.quiz[current] = QUIZ_EFFECT.indexOf(0);
+      quizState(current).skipped = true;
+      afterQuizChange();
+    });
+  }
+
+  function afterQuizChange() {
+    renderQuiz();
+    renderProgramSummary();
   }
 
   function renderProgram() {
@@ -767,8 +879,12 @@
         '<span class="core-bar"><span style="width:' + Math.min(100, interest * 4) + '%"></span></span></span>';
       b.title = 'Kompetenz deiner Partei: ' + comp + '/100 · so wichtig ist das Thema den Wählern zu Beginn: ' + interest + ' %';
       b.addEventListener('click', () => {
-        if (on) draft.core = draft.core.filter(c => c !== t.id);
-        else if (draft.core.length < max) draft.core.push(t.id);
+        if (on) {
+          draft.core = draft.core.filter(c => c !== t.id);
+          delete draft.quiz[t.id]; // abgewählt: Fachkonferenz zu diesem Thema verfällt
+          delete quiz[t.id];
+          programMaxStep = Math.min(programMaxStep, 2);
+        } else if (draft.core.length < max) draft.core.push(t.id);
         renderCoreChips();
         updateCoreMarks();
         renderProgramSummary();
@@ -930,6 +1046,7 @@
               (d ? (d > 0 ? '+' : '−') + Math.abs(d) : '±0') + '</span></span>' +
             '<span class="core-bar comp-bar"><span style="width:' + Math.max(0, Math.min(100, now)) + '%"></span>' +
               '<i style="left:' + Math.max(0, Math.min(100, before)) + '%" title="vorher ' + before + '"></i></span>' +
+            (core && Number.isInteger(draft.quiz[t.id]) ? '<span class="comp-quiz">Fachkonferenz ' + signedInt(QUIZ_EFFECT[draft.quiz[t.id]]) + '</span>' : '') +
             '</div>';
         }).join('') + '</div>' +
         '<p class="flyer-hint comp-legend">Der Strich im Balken zeigt die Kompetenz vor eurem Programm.</p>';
@@ -990,9 +1107,11 @@
   $('btn-program-reset').addEventListener('click', () => {
     const slogan = draft.slogan;
     const core = draft.core.slice();
+    const quizResults = Object.assign({}, draft.quiz);
     draft = E.defaultProgram(chosenParty);
     draft.slogan = slogan;
     draft.core = core; // selbst gewählte Kernthemen bleiben erhalten
+    draft.quiz = quizResults;
     renderProgram();
   });
 
