@@ -50,7 +50,7 @@
   }
 
   function show(screen) {
-    ['start', 'program', 'game', 'election'].forEach(s => { $('screen-' + s).hidden = s !== screen; });
+    ['intro', 'start', 'program', 'game', 'election'].forEach(s => { $('screen-' + s).hidden = s !== screen; });
     // Die Programm-Website färbt den ganzen Seitenhintergrund in der Papierfarbe der Partei.
     if (screen !== 'program') document.body.style.background = '';
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -786,10 +786,9 @@
     renderProgram();
   });
 
-  $('btn-program-back').addEventListener('click', () => {
-    show('start');
-    $('setup').scrollIntoView({ behavior: 'instant' });
-  });
+  $('btn-program-back').addEventListener('click', () => show('start'));
+  $('btn-intro-start').addEventListener('click', () => { renderStart(); show('start'); });
+  $('btn-to-intro').addEventListener('click', () => { renderStart(); show('intro'); });
 
   $('btn-program-confirm').addEventListener('click', () => {
     if (E.validateProgram(draft).length) return;

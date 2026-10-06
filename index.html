@@ -12,23 +12,32 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <!-- Startbildschirm -->
-  <main id="screen-start" class="screen">
-    <!-- Erste Seite: bildschirmfüllendes Eröffnungsbild -->
-    <header class="hero hero-intro" id="intro">
+  <!-- Startseite: Eröffnungsbild, ein eigener Bildschirm -->
+  <main id="screen-intro" class="screen intro-screen">
+    <header class="hero hero-intro">
       <div class="hero-inner">
         <p class="eyebrow">Das Bundestagswahl-Spiel</p>
         <h1>Wahlkampf!</h1>
         <p class="lead">Acht Wochen bis zur Wahl. Wähle deine Partei, setze Themen, tourne durch die Republik
           und bestehe die Elefantenrunde. Am Wahlabend zählt jede Stimme – und danach jede Koalitionsoption.</p>
         <div class="hero-actions">
-          <a class="btn primary big" href="#setup">Wahlkampf beginnen</a>
+          <button type="button" class="btn primary big" id="btn-intro-start">Wahlkampf beginnen</button>
           <button type="button" class="btn big" id="btn-intro-resume" hidden>Wahlkampf fortsetzen</button>
         </div>
       </div>
-      <a class="hero-scroll" href="#setup" aria-label="Weiter zur Parteiwahl"><span aria-hidden="true"></span></a>
       <div class="hero-stripes" aria-hidden="true">
         <i style="background:var(--c-union)"></i><i style="background:var(--c-afd)"></i><i style="background:var(--c-spd)"></i><i style="background:var(--c-gruene)"></i><i style="background:var(--c-linke)"></i><i style="background:var(--c-bsw)"></i><i style="background:var(--c-fdp)"></i>
+      </div>
+    </header>
+  </main>
+
+  <!-- Parteiwahl: neue Seite nach dem Eröffnungsbild -->
+  <main id="screen-start" class="screen" hidden>
+    <header class="page-head">
+      <button type="button" class="btn back" id="btn-to-intro">← Startseite</button>
+      <div>
+        <p class="eyebrow">Schritt 1 von 2</p>
+        <h1>Wähle deine Partei</h1>
       </div>
     </header>
 
@@ -43,7 +52,7 @@
         <input id="candidate" type="text" maxlength="40" placeholder="z. B. Alex Muster" autocomplete="off">
       </label>
 
-      <h2>Wähle deine Partei</h2>
+      <h2>Parteien</h2>
       <div id="party-list" class="party-list" role="radiogroup" aria-label="Partei"></div>
 
       <div class="setup-actions">
