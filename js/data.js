@@ -46,6 +46,10 @@
   };
 
   // Spielbare Parteien. "competence" = zugeschriebene Kompetenz je Thema (0–100).
+  // Angelehnt an Kompetenzumfragen („Welche Partei kann … am besten lösen?“), gestreckt auf 0–100:
+  // ARD-DeutschlandTrend 9/2026 (Wirtschaft: Union vorn mit 24 %, AfD dicht dahinter; Asyl: AfD 26 % klar vorn;
+  // AfD überall stärker als 2025), soziale Gerechtigkeit (SPD 20, AfD 18, Linke 18), Außen- und
+  // Verteidigungspolitik 9/2025 (Union 37/34, AfD 16/16, SPD 11/20, Grüne 8/4). Themen ohne Umfrage geschätzt.
   // "budget" = Wahlkampfkasse in Mio. €, angelehnt an die Wahlkampfbudgets zur Bundestagswahl 2025
   // (RND-Umfrage unter den Parteien): CDU 28 (+ geschätzter CSU-Anteil), Grüne 19, SPD 15, BSW 6.
   // Linke aus der RND-Gesamtsumme abgeleitet (~7). AfD und FDP haben keine Zahlen genannt:
@@ -56,7 +60,7 @@
       budget: 30, goal: 0, mustLead: true,
       goalText: 'Stärkste Kraft werden',
       desc: 'Die Volkspartei der Mitte. Stark bei Wirtschaft und Sicherheit, großes Budget.',
-      competence: { wirtschaft: 70, migration: 55, soziales: 40, klima: 35, sicherheit: 65, bildung: 50, digitales: 45, wohnen: 45 , verteidigung: 65, gesundheit: 45, verkehr: 50, europa: 60, familie: 50, land: 60, demokratie: 50, finanzen: 60 },
+      competence: { wirtschaft: 65, migration: 55, soziales: 40, klima: 35, sicherheit: 60, bildung: 50, digitales: 45, wohnen: 45, verteidigung: 75, gesundheit: 45, verkehr: 50, europa: 75, familie: 50, land: 60, demokratie: 50, finanzen: 60 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
       lean: { wirtschaft: 1, migration: 1, soziales: 0, klima: 0, sicherheit: 1, bildung: 1, digitales: 0, wohnen: 1 , verteidigung: 1, gesundheit: 0, verkehr: 1, europa: 0, familie: 1, land: 1, demokratie: 0, finanzen: 1 }
     },
@@ -65,7 +69,7 @@
       budget: 8, goal: 0, goalMajority: true,
       goalText: 'Die absolute Mehrheit der Sitze im Bundestag erringen',
       desc: 'Rechtspopulistische Oppositionspartei, besonders stark im Osten. Kein anderer Partner will koalieren.',
-      competence: { wirtschaft: 35, migration: 75, soziales: 35, klima: 15, sicherheit: 55, bildung: 25, digitales: 20, wohnen: 25 , verteidigung: 35, gesundheit: 25, verkehr: 25, europa: 25, familie: 25, land: 35, demokratie: 25, finanzen: 30 },
+      competence: { wirtschaft: 55, migration: 75, soziales: 50, klima: 15, sicherheit: 65, bildung: 25, digitales: 20, wohnen: 35, verteidigung: 45, gesundheit: 30, verkehr: 30, europa: 45, familie: 30, land: 40, demokratie: 25, finanzen: 40 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
       lean: { wirtschaft: 1, migration: 1, soziales: 0, klima: 1, sicherheit: 1, bildung: 1, digitales: 0, wohnen: 1 , verteidigung: -1, gesundheit: 0, verkehr: 1, europa: 1, familie: 1, land: 1, demokratie: 1, finanzen: 1 }
     },
@@ -74,7 +78,7 @@
       budget: 15, goal: 20,
       goalText: '20 % holen',
       desc: 'Die traditionsreiche Sozialdemokratie. Stark bei Sozialem und Rente.',
-      competence: { wirtschaft: 45, migration: 30, soziales: 70, klima: 45, sicherheit: 40, bildung: 50, digitales: 35, wohnen: 55 , verteidigung: 45, gesundheit: 65, verkehr: 45, europa: 55, familie: 55, land: 35, demokratie: 45, finanzen: 50 },
+      competence: { wirtschaft: 40, migration: 30, soziales: 58, klima: 45, sicherheit: 35, bildung: 50, digitales: 35, wohnen: 55, verteidigung: 55, gesundheit: 65, verkehr: 45, europa: 45, familie: 55, land: 35, demokratie: 45, finanzen: 50 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
       lean: { wirtschaft: 0, migration: 0, soziales: -1, klima: 0, sicherheit: 0, bildung: -1, digitales: 0, wohnen: 0 , verteidigung: 0, gesundheit: -1, verkehr: 0, europa: 0, familie: -1, land: 0, demokratie: -1, finanzen: -1 }
     },
@@ -83,7 +87,7 @@
       budget: 19, goal: 20,
       goalText: '20 % holen',
       desc: 'Die Ökopartei mit Hochburgen in den Großstädten. Unschlagbar beim Klima.',
-      competence: { wirtschaft: 35, migration: 25, soziales: 40, klima: 85, sicherheit: 25, bildung: 50, digitales: 45, wohnen: 40 , verteidigung: 40, gesundheit: 40, verkehr: 50, europa: 55, familie: 50, land: 40, demokratie: 45, finanzen: 35 },
+      competence: { wirtschaft: 35, migration: 25, soziales: 40, klima: 85, sicherheit: 25, bildung: 50, digitales: 45, wohnen: 40, verteidigung: 25, gesundheit: 40, verkehr: 50, europa: 40, familie: 50, land: 40, demokratie: 45, finanzen: 35 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
       lean: { wirtschaft: 0, migration: -1, soziales: -1, klima: -1, sicherheit: -1, bildung: -1, digitales: -1, wohnen: 0 , verteidigung: 0, gesundheit: -1, verkehr: -1, europa: -1, familie: -1, land: -1, demokratie: -1, finanzen: -1 }
     },
@@ -92,7 +96,7 @@
       budget: 7, goal: 0, goalCoalition: ['spd', 'gruene', 'linke'],
       goalText: 'Genug Stimmen für eine Regierungsmehrheit mit SPD und Grünen holen',
       desc: 'Linke Oppositionspartei mit junger Basis. Stark bei Mieten, Preisen und sozialer Gerechtigkeit.',
-      competence: { wirtschaft: 25, migration: 25, soziales: 75, klima: 40, sicherheit: 15, bildung: 40, digitales: 25, wohnen: 75 , verteidigung: 20, gesundheit: 50, verkehr: 30, europa: 25, familie: 45, land: 25, demokratie: 30, finanzen: 30 },
+      competence: { wirtschaft: 25, migration: 25, soziales: 55, klima: 40, sicherheit: 15, bildung: 40, digitales: 25, wohnen: 75, verteidigung: 20, gesundheit: 50, verkehr: 30, europa: 25, familie: 45, land: 25, demokratie: 30, finanzen: 30 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
       lean: { wirtschaft: -1, migration: -1, soziales: -1, klima: -1, sicherheit: -1, bildung: -1, digitales: -1, wohnen: -1 , verteidigung: -1, gesundheit: -1, verkehr: -1, europa: 0, familie: -1, land: 0, demokratie: -1, finanzen: -1 }
     },
@@ -101,7 +105,7 @@
       budget: 6, goal: 5,
       goalText: 'Unter neuem Namen 5 % holen',
       desc: 'Neu benannte Partei, 2025 knapp an der Hürde gescheitert. Kleines Budget, viel zu gewinnen.',
-      competence: { wirtschaft: 35, migration: 55, soziales: 55, klima: 20, sicherheit: 35, bildung: 30, digitales: 20, wohnen: 40 , verteidigung: 35, gesundheit: 35, verkehr: 25, europa: 25, familie: 30, land: 30, demokratie: 30, finanzen: 35 },
+      competence: { wirtschaft: 35, migration: 55, soziales: 45, klima: 20, sicherheit: 35, bildung: 30, digitales: 20, wohnen: 40, verteidigung: 30, gesundheit: 35, verkehr: 25, europa: 30, familie: 30, land: 30, demokratie: 30, finanzen: 35 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
       lean: { wirtschaft: -1, migration: 1, soziales: -1, klima: 1, sicherheit: 0, bildung: 0, digitales: 0, wohnen: 0 , verteidigung: -1, gesundheit: -1, verkehr: 0, europa: 1, familie: 0, land: 0, demokratie: 1, finanzen: -1 }
     },
@@ -110,7 +114,7 @@
       budget: 6, goal: 5,
       goalText: 'Wieder in den Bundestag einziehen (5 %)',
       desc: 'Die Liberalen kämpfen um den Wiedereinzug. Stark bei Wirtschaft und Digitalisierung.',
-      competence: { wirtschaft: 60, migration: 30, soziales: 20, klima: 25, sicherheit: 30, bildung: 50, digitales: 70, wohnen: 40 , verteidigung: 45, gesundheit: 30, verkehr: 40, europa: 50, familie: 35, land: 35, demokratie: 45, finanzen: 55 },
+      competence: { wirtschaft: 45, migration: 30, soziales: 20, klima: 25, sicherheit: 30, bildung: 50, digitales: 60, wohnen: 40, verteidigung: 35, gesundheit: 30, verkehr: 40, europa: 35, familie: 35, land: 35, demokratie: 45, finanzen: 45 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
       lean: { wirtschaft: 1, migration: 0, soziales: 1, klima: 1, sicherheit: -1, bildung: 1, digitales: 1, wohnen: 1 , verteidigung: 1, gesundheit: 1, verkehr: 1, europa: 0, familie: 0, land: 1, demokratie: 0, finanzen: 1 }
     }
