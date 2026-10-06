@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261006-201238';
+  const APP_VERSION = '20261006-202153';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -595,7 +595,10 @@
   // Programmseite unten genau so viel Platz, wie die Leiste hoch ist.
   (function reserveBarSpace() {
     const bar = document.querySelector('.program-bar');
-    const fit = () => { $('screen-program').style.paddingBottom = bar.offsetHeight + 'px'; };
+    const fit = () => {
+      $('screen-program').style.paddingBottom = bar.offsetHeight + 'px';
+      document.documentElement.style.setProperty('--bar-h', bar.offsetHeight + 'px');
+    };
     if (window.ResizeObserver) new ResizeObserver(fit).observe(bar);
     window.addEventListener('resize', fit);
     fit();
@@ -838,7 +841,7 @@
         { solid: 'Solide finanziert', ok: 'Durchgerechnet', over: 'Nicht gegenfinanziert' }[finance] + '</span>';
     }
     html += '<div class="fp-ballot"><div class="fp-ballot-call"><small>Am Wahlsonntag</small>' + esc(partyId === 'union' ? 'CDU/CSU' : p.short) + ' wählen!</div>' +
-      '<div class="fp-ballot-box"><span>Zweitstimme</span><span>' + esc(p.name.length > 24 ? p.short : p.name) + '</span><span class="fp-cross" aria-hidden="true"></span></div></div>';
+      '<div class="fp-ballot-box"><span>Zweitstimme</span><span class="fp-name-long">' + esc(p.name.length > 24 ? p.short : p.name) + '</span><span class="fp-name-short">' + esc(partyId === 'union' ? 'CDU/CSU' : p.short) + '</span><span class="fp-cross" aria-hidden="true"></span></div></div>';
     return html;
   }
 

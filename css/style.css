@@ -569,6 +569,7 @@ h2 .flyer-hint { margin: 0; }
   display: flex; align-items: center; gap: 12px; background: #fff; color: #1d1d1f; border: 2px solid #1d1d1f;
   padding: 8px 12px; border-radius: 4px; font-weight: 800;
 }
+.fp-name-short { display: none; }
 .fp-cross {
   width: 34px; height: 34px; border: 2px solid #1d1d1f; border-radius: 50%; position: relative; flex: 0 0 auto;
 }
@@ -623,6 +624,8 @@ h2 .flyer-hint { margin: 0; }
 .flyer.mini .fp-list li { padding: 5px 0; }
 .flyer.mini .fp-stamp { margin: 10px 0 14px; font-size: .72rem; }
 .flyer.mini .fp-ballot { display: none; }
+/* Der Wahlaufruf bleibt auf „Unser Programm“ immer direkt über der Aktionsleiste stehen. */
+.flyer.site[data-party] .fp-ballot { position: sticky; bottom: var(--bar-h, 0px); z-index: 4; box-shadow: 0 -6px 18px rgba(0, 0, 0, .12); }
 
 /* ---------- Flyer-Designs je Partei ----------
    Angelehnt an Farben und Bildsprache der Wahlkampagnen 2025 (vereinfacht, ohne Originallogos). */
@@ -1224,3 +1227,16 @@ h2 .flyer-hint { margin: 0; }
 .notice h2 { font-size: 1.15rem; margin: 0 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--rule); }
 .notice ol { margin: 0 0 16px; padding-left: 1.3rem; font-size: .93rem; line-height: 1.55; }
 .notice li { margin-bottom: .5rem; }
+
+/* Angehefteter Wahlaufruf auf schmalen Bildschirmen kompakt in einer Zeile */
+@media (max-width: 600px) {
+  .flyer.site[data-party] .fp-ballot { flex-wrap: nowrap; gap: 10px; padding-top: 10px; padding-bottom: 10px; margin-top: 16px; }
+  .flyer.site[data-party] .fp-ballot-call { font-size: 1rem; }
+  .flyer.site[data-party] .fp-ballot-call small { font-size: .7rem; }
+  .flyer.site[data-party] .fp-ballot-box { font-size: .85rem; padding: 6px 10px; gap: 6px; flex: 0 0 auto; }
+  .flyer.site[data-party] .fp-cross { width: 24px; height: 24px; }
+  .flyer.site .fp-name-long { display: none; }
+  .flyer.site .fp-name-short { display: inline; }
+  .flyer.site[data-party] .fp-cross::before, .flyer.site[data-party] .fp-cross::after { width: 28px; height: 3px; }
+  .flyer.site[data-party="spd"] .fp-ballot-call { transform: rotate(-6deg); font-size: .95rem; }
+}
