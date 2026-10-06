@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261006-190845';
+  const APP_VERSION = '20261006-193555';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -654,7 +654,7 @@
 
   function renderProgram() {
     const p = E.party(chosenParty);
-    $('program-party').textContent = p.name + ' · Programmparteitag';
+    $('program-party').textContent = (p.name.length > 30 ? p.short : p.name) + ' · Programmparteitag';
     $('slogan').value = draft.slogan;
     const flyer = $('flyer');
     flyer.style.setProperty('--pc', col(chosenParty));
@@ -728,20 +728,30 @@
     box.innerHTML = '';
     D.TOPICS.forEach(t => {
       const on = draft.core.indexOf(t.id) !== -1;
+      const comp = p.competence[t.id];
+      const interest = Math.round(D.SALIENCE0[t.id] * 100);
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'chip';
+      b.className = 'core-card';
+      b.dataset.topic = t.id;
       b.setAttribute('aria-pressed', String(on));
       b.disabled = !on && draft.core.length >= max;
-      b.textContent = t.icon + ' ' + t.name + ' · ' + p.competence[t.id];
-      b.title = 'Kompetenz deiner Partei: ' + p.competence[t.id] + '/100';
+      b.innerHTML =
+        '<span class="core-badge">' + (on ? '✓ Kernthema ' + (draft.core.indexOf(t.id) + 1) : 'Auswählen') + '</span>' +
+        '<span class="core-icon" aria-hidden="true">' + t.icon + '</span>' +
+        '<span class="core-name">' + t.name + '</span>' +
+        '<span class="core-meter"><span class="core-meter-label">Kompetenz <b>' + comp + '</b>/100</span>' +
+        '<span class="core-bar"><span style="width:' + comp + '%"></span></span></span>' +
+        '<span class="core-meter"><span class="core-meter-label">Wählerinteresse <b>' + interest + '&nbsp;%</b></span>' +
+        '<span class="core-bar"><span style="width:' + Math.min(100, interest * 4) + '%"></span></span></span>';
+      b.title = 'Kompetenz deiner Partei: ' + comp + '/100 · so wichtig ist das Thema den Wählern zu Beginn: ' + interest + ' %';
       b.addEventListener('click', () => {
         if (on) draft.core = draft.core.filter(c => c !== t.id);
         else if (draft.core.length < max) draft.core.push(t.id);
         renderCoreChips();
         updateCoreMarks();
         renderProgramSummary();
-        const again = Array.from(box.querySelectorAll('.chip')).find(c => c.textContent === b.textContent);
+        const again = box.querySelector('[data-topic="' + t.id + '"]');
         if (again) again.focus();
       });
       box.appendChild(b);
