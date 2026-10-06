@@ -46,10 +46,10 @@
   };
 
   // Spielbare Parteien. "competence" = zugeschriebene Kompetenz je Thema (0–100).
-  // Angelehnt an Kompetenzumfragen („Welche Partei kann … am besten lösen?“), gestreckt auf 0–100:
-  // ARD-DeutschlandTrend 9/2026 (Wirtschaft: Union vorn mit 24 %, AfD dicht dahinter; Asyl: AfD 26 % klar vorn;
-  // AfD überall stärker als 2025), soziale Gerechtigkeit (SPD 20, AfD 18, Linke 18), Außen- und
-  // Verteidigungspolitik 9/2025 (Union 37/34, AfD 16/16, SPD 11/20, Grüne 8/4). Themen ohne Umfrage geschätzt.
+  // Angelehnt an Kompetenzumfragen („Welche Partei kann … am besten lösen?“): Durchschnitt aus Bundesumfragen
+  // (ARD-DeutschlandTrend 9/2026, Außen-/Verteidigungspolitik 9/2025, soziale Gerechtigkeit 2026) und den
+  // Landtagswahlen 2026 (BW, RP, Sachsen-Anhalt, Berlin), umgerechnet mit Wert = 20 + 1,5 × Prozent (auf 5 gerundet).
+  // Beispiel Wirtschaft Union: BW 36, RP 24, ST 27, Bund 24 → Ø 27,8 % → 60. Themen ohne Umfrage geschätzt.
   // "budget" = Wahlkampfkasse in Mio. €, angelehnt an die Wahlkampfbudgets zur Bundestagswahl 2025
   // (RND-Umfrage unter den Parteien): CDU 28 (+ geschätzter CSU-Anteil), Grüne 19, SPD 15, BSW 6.
   // Linke aus der RND-Gesamtsumme abgeleitet (~7). AfD und FDP haben keine Zahlen genannt:
@@ -60,7 +60,7 @@
       budget: 30, goal: 0, mustLead: true,
       goalText: 'Stärkste Kraft werden',
       desc: 'Die Volkspartei der Mitte. Stark bei Wirtschaft und Sicherheit, großes Budget.',
-      competence: { wirtschaft: 65, migration: 55, soziales: 40, klima: 35, sicherheit: 60, bildung: 50, digitales: 45, wohnen: 45, verteidigung: 75, gesundheit: 45, verkehr: 50, europa: 75, familie: 50, land: 60, demokratie: 50, finanzen: 60 },
+      competence: { wirtschaft: 60, migration: 55, soziales: 40, klima: 35, sicherheit: 60, bildung: 60, digitales: 45, wohnen: 40, verteidigung: 70, gesundheit: 45, verkehr: 60, europa: 75, familie: 50, land: 60, demokratie: 50, finanzen: 60 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
       lean: { wirtschaft: 1, migration: 1, soziales: 0, klima: 0, sicherheit: 1, bildung: 1, digitales: 0, wohnen: 1 , verteidigung: 1, gesundheit: 0, verkehr: 1, europa: 0, familie: 1, land: 1, demokratie: 0, finanzen: 1 }
     },
@@ -69,7 +69,7 @@
       budget: 8, goal: 0, goalMajority: true,
       goalText: 'Die absolute Mehrheit der Sitze im Bundestag erringen',
       desc: 'Rechtspopulistische Oppositionspartei, besonders stark im Osten. Kein anderer Partner will koalieren.',
-      competence: { wirtschaft: 55, migration: 75, soziales: 50, klima: 15, sicherheit: 65, bildung: 25, digitales: 20, wohnen: 35, verteidigung: 45, gesundheit: 30, verkehr: 30, europa: 45, familie: 30, land: 40, demokratie: 25, finanzen: 40 },
+      competence: { wirtschaft: 45, migration: 60, soziales: 45, klima: 15, sicherheit: 65, bildung: 55, digitales: 20, wohnen: 35, verteidigung: 45, gesundheit: 30, verkehr: 30, europa: 45, familie: 30, land: 40, demokratie: 25, finanzen: 40 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
       lean: { wirtschaft: 1, migration: 1, soziales: 0, klima: 1, sicherheit: 1, bildung: 1, digitales: 0, wohnen: 1 , verteidigung: -1, gesundheit: 0, verkehr: 1, europa: 1, familie: 1, land: 1, demokratie: 1, finanzen: 1 }
     },
@@ -78,7 +78,7 @@
       budget: 15, goal: 20,
       goalText: '20 % holen',
       desc: 'Die traditionsreiche Sozialdemokratie. Stark bei Sozialem und Rente.',
-      competence: { wirtschaft: 40, migration: 30, soziales: 58, klima: 45, sicherheit: 35, bildung: 50, digitales: 35, wohnen: 55, verteidigung: 55, gesundheit: 65, verkehr: 45, europa: 45, familie: 55, land: 35, demokratie: 45, finanzen: 50 },
+      competence: { wirtschaft: 40, migration: 30, soziales: 50, klima: 45, sicherheit: 35, bildung: 35, digitales: 35, wohnen: 50, verteidigung: 50, gesundheit: 65, verkehr: 45, europa: 35, familie: 55, land: 35, demokratie: 45, finanzen: 50 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
       lean: { wirtschaft: 0, migration: 0, soziales: -1, klima: 0, sicherheit: 0, bildung: -1, digitales: 0, wohnen: 0 , verteidigung: 0, gesundheit: -1, verkehr: 0, europa: 0, familie: -1, land: 0, demokratie: -1, finanzen: -1 }
     },
@@ -87,7 +87,7 @@
       budget: 19, goal: 20,
       goalText: '20 % holen',
       desc: 'Die Ökopartei mit Hochburgen in den Großstädten. Unschlagbar beim Klima.',
-      competence: { wirtschaft: 35, migration: 25, soziales: 40, klima: 85, sicherheit: 25, bildung: 50, digitales: 45, wohnen: 40, verteidigung: 25, gesundheit: 40, verkehr: 50, europa: 40, familie: 50, land: 40, demokratie: 45, finanzen: 35 },
+      competence: { wirtschaft: 45, migration: 25, soziales: 40, klima: 85, sicherheit: 25, bildung: 45, digitales: 45, wohnen: 30, verteidigung: 25, gesundheit: 40, verkehr: 50, europa: 30, familie: 50, land: 40, demokratie: 45, finanzen: 35 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
       lean: { wirtschaft: 0, migration: -1, soziales: -1, klima: -1, sicherheit: -1, bildung: -1, digitales: -1, wohnen: 0 , verteidigung: 0, gesundheit: -1, verkehr: -1, europa: -1, familie: -1, land: -1, demokratie: -1, finanzen: -1 }
     },
@@ -96,7 +96,7 @@
       budget: 7, goal: 0, goalCoalition: ['spd', 'gruene', 'linke'],
       goalText: 'Genug Stimmen für eine Regierungsmehrheit mit SPD und Grünen holen',
       desc: 'Linke Oppositionspartei mit junger Basis. Stark bei Mieten, Preisen und sozialer Gerechtigkeit.',
-      competence: { wirtschaft: 25, migration: 25, soziales: 55, klima: 40, sicherheit: 15, bildung: 40, digitales: 25, wohnen: 75, verteidigung: 20, gesundheit: 50, verkehr: 30, europa: 25, familie: 45, land: 25, demokratie: 30, finanzen: 30 },
+      competence: { wirtschaft: 25, migration: 25, soziales: 45, klima: 40, sicherheit: 15, bildung: 40, digitales: 25, wohnen: 60, verteidigung: 20, gesundheit: 50, verkehr: 30, europa: 25, familie: 45, land: 25, demokratie: 30, finanzen: 30 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
       lean: { wirtschaft: -1, migration: -1, soziales: -1, klima: -1, sicherheit: -1, bildung: -1, digitales: -1, wohnen: -1 , verteidigung: -1, gesundheit: -1, verkehr: -1, europa: 0, familie: -1, land: 0, demokratie: -1, finanzen: -1 }
     },
