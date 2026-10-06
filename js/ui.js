@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261006-155729';
+  const APP_VERSION = '20261006-161205';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -99,19 +99,26 @@
       row.setAttribute('role', 'radio');
       row.setAttribute('aria-checked', String(p.id === chosenParty));
       row.style.setProperty('--pc', col(p.id));
+      row.setAttribute('aria-label', (i + 1) + '. ' + p.fullName + ' (' + p.ballot + ')');
       row.innerHTML =
-        '<span class="b-circle">' + PEN_X + '</span>' +
-        '<span class="b-num">' + (i + 1) + '</span>' +
-        '<span class="b-main">' +
-          '<span class="b-short">' + esc(p.ballot) + '</span>' +
-          (p.fullName.toLowerCase() !== p.ballot.toLowerCase() ? '<span class="b-full">' + esc(p.fullName) + '</span>' : '') +
-          '<span class="b-desc">' + esc(p.desc) + '</span>' +
-          '<span class="b-facts">' +
-            '<span><em>Umfrage</em> ' + pct(start[p.id]) + '</span>' +
-            '<span><em>Kasse</em> ' + p.budget + ' Mio. €</span>' +
-            '<span><em>Stärken</em> ' + strengths.map(t => esc(t.name)).join(', ') + '</span>' +
+        // linke, schwarze Spalte: Parteiprofil (Aufbau wie die Erststimmen-Spalte)
+        '<span class="b-left">' +
+          '<span class="b-num">' + (i + 1) + '</span>' +
+          '<span class="b-profile">' +
+            '<span class="b-lead">Umfrage ' + pct(start[p.id]) + '</span>' +
+            '<span class="b-small">Wahlkampfkasse ' + p.budget + ' Mio. €<br>Stärken: ' + strengths.map(t => esc(t.name)).join(', ') + '</span>' +
+            '<span class="b-small"><b>Ziel:</b> ' + esc(p.goalText) + '</span>' +
           '</span>' +
-          '<span class="b-goal"><em>Wahlziel</em> ' + esc(p.goalText) + '</span>' +
+          '<span class="b-lshort">' + esc(p.ballot).replace('/', '/<wbr>') + '</span>' +
+          '<span class="b-lfull">' + esc(p.fullName) + '</span>' +
+        '</span>' +
+        // rechte, blaue Spalte: Zweitstimme
+        '<span class="b-right">' +
+          '<span class="b-circle"><span class="b-ring">' + PEN_X + '</span></span>' +
+          '<span class="b-short">' + esc(p.ballot).replace('/', '/<wbr>') + '</span>' +
+          '<span class="b-rtext"><span class="b-full">' + esc(p.fullName) + '</span>' +
+            '<span class="b-desc">' + esc(p.desc) + '</span></span>' +
+          '<span class="b-rnum">' + (i + 1) + '</span>' +
         '</span>';
       row.addEventListener('click', () => {
         chosenParty = p.id;

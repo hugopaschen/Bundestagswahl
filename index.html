@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de" data-version="20261006-155729">
+<html lang="de" data-version="20261006-161205">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Montserrat:wght@700;800;900&family=Oswald:wght@600;700&family=Public+Sans:wght@500;700;800;900&family=Inter:wght@800&family=Open+Sans:wght@400;700;800&family=Caveat:wght@600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,700;1,400&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20261006-155729">
+  <link rel="stylesheet" href="css/style.css?v=20261006-161205">
 </head>
 <body>
   <!-- Startseite: Eröffnungsbild, ein eigener Bildschirm -->
@@ -56,14 +56,33 @@
     <div class="paper-top"><button type="button" class="link-back" id="btn-to-name">← Zurück zum Wahlvorschlag</button></div>
     <section class="paper ballot" aria-labelledby="ballot-title">
       <header class="ballot-head">
-        <h1 id="ballot-title">Stimmzettel</h1>
-        <p>für das Bundestagswahl-Spiel</p>
-        <p class="ballot-who">Spitzenkandidatur: <span class="ink" id="ballot-candidate"></span></p>
+        <h1 id="ballot-title">Amtlicher Stimmzettel</h1>
+        <p>für die Wahl zum Deutschen Bundestag im Bundestagswahl-Spiel</p>
+        <p>mit der Spitzenkandidatur <span class="ink" id="ballot-candidate"></span></p>
+        <p class="ballot-big">Sie haben 1 Stimme</p>
       </header>
-      <div class="ballot-col-head">
-        <strong>Sie haben 1 Stimme</strong>
-        <span>hier für die Wahl <b>einer Partei</b>, mit der Sie acht Wochen Wahlkampf führen</span>
+
+      <div class="ballot-bars" aria-hidden="true">
+        <div class="bar bar-black"><span class="bar-mark">i</span><svg class="bar-arrow" viewBox="0 0 40 52" aria-hidden="true"><path d="M13 0h14v28h13L20 52 0 28h13z"/></svg></div>
+        <div class="bar bar-blue"><span class="bar-mark">X</span><svg class="bar-arrow" viewBox="0 0 40 52" aria-hidden="true"><path d="M13 0h14v28h13L20 52 0 28h13z"/></svg></div>
       </div>
+
+      <div class="ballot-cols">
+        <div class="col-head col-black">
+          <span class="ch-1">hier die Angaben</span>
+          <span class="ch-2">zu jeder</span>
+          <span class="ch-3">Partei und ihren Aussichten</span>
+          <span class="ch-title">Parteiprofil</span>
+        </div>
+        <div class="col-head col-blue">
+          <span class="ch-1">hier 1 Stimme</span>
+          <span class="ch-2">für die Wahl</span>
+          <span class="ch-3">einer Partei</span>
+          <span class="ch-4">– maßgebende Stimme für Ihren gesamten Wahlkampf&nbsp;–</span>
+          <span class="ch-title">Zweitstimme</span>
+        </div>
+      </div>
+
       <div id="party-list" class="ballot-list" role="radiogroup" aria-label="Partei"></div>
       <footer class="ballot-foot">
         <button type="button" class="doc-btn" id="btn-start" disabled>Weiter zum Wahlprogramm →</button>
@@ -253,8 +272,8 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="js/data.js?v=20261006-155729"></script>
-  <script src="js/engine.js?v=20261006-155729"></script>
-  <script src="js/ui.js?v=20261006-155729"></script>
+  <script src="js/data.js?v=20261006-161205"></script>
+  <script src="js/engine.js?v=20261006-161205"></script>
+  <script src="js/ui.js?v=20261006-161205"></script>
 </body>
 </html>
