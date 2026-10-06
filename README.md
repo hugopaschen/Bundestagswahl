@@ -21,7 +21,7 @@ Der Spielstand wird automatisch im Browser gespeichert (localStorage).
 | **Wochen** | 8 Wochen Wahlkampf, je 3 Aktionen pro Woche |
 | **Regionale Aktionen** | Kundgebung, Plakatkampagne, Haustürwahlkampf – wirken im gewählten Bundesland |
 | **Bundesweite Aktionen** | TV-Spot, Social Media (Shitstorm-Risiko), Pressekonferenz (setzt Themen), Talkshow |
-| **Geld** | Spendendinner füllt die Wahlkampfkasse |
+| **Geld** | Spendendinner füllt die Wahlkampfkasse; ein Hinweis warnt, wenn voraussichtlich Geld übrig bleibt (nicht ausgegebenes Geld verfällt am Wahltag) |
 | **Themen** | Wirtschaft, Migration, Soziales, Klima, Sicherheit, Bildung, Digitalisierung, Wohnen. Wird ein Thema wichtiger, profitieren Parteien mit hoher Kompetenz dort |
 | **Ereignisse** | Jede Woche eine Eilmeldung (Hochwasser, Bahnstreik, Spendenaffäre …) mit Entscheidungen |
 | **Elefantenrunde** | In Woche 7: drei Fragen, drei Strategien |

@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261006-183946';
+  const APP_VERSION = '20261006-185407';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -166,6 +166,7 @@
     renderMap();
     renderStateDetail();
     renderTopics();
+    renderMoneyHint();
     renderActions();
     renderPollBars(shares);
     renderChart();
@@ -234,6 +235,18 @@
       b.addEventListener('click', () => { selTopic = t.id; renderGame(); });
       list.appendChild(b);
     });
+  }
+
+  function renderMoneyHint() {
+    const w = E.moneyWarning(g);
+    const box = $('money-hint');
+    if (!w) { box.hidden = true; return; }
+    box.innerHTML = '<span class="mh-icon" aria-hidden="true">💶</span><span>' +
+      (w.lastWeek
+        ? '<strong>Letzte Woche vor der Wahl: noch ' + money(w.money) + ' in der Kasse.</strong> Jetzt ausgeben – nicht ausgegebenes Geld verfällt am Wahltag.'
+        : '<strong>Noch ' + money(w.money) + ' in der Kasse</strong> – nicht ausgegebenes Geld verfällt am Wahltag.') +
+      ' Ein TV-Spot (' + money(w.tvCost) + ') wirkt bundesweit, am stärksten bei euren Kernthemen und Stärken.</span>';
+    box.hidden = false;
   }
 
   function renderActions() {

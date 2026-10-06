@@ -286,6 +286,18 @@
     }
   }
 
+  // Hinweis, wenn voraussichtlich Geld übrig bleibt: mehr in der Kasse, als ein TV-Spot pro
+  // verbleibender Woche kosten würde (in der letzten Woche: genug für mindestens einen TV-Spot).
+  function moneyWarning(g) {
+    if (g.phase !== 'campaign') return null;
+    const tv = actionCost('tvspot');
+    const weeksLeft = g.maxWeeks - g.week + 1;
+    const lastWeek = weeksLeft <= 1;
+    const threshold = lastWeek ? tv : weeksLeft * tv;
+    if (lastWeek ? g.money + 1e-9 < threshold : g.money <= threshold) return null;
+    return { money: g.money, weeksLeft, lastWeek, tvCost: tv };
+  }
+
   function canAct(g) {
     return g.phase === 'campaign' && !g.pendingEvent && !g.duel && g.ap > 0;
   }
@@ -883,7 +895,7 @@
     party, stateById, topicById, eventById, eventText,
     defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
-    actionCost, canAct, performAction,
+    actionCost, canAct, performAction, moneyWarning,
     drawEvent, resolveEvent,
     startDuel, duelAnswer,
     endWeek, sainteLague, findCoalitions, coalitionViable, chooseCoalition,

@@ -212,6 +212,13 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
 .action .aname { font-weight: 700; }
 .action .adesc { font-size: .78rem; color: var(--text-2); }
 .action .ameta { font-size: .75rem; color: var(--muted); }
+.money-hint {
+  display: flex; gap: 10px; align-items: flex-start; margin: 2px 0 12px; padding: 10px 12px; border-radius: 10px;
+  background: color-mix(in srgb, #e0a100 14%, var(--surface)); border: 1px solid color-mix(in srgb, #e0a100 45%, var(--border));
+  font-size: .86rem; line-height: 1.4;
+}
+.money-hint[hidden] { display: none; }
+.mh-icon { font-size: 1.15rem; line-height: 1.2; }
 .feedback { min-height: 2.6em; margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: .9rem; }
 .feedback:empty { visibility: hidden; }
 

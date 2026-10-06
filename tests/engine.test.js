@@ -147,3 +147,17 @@ test('Wahlprogramm: leichte Abweichung zu populärer Position nützt, starke Abw
   }
   assert.ok(checked > 20);
 });
+
+test('Geld-Hinweis: erscheint bei voller Kasse und verschwindet, wenn das Geld eingeplant ist', () => {
+  const union = E.newGame('union', 'Test', 1); // 30 Mio. €, 8 Wochen
+  const w = E.moneyWarning(union);
+  assert.ok(w && !w.lastWeek && w.money === 30);
+  const bsw = E.newGame('bsw', 'Test', 1); // 5 Mio. € – reicht nicht für einen Spot pro Woche
+  assert.strictEqual(E.moneyWarning(bsw), null);
+  union.money = 10; // weniger als ein TV-Spot pro verbleibender Woche
+  assert.strictEqual(E.moneyWarning(union), null);
+  union.week = union.maxWeeks; union.money = 3; // letzte Woche, ein Spot noch möglich
+  assert.ok(E.moneyWarning(union).lastWeek);
+  union.money = 2; // reicht nicht mehr für einen Spot
+  assert.strictEqual(E.moneyWarning(union), null);
+});
