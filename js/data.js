@@ -96,7 +96,7 @@
       id: 'bsw', ballot: 'BSW', fullName: 'Bündnis Soziale Gerechtigkeit und Wirtschaftliche Vernunft', flyerLogo: 'BSW', short: 'BSW', name: 'Bündnis Soziale Gerechtigkeit und Wirtschaftliche Vernunft',
       budget: 5, goal: 5,
       goalText: 'Unter neuem Namen die 5-%-Hürde knacken',
-      desc: 'Neu benannte Partei, 2025 knapp an der Hürde gescheitert, aktuell bei 3 %. Kleines Budget, viel zu gewinnen.',
+      desc: 'Neu benannte Partei, 2025 knapp an der Hürde gescheitert. Kleines Budget, viel zu gewinnen.',
       competence: { wirtschaft: 35, migration: 55, soziales: 55, klima: 20, sicherheit: 35, bildung: 30, digitales: 20, wohnen: 40 , verteidigung: 35, gesundheit: 35, verkehr: 25, europa: 25, familie: 30, land: 30, demokratie: 30, finanzen: 35 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
       lean: { wirtschaft: -1, migration: 1, soziales: -1, klima: 1, sicherheit: 0, bildung: 0, digitales: 0, wohnen: 0 , verteidigung: -1, gesundheit: -1, verkehr: 0, europa: 1, familie: 0, land: 0, demokratie: 1, finanzen: -1 }

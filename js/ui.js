@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261006-214750';
+  const APP_VERSION = '20261006-215332';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -100,7 +100,6 @@
   function renderStart() {
     const list = $('party-list');
     list.innerHTML = '';
-    const start = E.newGame('union', '', 1).startShares;
     D.PARTIES.forEach((p, i) => {
       const strengths = D.TOPICS.slice().sort((a, b) => p.competence[b.id] - p.competence[a.id]).slice(0, 2);
       const row = document.createElement('button');
@@ -115,7 +114,6 @@
         '<span class="b-left">' +
           '<span class="b-num">' + (i + 1) + '</span>' +
           '<span class="b-profile">' +
-            '<span class="b-lead">Umfrage ' + pct(start[p.id]) + '</span>' +
             '<span class="b-small">Wahlkampfkasse ' + p.budget + ' Mio. €<br>Stärken: ' + strengths.map(t => esc(t.name)).join(', ') + '</span>' +
             '<span class="b-small"><b>Ziel:</b> ' + esc(p.goalText) + '</span>' +
           '</span>' +
