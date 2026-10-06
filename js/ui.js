@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261006-161205';
+  const APP_VERSION = '20261006-161835';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -65,7 +65,9 @@
   function show(screen) {
     ['intro', 'name', 'start', 'program', 'game', 'election'].forEach(s => { $('screen-' + s).hidden = s !== screen; });
     // Die Programm-Website färbt den ganzen Seitenhintergrund in der Papierfarbe der Partei.
-    if (screen !== 'program') document.body.style.background = '';
+    // Seiten, die randlos über die ganze Breite gehen, färben auch den Seitenhintergrund ein.
+    if (screen === 'start') document.body.style.background = '#f4f4f1';
+    else if (screen !== 'program') document.body.style.background = '';
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
 

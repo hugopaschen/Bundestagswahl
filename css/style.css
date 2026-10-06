@@ -1079,6 +1079,17 @@ h2 .flyer-hint { margin: 0; }
   .ballot-foot .doc-btn { width: 100%; }
 }
 
+/* Stimmzettel-Seite randlos: das Papier reicht über die ganze Breite */
+#screen-start.paper-screen { max-width: none; padding: 0; background: #f4f4f1; min-height: 100vh; }
+#screen-start .paper-top { margin: 0; padding: 14px clamp(16px, 3vw, 40px) 0; }
+#screen-start .link-back { color: #4a4a4c; }
+#screen-start .link-back:hover { color: #1d1d1f; }
+#screen-start .paper { max-width: none; border-radius: 0; box-shadow: none; }
+#screen-start .ballot { padding-top: 18px; }
+#screen-start .ballot::before { top: 10px; }
+#screen-start .ballot-bars { margin-left: calc(-1 * clamp(16px, 3vw, 40px)); margin-right: calc(-1 * clamp(16px, 3vw, 40px)); }
+#screen-start .notice { margin-top: 0; border-top: 2px solid #2b2b2d; padding: 32px clamp(16px, 3vw, 40px) 56px; background: #f4f4f1; }
+
 /* Wahlbekanntmachung */
 .notice { margin-top: 28px; }
 .notice h2 { font-size: 1.15rem; margin: 0 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--rule); }
