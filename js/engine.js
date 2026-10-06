@@ -30,6 +30,9 @@
   const stateById = id => D.STATES.find(s => s.id === id);
   const topicById = id => D.TOPICS.find(t => t.id === id);
 
+  const PROGRAM_WEIGHT = {};
+  TOPIC_IDS.forEach(t => { PROGRAM_WEIGHT[t] = D.SALIENCE0[t] * 8; });
+
   const MEAN_COMPETENCE = {};
   TOPIC_IDS.forEach(t => {
     MEAN_COMPETENCE[t] = D.PARTIES.reduce((s, p) => s + p.competence[t], 0) / D.PARTIES.length;
@@ -98,7 +101,11 @@
       const line = D.PROGRAM[t].find(o => o.lean === p.lean[t]);
       const deviation = Math.abs(opt.lean - p.lean[t]);
       const core = prog.core.indexOf(t) !== -1;
-      const { nat: dNat, east: dEast } = positionEffect(opt, line, deviation);
+      // Wichtige Themen bewegen mehr Wähler: Gewicht nach Wählerinteresse (im Mittel 1).
+      const w = PROGRAM_WEIGHT[t];
+      const pe = positionEffect(opt, line, deviation);
+      const dNat = pe.nat * w;
+      const dEast = pe.east * w;
       const dComp = -10 * deviation + (core ? 12 : 0);
       competence[t] += dComp;
       nat += dNat;
@@ -112,7 +119,7 @@
       finance = 'over';
       nat -= 0.25 * (cost - budget);
       competence.wirtschaft -= 4 * (cost - budget);
-    } else if (cost <= budget - 3) {
+    } else if (cost <= budget - D.PROGRAM_RULES.solidMargin) {
       finance = 'solid';
       competence.wirtschaft += 5;
     }
@@ -594,6 +601,105 @@
         { label: 'Bauoffensive ankündigen', hint: 'Wirkt je nach Wirtschaftskompetenz',
           apply: g => { const d = 0.2 + 0.6 * compMod(g, 'wirtschaft'); g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + '.'; } },
         { label: 'Auf die Länder verweisen', hint: 'Kein Risiko', apply: () => 'Ihr verweist auf die Zuständigkeit der Länder.' }
+      ]
+    },
+    {
+      id: 'drohnen', title: 'Drohnen über Bundeswehr-Standorten',
+      text: 'Unbekannte Drohnen kreisen tagelang über Kasernen und Flughäfen. Die Frage, wie wehrhaft Deutschland ist, beherrscht die Nachrichten.',
+      before: g => changeSalience(g, 'verteidigung', 0.06),
+      choices: [
+        { label: 'Sofortprogramm Luftverteidigung fordern', hint: 'Wirkt je nach Verteidigungskompetenz, im Osten weniger',
+          apply: g => { const d = 0.2 + 0.9 * compMod(g, 'verteidigung'); g.nat[g.party] += d; D.STATES.filter(s => s.east).forEach(s => { g.reg[s.id][g.party] -= 0.6; }); return 'Reaktion der Wähler: ' + fmt(d) + ', im Osten verhaltener.'; } },
+        { label: 'Zur Besonnenheit mahnen', hint: 'Plus im Osten, bundesweit kleines Minus',
+          apply: g => { g.nat[g.party] -= 0.2; D.STATES.filter(s => s.east).forEach(s => { g.reg[s.id][g.party] += 1.0; }); return 'Im Osten kommt das gut an, im Westen wirkt es zögerlich.'; } },
+        { label: 'Auf die Regierung verweisen', hint: 'Kein Risiko', apply: () => 'Ihr verweist auf die Verantwortung der Regierung.' }
+      ]
+    },
+    {
+      id: 'klinik', title: 'Kreiskrankenhaus vor dem Aus',
+      text: 'Bundesweit melden Kliniken Insolvenz an, in vielen Kreisen droht die Notaufnahme zu schließen. Pflegekräfte demonstrieren vor dem Gesundheitsministerium.',
+      before: g => changeSalience(g, 'gesundheit', 0.06),
+      choices: [
+        { label: 'Rettungsschirm für Kliniken fordern', hint: 'Wirkt je nach Gesundheitskompetenz',
+          apply: g => { const d = 0.3 + 0.9 * compMod(g, 'gesundheit'); g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + '.'; } },
+        { label: 'Mit Pflegekräften demonstrieren', hint: '−0,2 Mio. €, solide Wirkung',
+          apply: g => { g.money -= 0.2; g.nat[g.party] += 0.4; return 'Die Bilder mit den Pflegekräften kommen an (+0,4).'; } },
+        { label: 'Strukturreform verteidigen', hint: 'Riskant',
+          apply: g => { const d = rand(g) < 0.4 ? 0.4 : -0.5; g.nat[g.party] += d; return d > 0 ? 'Die Argumente überzeugen (+0,4).' : 'Das wirkt kaltherzig (−0,5).'; } }
+      ]
+    },
+    {
+      id: 'bruecke', title: 'Autobahnbrücke gesperrt',
+      text: 'Wegen Einsturzgefahr wird eine wichtige Autobahnbrücke gesperrt, gleichzeitig fallen bei der Bahn tausende Züge aus. Pendler stehen im Dauerstau.',
+      before: g => changeSalience(g, 'verkehr', 0.06),
+      choices: [
+        { label: 'Sanierungsoffensive ankündigen', hint: 'Wirkt je nach Verkehrskompetenz',
+          apply: g => { const d = 0.2 + 0.8 * compMod(g, 'verkehr'); g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + '.'; } },
+        { label: 'Vor Ort im Stau stehen', hint: '−0,2 Mio. €, Plus in NRW',
+          apply: g => { g.money -= 0.2; g.reg.NW[g.party] += 1.2; g.nat[g.party] += 0.1; return 'Das Video aus dem Stau geht viral – vor allem in NRW.'; } },
+        { label: 'Der Regierung die Schuld geben', hint: 'Kleiner, sicherer Gewinn',
+          apply: g => { g.nat[g.party] += 0.15; return 'Ein paar Punkte gegen die Regierung (+0,15).'; } }
+      ]
+    },
+    {
+      id: 'eugipfel', title: 'Streit beim EU-Gipfel',
+      text: 'Beim EU-Gipfel in Brüssel eskaliert der Streit über neue gemeinsame Schulden und die Agrarförderung. Deutschland soll mehr zahlen.',
+      before: g => changeSalience(g, 'europa', 0.06),
+      choices: [
+        { label: 'Für ein starkes Europa werben', hint: 'Wirkt je nach Europakompetenz, im Osten weniger',
+          apply: g => { const d = 0.2 + 0.8 * compMod(g, 'europa'); g.nat[g.party] += d; D.STATES.filter(s => s.east).forEach(s => { g.reg[s.id][g.party] -= 0.5; }); return 'Reaktion der Wähler: ' + fmt(d) + '.'; } },
+        { label: '„Kein deutsches Geld mehr nach Brüssel!“', hint: 'Plus im Osten, Risiko im Westen',
+          apply: g => { D.STATES.filter(s => s.east).forEach(s => { g.reg[s.id][g.party] += 1.2; }); const d = rand(g) < 0.5 ? 0.1 : -0.4; g.nat[g.party] += d; return 'Im Osten Applaus, bundesweit ' + fmt(d) + '.'; } },
+        { label: 'Nicht einmischen', hint: 'Kein Risiko', apply: () => 'Ihr haltet euch aus dem Streit heraus.' }
+      ]
+    },
+    {
+      id: 'kita', title: 'Kita-Notstand',
+      text: 'Hunderttausende Kitaplätze fehlen, viele Einrichtungen kürzen wegen Personalmangel die Öffnungszeiten. Eltern gehen auf die Straße.',
+      before: g => changeSalience(g, 'familie', 0.06),
+      choices: [
+        { label: 'Kita-Garantie versprechen', hint: 'Wirkt je nach Familienkompetenz',
+          apply: g => { const d = 0.3 + 0.8 * compMod(g, 'familie'); g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + '.'; } },
+        { label: 'Familiengeld statt Kita fordern', hint: 'Riskant',
+          apply: g => { const d = rand(g) < 0.45 ? 0.5 : -0.4; g.nat[g.party] += d; return d > 0 ? 'Trifft einen Nerv (+0,5).' : 'Die Eltern fühlen sich nicht ernst genommen (−0,4).'; } },
+        { label: 'Auf die Kommunen verweisen', hint: 'Kein Risiko', apply: () => 'Ihr verweist auf die Zuständigkeit der Kommunen.' }
+      ]
+    },
+    {
+      id: 'bauern', title: 'Bauernproteste legen Städte lahm',
+      text: 'Tausende Traktoren blockieren Innenstädte und Autobahnauffahrten. Die Landwirte protestieren gegen Kürzungen und neue Auflagen.',
+      before: g => changeSalience(g, 'land', 0.06),
+      choices: [
+        { label: 'Solidarität mit den Bauern', hint: 'Wirkt je nach Agrarkompetenz, Plus auf dem Land',
+          apply: g => { const d = 0.1 + 0.7 * compMod(g, 'land'); g.nat[g.party] += d; ['NI', 'MV', 'BB', 'SH', 'BY'].forEach(s => { g.reg[s][g.party] += 0.8; }); return 'Reaktion der Wähler: ' + fmt(d) + ', in den Agrarländern mehr.'; } },
+        { label: 'Blockaden kritisieren', hint: 'Plus in den Städten, Minus auf dem Land',
+          apply: g => { ['BE', 'HH', 'HB'].forEach(s => { g.reg[s][g.party] += 1.0; }); ['NI', 'MV', 'BB', 'SH', 'BY'].forEach(s => { g.reg[s][g.party] -= 0.8; }); return 'Die Städter applaudieren, auf dem Land seid ihr unten durch.'; } },
+        { label: 'Schweigen', hint: 'Kein Risiko', apply: () => 'Ihr wartet ab, bis die Traktoren abgezogen sind.' }
+      ]
+    },
+    {
+      id: 'verfassung', title: 'Debatte um das Verfassungsgericht',
+      text: 'Ein Gutachten warnt: Mit einfacher Mehrheit könnten Extremisten das Bundesverfassungsgericht lahmlegen. Wie wehrhaft ist die Demokratie?',
+      before: g => changeSalience(g, 'demokratie', 0.06),
+      choices: [
+        { label: 'Grundgesetz schützen', hint: 'Wirkt je nach Demokratiekompetenz',
+          apply: g => { const d = 0.2 + 0.7 * compMod(g, 'demokratie'); g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + '.'; } },
+        { label: 'Volksentscheide fordern', hint: 'Plus im Osten, bundesweit unsicher',
+          apply: g => { D.STATES.filter(s => s.east).forEach(s => { g.reg[s.id][g.party] += 0.8; }); const d = rand(g) < 0.5 ? 0.2 : -0.2; g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + ', im Osten mehr.'; } },
+        { label: 'Keine Stellungnahme', hint: 'Kein Risiko', apply: () => 'Ihr überlasst die Debatte den Juristen.' }
+      ]
+    },
+    {
+      id: 'steuerschaetzung', title: 'Steuerschätzung: Milliardenloch',
+      text: 'Die Steuerschätzer korrigieren ihre Prognose deutlich nach unten. Im Bundeshaushalt fehlen Milliarden – alle Wahlversprechen stehen auf dem Prüfstand.',
+      before: g => { changeSalience(g, 'finanzen', 0.06); changeSalience(g, 'wirtschaft', 0.02); },
+      choices: [
+        { label: 'Solide Finanzen versprechen', hint: 'Wirkt je nach Finanzkompetenz',
+          apply: g => { const d = 0.2 + 0.8 * compMod(g, 'finanzen'); g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + '.'; } },
+        { label: 'Reiche zur Kasse bitten', hint: 'Wirkt je nach Sozialkompetenz',
+          apply: g => { const d = 0.1 + 0.7 * compMod(g, 'soziales'); g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + '.'; } },
+        { label: 'An den Versprechen festhalten', hint: 'Wirkt je nach Finanzierung des Programms',
+          apply: g => { const d = { over: -0.6, ok: 0.1, solid: 0.4 }[g.finance] || 0; g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + '.'; } }
       ]
     },
     {

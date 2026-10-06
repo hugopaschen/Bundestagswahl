@@ -14,19 +14,35 @@
     { id: 'sicherheit', name: 'Innere Sicherheit', icon: '🛡️' },
     { id: 'bildung', name: 'Bildung', icon: '🎓' },
     { id: 'digitales', name: 'Digitalisierung', icon: '💻' },
-    { id: 'wohnen', name: 'Wohnen & Mieten', icon: '🏠' }
+    { id: 'wohnen', name: 'Wohnen & Mieten', icon: '🏠' },
+    { id: 'verteidigung', name: 'Verteidigung & Außenpolitik', icon: '🪖' },
+    { id: 'gesundheit', name: 'Gesundheit & Pflege', icon: '🏥' },
+    { id: 'verkehr', name: 'Verkehr & Infrastruktur', icon: '🚆' },
+    { id: 'europa', name: 'Europa', icon: '🇪🇺' },
+    { id: 'familie', name: 'Familie & Gleichstellung', icon: '👨‍👩‍👧' },
+    { id: 'land', name: 'Landwirtschaft & ländlicher Raum', icon: '🌾' },
+    { id: 'demokratie', name: 'Demokratie & Bürgerrechte', icon: '🗳️' },
+    { id: 'finanzen', name: 'Steuern & Staatsfinanzen', icon: '🏦' }
   ];
 
   // Wie wichtig ist ein Thema den Wählerinnen und Wählern zu Beginn (Summe = 1)?
   var SALIENCE0 = {
-    wirtschaft: 0.23,
-    migration: 0.19,
-    soziales: 0.15,
-    klima: 0.11,
-    sicherheit: 0.11,
-    bildung: 0.07,
-    digitales: 0.06,
-    wohnen: 0.08
+    wirtschaft: 0.15,
+    migration: 0.14,
+    soziales: 0.11,
+    klima: 0.07,
+    sicherheit: 0.07,
+    bildung: 0.04,
+    digitales: 0.03,
+    wohnen: 0.05,
+    verteidigung: 0.07,
+    gesundheit: 0.07,
+    verkehr: 0.03,
+    europa: 0.03,
+    familie: 0.03,
+    land: 0.03,
+    demokratie: 0.03,
+    finanzen: 0.05
   };
 
   // Spielbare Parteien. "competence" = zugeschriebene Kompetenz je Thema (0–100).
@@ -36,63 +52,63 @@
       budget: 30, goal: 24,
       goalText: 'Aufholen: über 24 % holen',
       desc: 'Die Volkspartei der Mitte. Stark bei Wirtschaft und Sicherheit, großes Budget.',
-      competence: { wirtschaft: 70, migration: 55, soziales: 40, klima: 35, sicherheit: 65, bildung: 50, digitales: 45, wohnen: 45 },
+      competence: { wirtschaft: 70, migration: 55, soziales: 40, klima: 35, sicherheit: 65, bildung: 50, digitales: 45, wohnen: 45 , verteidigung: 65, gesundheit: 45, verkehr: 50, europa: 60, familie: 50, land: 60, demokratie: 50, finanzen: 60 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
-      lean: { wirtschaft: 1, migration: 1, soziales: 0, klima: 0, sicherheit: 1, bildung: 1, digitales: 0, wohnen: 1 }
+      lean: { wirtschaft: 1, migration: 1, soziales: 0, klima: 0, sicherheit: 1, bildung: 1, digitales: 0, wohnen: 1 , verteidigung: 1, gesundheit: 0, verkehr: 1, europa: 0, familie: 1, land: 1, demokratie: 0, finanzen: 1 }
     },
     {
       id: 'afd', ballot: 'AfD', fullName: 'Alternative für Deutschland', flyerLogo: 'AfD', short: 'AfD', name: 'AfD',
       budget: 15, goal: 30, mustLead: true,
       goalText: 'Stärkste Kraft bleiben und über 30 % holen',
       desc: 'Rechtspopulistische Oppositionspartei, besonders stark im Osten. Kein anderer Partner will koalieren.',
-      competence: { wirtschaft: 35, migration: 75, soziales: 35, klima: 15, sicherheit: 55, bildung: 25, digitales: 20, wohnen: 25 },
+      competence: { wirtschaft: 35, migration: 75, soziales: 35, klima: 15, sicherheit: 55, bildung: 25, digitales: 20, wohnen: 25 , verteidigung: 35, gesundheit: 25, verkehr: 25, europa: 25, familie: 25, land: 35, demokratie: 25, finanzen: 30 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
-      lean: { wirtschaft: 1, migration: 1, soziales: 0, klima: 1, sicherheit: 1, bildung: 1, digitales: 0, wohnen: 1 }
+      lean: { wirtschaft: 1, migration: 1, soziales: 0, klima: 1, sicherheit: 1, bildung: 1, digitales: 0, wohnen: 1 , verteidigung: -1, gesundheit: 0, verkehr: 1, europa: 1, familie: 1, land: 1, demokratie: 1, finanzen: 1 }
     },
     {
       id: 'spd', ballot: 'SPD', fullName: 'Sozialdemokratische Partei Deutschlands', flyerLogo: 'SPD', short: 'SPD', name: 'SPD',
       budget: 20, goal: 17,
       goalText: 'Wieder über 17 % kommen',
       desc: 'Die traditionsreiche Sozialdemokratie. Stark bei Sozialem und Rente.',
-      competence: { wirtschaft: 45, migration: 30, soziales: 70, klima: 45, sicherheit: 40, bildung: 50, digitales: 35, wohnen: 55 },
+      competence: { wirtschaft: 45, migration: 30, soziales: 70, klima: 45, sicherheit: 40, bildung: 50, digitales: 35, wohnen: 55 , verteidigung: 45, gesundheit: 65, verkehr: 45, europa: 55, familie: 55, land: 35, demokratie: 45, finanzen: 50 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
-      lean: { wirtschaft: 0, migration: 0, soziales: -1, klima: 0, sicherheit: 0, bildung: -1, digitales: 0, wohnen: 0 }
+      lean: { wirtschaft: 0, migration: 0, soziales: -1, klima: 0, sicherheit: 0, bildung: -1, digitales: 0, wohnen: 0 , verteidigung: 0, gesundheit: -1, verkehr: 0, europa: 0, familie: -1, land: 0, demokratie: -1, finanzen: -1 }
     },
     {
       id: 'gruene', ballot: 'GRÜNE', fullName: 'Bündnis 90/Die Grünen', flyerLogo: 'GRÜNE', short: 'Grüne', name: 'Bündnis 90/Die Grünen',
       budget: 12, goal: 20,
       goalText: 'Auf 20 % kommen',
       desc: 'Die Ökopartei mit Hochburgen in den Großstädten. Unschlagbar beim Klima.',
-      competence: { wirtschaft: 35, migration: 25, soziales: 40, klima: 85, sicherheit: 25, bildung: 50, digitales: 45, wohnen: 40 },
+      competence: { wirtschaft: 35, migration: 25, soziales: 40, klima: 85, sicherheit: 25, bildung: 50, digitales: 45, wohnen: 40 , verteidigung: 40, gesundheit: 40, verkehr: 50, europa: 55, familie: 50, land: 40, demokratie: 45, finanzen: 35 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
-      lean: { wirtschaft: 0, migration: -1, soziales: -1, klima: -1, sicherheit: -1, bildung: -1, digitales: -1, wohnen: 0 }
+      lean: { wirtschaft: 0, migration: -1, soziales: -1, klima: -1, sicherheit: -1, bildung: -1, digitales: -1, wohnen: 0 , verteidigung: 0, gesundheit: -1, verkehr: -1, europa: -1, familie: -1, land: -1, demokratie: -1, finanzen: -1 }
     },
     {
       id: 'linke', ballot: 'Die Linke', fullName: 'Die Linke', flyerLogo: 'Die Linke', short: 'Linke', name: 'Die Linke',
       budget: 6, goal: 14,
       goalText: 'Über 14 % holen',
       desc: 'Linke Oppositionspartei mit junger Basis. Stark bei Mieten, Preisen und sozialer Gerechtigkeit.',
-      competence: { wirtschaft: 25, migration: 25, soziales: 75, klima: 40, sicherheit: 15, bildung: 40, digitales: 25, wohnen: 75 },
+      competence: { wirtschaft: 25, migration: 25, soziales: 75, klima: 40, sicherheit: 15, bildung: 40, digitales: 25, wohnen: 75 , verteidigung: 20, gesundheit: 50, verkehr: 30, europa: 25, familie: 45, land: 25, demokratie: 30, finanzen: 30 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
-      lean: { wirtschaft: -1, migration: -1, soziales: -1, klima: -1, sicherheit: -1, bildung: -1, digitales: -1, wohnen: -1 }
+      lean: { wirtschaft: -1, migration: -1, soziales: -1, klima: -1, sicherheit: -1, bildung: -1, digitales: -1, wohnen: -1 , verteidigung: -1, gesundheit: -1, verkehr: -1, europa: 0, familie: -1, land: 0, demokratie: -1, finanzen: -1 }
     },
     {
       id: 'bsw', ballot: 'BSW', fullName: 'Bündnis Soziale Gerechtigkeit und Wirtschaftliche Vernunft', flyerLogo: 'BSW', short: 'BSW', name: 'Bündnis Soziale Gerechtigkeit und Wirtschaftliche Vernunft',
       budget: 5, goal: 5,
       goalText: 'Unter neuem Namen die 5-%-Hürde knacken',
       desc: 'Neu benannte Partei, 2025 knapp an der Hürde gescheitert, aktuell bei 3 %. Kleines Budget, viel zu gewinnen.',
-      competence: { wirtschaft: 35, migration: 55, soziales: 55, klima: 20, sicherheit: 35, bildung: 30, digitales: 20, wohnen: 40 },
+      competence: { wirtschaft: 35, migration: 55, soziales: 55, klima: 20, sicherheit: 35, bildung: 30, digitales: 20, wohnen: 40 , verteidigung: 35, gesundheit: 35, verkehr: 25, europa: 25, familie: 30, land: 30, demokratie: 30, finanzen: 35 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
-      lean: { wirtschaft: -1, migration: 1, soziales: -1, klima: 1, sicherheit: 0, bildung: 0, digitales: 0, wohnen: 0 }
+      lean: { wirtschaft: -1, migration: 1, soziales: -1, klima: 1, sicherheit: 0, bildung: 0, digitales: 0, wohnen: 0 , verteidigung: -1, gesundheit: -1, verkehr: 0, europa: 1, familie: 0, land: 0, demokratie: 1, finanzen: -1 }
     },
     {
       id: 'fdp', ballot: 'FDP', fullName: 'Freie Demokratische Partei', flyerLogo: 'FDP', short: 'FDP', name: 'FDP',
       budget: 8, goal: 6,
       goalText: 'Sicher zurück in den Bundestag (über 6 %)',
       desc: 'Die Liberalen kämpfen um den Wiedereinzug. Stark bei Wirtschaft und Digitalisierung.',
-      competence: { wirtschaft: 60, migration: 30, soziales: 20, klima: 25, sicherheit: 30, bildung: 50, digitales: 70, wohnen: 40 },
+      competence: { wirtschaft: 60, migration: 30, soziales: 20, klima: 25, sicherheit: 30, bildung: 50, digitales: 70, wohnen: 40 , verteidigung: 45, gesundheit: 30, verkehr: 40, europa: 50, familie: 35, land: 35, demokratie: 45, finanzen: 55 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
-      lean: { wirtschaft: 1, migration: 0, soziales: 1, klima: 1, sicherheit: -1, bildung: 1, digitales: 1, wohnen: 1 }
+      lean: { wirtschaft: 1, migration: 0, soziales: 1, klima: 1, sicherheit: -1, bildung: 1, digitales: 1, wohnen: 1 , verteidigung: 1, gesundheit: 1, verkehr: 1, europa: 0, familie: 0, land: 1, demokratie: 0, finanzen: 1 }
     }
   ];
 
@@ -179,12 +195,53 @@
       { lean: -1, label: 'Mietendeckel und Vergesellschaftung', desc: 'Mieten bundesweit einfrieren, große Wohnungskonzerne in öffentliche Hand.', pop: 0.3, east: 0.2, cost: 1 },
       { lean: 0, label: 'Mietpreisbremse und sozialer Wohnungsbau', desc: 'Mietpreisbremse verlängern, 100.000 Sozialwohnungen pro Jahr fördern.', pop: 0.4, east: 0, cost: 1 },
       { lean: 1, label: 'Bauen, bauen, bauen', desc: 'Bauvorschriften entrümpeln, Grunderwerbsteuer senken, Eigentum fördern.', pop: 0.2, east: 0, cost: 1 }
+    ],
+    verteidigung: [
+      { lean: -1, label: 'Diplomatie statt Aufrüstung', desc: 'Verhandlungen in den Vordergrund, Waffenlieferungen stoppen, Rüstungsetat deckeln.', pop: -0.1, east: 0.4, cost: 0 },
+      { lean: 0, label: 'Bundeswehr stärken, Bündnisse pflegen', desc: 'Verteidigung dauerhaft solide finanzieren, Ukraine weiter unterstützen, NATO verlässlich.', pop: 0.4, east: -0.1, cost: 1 },
+      { lean: 1, label: 'Wehrpflicht zurück, 3,5 % für Verteidigung', desc: 'Allgemeine Wehrpflicht, massive Aufrüstung, Abschreckung zuerst.', pop: 0.1, east: -0.3, cost: 2 }
+    ],
+    gesundheit: [
+      { lean: -1, label: 'Bürgerversicherung für alle', desc: 'Gesetzliche und private Kassen zusammenführen, Pflege-Vollversicherung einführen.', pop: 0.3, east: 0.2, cost: 2 },
+      { lean: 0, label: 'Krankenhausreform und mehr Pflegekräfte', desc: 'Kliniken bündeln, Pflegelöhne anheben, schneller zum Facharzttermin.', pop: 0.4, east: 0, cost: 1 },
+      { lean: 1, label: 'Mehr Wettbewerb, mehr Eigenverantwortung', desc: 'Kassenleistungen begrenzen, Wahltarife, private Vorsorge stärken.', pop: -0.2, east: -0.2, cost: 0 }
+    ],
+    verkehr: [
+      { lean: -1, label: 'Tempolimit und 29-€-Ticket', desc: 'Tempo 130 auf Autobahnen, günstiges Deutschlandticket, Vorrang für die Schiene.', pop: 0.1, east: -0.2, cost: 2 },
+      { lean: 0, label: 'Bahn und Brücken sanieren', desc: 'Sondervermögen für marode Schienen, Straßen und Brücken.', pop: 0.4, east: 0.1, cost: 1 },
+      { lean: 1, label: 'Freie Fahrt für Pendler', desc: 'Kein Tempolimit, Straßen ausbauen, Pendlerpauschale erhöhen.', pop: 0.2, east: 0.3, cost: 1 }
+    ],
+    europa: [
+      { lean: -1, label: 'Vereinigte Staaten von Europa', desc: 'Mehr Macht für das Europaparlament, gemeinsame Armee, Erweiterung beschleunigen.', pop: -0.2, east: -0.3, cost: 1 },
+      { lean: 0, label: 'Starke EU mit Reformen', desc: 'Binnenmarkt vertiefen, EU-Bürokratie abbauen, Außengrenzen gemeinsam schützen.', pop: 0.4, east: 0, cost: 0 },
+      { lean: 1, label: 'Kompetenzen zurück nach Berlin', desc: 'Weniger Brüssel, Nettozahlungen kürzen, Euro-Austritt prüfen.', pop: -0.1, east: 0.4, cost: 0 }
+    ],
+    familie: [
+      { lean: -1, label: 'Kindergrundsicherung und Parität', desc: 'Familienleistungen bündeln, Ehegattensplitting abschaffen, gleiche Bezahlung durchsetzen.', pop: 0.1, east: 0.1, cost: 2 },
+      { lean: 0, label: 'Mehr Kitaplätze, höheres Elterngeld', desc: 'Rechtsanspruch auf Betreuung durchsetzen, Elterngeld anheben, Familien entlasten.', pop: 0.4, east: 0, cost: 1 },
+      { lean: 1, label: 'Die klassische Familie stärken', desc: 'Ehegattensplitting behalten, Betreuungsgeld, Familiensplitting einführen.', pop: 0.0, east: 0.2, cost: 1 }
+    ],
+    land: [
+      { lean: -1, label: 'Agrarwende: Tierwohl und Ökolandbau', desc: 'Massentierhaltung abbauen, Förderung nur für umweltgerechte Höfe.', pop: 0.0, east: -0.2, cost: 1 },
+      { lean: 0, label: 'Höfe sichern, Landärzte und Busse fürs Land', desc: 'Bürokratie für Bauern abbauen, Ärzte und Nahverkehr auf dem Land stärken.', pop: 0.4, east: 0.2, cost: 1 },
+      { lean: 1, label: 'Agrardiesel zurück, Auflagen streichen', desc: 'Steuervorteile für Landwirte wiederherstellen, Umweltauflagen lockern.', pop: 0.2, east: 0.3, cost: 1 }
+    ],
+    demokratie: [
+      { lean: -1, label: 'Wahlrecht ab 16, wehrhafte Demokratie', desc: 'Junge Menschen beteiligen, Verbotsverfahren gegen Verfassungsfeinde prüfen.', pop: -0.1, east: -0.4, cost: 0 },
+      { lean: 0, label: 'Starke Institutionen, politische Bildung', desc: 'Verfassungsgericht absichern, politische Bildung und Ehrenamt fördern.', pop: 0.3, east: 0, cost: 1 },
+      { lean: 1, label: 'Volksentscheide auf Bundesebene', desc: 'Bürger direkt entscheiden lassen, Macht der Parteien begrenzen.', pop: 0.3, east: 0.4, cost: 0 }
+    ],
+    finanzen: [
+      { lean: -1, label: 'Spitzensteuer und Erbschaftsteuer rauf', desc: 'Hohe Einkommen und große Erbschaften stärker besteuern – das bringt Geld in die Kasse.', pop: 0.2, east: 0.2, cost: -1 },
+      { lean: 0, label: 'Kleine und mittlere Einkommen entlasten', desc: 'Kalte Progression ausgleichen, Grundfreibetrag erhöhen, gegenfinanziert.', pop: 0.4, east: 0.1, cost: 1 },
+      { lean: 1, label: 'Schuldenbremse einhalten, Ausgaben kürzen', desc: 'Keine neuen Schulden, Subventionen streichen, Staat verschlanken – schafft Spielraum.', pop: 0.1, east: -0.1, cost: -1 }
     ]
   };
 
   var PROGRAM_RULES = {
     coreCount: 3,        // Anzahl Kernthemen
-    budget: 10,          // Finanzierungsrahmen in Punkten
+    budget: 18,          // Finanzierungsrahmen in Punkten
+    solidMargin: 4,      // so viele Punkte unter dem Rahmen gilt ein Programm als solide finanziert
     slogans: [
       'Zukunft. Jetzt.',
       'Anpacken statt abwarten',

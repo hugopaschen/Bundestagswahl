@@ -161,3 +161,32 @@ test('Geld-Hinweis: erscheint bei voller Kasse und verschwindet, wenn das Geld e
   union.money = 2; // reicht nicht mehr für einen Spot
   assert.strictEqual(E.moneyWarning(union), null);
 });
+
+test('Alle 16 Themen sind vollständig: Kompetenz, Parteilinie, drei Positionen, Wählerinteresse', () => {
+  assert.strictEqual(D.TOPICS.length, 16);
+  assert.ok(Math.abs(sum(D.SALIENCE0) - 1) < 1e-9);
+  for (const t of D.TOPICS) {
+    assert.strictEqual(D.PROGRAM[t.id].length, 3, t.id);
+    assert.deepStrictEqual(D.PROGRAM[t.id].map(o => o.lean), [-1, 0, 1], t.id);
+    for (const p of D.PARTIES) {
+      assert.ok(Number.isFinite(p.competence[t.id]), p.id + ' ' + t.id);
+      assert.ok([-1, 0, 1].includes(p.lean[t.id]), p.id + ' ' + t.id);
+    }
+  }
+});
+
+test('Spielstände ohne die neuen Themen werden ergänzt; Sparpositionen entlasten den Haushalt', () => {
+  const g = JSON.parse(E.serialize(E.newGame('union', 'Test', 5)));
+  for (const t of ['verteidigung', 'gesundheit', 'verkehr', 'europa', 'familie', 'land', 'demokratie', 'finanzen']) {
+    delete g.salience[t]; delete g.program.positions[t]; delete g.competence[t];
+  }
+  const loaded = E.deserialize(JSON.stringify(g));
+  assert.ok(Math.abs(sum(loaded.salience) - 1) < 1e-9);
+  assert.ok(E.performAction(loaded, 'presse', { topic: 'verteidigung' }).ok);
+
+  const prog = E.defaultProgram('spd');
+  const before = E.programEffects('spd', prog).cost;
+  assert.strictEqual(D.PROGRAM.finanzen[prog.positions.finanzen].cost, -1); // SPD-Linie: Spitzensteuer rauf
+  prog.positions.finanzen = 1; // Entlastung kleiner Einkommen kostet einen Punkt
+  assert.strictEqual(E.programEffects('spd', prog).cost, before + 2);
+});

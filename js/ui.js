@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261006-210217';
+  const APP_VERSION = '20261006-213711';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -37,7 +37,15 @@
     sicherheit: 'Viele fühlen sich nicht mehr sicher. Was tun Sie dagegen?',
     bildung: 'Unsere Schulen fallen zurück. Was wollen Sie ändern?',
     digitales: 'Warum ist Deutschland bei der Digitalisierung so langsam?',
-    wohnen: 'Viele finden keine bezahlbare Wohnung mehr. Was tun Sie gegen steigende Mieten?'
+    wohnen: 'Viele finden keine bezahlbare Wohnung mehr. Was tun Sie gegen steigende Mieten?',
+    verteidigung: 'Ist Deutschland verteidigungsfähig? Wie viel wollen Sie in die Bundeswehr stecken?',
+    gesundheit: 'Monatelang auf einen Facharzttermin warten, Kliniken schließen – wie wollen Sie das ändern?',
+    verkehr: 'Züge zu spät, Brücken gesperrt: Wie bringen Sie Deutschland wieder in Bewegung?',
+    europa: 'Welche Rolle soll Deutschland in der Europäischen Union spielen?',
+    familie: 'Familien fehlen Kitaplätze und Geld. Was ist Ihr Angebot an junge Eltern?',
+    land: 'Bauern protestieren, auf dem Land schließen Praxen und Läden. Was tun Sie für den ländlichen Raum?',
+    demokratie: 'Das Vertrauen in die Politik sinkt. Wie wollen Sie die Demokratie stärken?',
+    finanzen: 'Wer soll das alles bezahlen? Wie sieht Ihr Steuer- und Haushaltskonzept aus?'
   };
 
   let g = null;
@@ -715,7 +723,7 @@
         if (o.pop < 0) tags.push('<span class="tag">👎 unpopulär</span>');
         if (o.east >= 0.3) tags.push('<span class="tag">im Osten beliebt</span>');
         if (o.east <= -0.3) tags.push('<span class="tag">im Osten unbeliebt</span>');
-        tags.push('<span class="tag">' + (o.cost ? '💶'.repeat(o.cost) : 'kostenneutral') + '</span>');
+        tags.push('<span class="tag' + (o.cost < 0 ? ' line' : '') + '">' + (o.cost > 0 ? '💶'.repeat(o.cost) : o.cost < 0 ? '💶 entlastet den Haushalt' : 'kostenneutral') + '</span>');
         return '<label class="option"><input type="radio" name="pos-' + t.id + '" value="' + i + '"' +
           (draft.positions[t.id] === i ? ' checked' : '') + '>' +
           '<span class="olabel">' + esc(o.label) + '</span><span class="odesc">' + esc(o.desc) + '</span>' +
@@ -776,7 +784,10 @@
 
   // Weiches Trennzeichen, damit lange Themennamen auf schmalen Karten sauber umbrechen.
   function cardName(name) {
-    return esc(name).replace('Digitalisierung', 'Digitali&shy;sierung');
+    const parts = { Digitalisierung: 'Digitali&shy;sierung', Landwirtschaft: 'Land&shy;wirtschaft', Gleichstellung: 'Gleich&shy;stellung',
+      Infrastruktur: 'Infra&shy;struktur', Außenpolitik: 'Außen&shy;politik', Staatsfinanzen: 'Staats&shy;finanzen',
+      Bürgerrechte: 'Bürger&shy;rechte', Verteidigung: 'Vertei&shy;digung' };
+    return esc(name).replace(/[A-Za-zÄÖÜäöüß]+/g, w => parts[w] || w);
   }
 
   function updateCoreMarks() {
