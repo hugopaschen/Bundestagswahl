@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261006-194101';
+  const APP_VERSION = '20261006-194730';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -708,7 +708,7 @@
           '<span class="olabel">' + esc(o.label) + '</span><span class="odesc">' + esc(o.desc) + '</span>' +
           '<span class="ometa">' + tags.join('') + '</span></label>';
       }).join('');
-      return '<fieldset class="topic-set"><legend>' + t.icon + ' ' + esc(t.name) +
+      return '<fieldset class="topic-set" data-topic="' + t.id + '"><legend>' + t.icon + ' ' + esc(t.name) +
         '<span class="core-mark" data-core="' + t.id + '" hidden>🎯 Kernthema</span></legend>' +
         '<div class="options">' + options + '</div></fieldset>';
     }).join('');
@@ -763,6 +763,13 @@
 
   function updateCoreMarks() {
     document.querySelectorAll('[data-core]').forEach(el => { el.hidden = draft.core.indexOf(el.dataset.core) === -1; });
+    // Kernthemen (in Wahlreihenfolge) stehen bei den Positionen immer ganz oben.
+    const box = $('positions');
+    const order = draft.core.concat(D.TOPICS.map(t => t.id).filter(id => draft.core.indexOf(id) === -1));
+    order.forEach(id => {
+      const set = box.querySelector('.topic-set[data-topic="' + id + '"]');
+      if (set) box.appendChild(set);
+    });
   }
 
   const DEFAULT_CANDIDATE = 'Unsere Spitzenkandidatin';
