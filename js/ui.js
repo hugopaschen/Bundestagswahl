@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261006-231107';
+  const APP_VERSION = '20261006-233030';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -983,7 +983,9 @@
     const fx = coreReady ? E.programEffects(chosenParty, draft) : null;
 
     // Flyer
-    $('flyer-slogan').innerHTML = sloganHtml(String(draft.slogan || '').trim() || 'Euer Slogan');
+    // Nicht trimmen: Leerzeichen beim Tippen sollen sofort sichtbar werden (z. B. im FDP-Balken).
+    const typed = String(draft.slogan || '');
+    $('flyer-slogan').innerHTML = sloganHtml(typed.trim() ? typed.replace(/^\s+/, '') : 'Euer Slogan');
     $('flyer-program').innerHTML = flyerProgramHtml(chosenParty, draft, fx && fx.finance);
 
     // Aktionsleiste

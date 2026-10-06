@@ -1002,9 +1002,9 @@ h2 .flyer-hint { margin: 0; }
 .flyer[data-party="fdp"] .flyer-slogan {
   text-transform: none; font-weight: 900; letter-spacing: -.03em; line-height: .95; margin-top: 46px;
 }
-.flyer[data-party="fdp"] .flyer-slogan > span { padding: 0; }
-.flyer[data-party="fdp"] .flyer-slogan .fw { position: relative; display: inline-block; }
-.flyer[data-party="fdp"] .flyer-slogan .fw::before {
+/* Der blaue Balken läuft über die ganze Slogan-Zeile und wächst beim Tippen mit – auch bei Leerzeichen. */
+.flyer[data-party="fdp"] .flyer-slogan > span { padding: 0; position: relative; display: inline-block; white-space: break-spaces; max-width: 100%; }
+.flyer[data-party="fdp"] .flyer-slogan > span::before {
   content: ""; position: absolute; left: 0; right: 0; top: -.48em; height: .26em; background: #00a7e7;
 }
 .flyer[data-party="fdp"] .flyer-candidate { color: #00a7e7; font-weight: 800; opacity: 1; margin-top: 10px; }
