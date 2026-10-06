@@ -32,7 +32,7 @@
   // Spielbare Parteien. "competence" = zugeschriebene Kompetenz je Thema (0–100).
   var PARTIES = [
     {
-      id: 'union', flyerLogo: 'CDU', short: 'Union', name: 'CDU/CSU',
+      id: 'union', ballot: 'CDU/CSU', fullName: 'Christlich Demokratische Union / Christlich-Soziale Union', flyerLogo: 'CDU', short: 'Union', name: 'CDU/CSU',
       budget: 30, goal: 24,
       goalText: 'Aufholen: über 24 % holen',
       desc: 'Die Volkspartei der Mitte. Stark bei Wirtschaft und Sicherheit, großes Budget.',
@@ -41,7 +41,7 @@
       lean: { wirtschaft: 1, migration: 1, soziales: 0, klima: 0, sicherheit: 1, bildung: 1, digitales: 0, wohnen: 1 }
     },
     {
-      id: 'afd', flyerLogo: 'AfD', short: 'AfD', name: 'AfD',
+      id: 'afd', ballot: 'AfD', fullName: 'Alternative für Deutschland', flyerLogo: 'AfD', short: 'AfD', name: 'AfD',
       budget: 15, goal: 30, mustLead: true,
       goalText: 'Stärkste Kraft bleiben und über 30 % holen',
       desc: 'Rechtspopulistische Oppositionspartei, besonders stark im Osten. Kein anderer Partner will koalieren.',
@@ -50,7 +50,7 @@
       lean: { wirtschaft: 1, migration: 1, soziales: 0, klima: 1, sicherheit: 1, bildung: 1, digitales: 0, wohnen: 1 }
     },
     {
-      id: 'spd', flyerLogo: 'SPD', short: 'SPD', name: 'SPD',
+      id: 'spd', ballot: 'SPD', fullName: 'Sozialdemokratische Partei Deutschlands', flyerLogo: 'SPD', short: 'SPD', name: 'SPD',
       budget: 20, goal: 17,
       goalText: 'Wieder über 17 % kommen',
       desc: 'Die traditionsreiche Sozialdemokratie. Stark bei Sozialem und Rente.',
@@ -59,7 +59,7 @@
       lean: { wirtschaft: 0, migration: 0, soziales: -1, klima: 0, sicherheit: 0, bildung: -1, digitales: 0, wohnen: 0 }
     },
     {
-      id: 'gruene', flyerLogo: 'GRÜNE', short: 'Grüne', name: 'Bündnis 90/Die Grünen',
+      id: 'gruene', ballot: 'GRÜNE', fullName: 'Bündnis 90/Die Grünen', flyerLogo: 'GRÜNE', short: 'Grüne', name: 'Bündnis 90/Die Grünen',
       budget: 12, goal: 20,
       goalText: 'Auf 20 % kommen',
       desc: 'Die Ökopartei mit Hochburgen in den Großstädten. Unschlagbar beim Klima.',
@@ -68,7 +68,7 @@
       lean: { wirtschaft: 0, migration: -1, soziales: -1, klima: -1, sicherheit: -1, bildung: -1, digitales: -1, wohnen: 0 }
     },
     {
-      id: 'linke', flyerLogo: 'Die Linke', short: 'Linke', name: 'Die Linke',
+      id: 'linke', ballot: 'Die Linke', fullName: 'Die Linke', flyerLogo: 'Die Linke', short: 'Linke', name: 'Die Linke',
       budget: 6, goal: 14,
       goalText: 'Über 14 % holen',
       desc: 'Linke Oppositionspartei mit junger Basis. Stark bei Mieten, Preisen und sozialer Gerechtigkeit.',
@@ -77,7 +77,7 @@
       lean: { wirtschaft: -1, migration: -1, soziales: -1, klima: -1, sicherheit: -1, bildung: -1, digitales: -1, wohnen: -1 }
     },
     {
-      id: 'bsw', flyerLogo: 'BSW', short: 'BSW', name: 'Bündnis Soziale Gerechtigkeit und Wirtschaftliche Vernunft',
+      id: 'bsw', ballot: 'BSW', fullName: 'Bündnis Soziale Gerechtigkeit und Wirtschaftliche Vernunft', flyerLogo: 'BSW', short: 'BSW', name: 'Bündnis Soziale Gerechtigkeit und Wirtschaftliche Vernunft',
       budget: 5, goal: 5,
       goalText: 'Unter neuem Namen die 5-%-Hürde knacken',
       desc: 'Neu benannte Partei, 2025 knapp an der Hürde gescheitert, aktuell bei 3 %. Kleines Budget, viel zu gewinnen.',
@@ -86,7 +86,7 @@
       lean: { wirtschaft: -1, migration: 1, soziales: -1, klima: 1, sicherheit: 0, bildung: 0, digitales: 0, wohnen: 0 }
     },
     {
-      id: 'fdp', flyerLogo: 'FDP', short: 'FDP', name: 'FDP',
+      id: 'fdp', ballot: 'FDP', fullName: 'Freie Demokratische Partei', flyerLogo: 'FDP', short: 'FDP', name: 'FDP',
       budget: 8, goal: 6,
       goalText: 'Sicher zurück in den Bundestag (über 6 %)',
       desc: 'Die Liberalen kämpfen um den Wiedereinzug. Stark bei Wirtschaft und Digitalisierung.',

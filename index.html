@@ -8,7 +8,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗳️</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Montserrat:wght@700;800;900&family=Oswald:wght@600;700&family=Public+Sans:wght@500;700;800;900&family=Inter:wght@800&family=Open+Sans:wght@400;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,700;1,400&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Montserrat:wght@700;800;900&family=Oswald:wght@600;700&family=Public+Sans:wght@500;700;800;900&family=Inter:wght@800&family=Open+Sans:wght@400;700;800&family=Caveat:wght@600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,700;1,400&display=swap">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -31,48 +31,58 @@
     </header>
   </main>
 
-  <!-- Parteiwahl: neue Seite nach dem Eröffnungsbild -->
-  <main id="screen-start" class="screen" hidden>
-    <header class="page-head">
-      <button type="button" class="btn back" id="btn-to-intro">← Startseite</button>
-      <div>
-        <p class="eyebrow">Schritt 1 von 2</p>
-        <h1>Wähle deine Partei</h1>
-      </div>
-    </header>
-
-    <section class="card setup" id="setup">
-      <div id="resume" class="resume" hidden>
-        <p>Es gibt einen gespeicherten Wahlkampf.</p>
-        <button type="button" class="btn primary" id="btn-resume">Wahlkampf fortsetzen</button>
-      </div>
-
-      <label class="field">
-        <span>Name deiner Spitzenkandidatin / deines Spitzenkandidaten</span>
-        <input id="candidate" type="text" maxlength="40" placeholder="z. B. Alex Muster" autocomplete="off">
+  <!-- Namensseite: Wahlvorschlag für die Spitzenkandidatur -->
+  <main id="screen-name" class="screen paper-screen" hidden>
+    <div class="paper-top"><button type="button" class="link-back" id="btn-name-back">← Startseite</button></div>
+    <form class="paper form-sheet" id="name-form" novalidate>
+      <p class="doc-kicker">Bundestagswahl · Anlage 1</p>
+      <h1 class="doc-title">Wahlvorschlag</h1>
+      <p class="doc-sub">für die Spitzenkandidatur</p>
+      <label class="doc-field">
+        <span class="doc-label">Vor- und Nachname der Spitzenkandidatin / des Spitzenkandidaten</span>
+        <input id="candidate" class="ink" type="text" maxlength="40" autocomplete="off" placeholder="Name eintragen">
       </label>
-
-      <h2>Parteien</h2>
-      <div id="party-list" class="party-list" role="radiogroup" aria-label="Partei"></div>
-
-      <div class="setup-actions">
-        <button type="button" class="btn primary big" id="btn-start" disabled>Weiter zum Wahlprogramm</button>
+      <p class="doc-note">Freiwillige Angabe. Ohne Eintrag tritt „Unsere Spitzenkandidatin“ an.</p>
+      <div class="doc-sign">
+        <div><span class="ink" id="sign-date"></span><span class="doc-label">Ort, Datum</span></div>
+        <div><span class="ink sig" id="sign-name"></span><span class="doc-label">Unterschrift</span></div>
       </div>
+      <button type="submit" class="doc-btn">Weiter zur Parteiwahl →</button>
+    </form>
+  </main>
+
+  <!-- Parteiwahl: als Stimmzettel gestaltet -->
+  <main id="screen-start" class="screen paper-screen" hidden>
+    <div class="paper-top"><button type="button" class="link-back" id="btn-to-name">← Zurück zum Wahlvorschlag</button></div>
+    <section class="paper ballot" aria-labelledby="ballot-title">
+      <header class="ballot-head">
+        <h1 id="ballot-title">Stimmzettel</h1>
+        <p>für das Bundestagswahl-Spiel</p>
+        <p class="ballot-who">Spitzenkandidatur: <span class="ink" id="ballot-candidate"></span></p>
+      </header>
+      <div class="ballot-col-head">
+        <strong>Sie haben 1 Stimme</strong>
+        <span>hier für die Wahl <b>einer Partei</b>, mit der Sie acht Wochen Wahlkampf führen</span>
+      </div>
+      <div id="party-list" class="ballot-list" role="radiogroup" aria-label="Partei"></div>
+      <footer class="ballot-foot">
+        <button type="button" class="doc-btn" id="btn-start" disabled>Weiter zum Wahlprogramm →</button>
+      </footer>
     </section>
 
-    <section class="card howto">
-      <h2>So funktioniert's</h2>
-      <ul>
-        <li><strong>Wahlprogramm:</strong> Lege Slogan, zwei Kernthemen und deine Positionen fest. Populäre Positionen
-          bringen Stimmen, wer von der Parteilinie abweicht, verprellt Stammwähler. Und alles muss finanzierbar bleiben.</li>
-        <li><strong>3 Aktionen pro Woche:</strong> Kundgebungen, Plakate und Haustürwahlkampf wirken in einem Bundesland,
+    <section class="paper notice howto">
+      <h2>Wahlbekanntmachung: So läuft der Wahlkampf</h2>
+      <ol>
+        <li><strong>Wahlprogramm.</strong> Slogan, zwei Kernthemen und eure Positionen festlegen. Populäre Positionen bringen Stimmen,
+          auch wenn sie leicht von der Parteilinie abweichen; starke Abweichungen verprellen die Stammwähler. Alles muss finanzierbar bleiben.</li>
+        <li><strong>Drei Aktionen pro Woche.</strong> Kundgebungen, Plakate und Haustürwahlkampf wirken in einem Bundesland,
           TV-Spots, Social Media, Pressekonferenzen und Talkshows bundesweit.</li>
-        <li><strong>Themen setzen:</strong> Jede Partei hat Stärken. Wird dein Thema wichtiger, steigen deine Werte.</li>
-        <li><strong>Geld ist knapp:</strong> Ein Spendendinner füllt die Kasse, kostet aber eine Aktion.</li>
-        <li><strong>Ereignisse:</strong> Jede Woche passiert etwas – reagiere klug.</li>
-        <li><strong>Wahlabend:</strong> 630 Sitze, 5-%-Hürde, Sainte-Laguë. Wer stärkste Kraft wird, darf die Koalition schmieden.</li>
-      </ul>
-      <p class="muted small">Startwerte: Sonntagsfrage von Infratest dimap (Anfang Oktober 2026), stark vereinfacht. Alle Ereignisse sind fiktiv.</p>
+        <li><strong>Themen setzen.</strong> Jede Partei hat Stärken. Wird euer Thema wichtiger, steigen eure Werte.</li>
+        <li><strong>Geld ist knapp.</strong> Ein Spendendinner füllt die Kasse, kostet aber eine Aktion.</li>
+        <li><strong>Ereignisse.</strong> Jede Woche passiert etwas – reagiert klug.</li>
+        <li><strong>Wahlabend.</strong> 630 Sitze, 5-%-Hürde, Sainte-Laguë. Wer stärkste Kraft wird, darf die Koalition schmieden.</li>
+      </ol>
+      <p class="doc-note">Startwerte: Sonntagsfrage von Infratest dimap (Anfang Oktober 2026), stark vereinfacht. Alle Ereignisse sind fiktiv.</p>
     </section>
   </main>
 

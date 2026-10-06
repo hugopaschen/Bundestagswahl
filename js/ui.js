@@ -50,7 +50,7 @@
   }
 
   function show(screen) {
-    ['intro', 'start', 'program', 'game', 'election'].forEach(s => { $('screen-' + s).hidden = s !== screen; });
+    ['intro', 'name', 'start', 'program', 'game', 'election'].forEach(s => { $('screen-' + s).hidden = s !== screen; });
     // Die Programm-Website färbt den ganzen Seitenhintergrund in der Papierfarbe der Partei.
     if (screen !== 'program') document.body.style.background = '';
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -66,34 +66,57 @@
 
   // ---------- Startbildschirm ----------
 
+  // Ein handgezeichnetes Kreuz für Stimmzettel (Kugelschreiber-Optik).
+  const PEN_X = '<svg class="pen-x" viewBox="0 0 40 40" aria-hidden="true">' +
+    '<path d="M7 9 C 15 16, 24 25, 34 33" /><path d="M33 7 C 24 15, 15 25, 6 34" /></svg>';
+
+  function candidateName() {
+    return String($('candidate').value || '').trim() || DEFAULT_CANDIDATE;
+  }
+
   function renderStart() {
     const list = $('party-list');
     list.innerHTML = '';
     const start = E.newGame('union', '', 1).startShares;
-    D.PARTIES.forEach(p => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'party-option';
-      btn.setAttribute('role', 'radio');
-      btn.setAttribute('aria-checked', String(p.id === chosenParty));
-      btn.style.setProperty('--pc', col(p.id));
+    D.PARTIES.forEach((p, i) => {
       const strengths = D.TOPICS.slice().sort((a, b) => p.competence[b.id] - p.competence[a.id]).slice(0, 2);
-      btn.innerHTML =
-        '<div class="row"><span class="pname">' + esc(p.name) + '</span><span class="pct">' + pct(start[p.id]) + '</span></div>' +
-        '<p>' + esc(p.desc) + '</p>' +
-        '<div class="strengths">' + strengths.map(t => '<span class="tag">' + t.icon + ' ' + esc(t.name) + '</span>').join('') +
-        '<span class="tag">💶 ' + p.budget + ' Mio. €</span></div>' +
-        '<p class="small"><strong>Ziel:</strong> ' + esc(p.goalText) + '</p>';
-      btn.addEventListener('click', () => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'ballot-row';
+      row.setAttribute('role', 'radio');
+      row.setAttribute('aria-checked', String(p.id === chosenParty));
+      row.style.setProperty('--pc', col(p.id));
+      row.innerHTML =
+        '<span class="b-circle">' + PEN_X + '</span>' +
+        '<span class="b-num">' + (i + 1) + '</span>' +
+        '<span class="b-main">' +
+          '<span class="b-short">' + esc(p.ballot) + '</span>' +
+          (p.fullName.toLowerCase() !== p.ballot.toLowerCase() ? '<span class="b-full">' + esc(p.fullName) + '</span>' : '') +
+          '<span class="b-desc">' + esc(p.desc) + '</span>' +
+          '<span class="b-facts">' +
+            '<span><em>Umfrage</em> ' + pct(start[p.id]) + '</span>' +
+            '<span><em>Kasse</em> ' + p.budget + ' Mio. €</span>' +
+            '<span><em>Stärken</em> ' + strengths.map(t => esc(t.name)).join(', ') + '</span>' +
+          '</span>' +
+          '<span class="b-goal"><em>Wahlziel</em> ' + esc(p.goalText) + '</span>' +
+        '</span>';
+      row.addEventListener('click', () => {
         chosenParty = p.id;
-        list.querySelectorAll('.party-option').forEach(b => b.setAttribute('aria-checked', String(b === btn)));
+        list.querySelectorAll('.ballot-row').forEach(b => b.setAttribute('aria-checked', String(b === row)));
         $('btn-start').disabled = false;
       });
-      list.appendChild(btn);
+      list.appendChild(row);
     });
-    $('resume').hidden = !loadSave();
+    $('ballot-candidate').textContent = candidateName();
+    $('btn-start').disabled = !chosenParty;
     $('btn-intro-resume').hidden = !loadSave();
   }
+
+  function updateSignature() {
+    const name = String($('candidate').value || '').trim();
+    $('sign-name').textContent = name;
+  }
+
 
   // ---------- Spielbildschirm ----------
 
@@ -770,6 +793,7 @@
   });
 
   $('candidate').addEventListener('input', () => {
+    updateSignature();
     if (!$('screen-program').hidden) $('flyer-candidate').textContent = candidateLine($('candidate').value);
   });
 
@@ -787,8 +811,19 @@
   });
 
   $('btn-program-back').addEventListener('click', () => show('start'));
-  $('btn-intro-start').addEventListener('click', () => { renderStart(); show('start'); });
-  $('btn-to-intro').addEventListener('click', () => { renderStart(); show('intro'); });
+  $('btn-intro-start').addEventListener('click', () => {
+    $('sign-date').textContent = 'Berlin, ' + new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    updateSignature();
+    show('name');
+    $('candidate').focus({ preventScroll: true });
+  });
+  $('btn-name-back').addEventListener('click', () => show('intro'));
+  $('name-form').addEventListener('submit', e => {
+    e.preventDefault();
+    renderStart();
+    show('start');
+  });
+  $('btn-to-name').addEventListener('click', () => show('name'));
 
   $('btn-program-confirm').addEventListener('click', () => {
     if (E.validateProgram(draft).length) return;
@@ -800,7 +835,6 @@
     const saved = loadSave();
     if (saved) startGame(saved);
   };
-  $('btn-resume').addEventListener('click', resume);
   $('btn-intro-resume').addEventListener('click', resume);
 
   $('btn-end-week').addEventListener('click', () => {
@@ -823,7 +857,7 @@
     chosenParty = null;
     $('btn-start').disabled = true;
     renderStart();
-    show('start');
+    show('name');
   });
 
   let resizeTimer = null;

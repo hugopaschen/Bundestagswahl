@@ -103,7 +103,7 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 .btn.big { padding: .8rem 1.6rem; font-size: 1.05rem; }
-.btn:focus-visible, .party-option:focus-visible, .chip:focus-visible, .tile:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.btn:focus-visible, .chip:focus-visible, .tile:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
 /* ---------- Start ---------- */
 .hero { text-align: center; padding: 32px 8px 24px; }
@@ -112,6 +112,13 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
 .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: .75rem; font-weight: 700; color: var(--accent); margin: 0 0 .4rem; }
 .lead { max-width: 640px; margin: 0 auto; color: var(--text-2); font-size: 1.05rem; }
 
+.field { display: block; margin-bottom: 20px; }
+.field span { display: block; font-size: .85rem; color: var(--text-2); margin-bottom: 6px; }
+.field input {
+  width: 100%; max-width: 420px; font: inherit; padding: .6rem .8rem;
+  border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+}
+.tag { font-size: .75rem; padding: 2px 8px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2); }
 /* Eröffnungsbild der Startseite: füllt den ersten Bildschirm, der Rest folgt darunter */
 .intro-screen { padding: 0; }
 .hero-intro {
@@ -126,43 +133,13 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
 .hero-actions .btn { text-decoration: none; display: inline-flex; align-items: center; }
 .hero-stripes { position: absolute; left: 0; right: 0; bottom: 0; display: flex; height: 6px; }
 .hero-stripes i { flex: 1; }
-/* Seitenkopf der Parteiwahl */
-.page-head { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; padding: 20px 0 18px; }
-.page-head h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); letter-spacing: -.02em; margin: 0; }
-.page-head .eyebrow { margin-bottom: .2rem; }
-.btn.back { flex: 0 0 auto; }
 /* Sanftes Einblenden beim Seitenwechsel */
 @media (prefers-reduced-motion: no-preference) {
   .screen:not([hidden]) { animation: screen-in .35s ease-out; }
   @keyframes screen-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 }
 
-.setup, .howto { max-width: none; margin: 0 0 16px; }
-.resume { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--surface-2); border-radius: 10px; margin-bottom: 16px; }
-.resume p { margin: 0; }
-.field { display: block; margin-bottom: 20px; }
-.field span { display: block; font-size: .85rem; color: var(--text-2); margin-bottom: 6px; }
-.field input {
-  width: 100%; max-width: 420px; font: inherit; padding: .6rem .8rem;
-  border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
-}
-.party-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 12px; }
-.party-option {
-  text-align: left; font: inherit; color: inherit; cursor: pointer;
-  border: 2px solid var(--border); border-radius: 12px; background: var(--surface);
-  padding: 14px; display: flex; flex-direction: column; gap: 8px;
-  border-top: 6px solid var(--pc);
-}
-.party-option[aria-checked="true"] { border-color: var(--pc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc) 25%, transparent); }
-.party-option .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.party-option .pname { font-weight: 700; font-size: 1.05rem; }
-.party-option .pct { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
-.party-option p { margin: 0; color: var(--text-2); font-size: .88rem; }
-.strengths { display: flex; flex-wrap: wrap; gap: 4px; }
-.tag { font-size: .75rem; padding: 2px 8px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2); }
-.setup-actions { margin-top: 20px; text-align: center; }
-.howto ul { padding-left: 1.2rem; margin: 0 0 .8rem; }
-.howto li { margin-bottom: .4rem; }
+
 
 /* ---------- Spiel ---------- */
 .topbar {
@@ -947,3 +924,108 @@ h2 .flyer-hint { margin: 0; }
   .program-bar-stats { font-size: .78rem; gap: 2px 12px; justify-content: center; }
   .program-bar .btn.big { padding: .6rem 1rem; font-size: .95rem; }
 }
+
+/* ---------- Papier-Seiten: Wahlvorschlag (Name) und Stimmzettel (Partei) ---------- */
+.paper-screen { max-width: 960px; margin: 0 auto; padding: 22px 16px 64px; }
+.paper-top { margin-bottom: 14px; }
+.link-back { font: inherit; font-size: .95rem; background: none; border: 0; padding: 6px 0; color: var(--text-2); cursor: pointer; }
+.link-back:hover { color: var(--text); text-decoration: underline; text-underline-offset: 4px; }
+.link-back:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+/* Papier bleibt in beiden Farbschemata hell – wie ein echtes Formular auf dem Tisch */
+.paper {
+  --ink: #1f3fae; --print: #16161a; --print-2: #55545a; --rule: #1d1d22; --ballot-blue: #19559c;
+  --c-union: #1b1b1b; /* auf Papier bleibt die Union schwarz, auch im Dark Mode */
+  background: #fbfaf6; color: var(--print);
+  font-family: Arial, "Helvetica Neue", Helvetica, "Liberation Sans", sans-serif;
+  border-radius: 2px; box-shadow: 0 1px 2px rgba(0, 0, 0, .2), 0 22px 60px rgba(0, 0, 0, .28);
+  padding: clamp(22px, 4vw, 48px);
+}
+.ink { font-family: "Caveat", "Segoe Print", "Bradley Hand", cursive; color: var(--ink); font-weight: 600; }
+
+/* Wahlvorschlag */
+.form-sheet { max-width: 700px; margin: 0 auto; }
+.doc-kicker { text-transform: uppercase; letter-spacing: .14em; font-size: .72rem; color: var(--print-2); margin: 0 0 22px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); }
+.doc-title { font-size: clamp(2.3rem, 7vw, 3.4rem); font-weight: 700; letter-spacing: -.015em; line-height: 1; margin: 0; }
+.doc-sub { margin: 6px 0 38px; font-size: 1.1rem; color: var(--print-2); }
+.doc-field { display: block; }
+.doc-label { display: block; font-size: .78rem; color: var(--print-2); }
+.doc-field .doc-label { margin-bottom: 2px; }
+.doc-field input {
+  width: 100%; border: 0; border-bottom: 1.5px solid var(--rule); border-radius: 0; background: transparent;
+  font-size: clamp(2rem, 6vw, 2.9rem); padding: 2px 4px 0; outline: none;
+}
+.doc-field input::placeholder { color: #bdbab1; }
+.doc-field input:focus { border-bottom-color: var(--ink); background: rgba(31, 63, 174, .025); }
+.doc-note { font-size: .8rem; color: var(--print-2); margin: 10px 0 0; }
+.doc-sign { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin: 46px 0 36px; }
+.doc-sign .ink { display: block; min-height: 2.5rem; font-size: 1.7rem; line-height: 1.4; border-bottom: 1px solid var(--rule); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-sign .sig { font-weight: 700; font-size: 1.9rem; letter-spacing: .01em; }
+.doc-sign .doc-label { margin-top: 4px; }
+.doc-btn {
+  font: 700 1rem Arial, "Helvetica Neue", Helvetica, sans-serif; letter-spacing: .02em;
+  background: var(--print); color: #fff; border: 0; border-radius: 0; padding: 15px 24px; cursor: pointer;
+  transition: background .15s;
+}
+.doc-btn:hover:not(:disabled) { background: var(--ink); }
+.doc-btn:disabled { opacity: .3; cursor: not-allowed; }
+.doc-btn:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+@media (max-width: 600px) { .doc-sign { grid-template-columns: 1fr; gap: 18px; } .doc-btn { width: 100%; } }
+
+/* Stimmzettel */
+.ballot { padding: 0; overflow: hidden; }
+.ballot-head { text-align: center; padding: 30px 24px 18px; border-bottom: 2px solid var(--rule); }
+.ballot-head h1 { font-size: clamp(2.1rem, 6vw, 3rem); letter-spacing: .01em; margin: 0; }
+.ballot-head p { margin: 2px 0 0; color: var(--print-2); }
+.ballot-head .ballot-who { margin-top: 12px; color: var(--print); }
+.ballot-who .ink { font-size: 1.7rem; margin-left: 4px; }
+.ballot-col-head { text-align: center; color: var(--ballot-blue); padding: 14px 20px 16px; border-bottom: 2px solid var(--rule); }
+.ballot-col-head strong { display: block; font-size: 1.4rem; }
+.ballot-col-head span { font-size: .92rem; }
+.ballot-list { display: flex; flex-direction: column; }
+.ballot-row {
+  all: unset; box-sizing: border-box; position: relative; cursor: pointer;
+  display: grid; grid-template-columns: 58px 44px minmax(0, 1fr); align-items: start; gap: 0 16px;
+  padding: 18px 24px 18px 22px; border-bottom: 1px solid var(--rule);
+  color: var(--print); font-family: inherit; transition: background .15s;
+}
+.ballot-row::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--pc); }
+.ballot-row:hover { background: #f1efe7; }
+.ballot-row:focus-visible { outline: 3px solid var(--ink); outline-offset: -3px; }
+.ballot-row[aria-checked="true"] { background: #edf0fa; }
+.b-circle { position: relative; width: 46px; height: 46px; border: 2px solid var(--ballot-blue); border-radius: 50%; justify-self: center; margin-top: 2px; }
+.pen-x {
+  position: absolute; inset: -9px; width: calc(100% + 18px); height: calc(100% + 18px);
+  fill: none; stroke: var(--ink); stroke-width: 3.4; stroke-linecap: round; opacity: 0;
+}
+.pen-x path { stroke-dasharray: 40; stroke-dashoffset: 0; }
+.ballot-row[aria-checked="true"] .pen-x { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .ballot-row[aria-checked="true"] .pen-x path { animation: pen-draw .22s ease-out both; }
+  .ballot-row[aria-checked="true"] .pen-x path + path { animation-delay: .18s; }
+  @keyframes pen-draw { from { stroke-dashoffset: 40; } to { stroke-dashoffset: 0; } }
+}
+.b-num { width: 40px; height: 40px; margin-top: 4px; border: 2px solid var(--rule); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: 700; }
+.b-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.b-short { font-size: 1.65rem; font-weight: 700; line-height: 1.1; }
+.b-full { font-size: .98rem; }
+.b-desc { font-size: .9rem; color: var(--print-2); margin-top: 6px; }
+.b-facts { display: flex; flex-wrap: wrap; gap: 4px 20px; font-size: .88rem; margin-top: 6px; }
+.b-goal { font-size: .88rem; }
+.b-facts em, .b-goal em {
+  font-style: normal; text-transform: uppercase; letter-spacing: .08em; font-size: .66rem; color: var(--print-2); margin-right: 5px;
+}
+.ballot-foot { display: flex; justify-content: flex-end; padding: 22px 24px; }
+@media (max-width: 600px) {
+  .ballot-row { grid-template-columns: 40px minmax(0, 1fr); gap: 0 12px; padding: 16px 16px 16px 18px; }
+  .b-num { display: none; }
+  .b-circle { width: 36px; height: 36px; }
+  .b-short { font-size: 1.3rem; }
+  .ballot-foot .doc-btn { width: 100%; }
+}
+
+/* Wahlbekanntmachung */
+.notice { margin-top: 28px; }
+.notice h2 { font-size: 1.15rem; margin: 0 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--rule); }
+.notice ol { margin: 0 0 16px; padding-left: 1.3rem; font-size: .93rem; line-height: 1.55; }
+.notice li { margin-bottom: .5rem; }
