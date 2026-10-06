@@ -419,7 +419,8 @@ h2 .flyer-hint { margin: 0; }
 .core-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--fl-accent); }
 .core-card[aria-pressed="true"] .core-bar { background: rgba(255, 255, 255, .3); }
 .core-card[aria-pressed="true"] .core-bar > span { background: var(--fl-accent-ink); }
-.flyer[data-party="afd"] .core-card, .flyer[data-party="spd"] .core-card { border-radius: 0; }
+.flyer[data-party="afd"] .core-card, .flyer[data-party="spd"] .core-card,
+.flyer[data-party="afd"] .option, .flyer[data-party="spd"] .option { border-radius: 0; }
 @media (max-width: 1000px) { .core-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 420px) {
   .core-grid { gap: 10px; }
@@ -464,18 +465,27 @@ h2 .flyer-hint { margin: 0; }
 .topic-set .core-mark { font-size: .72rem; font-weight: 700; margin-left: 8px; padding: 2px 8px; border-radius: 99px; background: var(--fl-accent); color: var(--fl-accent-ink); }
 .options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 @media (max-width: 720px) { .options { grid-template-columns: 1fr; } }
-.option { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 10px; border: 2px solid var(--border);
-  border-radius: 8px; background: #fff; cursor: pointer; }
-.option input { position: absolute; opacity: 0; pointer-events: none; }
-.option:has(input:checked) { border-color: var(--fl-accent); box-shadow: inset 0 0 0 1px var(--fl-accent); }
-.option:has(input:checked)::after {
-  content: "✔"; position: absolute; top: -9px; right: -9px; width: 22px; height: 22px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center; font-size: .75rem; background: var(--fl-accent); color: var(--fl-accent-ink);
+.option {
+  position: relative; display: flex; flex-direction: column; gap: 4px; padding: 10px; border: 2px solid var(--border);
+  border-radius: 14px; background: #fff; color: #1d1d1b; cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .06); transition: transform .12s, box-shadow .12s, border-color .12s;
 }
-.option:has(input:focus-visible) { outline: 3px solid var(--text); outline-offset: 2px; }
+.option input { position: absolute; opacity: 0; pointer-events: none; }
+.option::after {
+  content: "Auswählen"; position: absolute; top: -9px; right: 10px; padding: 1px 8px; border-radius: 99px;
+  font-size: .62rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; line-height: 1.5;
+  background: #fff; color: #8a8a85; border: 1.5px solid currentColor;
+}
+.option:hover:not(:has(input:checked)) { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0, 0, 0, .12); border-color: var(--fl-accent); }
+.option:has(input:checked) { background: var(--fl-accent); border-color: var(--fl-accent); color: var(--fl-accent-ink); box-shadow: 0 8px 22px rgba(0, 0, 0, .18); }
+.option:has(input:checked)::after { content: "✓ Gewählt"; background: var(--fl-accent-ink); color: var(--fl-accent); border-color: var(--fl-accent); }
+.option:has(input:focus-visible) { outline: 3px solid var(--fl-accent); outline-offset: 3px; }
 .option .olabel { font-weight: 700; font-size: .9rem; }
 .option .odesc { font-size: .78rem; color: var(--text-2); }
+.option:has(input:checked) .odesc { color: inherit; opacity: .9; }
 .option .ometa { display: flex; flex-wrap: wrap; gap: 4px; margin-top: auto; padding-top: 4px; }
+.flyer .option:has(input:checked) .tag { background: #fff; border-color: transparent; }
+.flyer .option:has(input:checked) .tag:not(.line):not(.dev) { color: #1d1d1b; }
 .flyer .tag { background: var(--surface-2); }
 .tag.line { border-color: var(--good); color: var(--good); }
 .tag.dev { border-color: var(--bad); color: var(--bad); }
@@ -649,9 +659,6 @@ h2 .flyer-hint { margin: 0; }
   font-family: "Inter", system-ui, sans-serif;
 }
 .flyer[data-party="union"] .option .olabel { font-weight: 800; letter-spacing: -.01em; }
-.flyer[data-party="union"] .option { border-radius: 0; }
-.flyer[data-party="union"] .option:has(input:checked) { border-color: #52b7c1; box-shadow: inset 0 0 0 1px #52b7c1; }
-.flyer[data-party="union"] .option:has(input:checked)::after { background: #52b7c1; color: #ffffff; border-radius: 0; }
 .flyer[data-party="union"] .topic-set:has([data-core]:not([hidden])) { border-left-color: #ffa600; }
 .flyer[data-party="union"] .topic-set .core-mark { background: #ffa600; color: #ffffff; border-radius: 0; font-family: "Inter", system-ui, sans-serif; }
 
@@ -750,10 +757,7 @@ h2 .flyer-hint { margin: 0; }
 .flyer[data-party="afd"] .topic-set legend { font-family: "Oswald", sans-serif; font-weight: 700; font-size: 1.05rem; }
 .flyer[data-party="afd"] .topic-set:has([data-core]:not([hidden])) { border-left-color: #009ee0; }
 .flyer[data-party="afd"] .topic-set .core-mark { background: #e10000; border-radius: 0; transform: rotate(-5deg); display: inline-block; }
-.flyer[data-party="afd"] .option { border-radius: 0; border-color: #cfe6f3; }
 .flyer[data-party="afd"] .option .olabel { font-family: "Oswald", sans-serif; font-weight: 700; font-size: .98rem; letter-spacing: 0; }
-.flyer[data-party="afd"] .option:has(input:checked) { border-color: #009ee0; box-shadow: inset 0 0 0 1px #009ee0; }
-.flyer[data-party="afd"] .option:has(input:checked)::after { background: #009ee0; border-radius: 0; }
 .flyer[data-party="afd"] .chip { border-radius: 0; }
 
 /* Programmteil im Botschafts-Bereich, Abschluss im Absender-Bereich */
@@ -840,10 +844,7 @@ h2 .flyer-hint { margin: 0; }
 .flyer[data-party="spd"] .flyer-section h2 { color: #e3000f; text-transform: uppercase; font-weight: 800; letter-spacing: -.01em; }
 .flyer[data-party="spd"] .flyer-section h2 .flyer-hint { text-transform: none; }
 .flyer[data-party="spd"] .flyer-num { border-radius: 0; transform: rotate(-10deg); }
-.flyer[data-party="spd"] .option { border-radius: 0; border-color: #f2c4c7; }
 .flyer[data-party="spd"] .option .olabel { font-weight: 800; }
-.flyer[data-party="spd"] .option:has(input:checked) { border-color: #e3000f; box-shadow: inset 0 0 0 1px #e3000f; }
-.flyer[data-party="spd"] .option:has(input:checked)::after { border-radius: 0; transform: rotate(-10deg); }
 .flyer[data-party="spd"] .chip { border-radius: 0; }
 .flyer[data-party="spd"] .topic-set legend { text-transform: uppercase; font-weight: 800; }
 .flyer[data-party="spd"] .topic-set .core-mark { border-radius: 0; text-transform: none; transform: rotate(-10deg); display: inline-block; }
@@ -963,8 +964,6 @@ h2 .flyer-hint { margin: 0; }
 .flyer[data-party="fdp"] .flyer-section { border-bottom: 2px solid rgba(3, 45, 103, .15); }
 .flyer[data-party="fdp"] .flyer-section h2 { font-weight: 900; letter-spacing: -.03em; }
 .flyer[data-party="fdp"] .flyer-num { border-radius: 4px; }
-.flyer[data-party="fdp"] .option { border-color: transparent; }
-.flyer[data-party="fdp"] .option:has(input:checked) { border-color: #032d67; box-shadow: none; }
 
 /* Programmteil im Stil der blauen Postkarte, Abschluss als gelber Aufruf mit blauem Button */
 .flyer[data-party="fdp"] .flyer-program { background: #032d67; color: #ffffff; --border: rgba(255, 255, 255, .18); }
