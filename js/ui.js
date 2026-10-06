@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261006-200251';
+  const APP_VERSION = '20261006-201238';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -591,6 +591,16 @@
   // ---------- Wahlprogramm ----------
 
   // Der Programmparteitag läuft in Schritten: jeweils nur ein Abschnitt ist sichtbar.
+  // Die Aktionsleiste ist fest am unteren Rand; damit sie nichts verdeckt, bekommt die
+  // Programmseite unten genau so viel Platz, wie die Leiste hoch ist.
+  (function reserveBarSpace() {
+    const bar = document.querySelector('.program-bar');
+    const fit = () => { $('screen-program').style.paddingBottom = bar.offsetHeight + 'px'; };
+    if (window.ResizeObserver) new ResizeObserver(fit).observe(bar);
+    window.addEventListener('resize', fit);
+    fit();
+  })();
+
   const PROGRAM_STEPS = [
     { id: 'sec-slogan', name: 'Slogan' },
     { id: 'sec-kern', name: 'Kernthemen' },
