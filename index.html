@@ -56,12 +56,17 @@
     </section>
   </main>
 
-  <!-- Wahlprogramm: als Wahlflyer gestaltet -->
+  <!-- Wahlprogramm: als ganzseitige Partei-Website im CI der Partei gestaltet -->
   <main id="screen-program" class="screen program-screen" hidden>
-    <p class="flyer-intro"><span class="eyebrow" id="program-party"></span>
-      Gestaltet euren Wahlflyer: Slogan, Kernthemen, Positionen. Unten steht euer fertiges Programm.</p>
-
-    <article class="flyer" id="flyer">
+    <article class="flyer site" id="flyer">
+      <nav class="flyer-nav" aria-label="Abschnitte des Wahlprogramms">
+        <span class="flyer-nav-label" id="program-party"></span>
+        <a href="#sec-slogan">Slogan</a>
+        <a href="#sec-kern">Kernthemen</a>
+        <a href="#sec-positionen">Positionen</a>
+        <a href="#flyer-program">Unser Programm</a>
+        <a href="#sec-bilanz">Bilanz</a>
+      </nav>
       <header class="flyer-head">
         <div class="flyer-brand">
           <span class="flyer-logo" id="flyer-logo"></span>
@@ -73,7 +78,7 @@
         <div class="flyer-stoerer" id="flyer-stoerer" aria-hidden="true"></div>
       </header>
 
-      <section class="flyer-section">
+      <section class="flyer-section" id="sec-slogan">
         <h2><span class="flyer-num">1</span> Unser Slogan</h2>
         <div id="slogan-chips" class="chips"></div>
         <label class="field">
@@ -82,14 +87,14 @@
         </label>
       </section>
 
-      <section class="flyer-section">
+      <section class="flyer-section" id="sec-kern">
         <h2><span class="flyer-num">2</span> Unsere Kernthemen <span id="core-count" class="flyer-hint"></span></h2>
         <p class="flyer-hint">Zwei Themen, mit denen ihr in den Wahlkampf zieht: mehr Kompetenz, mehr Aufmerksamkeit,
           und TV-Spots, Social Media, Pressekonferenzen und Talkshows zu diesen Themen wirken 25&nbsp;% stärker.</p>
         <div id="core-chips" class="chips"></div>
       </section>
 
-      <section class="flyer-section">
+      <section class="flyer-section" id="sec-positionen">
         <h2><span class="flyer-num">3</span> Dafür stehen wir</h2>
         <p class="flyer-hint">„Parteilinie“ ist die traditionelle Haltung eurer Partei. Eine leichte Abweichung hin zu einer populären Position
           gewinnt neue Wähler, eine starke Abweichung verprellt dagegen immer die Stammwähler, egal wie populär sie ist.
@@ -97,21 +102,21 @@
         <div id="positions" class="positions"></div>
       </section>
 
+      <section class="flyer-section program-details" id="sec-bilanz">
+        <h2><span class="flyer-num">4</span> Bilanz für Strategen</h2>
+        <div id="program-summary"></div>
+        <div class="program-buttons">
+          <button type="button" class="btn" id="btn-program-reset">Auf Parteilinie zurücksetzen</button>
+          <button type="button" class="btn" id="btn-program-back">Zurück zur Parteiwahl</button>
+        </div>
+      </section>
+
       <section class="flyer-program" id="flyer-program" aria-live="polite"></section>
     </article>
 
-    <section class="card program-details">
-      <h2>Bilanz für Strategen</h2>
-      <div id="program-summary"></div>
-      <div class="program-buttons">
-        <button type="button" class="btn" id="btn-program-reset">Auf Parteilinie zurücksetzen</button>
-        <button type="button" class="btn" id="btn-program-back">Zurück zur Parteiwahl</button>
-      </div>
-    </section>
-
     <div class="program-bar">
       <div id="program-bar-stats" class="program-bar-stats"></div>
-      <button type="button" class="btn primary big" id="btn-program-confirm">Flyer drucken &amp; Wahlkampf starten</button>
+      <button type="button" class="btn primary big" id="btn-program-confirm">Programm beschließen &amp; Wahlkampf starten</button>
     </div>
   </main>
 

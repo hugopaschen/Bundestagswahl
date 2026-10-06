@@ -292,9 +292,25 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
 .outcome h2 { font-size: 1.6rem; }
 
 /* ---------- Wahlprogramm (Wahlflyer) ---------- */
-.program-screen { max-width: 1000px; margin: 0 auto; padding-bottom: 120px; }
-.flyer-intro { text-align: center; color: var(--text-2); margin: 8px auto 16px; max-width: 620px; }
-.flyer-intro .eyebrow { display: block; }
+/* Website-Ansicht: der Flyer füllt die ganze Seite, Farbflächen laufen von Rand zu Rand,
+   der Inhalt bleibt in einer lesbaren Spalte (über --pad). */
+.program-screen { max-width: none; margin: 0; padding: 0 0 96px; }
+.flyer.site {
+  --pad: max(28px, calc((100vw - 1160px) / 2));
+  border-radius: 0; box-shadow: none; min-height: 100vh; overflow: clip;
+}
+.flyer-nav {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 22px;
+  padding: 12px var(--pad); background: var(--fl-head); color: var(--fl-head-ink);
+  font-family: var(--fl-head-font); font-size: .9rem; border-bottom: 1px solid rgba(255, 255, 255, .18);
+  position: sticky; top: 0; z-index: 4;
+}
+.flyer-nav a { color: inherit; text-decoration: none; opacity: .9; font-weight: 700; }
+.flyer-nav a:hover, .flyer-nav a:focus-visible { opacity: 1; text-decoration: underline; text-underline-offset: 4px; }
+.flyer-nav-label { margin-right: auto; font-weight: 400; opacity: .85; font-size: .8rem; letter-spacing: .04em; }
+html { scroll-behavior: smooth; }
+.flyer-section, .flyer-program { scroll-margin-top: 56px; }
+.flyer .program-details .btn { background: #fff; color: var(--text); border-color: var(--border); }
 
 /* Der Flyer ist "Papier": immer hell, unabhängig vom Farbschema. */
 .flyer {
@@ -309,6 +325,7 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
   --fl-hl: transparent;
   --fl-paper: #fffdf8;
   --fl-font: inherit; --fl-head-font: inherit;
+  --pad: 28px; /* seitlicher Innenabstand; in der Website-Ansicht wächst er mit der Fensterbreite */
   --accent: var(--fl-accent); --accent-ink: var(--fl-accent-ink);
   background: var(--fl-paper); color: var(--text); font-family: var(--fl-font);
   border-radius: 6px; overflow: hidden;
@@ -316,7 +333,7 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
 }
 .flyer-head {
   position: relative; overflow: hidden; background: var(--fl-head); color: var(--fl-head-ink);
-  padding: 22px 28px 64px;
+  padding: 22px var(--pad) 64px;
 }
 .flyer-head::after {
   content: ""; position: absolute; left: -5%; right: -5%; bottom: -42px; height: 84px;
@@ -345,7 +362,7 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
 .flyer-kicker, .flyer-stoerer, .flyer-logo .bogen { display: none; }
 .flyer-candidate { position: relative; margin: 0; font-size: 1.1rem; font-weight: 600; opacity: .92; }
 
-.flyer-section { padding: 20px 28px; border-bottom: 2px dashed var(--border); }
+.flyer-section { padding: 20px var(--pad); border-bottom: 2px dashed var(--border); }
 .flyer-section h2 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 1.25rem; font-weight: 800; margin-bottom: 10px; }
 .flyer-num {
   display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex: 0 0 auto;
@@ -382,7 +399,7 @@ h2 .flyer-hint { margin: 0; }
 .tag.dev { border-color: var(--bad); color: var(--bad); }
 
 /* Fertiges Programm am Ende des Flyers */
-.flyer-program { padding: 26px 28px 0; position: relative; }
+.flyer-program { padding: 26px var(--pad) 0; position: relative; }
 .fp-title { font-size: 1.6rem; font-weight: 900; text-transform: uppercase; letter-spacing: -.01em; margin: 0 0 4px; }
 .fp-sub { margin: 0 0 16px; color: var(--text-2); }
 .fp-core { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 18px; }
@@ -405,7 +422,7 @@ h2 .flyer-hint { margin: 0; }
 .fp-stamp.solid, .fp-stamp.ok { color: var(--good); }
 .fp-stamp.over { color: var(--bad); }
 .fp-ballot {
-  margin: 22px -28px 0; padding: 18px 28px 22px; background: var(--fl-head); color: var(--fl-head-ink);
+  margin: 22px calc(-1 * var(--pad)) 0; padding: 18px var(--pad) 22px; background: var(--fl-head); color: var(--fl-head-ink);
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px;
 }
 .fp-ballot-call { font-size: 1.3rem; font-weight: 900; text-transform: uppercase; line-height: 1.1; }
@@ -424,7 +441,7 @@ h2 .flyer-hint { margin: 0; }
 .fp-cross::after { transform: translate(-50%, -50%) rotate(-45deg); }
 
 /* Strategie-Details und Aktionsleiste (außerhalb des Flyers) */
-.program-details { margin-top: 20px; }
+
 .program-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .program-bar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
@@ -436,8 +453,7 @@ h2 .flyer-hint { margin: 0; }
 .program-bar-stats strong { font-variant-numeric: tabular-nums; }
 @media (max-width: 600px) {
   .program-bar .btn { width: 100%; }
-  .flyer-head, .flyer-section, .flyer-program { padding-left: 18px; padding-right: 18px; }
-  .fp-ballot { margin-left: -18px; margin-right: -18px; padding-left: 18px; padding-right: 18px; }
+  .flyer { --pad: 18px; }
 }
 .chip:disabled { opacity: .45; cursor: not-allowed; }
 .meter { height: 10px; border-radius: 5px; background: var(--surface-2); border: 1px solid var(--border); overflow: hidden; margin: 6px 0 4px; }
@@ -450,7 +466,7 @@ h2 .flyer-hint { margin: 0; }
 .errors { color: var(--bad); font-size: .85rem; margin: 6px 0 0; padding-left: 1.1rem; }
 
 /* Mini-Flyer im Spiel */
-.flyer.mini { box-shadow: none; border: 1px solid var(--border); }
+.flyer.mini { --pad: 16px; box-shadow: none; border: 1px solid var(--border); }
 .flyer.mini .flyer-head { padding: 14px 16px 36px; }
 .flyer.mini .flyer-head::after { bottom: -30px; height: 56px; }
 .flyer.mini .flyer-slogan { font-size: 1.5rem; margin: 12px 0 4px; }
@@ -486,7 +502,7 @@ h2 .flyer-hint { margin: 0; }
   --fl-font: "IBM Plex Serif", Georgia, serif;
   --text: #2d3c4b; --text-2: #2d3c4b; --muted: #737986; --border: #ddeef1; --surface-2: #f2f8fa;
 }
-.flyer[data-party="union"] .flyer-head { padding: 24px 28px 34px; }
+.flyer[data-party="union"] .flyer-head { padding: 24px var(--pad) 34px; }
 .flyer[data-party="union"] .flyer-head::after { display: none; }
 /* Bogen als dekoratives Gestaltungselement, 10 % Weiß, Rundung vollständig sichtbar */
 .flyer[data-party="union"] .flyer-head::before {
@@ -508,22 +524,22 @@ h2 .flyer-hint { margin: 0; }
 /* Headline-Mechanik: Subline B (Gold) – Headline-Blöcke – Subline A (Weiß), Stoß an Stoß */
 .flyer[data-party="union"] .flyer-kicker,
 .flyer[data-party="union"] .flyer-candidate {
-  display: table; margin: 0; padding: .12em .45em .12em 28px; margin-left: -28px;
+  display: table; margin: 0; padding: .12em .45em .12em var(--pad); margin-left: calc(-1 * var(--pad));
   font-family: "IBM Plex Serif", Georgia, serif; font-weight: 400; font-size: .95rem; opacity: 1; position: relative;
 }
 .flyer[data-party="union"] .flyer-kicker { margin-top: 30px; background: #ffa600; color: #2d3c4b; }
 .flyer[data-party="union"] .flyer-candidate { background: #ffffff; color: #2d3c4b; }
 .flyer[data-party="union"] .flyer-slogan {
-  margin: 0 0 0 -28px; text-transform: none; font-weight: 800; letter-spacing: -.01em; line-height: 1.22;
+  margin: 0 0 0 calc(-1 * var(--pad)); text-transform: none; font-weight: 800; letter-spacing: -.01em; line-height: 1.22;
   font-size: clamp(1.9rem, 6.4vw, 3.2rem);
 }
 .flyer[data-party="union"] .flyer-slogan > span {
-  background: #2d3c4b; color: #ffffff; padding: .06em .3em .1em 28px;
+  background: #2d3c4b; color: #ffffff; padding: .06em .3em .1em var(--pad);
   -webkit-box-decoration-break: clone; box-decoration-break: clone;
 }
 /* Störer */
 .flyer[data-party="union"] .flyer-stoerer {
-  display: flex; position: absolute; right: 28px; bottom: 26px; width: 118px; height: 118px; border-radius: 50%;
+  display: flex; position: absolute; right: var(--pad); bottom: 26px; width: 118px; height: 118px; border-radius: 50%;
   background: #ffa600; color: #ffffff; flex-direction: column; align-items: center; justify-content: center;
   font-family: "Inter", system-ui, sans-serif; font-weight: 800; text-transform: uppercase; line-height: .98;
   font-size: 1.05rem; letter-spacing: -.01em; transform: rotate(-10deg); text-align: center;
@@ -533,15 +549,11 @@ h2 .flyer-hint { margin: 0; }
 @media (max-width: 600px) {
   .flyer[data-party="union"] .flyer-stoerer { position: relative; right: auto; bottom: auto; margin: 18px 0 0 auto; width: 96px; height: 96px; font-size: .85rem; }
   .flyer[data-party="union"] .flyer-head:has(.flyer-stoerer:not(:empty)) .flyer-slogan { padding-right: 0; }
-  .flyer[data-party="union"] .flyer-kicker, .flyer[data-party="union"] .flyer-candidate,
-  .flyer[data-party="union"] .flyer-slogan { margin-left: -18px; }
-  .flyer[data-party="union"] .flyer-kicker, .flyer[data-party="union"] .flyer-candidate,
-  .flyer[data-party="union"] .flyer-slogan > span { padding-left: 18px; }
 }
 
 /* Abschnitte: Überschriften als Rhöndorf-Blau-Block aus dem linken Rand */
 .flyer[data-party="union"] .flyer-section h2 {
-  display: table; background: #2d3c4b; color: #ffffff; margin-left: -28px; padding: .18em .5em .18em 28px;
+  display: table; background: #2d3c4b; color: #ffffff; margin-left: calc(-1 * var(--pad)); padding: .18em .5em .18em var(--pad);
   font-weight: 800; letter-spacing: -.01em;
 }
 .flyer[data-party="union"] .flyer-section h2 .flyer-hint { color: #a7d5dc; }
@@ -560,11 +572,11 @@ h2 .flyer-hint { margin: 0; }
 /* Programmteil: Türkis-Fläche, Headline-Blöcke, Infoboxen */
 .flyer[data-party="union"] .flyer-program { background: #52b7c1; color: #2d3c4b; --border: rgba(255, 255, 255, .5); }
 .flyer[data-party="union"] .fp-title {
-  display: table; margin: 0 0 0 -28px; padding: .08em .35em .1em 28px; background: #2d3c4b; color: #ffffff;
+  display: table; margin: 0 0 0 calc(-1 * var(--pad)); padding: .08em .35em .1em var(--pad); background: #2d3c4b; color: #ffffff;
   text-transform: none; font-weight: 800; letter-spacing: -.01em; font-size: 2rem;
 }
 .flyer[data-party="union"] .fp-sub {
-  display: table; margin: 0 0 18px -28px; padding: .12em .45em .12em 28px; background: #ffffff; color: #2d3c4b;
+  display: table; margin: 0 0 18px calc(-1 * var(--pad)); padding: .12em .45em .12em var(--pad); background: #ffffff; color: #2d3c4b;
   font-family: "IBM Plex Serif", Georgia, serif;
 }
 .flyer[data-party="union"] .fp-core-item { background: #2d3c4b; color: #ffffff; border-radius: 0; }
@@ -579,7 +591,7 @@ h2 .flyer-hint { margin: 0; }
 .flyer[data-party="union"] .fp-ballot { background: #52b7c1; color: #ffffff; border-top: 1px solid rgba(255, 255, 255, .5); }
 .flyer[data-party="union"] .fp-ballot-call {
   text-transform: none; font-family: "Inter", system-ui, sans-serif; font-weight: 800; letter-spacing: -.01em;
-  background: #2d3c4b; padding: .1em .4em .14em 28px; margin-left: -28px;
+  background: #2d3c4b; padding: .1em .4em .14em var(--pad); margin-left: calc(-1 * var(--pad));
 }
 .flyer[data-party="union"] .fp-ballot-call small {
   display: table; background: #ffa600; color: #2d3c4b; padding: .1em .4em; margin: -.1em 0 .2em -.4em;
@@ -607,7 +619,7 @@ h2 .flyer-hint { margin: 0; }
   --fl-font: "Open Sans", system-ui, sans-serif;
   --text: #003366; --text-2: #1f4a73; --muted: #5a7591; --border: #cfe6f3; --surface-2: #f2f9fd;
 }
-.flyer[data-party="afd"] .flyer-head { display: flex; flex-direction: column; padding: 30px 28px 18px; }
+.flyer[data-party="afd"] .flyer-head { display: flex; flex-direction: column; padding: 30px var(--pad) 18px; }
 .flyer[data-party="afd"] .flyer-head::before { display: none; }
 /* Absender-Bereich: hellblauer Schwung */
 .flyer[data-party="afd"] .flyer-head::after {
@@ -703,7 +715,7 @@ h2 .flyer-hint { margin: 0; }
   --fl-font: "Open Sans", system-ui, sans-serif;
   --text: #000000; --text-2: #333333; --muted: #666666; --border: #f2c4c7; --surface-2: #ffffff;
 }
-.flyer[data-party="spd"] .flyer-head { padding: 24px 28px 34px; }
+.flyer[data-party="spd"] .flyer-head { padding: 24px var(--pad) 34px; }
 .flyer[data-party="spd"] .flyer-head::before, .flyer[data-party="spd"] .flyer-head::after { display: none; }
 .flyer[data-party="spd"] .flyer-brand { flex-direction: row-reverse; }
 .flyer[data-party="spd"] .flyer-date { display: none; }
@@ -726,7 +738,7 @@ h2 .flyer-hint { margin: 0; }
 }
 /* Störer: rund, weiß mit roter Schrift, 10° gedreht */
 .flyer[data-party="spd"] .flyer-stoerer {
-  display: flex; position: absolute; right: 28px; bottom: 28px; width: 116px; height: 116px; border-radius: 50%;
+  display: flex; position: absolute; right: var(--pad); bottom: 28px; width: 116px; height: 116px; border-radius: 50%;
   background: #ffffff; color: #e3000f; flex-direction: column; align-items: center; justify-content: center;
   font-family: "Open Sans", system-ui, sans-serif; font-weight: 400; font-size: .95rem; line-height: 1.1;
   transform: rotate(-10deg); text-align: center;
@@ -843,7 +855,7 @@ h2 .flyer-hint { margin: 0; }
   --fl-font: "Public Sans", system-ui, sans-serif;
   --text: #032d67; --text-2: #1f3f73; --muted: #2c4a78; --border: rgba(3, 45, 103, .2);
 }
-.flyer[data-party="fdp"] .flyer-head { padding: 24px 28px 30px; }
+.flyer[data-party="fdp"] .flyer-head { padding: 24px var(--pad) 30px; }
 .flyer[data-party="fdp"] .flyer-head::before,
 .flyer[data-party="fdp"] .flyer-head::after { display: none; }
 .flyer[data-party="fdp"] .flyer-brand { flex-direction: row-reverse; justify-content: flex-start; align-items: flex-start; }
@@ -894,3 +906,19 @@ h2 .flyer-hint { margin: 0; }
 
 .flyer.mini[data-party] .flyer-head { padding-bottom: 30px; }
 .flyer.mini[data-party="gruene"] .flyer-slogan { font-size: 1.8rem; }
+
+/* Website-Ansicht: schräge Kopfkanten scheren statt drehen, damit sie auf jeder Breite randlos bleiben */
+.flyer.site[data-party="gruene"] .flyer-head::after,
+.flyer.site[data-party="linke"] .flyer-head::after { left: 0; right: 0; height: 120px; bottom: -60px; }
+.flyer.site[data-party="gruene"] .flyer-head::after { transform: skewY(1.6deg); }
+.flyer.site[data-party="linke"] .flyer-head::after { transform: skewY(2deg); }
+.flyer.site[data-party="gruene"] .flyer-head, .flyer.site[data-party="linke"] .flyer-head { padding-bottom: 80px; }
+
+@media (max-width: 600px) {
+  .flyer-nav { flex-wrap: nowrap; overflow-x: auto; gap: 18px; scrollbar-width: none; white-space: nowrap; }
+  .flyer-nav::-webkit-scrollbar { display: none; }
+  .flyer-nav-label { display: none; }
+  .program-bar { padding-top: 8px; gap: 6px; }
+  .program-bar-stats { font-size: .78rem; gap: 2px 12px; justify-content: center; }
+  .program-bar .btn.big { padding: .6rem 1rem; font-size: .95rem; }
+}

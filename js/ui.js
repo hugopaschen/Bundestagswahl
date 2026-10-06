@@ -51,7 +51,9 @@
 
   function show(screen) {
     ['start', 'program', 'game', 'election'].forEach(s => { $('screen-' + s).hidden = s !== screen; });
-    window.scrollTo(0, 0);
+    // Die Programm-Website färbt den ganzen Seitenhintergrund in der Papierfarbe der Partei.
+    if (screen !== 'program') document.body.style.background = '';
+    window.scrollTo({ top: 0, behavior: 'instant' });
   }
 
   function toast(text) {
@@ -601,6 +603,7 @@
     });
     updateCoreMarks();
     renderProgramSummary();
+    document.body.style.background = getComputedStyle(flyer).getPropertyValue('--fl-paper').trim();
   }
 
   function renderCoreChips() {
