@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261006-213711';
+  const APP_VERSION = '20261006-214750';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -233,7 +233,7 @@
     const comp = E.competenceOf(g, g.party);
     const list = $('topic-list');
     list.innerHTML = '';
-    D.TOPICS.forEach(t => {
+    topicsByCompetence(g.party).forEach(t => {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'chip';
@@ -706,7 +706,7 @@
 
     renderCoreChips();
 
-    $('positions').innerHTML = D.TOPICS.map(t => {
+    $('positions').innerHTML = topicsByCompetence(chosenParty).map(t => {
       const options = D.PROGRAM[t.id].map((o, i) => {
         const dev = Math.abs(o.lean - p.lean[t.id]);
         const tags = [];
@@ -749,7 +749,7 @@
     const max = D.PROGRAM_RULES.coreCount;
     const box = $('core-chips');
     box.innerHTML = '';
-    D.TOPICS.forEach(t => {
+    topicsByCompetence(chosenParty).forEach(t => {
       const on = draft.core.indexOf(t.id) !== -1;
       const comp = p.competence[t.id];
       const interest = Math.round(D.SALIENCE0[t.id] * 100);
@@ -782,6 +782,12 @@
     $('core-count').textContent = '(' + draft.core.length + '/' + max + ' gewählt)';
   }
 
+  // Themen nach der Kompetenz der Partei sortiert, stärkste zuerst (bei Gleichstand in der üblichen Reihenfolge).
+  function topicsByCompetence(partyId) {
+    const comp = E.party(partyId).competence;
+    return D.TOPICS.slice().sort((a, b) => comp[b.id] - comp[a.id]);
+  }
+
   // Weiches Trennzeichen, damit lange Themennamen auf schmalen Karten sauber umbrechen.
   function cardName(name) {
     const parts = { Digitalisierung: 'Digitali&shy;sierung', Landwirtschaft: 'Land&shy;wirtschaft', Gleichstellung: 'Gleich&shy;stellung',
@@ -794,7 +800,7 @@
     document.querySelectorAll('[data-core]').forEach(el => { el.hidden = draft.core.indexOf(el.dataset.core) === -1; });
     // Kernthemen (in Wahlreihenfolge) stehen bei den Positionen immer ganz oben.
     const box = $('positions');
-    const order = draft.core.concat(D.TOPICS.map(t => t.id).filter(id => draft.core.indexOf(id) === -1));
+    const order = draft.core.concat(topicsByCompetence(chosenParty).map(t => t.id).filter(id => draft.core.indexOf(id) === -1));
     order.forEach(id => {
       const set = box.querySelector('.topic-set[data-topic="' + id + '"]');
       if (set) box.appendChild(set);
@@ -844,7 +850,7 @@
         '<div class="fp-topic">Kernthema · ' + esc(topic.name) + '</div>' +
         '<div class="fp-label">' + esc(o.label) + '</div><div class="fp-desc">' + esc(o.desc) + '</div></div>';
     }
-    html += '</div><ul class="fp-list">' + D.TOPICS.filter(t => core.indexOf(t.id) === -1).map(t =>
+    html += '</div><ul class="fp-list">' + topicsByCompetence(partyId).filter(t => core.indexOf(t.id) === -1).map(t =>
       '<li><span class="fp-check">✔</span><span><span class="fp-topic">' + t.icon + ' ' + esc(t.name) + '</span>' +
       '<span class="fp-label">' + esc(D.PROGRAM[t.id][prog.positions[t.id]].label) + '</span></span></li>').join('') + '</ul>';
     if (finance) {
@@ -913,7 +919,7 @@
           '<span class="bilanz-text">Punkte in den ostdeutschen Ländern</span></div>' +
         '</div>' +
         '<h3 class="bilanz-h3">Kompetenz in den Augen der Wähler</h3>' +
-        '<div class="core-grid comp-grid">' + D.TOPICS.map(t => {
+        '<div class="core-grid comp-grid">' + topicsByCompetence(chosenParty).map(t => {
           const before = p.competence[t.id];
           const now = fx.competence[t.id];
           const d = now - before;
