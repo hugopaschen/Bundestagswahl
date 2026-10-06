@@ -183,7 +183,7 @@
   };
 
   var PROGRAM_RULES = {
-    coreCount: 2,        // Anzahl Kernthemen
+    coreCount: 3,        // Anzahl Kernthemen
     budget: 10,          // Finanzierungsrahmen in Punkten
     slogans: [
       'Zukunft. Jetzt.',
