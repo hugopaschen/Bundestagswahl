@@ -1,5 +1,18 @@
 /* Oberfläche: verbindet die Spiel-Engine mit dem DOM. */
 (function () {
+  // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
+  // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
+  const APP_VERSION = '20261006-155729';
+  if (document.documentElement.dataset.version !== APP_VERSION) {
+    let reloaded = false;
+    try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
+    if (!reloaded) {
+      try { sessionStorage.setItem('btw-version-reload', APP_VERSION); } catch (e) { /* ignorieren */ }
+      location.reload();
+      return;
+    }
+  }
+
   const D = window.BTW_DATA;
   const E = window.BTW_ENGINE;
   const SAVE_KEY = 'btw-wahlkampf-save';

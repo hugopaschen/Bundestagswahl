@@ -30,6 +30,13 @@ Der Spielstand wird automatisch im Browser gespeichert (localStorage).
 Die Startwerte entsprechen bundesweit der Sonntagsfrage von Infratest dimap (Anfang Oktober 2026: Union 20, AfD 27, SPD 13, Grüne 16, Linke 11, FDP 4, BSW 3, Sonstige 6 %). Die Verteilung auf die Bundesländer folgt proportional dem Muster der Bundestagswahl 2025.
 Vereinfachungen: keine Wahlkreise/Erststimmen, keine Grundmandatsklausel. Alle Ereignisse sind fiktiv.
 
+## Neue Version veröffentlichen
+
+Vor jedem Commit, der CSS oder JavaScript ändert, `npm run bump` ausführen. Das setzt eine neue
+Versionsnummer an alle Datei-Verweise in `index.html` und in `js/ui.js`. So laden Browser nach einem
+Update garantiert zusammenpassende Dateien; passt trotzdem etwas nicht zusammen (alte Datei im Cache),
+lädt das Spiel die Seite einmal automatisch neu.
+
 ## Projektstruktur
 
 ```
@@ -39,4 +46,5 @@ js/data.js        Parteien, Bundesländer, Themen, Programmpositionen
 js/engine.js      Spiellogik ohne DOM (Umfragemodell, Aktionen, Ereignisse, Sitzverteilung)
 js/ui.js          Oberfläche
 tests/            Tests der Spiellogik (`npm test`, Node ≥ 18)
+tools/            bump-version.js: Versionsnummer gegen veraltete Browser-Caches
 ```
