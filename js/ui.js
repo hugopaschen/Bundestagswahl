@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261006-193555';
+  const APP_VERSION = '20261006-194101';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -669,17 +669,19 @@
     D.PROGRAM_RULES.slogans.forEach(sl => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'chip';
-      b.textContent = sl;
-      b.setAttribute('aria-pressed', String(sl === draft.slogan));
+      b.className = 'core-card slogan-card';
+      b.dataset.slogan = sl;
+      b.innerHTML = '<span class="core-badge"></span><span class="slogan-text"></span>';
+      b.querySelector('.slogan-text').textContent = sl;
       b.addEventListener('click', () => {
         draft.slogan = sl;
         $('slogan').value = sl;
-        sc.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', String(c === b)));
+        markSlogan();
         renderProgramSummary();
       });
       sc.appendChild(b);
     });
+    markSlogan();
 
     renderCoreChips();
 
@@ -900,9 +902,19 @@
 
   $('slogan').addEventListener('input', () => {
     draft.slogan = $('slogan').value;
-    $('slogan-chips').querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', String(c.textContent === draft.slogan)));
+    markSlogan();
     renderProgramSummary();
   });
+
+  function markSlogan() {
+    $('slogan-chips').querySelectorAll('.slogan-card').forEach(c => {
+      const on = c.dataset.slogan === draft.slogan;
+      c.setAttribute('aria-pressed', String(on));
+      c.querySelector('.core-badge').textContent = on ? '✓ Unser Slogan' : 'Auswählen';
+    });
+    const own = draft.slogan.trim() !== '' && D.PROGRAM_RULES.slogans.indexOf(draft.slogan) === -1;
+    $('slogan-own').classList.toggle('active', own);
+  }
 
   $('btn-program-reset').addEventListener('click', () => {
     const slogan = draft.slogan;

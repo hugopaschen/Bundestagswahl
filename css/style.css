@@ -391,8 +391,8 @@ h2 .flyer-hint { margin: 0; }
 .flyer .chip[aria-pressed="true"] { background: var(--fl-accent); border-color: var(--fl-accent); color: var(--fl-accent-ink); font-weight: 600; }
 
 /* Kernthemen als große Karten */
-#sec-kern h2 { font-size: clamp(1.5rem, 3vw, 2.2rem); margin-bottom: 14px; }
-#sec-kern h2 .flyer-num { width: 44px; height: 44px; font-size: 1.3rem; }
+#sec-kern h2, #sec-slogan h2 { font-size: clamp(1.5rem, 3vw, 2.2rem); margin-bottom: 14px; }
+#sec-kern h2 .flyer-num, #sec-slogan h2 .flyer-num { width: 44px; height: 44px; font-size: 1.3rem; }
 #sec-kern h2 .flyer-hint { font-size: 1rem; }
 .flyer-hint.core-intro { font-size: clamp(1rem, 1.6vw, 1.2rem); line-height: 1.5; max-width: 60em; margin-bottom: 22px; color: inherit; opacity: .85; }
 .core-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(12px, 2vw, 22px); margin: 0 0 10px; }
@@ -428,6 +428,33 @@ h2 .flyer-hint { margin: 0; }
   .core-meter { font-size: .8rem; }
   .core-name { font-size: 1.05rem; }
   .core-icon { font-size: 2rem; }
+}
+
+/* Slogan-Karten */
+.slogan-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.slogan-card { min-height: 150px; justify-content: space-between; }
+.slogan-text {
+  font-family: var(--fl-head-font, inherit); font-size: clamp(1.4rem, 2.4vw, 2rem); font-weight: 800; line-height: 1.1;
+  max-width: 100%; hyphens: auto; overflow-wrap: anywhere;
+}
+.slogan-own {
+  display: grid; gap: 10px; margin-top: clamp(12px, 2vw, 22px); padding: 20px; border-radius: 14px;
+  border: 2px dashed var(--border); background: #fff; color: #1d1d1b;
+}
+.slogan-own.active { border-style: solid; border-color: var(--fl-accent); box-shadow: 0 8px 22px rgba(0, 0, 0, .12); }
+.slogan-own-label { font-size: clamp(1rem, 1.6vw, 1.2rem); font-weight: 700; }
+.flyer .slogan-own input {
+  font: inherit; font-family: var(--fl-head-font, inherit); font-size: clamp(1.3rem, 2.2vw, 1.8rem); font-weight: 700;
+  width: 100%; padding: 12px 14px; border: 2px solid var(--border); border-radius: 10px; background: #fff; color: inherit;
+}
+.flyer .slogan-own input:focus { outline: none; border-color: var(--fl-accent); }
+.flyer[data-party="afd"] .slogan-own, .flyer[data-party="spd"] .slogan-own,
+.flyer[data-party="afd"] .slogan-own input, .flyer[data-party="spd"] .slogan-own input { border-radius: 0; }
+@media (max-width: 1000px) { .slogan-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px) {
+  .slogan-grid { grid-template-columns: 1fr; }
+  .slogan-card { min-height: 0; }
+  .slogan-own { padding: 14px; }
 }
 
 .positions { display: grid; gap: 14px; }
