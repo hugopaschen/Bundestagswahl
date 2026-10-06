@@ -46,6 +46,10 @@
   };
 
   // Spielbare Parteien. "competence" = zugeschriebene Kompetenz je Thema (0–100).
+  // "budget" = Wahlkampfkasse in Mio. €, angelehnt an die Wahlkampfbudgets zur Bundestagswahl 2025
+  // (RND-Umfrage unter den Parteien): CDU 28 (+ geschätzter CSU-Anteil), Grüne 19, SPD 15, BSW 6.
+  // Linke aus der RND-Gesamtsumme abgeleitet (~7). AfD und FDP haben keine Zahlen genannt:
+  // AfD nach Medienberichten etwa halb so viel wie die SPD (~8), FDP geschätzt aus ihren Spenden (~6).
   var PARTIES = [
     {
       id: 'union', ballot: 'CDU/CSU', fullName: 'Christlich Demokratische Union / Christlich-Soziale Union', flyerLogo: 'CDU', short: 'Union', name: 'CDU/CSU',
@@ -58,7 +62,7 @@
     },
     {
       id: 'afd', ballot: 'AfD', fullName: 'Alternative für Deutschland', flyerLogo: 'AfD', short: 'AfD', name: 'AfD',
-      budget: 15, goal: 30, mustLead: true,
+      budget: 8, goal: 30, mustLead: true,
       goalText: 'Stärkste Kraft bleiben und über 30 % holen',
       desc: 'Rechtspopulistische Oppositionspartei, besonders stark im Osten. Kein anderer Partner will koalieren.',
       competence: { wirtschaft: 35, migration: 75, soziales: 35, klima: 15, sicherheit: 55, bildung: 25, digitales: 20, wohnen: 25 , verteidigung: 35, gesundheit: 25, verkehr: 25, europa: 25, familie: 25, land: 35, demokratie: 25, finanzen: 30 },
@@ -67,7 +71,7 @@
     },
     {
       id: 'spd', ballot: 'SPD', fullName: 'Sozialdemokratische Partei Deutschlands', flyerLogo: 'SPD', short: 'SPD', name: 'SPD',
-      budget: 20, goal: 17,
+      budget: 15, goal: 17,
       goalText: 'Wieder über 17 % kommen',
       desc: 'Die traditionsreiche Sozialdemokratie. Stark bei Sozialem und Rente.',
       competence: { wirtschaft: 45, migration: 30, soziales: 70, klima: 45, sicherheit: 40, bildung: 50, digitales: 35, wohnen: 55 , verteidigung: 45, gesundheit: 65, verkehr: 45, europa: 55, familie: 55, land: 35, demokratie: 45, finanzen: 50 },
@@ -76,7 +80,7 @@
     },
     {
       id: 'gruene', ballot: 'GRÜNE', fullName: 'Bündnis 90/Die Grünen', flyerLogo: 'GRÜNE', short: 'Grüne', name: 'Bündnis 90/Die Grünen',
-      budget: 12, goal: 20,
+      budget: 19, goal: 20,
       goalText: 'Auf 20 % kommen',
       desc: 'Die Ökopartei mit Hochburgen in den Großstädten. Unschlagbar beim Klima.',
       competence: { wirtschaft: 35, migration: 25, soziales: 40, klima: 85, sicherheit: 25, bildung: 50, digitales: 45, wohnen: 40 , verteidigung: 40, gesundheit: 40, verkehr: 50, europa: 55, familie: 50, land: 40, demokratie: 45, finanzen: 35 },
@@ -85,7 +89,7 @@
     },
     {
       id: 'linke', ballot: 'Die Linke', fullName: 'Die Linke', flyerLogo: 'Die Linke', short: 'Linke', name: 'Die Linke',
-      budget: 6, goal: 14,
+      budget: 7, goal: 14,
       goalText: 'Über 14 % holen',
       desc: 'Linke Oppositionspartei mit junger Basis. Stark bei Mieten, Preisen und sozialer Gerechtigkeit.',
       competence: { wirtschaft: 25, migration: 25, soziales: 75, klima: 40, sicherheit: 15, bildung: 40, digitales: 25, wohnen: 75 , verteidigung: 20, gesundheit: 50, verkehr: 30, europa: 25, familie: 45, land: 25, demokratie: 30, finanzen: 30 },
@@ -94,7 +98,7 @@
     },
     {
       id: 'bsw', ballot: 'BSW', fullName: 'Bündnis Soziale Gerechtigkeit und Wirtschaftliche Vernunft', flyerLogo: 'BSW', short: 'BSW', name: 'Bündnis Soziale Gerechtigkeit und Wirtschaftliche Vernunft',
-      budget: 5, goal: 5,
+      budget: 6, goal: 5,
       goalText: 'Unter neuem Namen die 5-%-Hürde knacken',
       desc: 'Neu benannte Partei, 2025 knapp an der Hürde gescheitert. Kleines Budget, viel zu gewinnen.',
       competence: { wirtschaft: 35, migration: 55, soziales: 55, klima: 20, sicherheit: 35, bildung: 30, digitales: 20, wohnen: 40 , verteidigung: 35, gesundheit: 35, verkehr: 25, europa: 25, familie: 30, land: 30, demokratie: 30, finanzen: 35 },
@@ -103,7 +107,7 @@
     },
     {
       id: 'fdp', ballot: 'FDP', fullName: 'Freie Demokratische Partei', flyerLogo: 'FDP', short: 'FDP', name: 'FDP',
-      budget: 8, goal: 6,
+      budget: 6, goal: 6,
       goalText: 'Sicher zurück in den Bundestag (über 6 %)',
       desc: 'Die Liberalen kämpfen um den Wiedereinzug. Stark bei Wirtschaft und Digitalisierung.',
       competence: { wirtschaft: 60, migration: 30, soziales: 20, klima: 25, sicherheit: 30, bildung: 50, digitales: 70, wohnen: 40 , verteidigung: 45, gesundheit: 30, verkehr: 40, europa: 50, familie: 35, land: 35, demokratie: 45, finanzen: 55 },
