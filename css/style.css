@@ -1240,3 +1240,11 @@ h2 .flyer-hint { margin: 0; }
   .flyer.site[data-party] .fp-cross::before, .flyer.site[data-party] .fp-cross::after { width: 28px; height: 3px; }
   .flyer.site[data-party="spd"] .fp-ballot-call { transform: rotate(-6deg); font-size: .95rem; }
 }
+
+/* Auf hohen Bildschirmen füllt der Flyer die Höhe bis zur Aktionsleiste; der Wahlaufruf
+   sitzt dann ganz unten direkt über der Leiste statt mitten im Bild. */
+.flyer.site { display: flex; flex-direction: column; min-height: calc(100vh - var(--bar-h, 0px)); }
+.flyer.site > .flyer-program:not([hidden]) { flex: 1 0 auto; display: flex; flex-direction: column; }
+.flyer.site > .flyer-program > .fp-stamp { align-self: flex-start; }
+.flyer.site > .flyer-program > :nth-last-child(2) { margin-bottom: 22px; }
+.flyer.site[data-party] > .flyer-program > .fp-ballot { margin-top: auto; }
