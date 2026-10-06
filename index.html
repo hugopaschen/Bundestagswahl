@@ -14,14 +14,25 @@
 <body>
   <!-- Startbildschirm -->
   <main id="screen-start" class="screen">
-    <header class="hero">
-      <p class="eyebrow">Das Bundestagswahl-Spiel</p>
-      <h1>Wahlkampf!</h1>
-      <p class="lead">Acht Wochen bis zur Wahl. Wähle deine Partei, setze Themen, tourne durch die Republik
-        und bestehe die Elefantenrunde. Am Wahlabend zählt jede Stimme – und danach jede Koalitionsoption.</p>
+    <!-- Erste Seite: bildschirmfüllendes Eröffnungsbild -->
+    <header class="hero hero-intro" id="intro">
+      <div class="hero-inner">
+        <p class="eyebrow">Das Bundestagswahl-Spiel</p>
+        <h1>Wahlkampf!</h1>
+        <p class="lead">Acht Wochen bis zur Wahl. Wähle deine Partei, setze Themen, tourne durch die Republik
+          und bestehe die Elefantenrunde. Am Wahlabend zählt jede Stimme – und danach jede Koalitionsoption.</p>
+        <div class="hero-actions">
+          <a class="btn primary big" href="#setup">Wahlkampf beginnen</a>
+          <button type="button" class="btn big" id="btn-intro-resume" hidden>Wahlkampf fortsetzen</button>
+        </div>
+      </div>
+      <a class="hero-scroll" href="#setup" aria-label="Weiter zur Parteiwahl"><span aria-hidden="true"></span></a>
+      <div class="hero-stripes" aria-hidden="true">
+        <i style="background:var(--c-union)"></i><i style="background:var(--c-afd)"></i><i style="background:var(--c-spd)"></i><i style="background:var(--c-gruene)"></i><i style="background:var(--c-linke)"></i><i style="background:var(--c-bsw)"></i><i style="background:var(--c-fdp)"></i>
+      </div>
     </header>
 
-    <section class="card setup">
+    <section class="card setup" id="setup">
       <div id="resume" class="resume" hidden>
         <p>Es gibt einen gespeicherten Wahlkampf.</p>
         <button type="button" class="btn primary" id="btn-resume">Wahlkampf fortsetzen</button>

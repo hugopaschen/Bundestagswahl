@@ -92,6 +92,7 @@
       list.appendChild(btn);
     });
     $('resume').hidden = !loadSave();
+    $('btn-intro-resume').hidden = !loadSave();
   }
 
   // ---------- Spielbildschirm ----------
@@ -785,7 +786,10 @@
     renderProgram();
   });
 
-  $('btn-program-back').addEventListener('click', () => show('start'));
+  $('btn-program-back').addEventListener('click', () => {
+    show('start');
+    $('setup').scrollIntoView({ behavior: 'instant' });
+  });
 
   $('btn-program-confirm').addEventListener('click', () => {
     if (E.validateProgram(draft).length) return;
@@ -793,10 +797,12 @@
     save();
   });
 
-  $('btn-resume').addEventListener('click', () => {
+  const resume = () => {
     const saved = loadSave();
     if (saved) startGame(saved);
-  });
+  };
+  $('btn-resume').addEventListener('click', resume);
+  $('btn-intro-resume').addEventListener('click', resume);
 
   $('btn-end-week').addEventListener('click', () => {
     if (g.ap > 0 && !window.confirm('Du hast noch ' + g.ap + ' Aktion(en) übrig. Woche trotzdem beenden?')) return;

@@ -112,6 +112,33 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
 .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: .75rem; font-weight: 700; color: var(--accent); margin: 0 0 .4rem; }
 .lead { max-width: 640px; margin: 0 auto; color: var(--text-2); font-size: 1.05rem; }
 
+/* Eröffnungsbild der Startseite: füllt den ersten Bildschirm, der Rest folgt darunter */
+.hero-intro {
+  position: relative; min-height: 100vh; min-height: 100svh; display: flex; flex-direction: column;
+  justify-content: center; align-items: center; padding: 48px 16px 96px;
+  margin: -16px calc(-1 * clamp(16px, 2.5vw, 40px)) 32px;
+}
+.hero-intro .hero-inner { max-width: 1000px; }
+.hero-intro .eyebrow { font-size: clamp(.8rem, 1.2vw, 1rem); margin-bottom: .8rem; }
+.hero-intro h1 { font-size: clamp(3.4rem, 12vw, 8rem); line-height: .95; letter-spacing: -.035em; margin-bottom: 1.4rem; }
+.hero-intro .lead { max-width: 820px; font-size: clamp(1.05rem, 1.8vw, 1.45rem); line-height: 1.5; }
+.hero-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 2.2rem; }
+.hero-actions .btn { text-decoration: none; display: inline-flex; align-items: center; }
+.hero-scroll {
+  position: absolute; left: 50%; bottom: 34px; width: 44px; height: 44px; margin-left: -22px;
+  border-radius: 50%; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center;
+  color: var(--text-2);
+}
+.hero-scroll span { width: 12px; height: 12px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: translateY(-3px) rotate(45deg); }
+.hero-scroll:hover { color: var(--text); border-color: var(--text-2); }
+@media (prefers-reduced-motion: no-preference) {
+  .hero-scroll { animation: hero-bob 2.2s ease-in-out infinite; }
+  @keyframes hero-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
+}
+.hero-stripes { position: absolute; left: 0; right: 0; bottom: 0; display: flex; height: 6px; }
+.hero-stripes i { flex: 1; }
+#setup { scroll-margin-top: 16px; }
+
 .setup, .howto { max-width: none; margin: 0 0 16px; }
 .resume { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--surface-2); border-radius: 10px; margin-bottom: 16px; }
 .resume p { margin: 0; }
