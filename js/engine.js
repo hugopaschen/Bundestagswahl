@@ -941,6 +941,20 @@
     return { ok: true };
   }
 
+  // Wahlziel der Partei: Mindestanteil, stärkste Kraft, eigene absolute Mehrheit
+  // oder eine Sitzmehrheit gemeinsam mit Wunschpartnern (alle müssen im Bundestag sitzen).
+  function goalReached(p, r) {
+    const P = party(p);
+    if (r.shares[p] < (P.goal || 0)) return false;
+    if (P.mustLead && r.strongest !== p) return false;
+    if (P.goalMajority && r.seats[p] < MAJORITY) return false;
+    if (P.goalCoalition) {
+      if (!P.goalCoalition.every(m => r.seats[m] > 0)) return false;
+      if (P.goalCoalition.reduce((s, m) => s + r.seats[m], 0) < MAJORITY) return false;
+    }
+    return true;
+  }
+
   function finalizeOutcome(g, r) {
     const p = g.party;
     const share = r.shares[p];
@@ -951,7 +965,7 @@
     else if (r.government && r.government.indexOf(p) !== -1) status = 'regierung';
     else status = 'opposition';
 
-    const goal = share >= party(p).goal && (!party(p).mustLead || r.strongest === p);
+    const goal = goalReached(p, r);
     const bonus = { kanzler: 50, regierung: 30, opposition: 10, raus: 0 }[status];
     const score = Math.max(0, Math.round(50 + (share - start) * 10 + bonus + (goal ? 25 : 0)));
     r.outcome = { status, goal, delta: share - start, score, rating: rating(score) };
@@ -999,7 +1013,7 @@
     MAX_WEEKS, AP_PER_WEEK, DUEL_WEEK, THRESHOLD, MAJORITY,
     ACTIONS, EVENTS, DUEL_STYLES,
     party, stateById, topicById, eventById, eventText,
-    defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
+    goalReached, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     actionCost, canAct, performAction, moneyWarning,
     drawEvent, resolveEvent,

@@ -190,3 +190,17 @@ test('Spielstände ohne die neuen Themen werden ergänzt; Sparpositionen entlast
   prog.positions.finanzen = 1; // Entlastung kleiner Einkommen kostet einen Punkt
   assert.strictEqual(E.programEffects('spd', prog).cost, before + 2);
 });
+
+test('Wahlziele: stärkste Kraft, absolute Mehrheit, Prozentziel und Koalitionsmehrheit', () => {
+  const seats = { union: 150, afd: 200, spd: 120, gruene: 90, linke: 70, bsw: 0, fdp: 0 };
+  const shares = { union: 22, afd: 30, spd: 18, gruene: 14, linke: 11, bsw: 4, fdp: 4.9, sonstige: 0 };
+  const r = { seats, shares, strongest: 'afd' };
+  assert.strictEqual(E.goalReached('union', r), false);
+  assert.strictEqual(E.goalReached('afd', r), false);           // 200 < 316 Sitze
+  assert.strictEqual(E.goalReached('afd', Object.assign({}, r, { seats: Object.assign({}, seats, { afd: 316 }) })), true);
+  assert.strictEqual(E.goalReached('spd', r), false);           // 18 % < 20 %
+  assert.strictEqual(E.goalReached('linke', r), false);         // 280 Sitze reichen nicht
+  assert.strictEqual(E.goalReached('linke', Object.assign({}, r, { seats: Object.assign({}, seats, { linke: 110 }) })), true);
+  assert.strictEqual(E.goalReached('fdp', r), false);
+  assert.strictEqual(E.goalReached('fdp', Object.assign({}, r, { shares: Object.assign({}, shares, { fdp: 5 }) })), true);
+});
