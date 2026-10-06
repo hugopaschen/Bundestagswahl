@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261006-195325';
+  const APP_VERSION = '20261006-200251';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -741,7 +741,7 @@
       b.innerHTML =
         '<span class="core-badge">' + (on ? '✓ Kernthema ' + (draft.core.indexOf(t.id) + 1) : 'Auswählen') + '</span>' +
         '<span class="core-icon" aria-hidden="true">' + t.icon + '</span>' +
-        '<span class="core-name">' + t.name + '</span>' +
+        '<span class="core-name">' + cardName(t.name) + '</span>' +
         '<span class="core-meter"><span class="core-meter-label">Kompetenz <b>' + comp + '</b>/100</span>' +
         '<span class="core-bar"><span style="width:' + comp + '%"></span></span></span>' +
         '<span class="core-meter"><span class="core-meter-label">Wählerinteresse <b>' + interest + '&nbsp;%</b></span>' +
@@ -759,6 +759,11 @@
       box.appendChild(b);
     });
     $('core-count').textContent = '(' + draft.core.length + '/' + max + ' gewählt)';
+  }
+
+  // Weiches Trennzeichen, damit lange Themennamen auf schmalen Karten sauber umbrechen.
+  function cardName(name) {
+    return esc(name).replace('Digitalisierung', 'Digitali&shy;sierung');
   }
 
   function updateCoreMarks() {
@@ -855,20 +860,51 @@
     let html = '';
     if (fx) {
       const over = fx.finance === 'over';
-      const financeText = {
-        over: '⚠️ Nicht gegenfinanziert: kostet Stimmen und Wirtschaftskompetenz.',
-        ok: 'Im Rahmen des Haushalts.',
-        solid: '✅ Solide finanziert: +5 Wirtschaftskompetenz.'
+      const finance = {
+        over: { cls: 'bad', badge: '⚠️ Nicht gegenfinanziert', text: 'Kostet Stimmen und Wirtschaftskompetenz. Streicht teure Positionen.' },
+        ok: { cls: '', badge: 'Im Rahmen', text: 'Das Programm passt in den Haushalt.' },
+        solid: { cls: 'good', badge: '✅ Solide finanziert', text: 'Spielraum im Haushalt bringt +5 Wirtschaftskompetenz.' }
       }[fx.finance];
-      html += '<div class="summary-row"><span>Finanzierung</span><strong>' + fx.cost + ' / ' + fx.budget + ' 💶</strong></div>' +
-        '<div class="meter' + (over ? ' over' : '') + '"><div style="width:' + Math.min(100, fx.cost / fx.budget * 100) + '%"></div></div>' +
-        '<p class="small ' + (over ? 'neg' : 'muted') + '" style="margin:0 0 10px">' + financeText + '</p>' +
-        '<div class="summary-row"><span>Zusätzlich im Osten</span><strong class="' + (fx.east >= 0 ? 'pos' : 'neg') + '">' + signed(fx.east) + '</strong></div>' +
-        '<h3>Kompetenz in den Augen der Wähler</h3><div class="comp-list">' + D.TOPICS.map(t => {
-          const d = fx.competence[t.id] - p.competence[t.id];
-          return '<span>' + t.icon + ' ' + esc(t.name) + (fx.details[t.id].core ? ' 🎯' : '') + '</span><span>' + fx.competence[t.id] + '</span>' +
-            '<span class="small ' + (d > 0 ? 'pos' : d < 0 ? 'neg' : 'muted') + '">' + (d ? (d > 0 ? '+' : '−') + Math.abs(d) : '±0') + '</span>';
-        }).join('') + '</div>';
+      const slots = Math.max(fx.budget, fx.cost);
+      let seg = '';
+      for (let i = 0; i < slots; i++) seg += '<span class="' + (i < fx.cost ? (i >= fx.budget ? 'on over' : 'on') : '') + '"></span>';
+      let poll = '';
+      if (!errors.length) {
+        const tmp = E.newGame(chosenParty, '', 1, draft);
+        const now = E.nationalShares(tmp)[chosenParty];
+        const d = now - tmp.startShares[chosenParty];
+        poll = '<div class="bilanz-card"><span class="bilanz-label">📊 Erste Umfrage</span>' +
+          '<span class="bilanz-big">' + pct(now) + '</span>' +
+          '<span class="bilanz-delta ' + (d >= 0 ? 'good' : 'bad') + '">' + signed(d) + ' Punkte durch das Programm</span></div>';
+      }
+      html += '<div class="bilanz-top">' +
+        '<div class="bilanz-card bilanz-finance' + (over ? ' over' : '') + '">' +
+          '<span class="bilanz-label">💶 Finanzierung <span class="bilanz-pill ' + finance.cls + '">' + finance.badge + '</span></span>' +
+          '<span class="bilanz-big">' + fx.cost + ' <small>von ' + fx.budget + ' Punkten</small></span>' +
+          '<span class="bilanz-seg" style="--n:' + slots + '" aria-hidden="true">' + seg + '</span>' +
+          '<span class="bilanz-text">' + finance.text + '</span></div>' +
+        poll +
+        '<div class="bilanz-card"><span class="bilanz-label">🗺️ Zusätzlich im Osten</span>' +
+          '<span class="bilanz-big ' + (fx.east > 0.05 ? 'good' : fx.east < -0.05 ? 'bad' : '') + '">' + signed(fx.east) + '</span>' +
+          '<span class="bilanz-text">Punkte in den ostdeutschen Ländern</span></div>' +
+        '</div>' +
+        '<h3 class="bilanz-h3">Kompetenz in den Augen der Wähler</h3>' +
+        '<div class="core-grid comp-grid">' + D.TOPICS.map(t => {
+          const before = p.competence[t.id];
+          const now = fx.competence[t.id];
+          const d = now - before;
+          const core = fx.details[t.id].core;
+          return '<div class="comp-card' + (core ? ' core' : '') + '">' +
+            '<span class="core-badge">' + (core ? '🎯 Kernthema' : 'Thema') + '</span>' +
+            '<span class="core-icon" aria-hidden="true">' + t.icon + '</span>' +
+            '<span class="core-name">' + cardName(t.name) + '</span>' +
+            '<span class="comp-value"><b>' + now + '</b>/100 <span class="comp-delta ' + (d > 0 ? 'good' : d < 0 ? 'bad' : '') + '">' +
+              (d ? (d > 0 ? '+' : '−') + Math.abs(d) : '±0') + '</span></span>' +
+            '<span class="core-bar comp-bar"><span style="width:' + Math.max(0, Math.min(100, now)) + '%"></span>' +
+              '<i style="left:' + Math.max(0, Math.min(100, before)) + '%" title="vorher ' + before + '"></i></span>' +
+            '</div>';
+        }).join('') + '</div>' +
+        '<p class="flyer-hint comp-legend">Der Strich im Balken zeigt die Kompetenz vor eurem Programm.</p>';
     }
     if (errors.length) html += '<ul class="errors">' + errors.map(e => '<li>' + esc(e) + '</li>').join('') + '</ul>';
     $('program-summary').innerHTML = html;
