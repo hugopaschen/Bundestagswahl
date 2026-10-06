@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261006-161835';
+  const APP_VERSION = '20261006-183326';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -579,6 +579,7 @@
 
   function enterProgram() {
     draft = E.defaultProgram(chosenParty);
+    draft.core = []; // Kernthemen wählt der Spieler selbst, ohne Vorauswahl
     show('program');
     renderProgram();
   }
@@ -827,8 +828,10 @@
 
   $('btn-program-reset').addEventListener('click', () => {
     const slogan = draft.slogan;
+    const core = draft.core.slice();
     draft = E.defaultProgram(chosenParty);
     draft.slogan = slogan;
+    draft.core = core; // selbst gewählte Kernthemen bleiben erhalten
     renderProgram();
   });
 
