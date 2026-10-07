@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de" data-version="20261007-093733">
+<html lang="de" data-version="20261007-094452">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Montserrat:wght@700;800;900&family=Oswald:wght@600;700&family=Public+Sans:wght@500;700;800;900&family=Inter:wght@800&family=Open+Sans:wght@400;700;800&family=Caveat:wght@600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,700;1,400&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20261007-093733">
+  <link rel="stylesheet" href="css/style.css?v=20261007-094452">
 </head>
 <body>
   <!-- Startseite: Eröffnungsbild, ein eigener Bildschirm -->
@@ -199,20 +199,34 @@
       </div>
       <button type="button" class="btn primary" id="btn-end-week">Woche beenden</button>
     </header>
+    <nav class="game-nav" id="game-nav" aria-label="Bereiche des Wahlkampfs">
+      <button type="button" class="game-tab" data-tab="actions">📣 Aktionen</button>
+      <button type="button" class="game-tab" data-tab="map">🗺️ Deutschland</button>
+      <button type="button" class="game-tab" data-tab="polls">📊 Umfragen</button>
+      <button type="button" class="game-tab" data-tab="program">📄 Wahlprogramm</button>
+      <button type="button" class="game-tab" data-tab="news">📰 Nachrichten <span class="tab-badge" id="news-badge" hidden></span></button>
+    </nav>
     <div class="week-progress" aria-hidden="true"><div id="week-bar"></div></div>
 
-    <div class="layout">
-      <section class="card map-card">
+    <div class="layout tabbed">
+      <section class="card map-card" data-tab="map">
         <h2>Deutschland</h2>
         <p class="muted small">Farbe = führende Partei · Zahl = euer Umfragewert im Land in Prozent. Tippe ein Land an.</p>
-        <div id="map" class="map"></div>
-        <div id="state-detail" class="state-detail"></div>
+        <div class="map-wrap">
+          <div id="map" class="map"></div>
+          <div class="map-side">
+            <div id="state-detail" class="state-detail"></div>
+            <button type="button" class="btn primary" id="btn-campaign-here">In diesem Land Wahlkampf machen →</button>
+          </div>
+        </div>
       </section>
 
-      <section class="card actions-card">
+      <section class="card actions-card" data-tab="actions">
         <h2>Aktionen</h2>
         <div class="target">
-          <div><span class="muted small">Bundesland</span><div id="target-state" class="target-value">–</div></div>
+          <label class="target-pick"><span class="muted small">Bundesland</span>
+            <select id="target-select"></select></label>
+          <button type="button" class="link-btn" id="btn-to-map">🗺️ auf der Karte wählen</button>
         </div>
         <div>
           <span class="muted small">Thema</span>
@@ -223,21 +237,21 @@
         <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
       </section>
 
-      <section class="card polls-card">
-        <h2>Sonntagsfrage</h2>
-        <div id="poll-bars" class="bars"></div>
-        <h3>Umfrageverlauf</h3>
-        <div id="poll-chart" class="chart"></div>
-        <h3>Was die Wähler bewegt</h3>
-        <div id="agenda" class="agenda"></div>
+      <section class="card polls-card" data-tab="polls">
+        <h2>Umfragen</h2>
+        <div class="polls-wrap">
+          <div><h3>Sonntagsfrage</h3><div id="poll-bars" class="bars"></div>
+            <h3>Umfrageverlauf</h3><div id="poll-chart" class="chart"></div></div>
+          <div><h3>Was die Wähler bewegt</h3><div id="agenda" class="agenda"></div></div>
+        </div>
       </section>
 
-      <section class="card program-card">
+      <section class="card program-card" data-tab="program">
         <h2>Euer Wahlflyer</h2>
         <div id="program-view"></div>
       </section>
 
-      <section class="card news-card">
+      <section class="card news-card" data-tab="news">
         <h2>Nachrichten</h2>
         <ol id="news" class="news"></ol>
       </section>
@@ -285,10 +299,10 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="js/data.js?v=20261007-093733"></script>
-  <script src="js/germany.js?v=20261007-093733"></script>
-  <script src="js/questions.js?v=20261007-093733"></script>
-  <script src="js/engine.js?v=20261007-093733"></script>
-  <script src="js/ui.js?v=20261007-093733"></script>
+  <script src="js/data.js?v=20261007-094452"></script>
+  <script src="js/germany.js?v=20261007-094452"></script>
+  <script src="js/questions.js?v=20261007-094452"></script>
+  <script src="js/engine.js?v=20261007-094452"></script>
+  <script src="js/ui.js?v=20261007-094452"></script>
 </body>
 </html>

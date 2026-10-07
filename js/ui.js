@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261007-093733';
+  const APP_VERSION = '20261007-094452';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -179,7 +179,35 @@
     renderAgenda();
     renderNews();
     renderProgramView();
+    applyGameTab();
   }
+
+  // ---------- Wahlkampf als Website: immer nur ein Bereich sichtbar ----------
+  let gameTab = 'actions';
+  let newsSeen = null; // oberste Meldung beim letzten Blick in die Nachrichten
+
+  function applyGameTab() {
+    document.querySelectorAll('#screen-game .layout > .card').forEach(c => { c.hidden = c.dataset.tab !== gameTab; });
+    document.querySelectorAll('#game-nav .game-tab').forEach(b => {
+      if (b.dataset.tab === gameTab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
+    if (gameTab === 'news' && g.log.length) newsSeen = g.log[0];
+    let unread = newsSeen ? g.log.indexOf(newsSeen) : g.log.length;
+    if (unread === -1) unread = g.log.length;
+    const badge = $('news-badge');
+    badge.textContent = unread;
+    badge.hidden = !unread || gameTab === 'news';
+  }
+
+  function showGameTab(tab) {
+    gameTab = tab;
+    applyGameTab();
+    if (tab === 'polls') renderChart(); // Breite erst bekannt, wenn sichtbar
+    const nav = $('game-nav');
+    if (nav.getBoundingClientRect().top < 0 || window.scrollY > nav.offsetTop) window.scrollTo({ top: nav.offsetTop - 8, behavior: 'instant' });
+  }
+
+  document.querySelectorAll('#game-nav .game-tab').forEach(b => b.addEventListener('click', () => showGameTab(b.dataset.tab)));
 
   // Echte Umrisse der Bundesländer (js/germany.js). Kleine Länder bekommen ein Etikett mit Hinweislinie.
   const GEO = (typeof window !== 'undefined' && window.BTW_MAP) || null;
@@ -267,7 +295,14 @@
       chartAnim = k < 1 ? requestAnimationFrame(step) : null;
     };
     chartAnim = requestAnimationFrame(step);
-    $('target-state').textContent = st.name;
+    const sel = $('target-select');
+    if (!sel.options.length) {
+      D.STATES.slice().sort((a, b) => a.name.localeCompare(b.name, 'de')).forEach(x => {
+        const o = document.createElement('option'); o.value = x.id; sel.appendChild(o);
+      });
+    }
+    Array.from(sel.options).forEach(o => { o.textContent = E.stateById(o.value).name + ' · ihr ' + pct(E.stateShares(g, o.value)[g.party]); });
+    sel.value = st.id;
   }
 
   function renderTopics() {
@@ -1130,6 +1165,8 @@
     selTopic = null;
     $('feedback').textContent = '';
     if (g.phase !== 'campaign') { showElection(); return; }
+    gameTab = 'actions';
+    newsSeen = g.log[0] || null; // Meldungen ab jetzt zählen als neu
     show('game');
     applyPartyTheme($('screen-game'), g.party);
     applyPartyTheme(document.querySelector('#modal .modal-box'), g.party);
@@ -1137,6 +1174,10 @@
     renderGame();
     checkPending();
   }
+
+  $('target-select').addEventListener('change', e => { selState = e.target.value; renderGame(); });
+  $('btn-to-map').addEventListener('click', () => showGameTab('map'));
+  $('btn-campaign-here').addEventListener('click', () => showGameTab('actions'));
 
   $('btn-start').addEventListener('click', () => {
     if (chosenParty) enterProgram();
