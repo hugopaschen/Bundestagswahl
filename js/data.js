@@ -125,7 +125,7 @@
 
   var OTHER = { id: 'sonstige', short: 'Sonst.', name: 'Sonstige' };
 
-  // Bundesländer mit Wahlberechtigten (Mio., gerundet), Position in der Kachelkarte
+  // Bundesländer mit Wahlberechtigten (Mio., gerundet) (x/y: frühere Kachelkarte, heute ungenutzt)
   // und Startwerte in Prozent (Sonntagsfrage, regional verteilt nach dem Muster der BTW 2025). Rest = Sonstige.
   var STATES = [
     { id: 'SH', name: 'Schleswig-Holstein', voters: 2.2, x: 2, y: 0, east: false,
