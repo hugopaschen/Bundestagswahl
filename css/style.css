@@ -638,7 +638,7 @@ h2 .flyer-hint { margin: 0; }
    Cadenabbia-Türkis #52b7c1, Rhöndorf-Blau #2d3c4b, Union-Gold #ffa600, Weiß;
    Headlines Inter Extrabold weiß auf Rhöndorf-Blau, Blöcke Stoß an Stoß aus dem linken Rand;
    Sublines/Copy IBM Plex Serif; Logo oben rechts mit Bogen; Störer in Union-Gold, 10° gedreht. */
-.flyer[data-party="union"] {
+.flyer[data-party="union"], .party-site[data-party="union"] {
   --fl-paper: #ffffff;
   --fl-head: #52b7c1; --fl-head-ink: #ffffff;
   --fl-accent: #2d3c4b; --fl-accent-ink: #ffffff;
@@ -750,7 +750,7 @@ h2 .flyer-hint { margin: 0; }
    Hellblau #009ee0 (Primär), Dunkelblau #003366 (Botschafts-Bereich), Rot #e10000 (Störer, Auszeichnungen);
    Head-/Sublines Oswald Bold/Regular (Bildschirm-Ersatz für Futura), Fließtext Open Sans; linksbündig;
    Absender-Bereich als hellblauer Schwung mit Logo rechtsbündig; Blick-Störer rot, 4–7° gedreht. */
-.flyer[data-party="afd"] {
+.flyer[data-party="afd"], .party-site[data-party="afd"] {
   --fl-paper: #ffffff;
   --fl-head: #003366; --fl-head-ink: #ffffff;
   --fl-accent: #003366; --fl-accent-ink: #ffffff;
@@ -843,7 +843,7 @@ h2 .flyer-hint { margin: 0; }
    Headlines groß in Versalien, Extra Bold (Ersatzschrift für SPD The Sans: Open Sans);
    Logo mit Claim „Soziale Politik für Dich.“ weiß auf Rot, rechts oben;
    Doppelpfeile und Störer (rund/rechteckig, 10° gedreht). */
-.flyer[data-party="spd"] {
+.flyer[data-party="spd"], .party-site[data-party="spd"] {
   --fl-paper: #ffffff;
   --fl-head: #e3000f; --fl-head-ink: #ffffff;
   --fl-accent: #e3000f; --fl-accent-ink: #ffffff;
@@ -933,7 +933,7 @@ h2 .flyer-hint { margin: 0; }
 .flyer.mini[data-party="spd"] .flyer-candidate::before { width: 34px; height: 20px; }
 
 /* Grüne: Tannengrün, Sonnengelb, Sand-Papier, schmale Versalien */
-.flyer[data-party="gruene"] {
+.flyer[data-party="gruene"], .party-site[data-party="gruene"] {
   --fl-paper: #f5f1e9;
   --fl-head: #005437; --fl-head-ink: #ffffff;
   --fl-accent: #005437; --fl-accent-ink: #ffffff;
@@ -950,7 +950,7 @@ h2 .flyer-hint { margin: 0; }
 }
 
 /* Linke: Signalrot, Aubergine, schräge weiße Textfelder */
-.flyer[data-party="linke"] {
+.flyer[data-party="linke"], .party-site[data-party="linke"] {
   --fl-head: #ff0000; --fl-head-ink: #ffffff;
   --fl-accent: #6f003c; --fl-accent-ink: #ffffff;
   --fl-logo-bg: #6f003c; --fl-logo-ink: #ffffff;
@@ -964,7 +964,7 @@ h2 .flyer-hint { margin: 0; }
 .flyer[data-party="linke"] .fp-core-item { background: #ff0000; color: #ffffff; }
 
 /* BSW: Purpur mit Orange */
-.flyer[data-party="bsw"] {
+.flyer[data-party="bsw"], .party-site[data-party="bsw"] {
   --fl-head: linear-gradient(135deg, #4f1239 0%, #7d254f 100%); --fl-head-ink: #ffffff;
   --fl-accent: #7d254f; --fl-accent-ink: #ffffff;
   --fl-logo-bg: #f39200; --fl-logo-ink: #ffffff;
@@ -980,7 +980,7 @@ h2 .flyer-hint { margin: 0; }
 /* FDP: nach Corporate Design Guideline (Stand 24.07.2026)
    Gelb #FFE000, Dunkelblau #032D67, Hellblau #00A7E7; Public Sans; Logo frei auf der Fläche;
    hellblauer Balken als Gestaltungselement (Länge des ersten Wortes, Höhe ca. 1/3 Logohöhe). */
-.flyer[data-party="fdp"] {
+.flyer[data-party="fdp"], .party-site[data-party="fdp"] {
   --fl-paper: #ffe000;
   --fl-head: #ffe000; --fl-head-ink: #032d67;
   --fl-accent: #032d67; --fl-accent-ink: #ffe000;
@@ -1320,3 +1320,56 @@ h2 .flyer-hint { margin: 0; }
 /* Programmparteitag: keine Trennlinie am Seitenende der einzelnen Schritte */
 .flyer.site[data-party] .flyer-section { border-bottom: 0; }
 .program-bar { border-top: 0; }
+
+/* ---------- Wahlkampf im Design der gewählten Partei ---------- */
+.party-site {
+  --surface: #ffffff; --surface-2: #f6f3ec; --border: #e4ded1;
+  --text: #1d1d1f; --text-2: #4a4843; --muted: #7a776f;
+  --good: #1e7d3c; --bad: #c0392b; --shadow: 0 2px 10px rgba(0, 0, 0, .06);
+  --c-union: #1b1b1b; --on-union: #ffffff; --c-sonstige: #a3a19b; --on-sonstige: #1b1b1b;
+  --fl-head: var(--pc); --fl-head-ink: var(--pon);
+  --fl-accent: var(--pc); --fl-accent-ink: var(--pon);
+  --fl-logo-bg: var(--pon); --fl-logo-ink: var(--pc);
+  --fl-paper: #fffdf8; --fl-font: inherit; --fl-head-font: inherit;
+  --accent: var(--fl-accent); --accent-ink: var(--fl-accent-ink);
+  color: var(--text); font-family: var(--fl-font);
+}
+#screen-game.party-site { background: var(--fl-paper); padding-top: 0; min-height: 100vh; }
+.party-site .topbar {
+  margin: 0 calc(-1 * clamp(16px, 2.5vw, 40px)); border: 0; border-radius: 0; box-shadow: none;
+  padding: 14px clamp(16px, 2.5vw, 40px); background: var(--fl-head); color: var(--fl-head-ink);
+}
+.party-site .topbar .muted, .party-site .topbar .stat-label { color: inherit; opacity: .8; }
+.party-site .topbar .candidate { font-family: var(--fl-head-font); font-size: 1.15rem; font-weight: 800; }
+.party-site .topbar .stat-value { font-family: var(--fl-head-font); }
+.party-site .topbar .stat-value .pos, .party-site .topbar .stat-value .neg { color: inherit; opacity: .9; }
+.party-site .badge {
+  background: var(--fl-logo-bg); color: var(--fl-logo-ink); font-family: var(--fl-head-font);
+  font-size: 1.05rem; letter-spacing: -.01em; white-space: nowrap; box-shadow: 0 0 0 2px rgba(255, 255, 255, .5);
+}
+.party-site .topbar .btn.primary { background: var(--fl-head-ink); color: var(--fl-accent); border-color: var(--fl-head-ink); font-family: var(--fl-head-font); font-weight: 800; }
+.party-site .week-progress { margin: 0 calc(-1 * clamp(16px, 2.5vw, 40px)) 18px; border-radius: 0; height: 6px; background: rgba(0, 0, 0, .08); }
+.party-site .card { border-color: var(--border); box-shadow: var(--shadow); }
+.party-site .card > h2, .party-site .card > h3 { font-family: var(--fl-head-font); color: var(--fl-accent); }
+.party-site .card > h2 { font-size: 1.35rem; font-weight: 800; }
+.party-site .btn { font-family: inherit; }
+.party-site[data-party="afd"] .card, .party-site[data-party="spd"] .card,
+.party-site[data-party="afd"] .action, .party-site[data-party="spd"] .action,
+.party-site[data-party="afd"] .badge, .party-site[data-party="spd"] .badge { border-radius: 0; }
+.party-site[data-party="spd"] .card > h2, .party-site[data-party="gruene"] .card > h2, .party-site[data-party="linke"] .card > h2 { text-transform: uppercase; }
+/* CDU: Überschriften als dunkle Blöcke wie im Flyer */
+.party-site[data-party="union"] .card > h2 { display: table; background: #2d3c4b; color: #ffffff; padding: .12em .45em; }
+.party-site[data-party="union"] .card { border-radius: 0; }
+/* Grüne: Überschriften mit gelber Markierung */
+.party-site[data-party="gruene"] .card > h2 { display: table; background: var(--fl-hl); color: var(--fl-hl-ink); padding: .05em .35em; }
+/* FDP: Gelbe Seite, Kopf gelb mit blauer Schrift, darunter ein blauer Balken */
+.party-site[data-party="fdp"] .topbar { border-bottom: 6px solid #00a7e7; }
+.party-site[data-party="fdp"] .topbar .btn.primary { background: #032d67; color: #ffe000; border-color: #032d67; }
+.party-site[data-party="fdp"] .card { border-color: transparent; }
+/* BSW: Verlauf im Kopf, orangefarbene Linie */
+.party-site[data-party="bsw"] .topbar { border-bottom: 5px solid #f39200; }
+/* Linke: rote Kopfzeile, Akzent dunkelrot */
+.party-site[data-party="linke"] .topbar .btn.primary { color: #ff0000; }
+.modal-box.party-site { background: #ffffff; border: 0; border-top: 8px solid var(--fl-accent); }
+.modal-box.party-site h2 { font-family: var(--fl-head-font); color: var(--fl-accent); }
+.modal-box.party-site .eyebrow { color: var(--fl-accent); }

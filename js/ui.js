@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261006-235329';
+  const APP_VERSION = '20261007-090328';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -154,7 +154,7 @@
     const p = E.party(me);
 
     const badge = $('party-badge');
-    badge.textContent = p.short;
+    badge.textContent = p.flyerLogo || p.short;
     badge.style.setProperty('--pc', col(me));
     badge.style.setProperty('--pon', onCol(me));
     $('candidate-name').textContent = g.candidate;
@@ -1070,6 +1070,14 @@
 
   // ---------- Ereignis-Handler ----------
 
+  // Wahlkampf-Bildschirm und Dialoge im Design der gespielten Partei.
+  function applyPartyTheme(el, partyId) {
+    el.classList.add('party-site');
+    el.dataset.party = partyId;
+    el.style.setProperty('--pc', col(partyId));
+    el.style.setProperty('--pon', onCol(partyId));
+  }
+
   function startGame(game) {
     g = game;
     selState = 'NW';
@@ -1077,6 +1085,9 @@
     $('feedback').textContent = '';
     if (g.phase !== 'campaign') { showElection(); return; }
     show('game');
+    applyPartyTheme($('screen-game'), g.party);
+    applyPartyTheme(document.querySelector('#modal .modal-box'), g.party);
+    document.body.style.background = getComputedStyle($('screen-game')).getPropertyValue('--fl-paper').trim();
     renderGame();
     checkPending();
   }
