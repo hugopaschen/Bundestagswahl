@@ -1489,3 +1489,8 @@ h2 .flyer-hint { margin: 0; }
 @media (max-width: 520px) {
   .tc-badge { position: static; order: -1; font-size: .6rem; }
 }
+
+.local-block { padding-top: 18px; border-top: 1px solid var(--border); }
+.local-block .action-list { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.local-block .feedback:empty { display: none; }
+.local-block .feedback { margin-top: 12px; }

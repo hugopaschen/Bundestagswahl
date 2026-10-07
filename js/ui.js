@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261007-123229';
+  const APP_VERSION = '20261007-130600';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -295,14 +295,7 @@
       chartAnim = k < 1 ? requestAnimationFrame(step) : null;
     };
     chartAnim = requestAnimationFrame(step);
-    const sel = $('target-select');
-    if (!sel.options.length) {
-      D.STATES.slice().sort((a, b) => a.name.localeCompare(b.name, 'de')).forEach(x => {
-        const o = document.createElement('option'); o.value = x.id; sel.appendChild(o);
-      });
-    }
-    Array.from(sel.options).forEach(o => { o.textContent = E.stateById(o.value).name + ' · ihr ' + pct(E.stateShares(g, o.value)[g.party]); });
-    sel.value = st.id;
+    $('local-state').textContent = st.name;
   }
 
   // Themenwahl als Karten; nach der Wahl eines Themas erscheinen die passenden Aktionen.
@@ -390,7 +383,7 @@
       '<span class="ameta">' + (cost ? money(cost) : 'kostenlos') + '</span>';
     b.addEventListener('click', () => {
       const res = E.performAction(g, a.id, { state: selState, topic: selTopic });
-      $('feedback').textContent = res.text;
+      $(a.scope === 'topic' ? 'feedback' : 'local-feedback').textContent = res.text;
       toast(res.text);
       save();
       renderGame();
@@ -407,7 +400,7 @@
       const comp = E.competenceOf(g, g.party)[selTopic];
       E.ACTIONS.filter(a => a.scope === 'topic').forEach(a => list.appendChild(actionButton(a, topicActionHint(a, comp))));
     }
-    E.ACTIONS.filter(a => a.scope !== 'topic').forEach(a => local.appendChild(actionButton(a, a.scope === 'region' ? 'in ' + E.stateById(selState).name : '')));
+    E.ACTIONS.filter(a => a.scope !== 'topic').forEach(a => local.appendChild(actionButton(a, a.scope === 'region' ? 'in ' + E.stateById(selState).name : 'füllt die Kasse')));
     const hint = 'Keine Aktionen mehr – Zeit, die Woche zu beenden.';
     const fb = $('feedback');
     if (g.phase === 'campaign' && g.ap === 0 && !fb.textContent.includes(hint)) {
@@ -1212,6 +1205,7 @@
     selState = 'NW';
     selTopic = null;
     $('feedback').textContent = '';
+    $('local-feedback').textContent = '';
     if (g.phase !== 'campaign') { showElection(); return; }
     gameTab = 'actions';
     newsSeen = g.log[0] || null; // Meldungen ab jetzt zählen als neu
@@ -1223,9 +1217,6 @@
     checkPending();
   }
 
-  $('target-select').addEventListener('change', e => { selState = e.target.value; renderGame(); });
-  $('btn-to-map').addEventListener('click', () => showGameTab('map'));
-  $('btn-campaign-here').addEventListener('click', () => showGameTab('actions'));
 
   $('btn-start').addEventListener('click', () => {
     if (chosenParty) enterProgram();
@@ -1307,6 +1298,7 @@
     if (!res.ok) { if (res.text) toast(res.text); return; }
     save();
     $('feedback').textContent = '';
+    $('local-feedback').textContent = '';
     if (res.election) { closeModal(); showElection(); return; }
     const after = E.nationalShares(g)[g.party];
     toast('Neue Umfrage: ' + pct(after) + ' (' + signed(after - before) + ' zur Vorwoche)');
