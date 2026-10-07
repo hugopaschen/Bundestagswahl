@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261007-094452';
+  const APP_VERSION = '20261007-123229';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -305,21 +305,53 @@
     sel.value = st.id;
   }
 
-  function renderTopics() {
+  // Themenwahl als Karten; nach der Wahl eines Themas erscheinen die passenden Aktionen.
+  function topicOrder() {
     const comp = E.competenceOf(g, g.party);
-    const list = $('topic-list');
-    list.innerHTML = '';
-    // Erst die Kernthemen (in der gewählten Reihenfolge), dann die übrigen nach eurer Kompetenz.
     const core = g.program.core.map(id => E.topicById(id));
     const rest = D.TOPICS.filter(t => g.program.core.indexOf(t.id) === -1).sort((a, b) => comp[b.id] - comp[a.id]);
-    core.concat(rest).forEach(t => {
+    return core.concat(rest);
+  }
+
+  function topicStats(t) {
+    const comp = E.competenceOf(g, g.party)[t.id];
+    const now = g.salience[t.id] * 100;
+    const trend = now - D.SALIENCE0[t.id] * 100;
+    return { comp, now, trend };
+  }
+
+  function renderTopics() {
+    const list = $('topic-list');
+    const detail = $('topic-detail');
+    $('topic-intro').hidden = !!selTopic;
+    list.hidden = !!selTopic;
+    detail.hidden = !selTopic;
+    if (selTopic) {
+      const t = E.topicById(selTopic);
+      const st = topicStats(t);
+      detail.innerHTML = '<button type="button" class="link-btn td-back">← Alle Themen</button>' +
+        '<div class="td-head"><span class="td-icon" aria-hidden="true">' + t.icon + '</span><div>' +
+        '<p class="td-name">' + esc(t.name) + (E.isCore(g, t.id) ? ' <span class="td-core">🎯 Kernthema · Aktionen +25 %</span>' : '') + '</p>' +
+        '<p class="td-stats">Kompetenz <b>' + st.comp + '</b>/100 · Wählerinteresse <b>' + Math.round(st.now) + ' %</b> ' +
+        '<span class="' + (st.trend > 0.5 ? 'pos' : st.trend < -0.5 ? 'neg' : 'muted') + '">' + (st.trend > 0.5 ? '▲' : st.trend < -0.5 ? '▼' : '•') + '</span></p>' +
+        '</div></div>';
+      detail.querySelector('.td-back').addEventListener('click', () => { selTopic = null; renderGame(); $('topic-list').scrollIntoView({ block: 'nearest' }); });
+      return;
+    }
+    list.innerHTML = '';
+    topicOrder().forEach(t => {
+      const st = topicStats(t);
+      const core = E.isCore(g, t.id);
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'chip';
-      b.setAttribute('aria-pressed', String(t.id === selTopic));
-      b.textContent = t.icon + ' ' + t.name + (comp[t.id] >= 60 ? ' ★' : '') + (E.isCore(g, t.id) ? ' 🎯' : '');
-      b.title = 'Kompetenz deiner Partei: ' + comp[t.id] + '/100';
-      b.addEventListener('click', () => { selTopic = t.id; renderGame(); });
+      b.className = 'topic-card' + (core ? ' core' : '');
+      b.innerHTML = (core ? '<span class="tc-badge">🎯 Kernthema</span>' : '') +
+        '<span class="tc-icon" aria-hidden="true">' + t.icon + '</span>' +
+        '<span class="tc-name">' + cardName(t.name) + '</span>' +
+        '<span class="tc-meter"><span>Kompetenz <b>' + st.comp + '</b></span><span class="core-bar"><span style="width:' + st.comp + '%"></span></span></span>' +
+        '<span class="tc-interest">Wählerinteresse <b>' + Math.round(st.now) + ' %</b> ' +
+        '<span class="' + (st.trend > 0.5 ? 'pos' : st.trend < -0.5 ? 'neg' : 'muted') + '">' + (st.trend > 0.5 ? '▲' : st.trend < -0.5 ? '▼' : '') + '</span></span>';
+      b.addEventListener('click', () => { selTopic = t.id; renderGame(); $('topic-detail').scrollIntoView({ block: 'nearest' }); });
       list.appendChild(b);
     });
   }
@@ -336,30 +368,46 @@
     box.hidden = false;
   }
 
+  // Zusatzinfo je Aktion zum gewählten Thema (aus denselben Formeln wie im Spielkern).
+  function topicActionHint(a, comp) {
+    if (a.id === 'talkshow') return 'Erfolgschance ca. ' + Math.round((0.35 + 0.45 * comp / 100) * 100) + ' %';
+    if (a.id === 'social') return 'Shitstorm-Risiko ca. ' + Math.round(Math.max(0, 0.25 - 0.1 * (comp - 50) / 50) * 100) + ' %';
+    if (a.id === 'tvspot') return comp >= 60 ? 'eure Stärke – lohnt sich' : comp < 40 ? 'schwaches Thema – wenig Wirkung' : 'mittlere Wirkung';
+    if (a.id === 'presse') return comp >= 50 ? 'rückt eure Stärke in den Fokus' : 'Vorsicht: rückt eine Schwäche in den Fokus';
+    return '';
+  }
+
+  function actionButton(a, extra) {
+    const cost = E.actionCost(a.id, selState);
+    const disabled = !E.canAct(g) || (a.scope === 'topic' && !selTopic) || g.money + 1e-9 < cost;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'action';
+    b.disabled = disabled;
+    b.innerHTML = '<span class="aname">' + a.icon + ' ' + esc(a.name) + '</span>' +
+      '<span class="adesc">' + esc(a.desc) + '</span>' +
+      (extra ? '<span class="ahint">' + esc(extra) + '</span>' : '') +
+      '<span class="ameta">' + (cost ? money(cost) : 'kostenlos') + '</span>';
+    b.addEventListener('click', () => {
+      const res = E.performAction(g, a.id, { state: selState, topic: selTopic });
+      $('feedback').textContent = res.text;
+      toast(res.text);
+      save();
+      renderGame();
+    });
+    return b;
+  }
+
   function renderActions() {
     const list = $('action-list');
+    const local = $('local-actions');
     list.innerHTML = '';
-    E.ACTIONS.forEach(a => {
-      const cost = E.actionCost(a.id, selState);
-      let where = '';
-      if (a.scope === 'region') where = 'in ' + selState;
-      if (a.scope === 'topic') where = selTopic ? E.topicById(selTopic).name : 'Thema wählen';
-      const disabled = !E.canAct(g) || (a.scope === 'topic' && !selTopic) || g.money + 1e-9 < cost;
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'action';
-      b.disabled = disabled;
-      b.innerHTML = '<span class="aname">' + a.icon + ' ' + esc(a.name) + '</span>' +
-        '<span class="adesc">' + esc(a.desc) + '</span>' +
-        '<span class="ameta">' + (cost ? money(cost) : 'kostenlos') + (where ? ' · ' + esc(where) : '') + '</span>';
-      b.addEventListener('click', () => {
-        const res = E.performAction(g, a.id, { state: selState, topic: selTopic });
-        $('feedback').textContent = res.text;
-        save();
-        renderGame();
-      });
-      list.appendChild(b);
-    });
+    local.innerHTML = '';
+    if (selTopic) {
+      const comp = E.competenceOf(g, g.party)[selTopic];
+      E.ACTIONS.filter(a => a.scope === 'topic').forEach(a => list.appendChild(actionButton(a, topicActionHint(a, comp))));
+    }
+    E.ACTIONS.filter(a => a.scope !== 'topic').forEach(a => local.appendChild(actionButton(a, a.scope === 'region' ? 'in ' + E.stateById(selState).name : '')));
     const hint = 'Keine Aktionen mehr – Zeit, die Woche zu beenden.';
     const fb = $('feedback');
     if (g.phase === 'campaign' && g.ap === 0 && !fb.textContent.includes(hint)) {

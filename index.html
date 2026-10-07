@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de" data-version="20261007-094452">
+<html lang="de" data-version="20261007-123229">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Montserrat:wght@700;800;900&family=Oswald:wght@600;700&family=Public+Sans:wght@500;700;800;900&family=Inter:wght@800&family=Open+Sans:wght@400;700;800&family=Caveat:wght@600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,700;1,400&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20261007-094452">
+  <link rel="stylesheet" href="css/style.css?v=20261007-123229">
 </head>
 <body>
   <!-- Startseite: Eröffnungsbild, ein eigener Bildschirm -->
@@ -223,18 +223,26 @@
 
       <section class="card actions-card" data-tab="actions">
         <h2>Aktionen</h2>
-        <div class="target">
-          <label class="target-pick"><span class="muted small">Bundesland</span>
-            <select id="target-select"></select></label>
-          <button type="button" class="link-btn" id="btn-to-map">🗺️ auf der Karte wählen</button>
-        </div>
-        <div>
-          <span class="muted small">Thema</span>
-          <div id="topic-list" class="chips"></div>
-        </div>
         <div id="money-hint" class="money-hint" role="note" hidden></div>
-        <div id="action-list" class="action-list"></div>
         <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
+
+        <div class="act-block">
+          <h3 class="act-title">🎯 Themen setzen</h3>
+          <p class="muted small act-intro" id="topic-intro">Wählt ein Thema – danach seht ihr, was ihr dazu tun könnt. Eure Kernthemen stehen vorne.</p>
+          <div id="topic-list" class="topic-grid"></div>
+          <div id="topic-detail" class="topic-detail" hidden></div>
+          <div id="action-list" class="action-list"></div>
+        </div>
+
+        <div class="act-block">
+          <h3 class="act-title">📍 Vor Ort &amp; Wahlkampfkasse</h3>
+          <div class="target">
+            <label class="target-pick"><span class="muted small">Bundesland</span>
+              <select id="target-select"></select></label>
+            <button type="button" class="link-btn" id="btn-to-map">🗺️ auf der Karte wählen</button>
+          </div>
+          <div id="local-actions" class="action-list"></div>
+        </div>
       </section>
 
       <section class="card polls-card" data-tab="polls">
@@ -299,10 +307,10 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="js/data.js?v=20261007-094452"></script>
-  <script src="js/germany.js?v=20261007-094452"></script>
-  <script src="js/questions.js?v=20261007-094452"></script>
-  <script src="js/engine.js?v=20261007-094452"></script>
-  <script src="js/ui.js?v=20261007-094452"></script>
+  <script src="js/data.js?v=20261007-123229"></script>
+  <script src="js/germany.js?v=20261007-123229"></script>
+  <script src="js/questions.js?v=20261007-123229"></script>
+  <script src="js/engine.js?v=20261007-123229"></script>
+  <script src="js/ui.js?v=20261007-123229"></script>
 </body>
 </html>
