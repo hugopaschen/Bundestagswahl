@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261007-093137';
+  const APP_VERSION = '20261007-093733';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -274,7 +274,10 @@
     const comp = E.competenceOf(g, g.party);
     const list = $('topic-list');
     list.innerHTML = '';
-    topicsByCompetence(g.party).forEach(t => {
+    // Erst die Kernthemen (in der gewählten Reihenfolge), dann die übrigen nach eurer Kompetenz.
+    const core = g.program.core.map(id => E.topicById(id));
+    const rest = D.TOPICS.filter(t => g.program.core.indexOf(t.id) === -1).sort((a, b) => comp[b.id] - comp[a.id]);
+    core.concat(rest).forEach(t => {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'chip';
