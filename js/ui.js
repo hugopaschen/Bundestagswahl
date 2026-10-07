@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261007-091207';
+  const APP_VERSION = '20261007-092221';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -219,18 +219,27 @@
     });
   }
 
+  // Säulendiagramm wie bei Hochrechnungen im Fernsehen: feste Reihenfolge, Wert unter dem Parteinamen.
+  const CHART_ORDER = ['union', 'spd', 'gruene', 'linke', 'afd', 'fdp', 'bsw', D.OTHER.id];
+
   function renderStateDetail() {
     const st = E.stateById(selState);
     const s = E.stateShares(g, st.id);
-    const ids = ALL_IDS.slice().sort((a, b) => s[b] - s[a]);
-    const max = Math.max.apply(null, ids.map(p => s[p]));
-    let html = '<h3>' + esc(st.name) + ' <span class="muted small">· ' + num1(st.voters) + ' Mio. Wahlberechtigte</span></h3><div class="mini-bars">';
-    ids.forEach(p => {
-      html += '<span' + (p === g.party ? ' style="font-weight:700"' : '') + '>' + short(p) + '</span>' +
-        '<div class="bar" style="width:' + (s[p] / max * 100) + '%;background:' + col(p) + '"></div>' +
-        '<span class="num">' + pct(s[p]) + '</span>';
+    const max = Math.max.apply(null, CHART_ORDER.map(p => s[p]));
+    const top = Math.max(10, Math.ceil(max / 5) * 5); // Skala auf volle 5 % aufrunden
+    let html = '<h3>' + esc(st.name) + ' <span class="muted small">· ' + num1(st.voters) + ' Mio. Wahlberechtigte</span></h3>' +
+      '<div class="col-chart" role="img" aria-label="Umfrage in ' + esc(st.name) + ': ' +
+      CHART_ORDER.map(p => short(p) + ' ' + pct(s[p])).join(', ') + '">' +
+      '<div class="cc-plot"><i class="cc-hurdle" style="bottom:' + (5 / top * 100) + '%" title="5-%-Hürde"></i>';
+    CHART_ORDER.forEach(p => {
+      html += '<div class="cc-col"><div class="cc-bar" style="height:' + (s[p] / top * 100) + '%;background:' + col(p) + '"></div></div>';
     });
-    $('state-detail').innerHTML = html + '</div>';
+    html += '</div><div class="cc-labels">';
+    CHART_ORDER.forEach(p => {
+      html += '<div class="cc-label' + (p === g.party ? ' me' : '') + '"><span class="cc-name">' + short(p) + '</span>' +
+        '<span class="cc-val" style="--cc:' + col(p) + '">' + num1(s[p]) + '</span></div>';
+    });
+    $('state-detail').innerHTML = html + '</div></div>';
     $('target-state').textContent = st.name;
   }
 
