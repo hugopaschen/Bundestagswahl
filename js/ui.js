@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261007-092829';
+  const APP_VERSION = '20261007-093137';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -184,6 +184,8 @@
   // Echte Umrisse der Bundesländer (js/germany.js). Kleine Länder bekommen ein Etikett mit Hinweislinie.
   const GEO = (typeof window !== 'undefined' && window.BTW_MAP) || null;
   const LABEL_AT = { BE: [556, 228], HB: [128, 190], HH: [336, 178], BB: [518, 330], NI: [238, 268] };
+  // Gebräuchliche Kürzel auf der Karte (intern bleiben die ISO-Kürzel)
+  const LABEL_TEXT = { ST: 'SA', SN: 'S', NW: 'NRW' };
 
   function renderMap() {
     const map = $('map');
@@ -207,7 +209,7 @@
         ? '<line x1="' + geo.cx + '" y1="' + geo.cy + '" x2="' + at[0] + '" y2="' + at[1] + '"></line><circle cx="' + geo.cx + '" cy="' + geo.cy + '" r="3.5"></circle>' : '';
       labels += '<g class="land-label' + (isSel ? ' selected' : '') + '" data-state="' + st.id + '">' + line +
         '<rect x="' + (at[0] - 31) + '" y="' + (at[1] - 21) + '" width="62" height="42" rx="9"></rect>' +
-        '<text class="ll-id" x="' + at[0] + '" y="' + (at[1] - 6) + '" text-anchor="middle">' + st.id + '</text>' +
+        '<text class="ll-id" x="' + at[0] + '" y="' + (at[1] - 6) + '" text-anchor="middle">' + (LABEL_TEXT[st.id] || st.id) + '</text>' +
         '<text class="ll-val" x="' + at[0] + '" y="' + (at[1] + 14) + '" text-anchor="middle">' + num1(s[g.party]) + '</text></g>';
     });
     map.innerHTML = '<svg viewBox="-4 -4 ' + (GEO.w + 8) + ' ' + (GEO.h + 8) + '" role="group" aria-label="Karte der Bundesländer mit euren Umfragewerten">' +
