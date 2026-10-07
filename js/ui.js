@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261007-092538';
+  const APP_VERSION = '20261007-092829';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -257,7 +257,7 @@
     });
     if (chartAnim) cancelAnimationFrame(chartAnim);
     const t0 = performance.now();
-    const DUR = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 600;
+    const DUR = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1200;
     const step = now => {
       const k = DUR ? Math.min(1, (now - t0) / DUR) : 1;
       const e = 1 - Math.pow(1 - k, 3);
