@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261007-092221';
+  const APP_VERSION = '20261007-092538';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -222,24 +222,49 @@
   // Säulendiagramm wie bei Hochrechnungen im Fernsehen: feste Reihenfolge, Wert unter dem Parteinamen.
   const CHART_ORDER = ['union', 'spd', 'gruene', 'linke', 'afd', 'fdp', 'bsw', D.OTHER.id];
 
+  // Das Diagramm wird nur einmal aufgebaut und danach nur noch verändert: So wachsen und schrumpfen
+  // die Säulen beim Wechsel des Bundeslands sichtbar (CSS-Übergang), die Zahlen zählen mit.
+  let chartAnim = null;
+
+  function buildStateChart(box) {
+    box.innerHTML = '<h3 class="cc-title"></h3><div class="col-chart" role="img"><div class="cc-plot"><i class="cc-hurdle" title="5-%-Hürde"></i>' +
+      CHART_ORDER.map(p => '<div class="cc-col"><div class="cc-bar" data-p="' + p + '" style="height:0;background:' + col(p) + '"></div></div>').join('') +
+      '</div><div class="cc-labels">' +
+      CHART_ORDER.map(p => '<div class="cc-label" data-p="' + p + '"><span class="cc-name">' + short(p) + '</span>' +
+        '<span class="cc-val" style="--cc:' + col(p) + '">0,0</span></div>').join('') + '</div></div>';
+  }
+
   function renderStateDetail() {
     const st = E.stateById(selState);
     const s = E.stateShares(g, st.id);
     const max = Math.max.apply(null, CHART_ORDER.map(p => s[p]));
     const top = Math.max(10, Math.ceil(max / 5) * 5); // Skala auf volle 5 % aufrunden
-    let html = '<h3>' + esc(st.name) + ' <span class="muted small">· ' + num1(st.voters) + ' Mio. Wahlberechtigte</span></h3>' +
-      '<div class="col-chart" role="img" aria-label="Umfrage in ' + esc(st.name) + ': ' +
-      CHART_ORDER.map(p => short(p) + ' ' + pct(s[p])).join(', ') + '">' +
-      '<div class="cc-plot"><i class="cc-hurdle" style="bottom:' + (5 / top * 100) + '%" title="5-%-Hürde"></i>';
-    CHART_ORDER.forEach(p => {
-      html += '<div class="cc-col"><div class="cc-bar" style="height:' + (s[p] / top * 100) + '%;background:' + col(p) + '"></div></div>';
+    const box = $('state-detail');
+    if (!box.querySelector('.col-chart')) buildStateChart(box);
+    box.querySelector('.cc-title').innerHTML = esc(st.name) + ' <span class="muted small">· ' + num1(st.voters) + ' Mio. Wahlberechtigte</span>';
+    box.querySelector('.col-chart').setAttribute('aria-label', 'Umfrage in ' + st.name + ': ' + CHART_ORDER.map(p => short(p) + ' ' + pct(s[p])).join(', '));
+    box.querySelector('.cc-hurdle').style.bottom = (5 / top * 100) + '%';
+    // Höhe im nächsten Frame setzen, damit der Übergang auch beim ersten Aufbau greift
+    requestAnimationFrame(() => {
+      box.querySelectorAll('.cc-bar').forEach(b => { b.style.height = (s[b.dataset.p] / top * 100) + '%'; });
     });
-    html += '</div><div class="cc-labels">';
-    CHART_ORDER.forEach(p => {
-      html += '<div class="cc-label' + (p === g.party ? ' me' : '') + '"><span class="cc-name">' + short(p) + '</span>' +
-        '<span class="cc-val" style="--cc:' + col(p) + '">' + num1(s[p]) + '</span></div>';
+    const vals = box.querySelectorAll('.cc-label');
+    const from = {};
+    vals.forEach(l => {
+      l.classList.toggle('me', l.dataset.p === g.party);
+      from[l.dataset.p] = parseFloat(l.dataset.v || '0');
+      l.dataset.v = s[l.dataset.p];
     });
-    $('state-detail').innerHTML = html + '</div></div>';
+    if (chartAnim) cancelAnimationFrame(chartAnim);
+    const t0 = performance.now();
+    const DUR = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 600;
+    const step = now => {
+      const k = DUR ? Math.min(1, (now - t0) / DUR) : 1;
+      const e = 1 - Math.pow(1 - k, 3);
+      vals.forEach(l => { l.querySelector('.cc-val').textContent = num1(from[l.dataset.p] + (s[l.dataset.p] - from[l.dataset.p]) * e); });
+      chartAnim = k < 1 ? requestAnimationFrame(step) : null;
+    };
+    chartAnim = requestAnimationFrame(step);
     $('target-state').textContent = st.name;
   }
 
