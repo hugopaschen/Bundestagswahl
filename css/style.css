@@ -103,7 +103,7 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 .btn.big { padding: .8rem 1.6rem; font-size: 1.05rem; }
-.btn:focus-visible, .chip:focus-visible, .tile:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.btn:focus-visible, .chip:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
 /* ---------- Start ---------- */
 .hero { text-align: center; padding: 32px 8px 24px; }
@@ -181,11 +181,20 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
 
 /* Karte */
 .map svg { width: 100%; height: auto; display: block; max-width: 560px; margin: 0 auto; }
-.tile { cursor: pointer; }
-.tile rect { stroke: var(--surface); stroke-width: 3; transition: opacity .2s; }
-.tile.selected rect { stroke: var(--accent); stroke-width: 4; }
-.tile:hover rect { opacity: .85; }
-.tile text { pointer-events: none; font-weight: 700; }
+.land { cursor: pointer; }
+.land-shape { stroke: #ffffff; stroke-width: 1.6; stroke-linejoin: round; transition: opacity .15s; }
+.land:hover .land-shape { opacity: .82; }
+.land:focus { outline: none; }
+.land:focus-visible .land-shape, .land.selected .land-shape { stroke: var(--text); stroke-width: 4.5; }
+.land-label { cursor: pointer; }
+.land-label rect { fill: rgba(255, 255, 255, .93); stroke: rgba(0, 0, 0, .18); stroke-width: 1; }
+.land-label.selected rect { fill: var(--text); stroke: none; }
+.land-label line { stroke: var(--text); stroke-width: 1.6; }
+.land-label circle { fill: var(--text); }
+.land-label text { pointer-events: none; fill: #1d1d1f; font-variant-numeric: tabular-nums; }
+.land-label.selected text { fill: #ffffff; }
+.ll-id { font-size: 15px; font-weight: 700; opacity: .75; }
+.ll-val { font-size: 21px; font-weight: 800; }
 .state-detail { margin-top: 12px; font-size: .88rem; }
 .state-detail h3 { margin: 0 0 6px; color: var(--text); }
 .mini-bars { display: grid; grid-template-columns: 52px 1fr 56px; gap: 3px 8px; align-items: center; }

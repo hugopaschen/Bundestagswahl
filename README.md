@@ -44,6 +44,7 @@ index.html        Seitengerüst (Start, Wahlkampf, Wahlabend)
 css/style.css     Gestaltung inkl. Dark Mode und Mobilansicht
 js/data.js        Parteien, Bundesländer, Themen, Programmpositionen
 js/questions.js   Fragen der Fachkonferenz (30 je Thema)
+js/germany.js     Umrisse der Bundesländer (Natural Earth, gemeinfrei) für die Deutschlandkarte
 js/engine.js      Spiellogik ohne DOM (Umfragemodell, Aktionen, Ereignisse, Sitzverteilung)
 js/ui.js          Oberfläche
 tests/            Tests der Spiellogik (`npm test`, Node ≥ 18)

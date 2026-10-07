@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261007-090328';
+  const APP_VERSION = '20261007-091207';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -181,31 +181,38 @@
     renderProgramView();
   }
 
+  // Echte Umrisse der Bundesländer (js/germany.js). Kleine Länder bekommen ein Etikett mit Hinweislinie.
+  const GEO = (typeof window !== 'undefined' && window.BTW_MAP) || null;
+  const LABEL_AT = { BE: [556, 228], HB: [128, 190], HH: [336, 178], BB: [518, 330], NI: [238, 268] };
+
   function renderMap() {
-    const size = 72;
-    const gap = 4;
-    const cols = 5;
-    const rows = 5;
-    let svg = '<svg viewBox="0 0 ' + (cols * size) + ' ' + (rows * size) + '" role="group" aria-label="Kachelkarte der Bundesländer">';
+    const map = $('map');
+    if (!GEO) { map.textContent = 'Karte nicht verfügbar.'; return; }
+    let shapes = '';
+    let labels = '';
+    let selected = '';
     D.STATES.forEach(st => {
+      const geo = GEO.states[st.id];
+      if (!geo) return;
       const s = E.stateShares(g, st.id);
       const lead = E.leader(s);
-      const x = st.x * size + gap / 2;
-      const y = st.y * size + gap / 2;
-      const w = size - gap;
-      const sel = st.id === selState ? ' selected' : '';
-      svg += '<g class="tile' + sel + '" data-state="' + st.id + '" tabindex="0" role="button" aria-pressed="' + (st.id === selState) + '" ' +
+      const isSel = st.id === selState;
+      const shape = '<path class="land-shape" d="' + geo.d + '" style="fill:' + col(lead) + '"></path>';
+      const group = '<g class="land' + (isSel ? ' selected' : '') + '" data-state="' + st.id + '" tabindex="0" role="button" aria-pressed="' + isSel + '" ' +
         'aria-label="' + esc(st.name) + ': ' + E.party(lead).short + ' vorn, ihr ' + pct(s[g.party]) + '">' +
-        '<title>' + esc(st.name) + ' – ' + E.party(lead).short + ' vorn</title>' +
-        '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + w + '" rx="10" style="fill:' + col(lead) + '"></rect>' +
-        '<text x="' + (x + w / 2) + '" y="' + (y + 28) + '" text-anchor="middle" font-size="17" style="fill:' + onCol(lead) + '">' + st.id + '</text>' +
-        '<text x="' + (x + w / 2) + '" y="' + (y + 50) + '" text-anchor="middle" font-size="13" style="fill:' + onCol(lead) + '">' + num1(s[g.party]) + '</text>' +
-        '</g>';
+        '<title>' + esc(st.name) + ' – ' + E.party(lead).short + ' vorn, ihr ' + pct(s[g.party]) + '</title>' + shape + '</g>';
+      if (isSel) selected = group; else shapes += group; // ausgewähltes Land zuletzt zeichnen, damit der Rahmen oben liegt
+      const at = LABEL_AT[st.id] || [geo.cx, geo.cy];
+      const line = LABEL_AT[st.id] && st.id !== 'BB' && st.id !== 'NI'
+        ? '<line x1="' + geo.cx + '" y1="' + geo.cy + '" x2="' + at[0] + '" y2="' + at[1] + '"></line><circle cx="' + geo.cx + '" cy="' + geo.cy + '" r="3.5"></circle>' : '';
+      labels += '<g class="land-label' + (isSel ? ' selected' : '') + '" data-state="' + st.id + '">' + line +
+        '<rect x="' + (at[0] - 31) + '" y="' + (at[1] - 21) + '" width="62" height="42" rx="9"></rect>' +
+        '<text class="ll-id" x="' + at[0] + '" y="' + (at[1] - 6) + '" text-anchor="middle">' + st.id + '</text>' +
+        '<text class="ll-val" x="' + at[0] + '" y="' + (at[1] + 14) + '" text-anchor="middle">' + num1(s[g.party]) + '</text></g>';
     });
-    svg += '</svg>';
-    const map = $('map');
-    map.innerHTML = svg;
-    map.querySelectorAll('.tile').forEach(t => {
+    map.innerHTML = '<svg viewBox="-4 -4 ' + (GEO.w + 8) + ' ' + (GEO.h + 8) + '" role="group" aria-label="Karte der Bundesländer mit euren Umfragewerten">' +
+      shapes + selected + labels + '</svg>';
+    map.querySelectorAll('.land, .land-label').forEach(t => {
       const choose = () => { selState = t.dataset.state; renderGame(); };
       t.addEventListener('click', choose);
       t.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(); } });
