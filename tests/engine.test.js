@@ -341,3 +341,20 @@ test('Auch die sonstigen Parteien gewinnen und verlieren in den Umfragen', () =>
   }
   assert.ok(finals.some(d => d > 0.3) && finals.some(d => d < -0.3));
 });
+
+test('Wählergruppen: je Dimension (Alter, Bildung, Wohnort) ergeben die Anteile 100 %', () => {
+  for (const dim of D.GROUP_DIMS) {
+    const ks = D.GROUPS.filter(k => k.dim === dim.id);
+    assert.ok(ks.length >= 2, dim.id);
+    assert.ok(Math.abs(ks.reduce((s, k) => s + k.weight, 0) - 1) < 1e-9, dim.id);
+  }
+  assert.ok(D.GROUPS.some(k => k.id === 'mitte' && /30–59/.test(k.name)));
+  assert.ok(D.GROUPS.some(k => k.id === 'jung' && /18–29/.test(k.name)));
+  // Gewichteter Schnitt der Gruppenwerte je Dimension entspricht etwa dem Bundeswert
+  const g = E.newGame('gruene', 'Test', 2);
+  const nat = E.publishedShares(g).gruene;
+  for (const dim of D.GROUP_DIMS) {
+    const avg = D.GROUPS.filter(k => k.dim === dim.id).reduce((s, k) => s + k.weight * E.groupShares(g, k.id).gruene, 0);
+    assert.ok(Math.abs(avg - nat) < 1.5, dim.id + ' ' + avg + ' vs ' + nat);
+  }
+});

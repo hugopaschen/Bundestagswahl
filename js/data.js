@@ -266,38 +266,54 @@
     ]
   };
 
-  // Wählergruppen: Gewicht in der Wählerschaft, Lieblingsthemen (Faktor auf die Wirkung)
-  // und Abweichung der Parteien vom Bundesschnitt (wird in der Engine zentriert).
+  // Wählergruppen in drei Dimensionen (Alter, Bildung, Wohnort). Innerhalb jeder Dimension
+  // ergeben die Anteile zusammen 100 % der Wahlberechtigten:
+  // – Alter: Bundeswahlleiterin, Wahlberechtigte zur Bundestagswahl 2025 (18–29 ≈ 13 %, 30–59 ≈ 45 %, 60+ ≈ 42 %)
+  // – Bildung: Mikrozensus, rund ein Fünftel der Erwachsenen hat einen Hochschulabschluss
+  // – Wohnort: knapp ein Drittel lebt in Großstädten ab 100.000 Einwohnern (Destatis)
+  // factor = Ergebnis der Partei in der Gruppe geteilt durch ihr Bundesergebnis, nach den
+  // Wahltagsbefragungen zur Bundestagswahl 2025 (Infratest dimap, Forschungsgruppe Wahlen);
+  // z. B. Linke bei 18–29: rund 24 % statt 8,8 % → 2,7. Die Engine gleicht die Faktoren je
+  // Dimension aus. topics = Lieblingsthemen (Faktor auf die Wirkung).
   var GROUPS = [
-    { id: 'jung', name: 'Junge Wähler', short: 'Junge', icon: '🧑‍🎓', weight: 0.14,
-      topics: { klima: 1.9, bildung: 1.8, digitales: 1.9, wohnen: 1.7, europa: 1.3 },
-      lean: { union: -9, afd: 1, spd: -4, gruene: 4, linke: 7, bsw: -1, fdp: 1 } },
-    { id: 'aelter', name: 'Ältere (60+)', short: 'Ältere', icon: '👵', weight: 0.30,
+    { id: 'jung', dim: 'alter', name: 'Junge Wähler (18–29)', short: 'Junge', icon: '🧑‍🎓', weight: 0.13,
+      topics: { klima: 1.8, bildung: 1.8, digitales: 1.9, wohnen: 1.9, europa: 1.3 },
+      factor: { union: 0.54, afd: 1.0, spd: 0.76, gruene: 1.0, linke: 2.7, bsw: 1.2, fdp: 1.23 } },
+    { id: 'mitte', dim: 'alter', name: 'Mittleres Alter (30–59)', short: '30–59', icon: '🧑‍💼', weight: 0.45,
+      topics: { familie: 1.8, wirtschaft: 1.6, wohnen: 1.5, bildung: 1.4, finanzen: 1.3, migration: 1.2 },
+      factor: { union: 0.89, afd: 1.19, spd: 0.82, gruene: 1.09, linke: 0.89, bsw: 1.0, fdp: 1.0 } },
+    { id: 'aelter', dim: 'alter', name: 'Ältere (60+)', short: 'Ältere', icon: '👵', weight: 0.42,
       topics: { soziales: 1.8, gesundheit: 1.9, sicherheit: 1.6, migration: 1.3, verteidigung: 1.3 },
-      lean: { union: 9, afd: -2, spd: 5, gruene: -5, linke: -4, bsw: 1, fdp: -1 } },
-    { id: 'arbeit', name: 'Arbeitnehmer', short: 'Arbeitnehmer', icon: '👷', weight: 0.22,
-      topics: { wirtschaft: 1.7, soziales: 1.7, wohnen: 1.4, finanzen: 1.3, migration: 1.3 },
-      lean: { union: -3, afd: 7, spd: 2, gruene: -5, linke: 0, bsw: 1, fdp: -1 } },
-    { id: 'akadem', name: 'Akademiker', short: 'Akademiker', icon: '🎓', weight: 0.14,
+      factor: { union: 1.28, afd: 0.86, spd: 1.37, gruene: 0.74, linke: 0.55, bsw: 1.0, fdp: 1.0 } },
+    { id: 'arbeit', dim: 'bildung', name: 'Ohne Hochschulabschluss', short: 'Ohne Studium', icon: '👷', weight: 0.80,
+      topics: { wirtschaft: 1.6, soziales: 1.7, migration: 1.4, finanzen: 1.3, sicherheit: 1.3 },
+      factor: { union: 1.0, afd: 1.1, spd: 1.0, gruene: 0.83, linke: 0.89, bsw: 1.0, fdp: 0.77 } },
+    { id: 'akadem', dim: 'bildung', name: 'Akademiker', short: 'Akademiker', icon: '🎓', weight: 0.20,
       topics: { klima: 1.6, bildung: 1.6, europa: 1.8, digitales: 1.5, demokratie: 1.7 },
-      lean: { union: 0, afd: -9, spd: -1, gruene: 8, linke: 2, bsw: -1, fdp: 2 } },
-    { id: 'stadt', name: 'Großstädter', short: 'Stadt', icon: '🏙️', weight: 0.10,
+      factor: { union: 0.96, afd: 0.57, spd: 0.94, gruene: 1.69, linke: 1.23, bsw: 0.8, fdp: 1.47 } },
+    { id: 'stadt', dim: 'ort', name: 'Großstädter', short: 'Stadt', icon: '🏙️', weight: 0.32,
       topics: { wohnen: 2.0, verkehr: 1.7, klima: 1.4, sicherheit: 1.3 },
-      lean: { union: -5, afd: -7, spd: 0, gruene: 7, linke: 6, bsw: -1, fdp: 1 } },
-    { id: 'land', name: 'Ländlicher Raum', short: 'Land', icon: '🌾', weight: 0.10,
+      factor: { union: 0.86, afd: 0.71, spd: 1.0, gruene: 1.52, linke: 1.57, bsw: 0.8, fdp: 1.23 } },
+    { id: 'land', dim: 'ort', name: 'Kleinstadt & Land', short: 'Land', icon: '🌾', weight: 0.68,
       topics: { land: 2.2, verkehr: 1.5, migration: 1.4, familie: 1.4, wirtschaft: 1.2 },
-      lean: { union: 5, afd: 6, spd: -1, gruene: -7, linke: -4, bsw: 1, fdp: 0 } }
+      factor: { union: 1.07, afd: 1.14, spd: 1.0, gruene: 0.74, linke: 0.77, bsw: 1.0, fdp: 1.0 } }
+  ];
+
+  var GROUP_DIMS = [
+    { id: 'alter', name: 'Alter' },
+    { id: 'bildung', name: 'Bildung' },
+    { id: 'ort', name: 'Wohnort' }
   ];
 
   // Wie gut ein Kanal die einzelnen Gruppen erreicht.
   var CHANNELS = {
-    social:     { jung: 2.2, aelter: 0.4, arbeit: 0.8, akadem: 1.1, stadt: 1.4, land: 0.7 },
-    tvspot:     { jung: 0.5, aelter: 1.6, arbeit: 1.1, akadem: 0.8, stadt: 0.8, land: 1.2 },
-    talkshow:   { jung: 0.5, aelter: 1.4, arbeit: 0.7, akadem: 1.6, stadt: 1.0, land: 0.8 },
-    presse:     { jung: 0.7, aelter: 1.2, arbeit: 0.8, akadem: 1.5, stadt: 1.1, land: 0.8 },
-    kundgebung: { jung: 0.7, aelter: 1.1, arbeit: 1.5, akadem: 0.6, stadt: 0.8, land: 1.3 },
-    plakate:    { jung: 0.8, aelter: 1.2, arbeit: 1.0, akadem: 0.8, stadt: 0.9, land: 1.4 },
-    haustuer:   { jung: 0.5, aelter: 1.5, arbeit: 1.0, akadem: 0.8, stadt: 0.7, land: 1.3 }
+    social:     { jung: 2.2, mitte: 1.0, aelter: 0.4, arbeit: 0.8, akadem: 1.1, stadt: 1.4, land: 0.7 },
+    tvspot:     { jung: 0.5, mitte: 1.0, aelter: 1.6, arbeit: 1.1, akadem: 0.8, stadt: 0.8, land: 1.2 },
+    talkshow:   { jung: 0.5, mitte: 0.9, aelter: 1.4, arbeit: 0.7, akadem: 1.6, stadt: 1.0, land: 0.8 },
+    presse:     { jung: 0.7, mitte: 0.9, aelter: 1.2, arbeit: 0.8, akadem: 1.5, stadt: 1.1, land: 0.8 },
+    kundgebung: { jung: 0.7, mitte: 1.0, aelter: 1.1, arbeit: 1.5, akadem: 0.6, stadt: 0.8, land: 1.3 },
+    plakate:    { jung: 0.8, mitte: 1.0, aelter: 1.2, arbeit: 1.0, akadem: 0.8, stadt: 0.9, land: 1.4 },
+    haustuer:   { jung: 0.5, mitte: 0.9, aelter: 1.5, arbeit: 1.0, akadem: 0.8, stadt: 0.7, land: 1.3 }
   };
 
   var SEATS = 630;
@@ -312,6 +328,7 @@
     PROGRAM: PROGRAM,
     PROGRAM_RULES: PROGRAM_RULES,
     GROUPS: GROUPS,
+    GROUP_DIMS: GROUP_DIMS,
     CHANNELS: CHANNELS
   };
 

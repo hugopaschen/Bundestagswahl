@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261010-223803';
+  const APP_VERSION = '20261010-224748';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -485,7 +485,8 @@
   function renderGroups() {
     const box = $('groups');
     if (!box) return;
-    box.innerHTML = D.GROUPS.map(k => {
+    box.innerHTML = D.GROUP_DIMS.map(dim => '<h4 class="gp-dim">' + esc(dim.name) + '</h4><div class="gp-row">' +
+      D.GROUPS.filter(k => k.dim === dim.id).map(k => {
       const v = E.groupShares(g, k.id)[g.party];
       const d = v - (g.grpStart ? g.grpStart[k.id] : v);
       const sat = 1 / (1 + Math.max(0, g.grp[k.id][g.party]) / 3);
@@ -499,7 +500,7 @@
         '<div class="gp-bar"><span style="width:' + Math.min(100, v / 50 * 100) + '%"></span></div>' +
         '<div class="gp-topics">' + topics + '</div>' +
         (sat < 0.6 ? '<p class="gp-sat">Schon stark umworben – weitere Ansprache wirkt schwächer.</p>' : '') + '</div>';
-    }).join('');
+      }).join('') + '</div>').join('');
   }
 
   // Was die Konkurrenz in der letzten Woche getan hat.
@@ -1332,7 +1333,7 @@
       ['📅', 'Woche für Woche', 'Jede Woche habt ihr ' + game.apMax + ' Aktionen. Danach gibt es eine neue Umfrage – und manchmal eine Eilmeldung, auf die ihr reagieren müsst.'],
       ['📺', 'TV-Duell in Woche ' + E.DUEL_WEEK, 'Kurz vor der Wahl kommt die Elefantenrunde. Wer bei den wichtigsten Themen sattelfest ist, punktet.'],
       ['🥊', 'Die Konkurrenz schläft nicht', 'Die anderen Parteien setzen ihre Themen, kämpfen um knappe Länder – und schlagen zurück, wenn ihr zu stark werdet oder ihnen eure Kernthemen streitig machen wollt.'],
-      ['👥', 'Wählergruppen und Abnutzung', 'Junge, Ältere, Arbeitnehmer, Akademiker, Stadt und Land wollen unterschiedlich angesprochen werden. Wer immer dasselbe macht, verliert Wirkung – Geld ist knapp, TV-Zeit wird teurer.'],
+      ['👥', 'Wählergruppen und Abnutzung', 'Junge, Mittlere und Ältere, Akademiker und Nicht-Akademiker, Stadt und Land wollen unterschiedlich angesprochen werden. Wer immer dasselbe macht, verliert Wirkung – Geld ist knapp, TV-Zeit wird teurer.'],
       ['📊', 'Umfragen sind nur Umfragen', 'Jede Umfrage hat eine Fehlerspanne von ± ' + E.POLL_RANGE + ' Punkten. Wo ihr wirklich steht, zeigt erst der Wahlabend. Und manche Entscheidung holt euch Wochen später wieder ein.']
     ].map(st => '<li><span class="ko-step-icon" aria-hidden="true">' + st[0] + '</span><div><b>' + st[1] + '</b><p>' + st[2] + '</p></div></li>').join('');
   }

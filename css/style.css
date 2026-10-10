@@ -1595,7 +1595,9 @@ h2 .flyer-hint { margin: 0; }
 .action .aworn { font-size: .76rem; font-weight: 700; color: #b9770e; }
 
 /* Wählergruppen */
-.groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 10px; }
+.groups { margin-top: 6px; }
+.gp-dim { margin: 14px 0 8px; font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.gp-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
 .gp-card { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
 .gp-head { display: flex; align-items: center; gap: 10px; }
 .gp-icon { font-size: 1.6rem; }

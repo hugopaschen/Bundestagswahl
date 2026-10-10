@@ -29,12 +29,20 @@
   const POLL_RANGE = 3;        // Fehlerspanne der veröffentlichten Umfragen (± Prozentpunkte)
   const GROUP_SAT = 3;         // Sättigung: je mehr Bonus eine Gruppe schon hat, desto weniger wirkt mehr
   const GROUP_IDS = D.GROUPS.map(k => k.id);
-  // Abweichungen der Parteien je Gruppe, so zentriert, dass der gewichtete Schnitt 0 ergibt.
-  const LEAN = {};
-  D.GROUPS.forEach(k => { LEAN[k.id] = {}; });
+  // Jede Dimension (Alter, Bildung, Wohnort) zählt gleich; innerhalb einer Dimension ergeben
+  // die Anteile 100 %. W = Gewicht einer Gruppe an der gesamten Wirkung (Summe 1).
+  const DIM_COUNT = new Set(D.GROUPS.map(k => k.dim)).size;
+  const W = {};
+  D.GROUPS.forEach(k => { W[k.id] = k.weight / DIM_COUNT; });
+  // Faktor je Partei und Gruppe, je Dimension so ausgeglichen, dass der gewichtete Schnitt 1 ergibt.
+  const FACTOR = {};
+  D.GROUPS.forEach(k => { FACTOR[k.id] = {}; });
   PARTY_IDS.forEach(p => {
-    const mean = D.GROUPS.reduce((s, k) => s + k.weight * (k.lean[p] || 0), 0);
-    D.GROUPS.forEach(k => { LEAN[k.id][p] = (k.lean[p] || 0) - mean; });
+    new Set(D.GROUPS.map(k => k.dim)).forEach(dim => {
+      const ks = D.GROUPS.filter(k => k.dim === dim);
+      const mean = ks.reduce((s, k) => s + k.weight * (k.factor[p] || 1), 0) / ks.reduce((s, k) => s + k.weight, 0);
+      ks.forEach(k => { FACTOR[k.id][p] = (k.factor[p] || 1) / mean; });
+    });
   });
 
   const party = id => D.PARTIES.find(p => p.id === id);
@@ -279,7 +287,7 @@
   // Bundesweite Wirkung der Wählergruppen-Boni: gewichteter Schnitt über alle Gruppen.
   function groupEffect(g, p) {
     if (!g.grp) return 0;
-    return D.GROUPS.reduce((s, k) => s + k.weight * (g.grp[k.id][p] || 0), 0);
+    return D.GROUPS.reduce((s, k) => s + W[k.id] * ((g.grp[k.id] && g.grp[k.id][p]) || 0), 0);
   }
 
   // ---------- Umfragen mit Fehlerspanne ----------
@@ -328,7 +336,7 @@
     let norm = 0;
     D.GROUPS.forEach(k => {
       raw[k.id] = (ch[k.id] || 1) * topicPref(k, topic);
-      norm += k.weight * raw[k.id];
+      norm += W[k.id] * raw[k.id];
     });
     GROUP_IDS.forEach(id => { raw[id] /= norm; });
     return raw;
@@ -341,7 +349,7 @@
   // Wie viel einer Aktion bei den Zielgruppen noch ankommt (1 = unverbraucht).
   function groupEfficiency(g, p, channel, topic) {
     const mix = groupMix(channel, topic);
-    return D.GROUPS.reduce((s, k) => s + k.weight * mix[k.id] * groupSat(g, k.id, p), 0);
+    return D.GROUPS.reduce((s, k) => s + W[k.id] * mix[k.id] * groupSat(g, k.id, p), 0);
   }
 
   // Verteilt eine bundesweite Wirkung d auf die Gruppen. Gibt die tatsächliche Wirkung zurück.
@@ -351,7 +359,7 @@
     D.GROUPS.forEach(k => {
       const add = d * mix[k.id] * (d > 0 ? groupSat(g, k.id, p) : 1);
       g.grp[k.id][p] += add;
-      total += k.weight * add;
+      total += W[k.id] * add;
     });
     return total;
   }
@@ -367,7 +375,7 @@
       TOPIC_IDS.forEach(t => {
         topic += (g.salience[t] - D.SALIENCE0[t]) * (topicPref(k, t) - 1) * (comp[t] - MEAN_COMPETENCE[t]) / 100;
       });
-      raw[p] = Math.max(0.3, pub[p] + LEAN[groupId][p] + (g.grp[groupId][p] - groupEffect(g, p)) + ISSUE_K * topic);
+      raw[p] = Math.max(0.3, pub[p] * FACTOR[groupId][p] + (g.grp[groupId][p] - groupEffect(g, p)) + ISSUE_K * topic);
     });
     raw[D.OTHER.id] = pub[D.OTHER.id];
     return normalize(raw);
@@ -1356,14 +1364,16 @@
       TOPIC_IDS.forEach(t => { g.salience[t] /= sum; });
     }
     // Spielstände ohne Wählergruppen, KI-Gegner, Umfragefehler und Spätfolgen ergänzen.
-    if (!g.grp) { g.grp = {}; GROUP_IDS.forEach(k => { g.grp[k] = {}; PARTY_IDS.forEach(p => { g.grp[k][p] = 0; }); }); }
+    if (!g.grp) g.grp = {};
+    GROUP_IDS.forEach(k => { if (!g.grp[k]) { g.grp[k] = {}; PARTY_IDS.forEach(p => { g.grp[k][p] = 0; }); } });
     if (!g.compAdj) { g.compAdj = {}; PARTY_IDS.forEach(p => { g.compAdj[p] = {}; }); }
     if (!g.steal) g.steal = {};
     if (!g.delayed) g.delayed = [];
     if (!g.pollErr) { g.pollErr = {}; ALL_IDS.forEach(p => { g.pollErr[p] = 0; }); }
     if (g.otherSwing === undefined) g.otherSwing = 0;
     if (g.spendCount === undefined) { g.spendCount = 0; g.spendWeek = 0; }
-    if (!g.grpStart) { g.grpStart = {}; GROUP_IDS.forEach(k => { g.grpStart[k] = groupShares(g, k)[g.party]; }); }
+    if (!g.grpStart) g.grpStart = {};
+    GROUP_IDS.forEach(k => { if (!(k in g.grpStart)) g.grpStart[k] = groupShares(g, k)[g.party]; });
     const line = defaultProgram(g.party);
     TOPIC_IDS.forEach(t => {
       if (!(t in g.program.positions)) g.program.positions[t] = line.positions[t];
