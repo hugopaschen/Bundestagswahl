@@ -350,6 +350,7 @@ test('Wählergruppen: je Dimension (Alter, Bildung, Wohnort) ergeben die Anteile
   }
   assert.ok(D.GROUPS.some(k => k.id === 'mitte' && /30–59/.test(k.name)));
   assert.ok(D.GROUPS.some(k => k.id === 'jung' && /18–29/.test(k.name)));
+  assert.deepStrictEqual(D.GROUPS.filter(k => k.dim === 'bildung').map(k => k.id), ['niedrig', 'mittel', 'hoch']);
   // Gewichteter Schnitt der Gruppenwerte je Dimension entspricht etwa dem Bundeswert
   const g = E.newGame('gruene', 'Test', 2);
   const nat = E.publishedShares(g).gruene;

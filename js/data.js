@@ -266,11 +266,15 @@
     ]
   };
 
-  // Wählergruppen in drei Dimensionen (Alter, Bildung, Wohnort). Innerhalb jeder Dimension
-  // ergeben die Anteile zusammen 100 % der Wahlberechtigten:
-  // – Alter: Bundeswahlleiterin, Wahlberechtigte zur Bundestagswahl 2025 (18–29 ≈ 13 %, 30–59 ≈ 45 %, 60+ ≈ 42 %)
-  // – Bildung: Mikrozensus, rund ein Fünftel der Erwachsenen hat einen Hochschulabschluss
-  // – Wohnort: knapp ein Drittel lebt in Großstädten ab 100.000 Einwohnern (Destatis)
+  // Wählergruppen in drei Dimensionen (Alter, Bildung, Wohnort). Eine Person gehört zu je einer
+  // Gruppe pro Dimension (z. B. jung + hohe Bildung + Stadt). Innerhalb jeder Dimension ergeben
+  // die Anteile zusammen 100 % der Wahlberechtigten:
+  // – Alter: Bundeswahlleiterin, Wahlberechtigte zur Bundestagswahl 2025
+  //   (18–20: 2,4 %, 21–29: 10,9 % → 13 %; 60+: 42,1 %; Rest 30–59: 45 %)
+  // – Bildung: Bildungsstand nach ISCED (Mikrozensus/Eurostat), Erwachsene: niedrig = höchstens
+  //   Haupt-/Realschule ohne Berufsabschluss (≈ 20 %), mittel = Berufsausbildung oder Abitur (≈ 52 %),
+  //   hoch = Meister/Techniker, Fach-/Hochschulabschluss (≈ 28 %)
+  // – Wohnort: Mehr als zwei Drittel leben außerhalb von Großstädten (bpb, Ländliche Räume) → 32 / 68
   // factor = Ergebnis der Partei in der Gruppe geteilt durch ihr Bundesergebnis, nach den
   // Wahltagsbefragungen zur Bundestagswahl 2025 (Infratest dimap, Forschungsgruppe Wahlen);
   // z. B. Linke bei 18–29: rund 24 % statt 8,8 % → 2,7. Die Engine gleicht die Faktoren je
@@ -285,12 +289,15 @@
     { id: 'aelter', dim: 'alter', name: 'Ältere (60+)', short: 'Ältere', icon: '👵', weight: 0.42,
       topics: { soziales: 1.8, gesundheit: 1.9, sicherheit: 1.6, migration: 1.3, verteidigung: 1.3 },
       factor: { union: 1.28, afd: 0.86, spd: 1.37, gruene: 0.74, linke: 0.55, bsw: 1.0, fdp: 1.0 } },
-    { id: 'arbeit', dim: 'bildung', name: 'Ohne Hochschulabschluss', short: 'Ohne Studium', icon: '👷', weight: 0.80,
-      topics: { wirtschaft: 1.6, soziales: 1.7, migration: 1.4, finanzen: 1.3, sicherheit: 1.3 },
-      factor: { union: 1.0, afd: 1.1, spd: 1.0, gruene: 0.83, linke: 0.89, bsw: 1.0, fdp: 0.77 } },
-    { id: 'akadem', dim: 'bildung', name: 'Akademiker', short: 'Akademiker', icon: '🎓', weight: 0.20,
+    { id: 'niedrig', dim: 'bildung', name: 'Niedrige Bildung', short: 'Niedrig', icon: '🛠️', weight: 0.20,
+      topics: { soziales: 1.8, migration: 1.6, sicherheit: 1.5, gesundheit: 1.3, finanzen: 1.2 },
+      factor: { union: 1.15, afd: 1.3, spd: 1.35, gruene: 0.4, linke: 0.6, bsw: 1.2, fdp: 0.6 } },
+    { id: 'mittel', dim: 'bildung', name: 'Mittlere Bildung', short: 'Mittel', icon: '👷', weight: 0.52,
+      topics: { wirtschaft: 1.7, wohnen: 1.4, familie: 1.4, soziales: 1.3, verkehr: 1.2 },
+      factor: { union: 1.0, afd: 1.3, spd: 0.9, gruene: 0.6, linke: 0.8, bsw: 1.1, fdp: 0.85 } },
+    { id: 'hoch', dim: 'bildung', name: 'Hohe Bildung', short: 'Hoch', icon: '🎓', weight: 0.28,
       topics: { klima: 1.6, bildung: 1.6, europa: 1.8, digitales: 1.5, demokratie: 1.7 },
-      factor: { union: 0.96, afd: 0.57, spd: 0.94, gruene: 1.69, linke: 1.23, bsw: 0.8, fdp: 1.47 } },
+      factor: { union: 0.9, afd: 0.6, spd: 0.85, gruene: 1.65, linke: 1.35, bsw: 0.8, fdp: 1.3 } },
     { id: 'stadt', dim: 'ort', name: 'Großstädter', short: 'Stadt', icon: '🏙️', weight: 0.32,
       topics: { wohnen: 2.0, verkehr: 1.7, klima: 1.4, sicherheit: 1.3 },
       factor: { union: 0.86, afd: 0.71, spd: 1.0, gruene: 1.52, linke: 1.57, bsw: 0.8, fdp: 1.23 } },
@@ -307,13 +314,13 @@
 
   // Wie gut ein Kanal die einzelnen Gruppen erreicht.
   var CHANNELS = {
-    social:     { jung: 2.2, mitte: 1.0, aelter: 0.4, arbeit: 0.8, akadem: 1.1, stadt: 1.4, land: 0.7 },
-    tvspot:     { jung: 0.5, mitte: 1.0, aelter: 1.6, arbeit: 1.1, akadem: 0.8, stadt: 0.8, land: 1.2 },
-    talkshow:   { jung: 0.5, mitte: 0.9, aelter: 1.4, arbeit: 0.7, akadem: 1.6, stadt: 1.0, land: 0.8 },
-    presse:     { jung: 0.7, mitte: 0.9, aelter: 1.2, arbeit: 0.8, akadem: 1.5, stadt: 1.1, land: 0.8 },
-    kundgebung: { jung: 0.7, mitte: 1.0, aelter: 1.1, arbeit: 1.5, akadem: 0.6, stadt: 0.8, land: 1.3 },
-    plakate:    { jung: 0.8, mitte: 1.0, aelter: 1.2, arbeit: 1.0, akadem: 0.8, stadt: 0.9, land: 1.4 },
-    haustuer:   { jung: 0.5, mitte: 0.9, aelter: 1.5, arbeit: 1.0, akadem: 0.8, stadt: 0.7, land: 1.3 }
+    social:     { jung: 2.2, mitte: 1.0, aelter: 0.4, niedrig: 0.8, mittel: 1.0, hoch: 1.2, stadt: 1.4, land: 0.7 },
+    tvspot:     { jung: 0.5, mitte: 1.0, aelter: 1.6, niedrig: 1.4, mittel: 1.1, hoch: 0.7, stadt: 0.8, land: 1.2 },
+    talkshow:   { jung: 0.5, mitte: 0.9, aelter: 1.4, niedrig: 0.6, mittel: 0.9, hoch: 1.6, stadt: 1.0, land: 0.8 },
+    presse:     { jung: 0.7, mitte: 0.9, aelter: 1.2, niedrig: 0.6, mittel: 0.9, hoch: 1.5, stadt: 1.1, land: 0.8 },
+    kundgebung: { jung: 0.7, mitte: 1.0, aelter: 1.1, niedrig: 1.4, mittel: 1.1, hoch: 0.6, stadt: 0.8, land: 1.3 },
+    plakate:    { jung: 0.8, mitte: 1.0, aelter: 1.2, niedrig: 1.3, mittel: 1.0, hoch: 0.7, stadt: 0.9, land: 1.4 },
+    haustuer:   { jung: 0.5, mitte: 0.9, aelter: 1.5, niedrig: 1.2, mittel: 1.0, hoch: 0.8, stadt: 0.7, land: 1.3 }
   };
 
   var SEATS = 630;
