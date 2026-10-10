@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261010-212605';
+  const APP_VERSION = '20261010-213514';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -481,16 +481,16 @@
   }
 
   function renderAgenda() {
-    const comp = E.competenceOf(g, g.party);
     const ids = D.TOPICS.slice().sort((a, b) => g.salience[b.id] - g.salience[a.id]);
     const max = g.salience[ids[0].id];
     let html = '';
     ids.forEach(t => {
-      html += '<span class="' + (comp[t.id] >= 60 ? 'strong' : '') + '">' + t.icon + ' ' + esc(t.name) + (comp[t.id] >= 60 ? ' ★' : '') + '</span>' +
+      const core = E.isCore(g, t.id);
+      html += '<span class="' + (core ? 'strong' : '') + '">' + t.icon + ' ' + esc(t.name) + (core ? ' 🎯' : '') + '</span>' +
         '<div class="track"><div class="fill" style="width:' + (g.salience[t.id] / max * 100) + '%"></div></div>' +
         '<span class="num">' + Math.round(g.salience[t.id] * 100) + ' %</span>';
     });
-    $('agenda').innerHTML = html + '<span class="muted small" style="grid-column:1/-1">★ = Stärke deiner Partei. Mach deine Themen wichtiger!</span>';
+    $('agenda').innerHTML = html + '<span class="muted small" style="grid-column:1/-1">🎯 = eure Kernthemen. Macht sie wichtiger!</span>';
   }
 
   function renderNews() {
