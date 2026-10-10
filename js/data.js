@@ -266,6 +266,40 @@
     ]
   };
 
+  // Wählergruppen: Gewicht in der Wählerschaft, Lieblingsthemen (Faktor auf die Wirkung)
+  // und Abweichung der Parteien vom Bundesschnitt (wird in der Engine zentriert).
+  var GROUPS = [
+    { id: 'jung', name: 'Junge Wähler', short: 'Junge', icon: '🧑‍🎓', weight: 0.14,
+      topics: { klima: 1.9, bildung: 1.8, digitales: 1.9, wohnen: 1.7, europa: 1.3 },
+      lean: { union: -9, afd: 1, spd: -4, gruene: 4, linke: 7, bsw: -1, fdp: 1 } },
+    { id: 'aelter', name: 'Ältere (60+)', short: 'Ältere', icon: '👵', weight: 0.30,
+      topics: { soziales: 1.8, gesundheit: 1.9, sicherheit: 1.6, migration: 1.3, verteidigung: 1.3 },
+      lean: { union: 9, afd: -2, spd: 5, gruene: -5, linke: -4, bsw: 1, fdp: -1 } },
+    { id: 'arbeit', name: 'Arbeitnehmer', short: 'Arbeitnehmer', icon: '👷', weight: 0.22,
+      topics: { wirtschaft: 1.7, soziales: 1.7, wohnen: 1.4, finanzen: 1.3, migration: 1.3 },
+      lean: { union: -3, afd: 7, spd: 2, gruene: -5, linke: 0, bsw: 1, fdp: -1 } },
+    { id: 'akadem', name: 'Akademiker', short: 'Akademiker', icon: '🎓', weight: 0.14,
+      topics: { klima: 1.6, bildung: 1.6, europa: 1.8, digitales: 1.5, demokratie: 1.7 },
+      lean: { union: 0, afd: -9, spd: -1, gruene: 8, linke: 2, bsw: -1, fdp: 2 } },
+    { id: 'stadt', name: 'Großstädter', short: 'Stadt', icon: '🏙️', weight: 0.10,
+      topics: { wohnen: 2.0, verkehr: 1.7, klima: 1.4, sicherheit: 1.3 },
+      lean: { union: -5, afd: -7, spd: 0, gruene: 7, linke: 6, bsw: -1, fdp: 1 } },
+    { id: 'land', name: 'Ländlicher Raum', short: 'Land', icon: '🌾', weight: 0.10,
+      topics: { land: 2.2, verkehr: 1.5, migration: 1.4, familie: 1.4, wirtschaft: 1.2 },
+      lean: { union: 5, afd: 6, spd: -1, gruene: -7, linke: -4, bsw: 1, fdp: 0 } }
+  ];
+
+  // Wie gut ein Kanal die einzelnen Gruppen erreicht.
+  var CHANNELS = {
+    social:     { jung: 2.2, aelter: 0.4, arbeit: 0.8, akadem: 1.1, stadt: 1.4, land: 0.7 },
+    tvspot:     { jung: 0.5, aelter: 1.6, arbeit: 1.1, akadem: 0.8, stadt: 0.8, land: 1.2 },
+    talkshow:   { jung: 0.5, aelter: 1.4, arbeit: 0.7, akadem: 1.6, stadt: 1.0, land: 0.8 },
+    presse:     { jung: 0.7, aelter: 1.2, arbeit: 0.8, akadem: 1.5, stadt: 1.1, land: 0.8 },
+    kundgebung: { jung: 0.7, aelter: 1.1, arbeit: 1.5, akadem: 0.6, stadt: 0.8, land: 1.3 },
+    plakate:    { jung: 0.8, aelter: 1.2, arbeit: 1.0, akadem: 0.8, stadt: 0.9, land: 1.4 },
+    haustuer:   { jung: 0.5, aelter: 1.5, arbeit: 1.0, akadem: 0.8, stadt: 0.7, land: 1.3 }
+  };
+
   var SEATS = 630;
 
   var data = {
@@ -276,7 +310,9 @@
     STATES: STATES,
     SEATS: SEATS,
     PROGRAM: PROGRAM,
-    PROGRAM_RULES: PROGRAM_RULES
+    PROGRAM_RULES: PROGRAM_RULES,
+    GROUPS: GROUPS,
+    CHANNELS: CHANNELS
   };
 
   if (typeof module !== 'undefined' && module.exports) {

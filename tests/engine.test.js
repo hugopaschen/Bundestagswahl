@@ -156,9 +156,9 @@ test('Geld-Hinweis: erscheint bei voller Kasse und verschwindet, wenn das Geld e
   assert.strictEqual(E.moneyWarning(bsw), null);
   union.money = 10; // weniger als ein TV-Spot pro verbleibender Woche
   assert.strictEqual(E.moneyWarning(union), null);
-  union.week = union.maxWeeks; union.money = 3; // letzte Woche, ein Spot noch möglich
+  union.week = union.maxWeeks; union.money = 4.5; // letzte Woche, ein Spot (4,25 Mio. €) noch möglich
   assert.ok(E.moneyWarning(union).lastWeek);
-  union.money = 2; // reicht nicht mehr für einen Spot
+  union.money = 4; // reicht nicht mehr für einen Spot
   assert.strictEqual(E.moneyWarning(union), null);
 });
 
@@ -249,4 +249,83 @@ test('Fragen der Fachkonferenz: 30 gültige Fragen je Thema', () => {
       assert.ok(x.e && x.e.length > 10, x.q);
     }
   }
+});
+
+test('Abnutzung: Spendendinner nur einmal pro Woche, Erträge sinken, TV-Spots werden teurer', () => {
+  const g = E.newGame('union', 'Test', 5);
+  const m0 = g.money;
+  assert.ok(E.performAction(g, 'spenden').ok);
+  const first = g.money - m0;
+  assert.strictEqual(E.performAction(g, 'spenden').ok, false);
+  assert.ok(!E.spendenAvailable(g));
+  g.week = 2; g.ap = 3;
+  const m1 = g.money;
+  assert.ok(E.performAction(g, 'spenden').ok);
+  assert.ok(g.money - m1 < first + 0.3);
+  assert.ok(E.spendenYield(g) < first);
+  g.week = 1;
+  const early = E.actionCost('tvspot', null, g);
+  g.week = 8;
+  assert.ok(E.actionCost('tvspot', null, g) > early);
+});
+
+test('Umfragen haben eine Fehlerspanne von höchstens ± 3, die Wahl nutzt den wahren Wert', () => {
+  const g = E.newGame('spd', 'Test', 9);
+  for (let w = 0; w < 5; w++) {
+    E.endWeek(g);
+    if (g.pendingEvent) E.resolveEvent(g, 0);
+    Object.values(g.pollErr).forEach(e => assert.ok(Math.abs(e) <= E.POLL_RANGE));
+    const pub = E.publishedShares(g);
+    assert.ok(Math.abs(Object.values(pub).reduce((a, b) => a + b, 0) - 100) < 1e-6);
+  }
+  assert.ok(g.history.every(h => h.shares && h.real));
+});
+
+test('Wählergruppen: Social Media erreicht vor allem Junge, TV-Spots vor allem Ältere', () => {
+  const social = E.groupMix('social');
+  const tv = E.groupMix('tvspot');
+  assert.ok(social.jung > social.aelter);
+  assert.ok(tv.aelter > tv.jung);
+  const g = E.newGame('gruene', 'Test', 3);
+  const before = E.groupShares(g, 'jung').gruene;
+  for (let i = 0; i < 3; i++) { g.ap = 3; E.performAction(g, 'social', { topic: 'klima' }); }
+  assert.ok(g.grp.jung.gruene > g.grp.aelter.gruene);
+  assert.ok(E.groupShares(g, 'jung').gruene >= before - 1.5);
+  // Sättigung: dieselbe Zielgruppe bringt immer weniger
+  assert.ok(E.groupEfficiency(g, 'gruene', 'social', 'klima') < 1);
+});
+
+test('KI-Gegner reagieren: Negativkampagnen und besetzte Kernthemen kommen vor', () => {
+  let attacks = 0, steals = 0;
+  for (let seed = 0; seed < 30; seed++) {
+    const g = E.newGame('union', 'Test', seed);
+    while (g.phase === 'campaign') {
+      if (g.pendingEvent) E.resolveEvent(g, 0);
+      if (g.week === E.DUEL_WEEK && !g.duelDone) { E.startDuel(g); while (g.duel) E.duelAnswer(g, 'sachlich'); }
+      E.endWeek(g);
+    }
+    attacks += g.log.filter(l => l.type === 'ai' && /Negativkampagne/.test(l.text)).length;
+    steals += g.log.filter(l => l.type === 'ai' && /Kernthema/.test(l.text)).length;
+  }
+  assert.ok(attacks > 0 && steals > 0);
+});
+
+test('Spätfolgen: Eine angenommene Großspende kann Wochen später zur Spendenaffäre werden', () => {
+  let followed = 0;
+  for (let seed = 0; seed < 20; seed++) {
+    const g = E.newGame('fdp', 'Test', seed);
+    g.pendingEvent = 'grossspende';
+    E.resolveEvent(g, 0);
+    if (!g.delayed.length) continue;
+    assert.ok(g.delayed[0].week > g.week);
+    while (g.phase === 'campaign' && g.pendingEvent !== 'spendenaffaere2') {
+      if (g.pendingEvent) E.resolveEvent(g, 0);
+      if (g.week === E.DUEL_WEEK && !g.duelDone) { E.startDuel(g); while (g.duel) E.duelAnswer(g, 'sachlich'); }
+      E.endWeek(g);
+    }
+    if (g.pendingEvent === 'spendenaffaere2') followed++;
+  }
+  assert.ok(followed > 0);
+  // Folgeereignisse werden nie zufällig gezogen
+  assert.ok(E.EVENTS.filter(e => e.followUp).length >= 5);
 });

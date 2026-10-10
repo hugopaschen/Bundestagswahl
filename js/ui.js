@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261010-214404';
+  const APP_VERSION = '20261010-222854';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -149,7 +149,7 @@
   // ---------- Spielbildschirm ----------
 
   function renderGame() {
-    const shares = E.nationalShares(g);
+    const shares = E.publishedShares(g);
     const me = g.party;
     const p = E.party(me);
 
@@ -164,7 +164,7 @@
     $('stat-ap').textContent = '●'.repeat(g.ap) + '○'.repeat(g.apMax - g.ap);
     $('stat-ap').setAttribute('aria-label', g.ap + ' von ' + g.apMax + ' Aktionen übrig');
     const diff = shares[me] - g.startShares[me];
-    $('stat-poll').innerHTML = pct(shares[me]) + ' <span class="small ' + (diff >= 0 ? 'pos' : 'neg') + '">' + signed(diff) + '</span>';
+    $('stat-poll').innerHTML = pct(shares[me]) + '<span class="poll-err"> ± ' + E.POLL_RANGE + '</span> <span class="small ' + (diff >= 0 ? 'pos' : 'neg') + '">' + signed(diff) + '</span>';
     $('week-bar').style.width = ((g.week - 1) / g.maxWeeks * 100) + '%';
     $('btn-end-week').textContent = g.week >= g.maxWeeks ? 'Zur Wahl! 🗳️' : 'Woche beenden';
     $('btn-end-week').disabled = !!(g.pendingEvent || g.duel || (g.week === E.DUEL_WEEK && !g.duelDone));
@@ -174,7 +174,9 @@
     renderTopics();
     renderMoneyHint();
     renderActions();
+    renderRivals();
     renderPollBars(shares);
+    renderGroups();
     renderChart();
     renderAgenda();
     renderNews();
@@ -224,7 +226,7 @@
     D.STATES.forEach(st => {
       const geo = GEO.states[st.id];
       if (!geo) return;
-      const s = E.stateShares(g, st.id);
+      const s = E.publishedStateShares(g, st.id);
       const lead = E.leader(s);
       const isSel = st.id === selState;
       const shape = '<path class="land-shape" d="' + geo.d + '" style="fill:' + col(lead) + '"></path>';
@@ -267,7 +269,7 @@
 
   function renderStateDetail() {
     const st = E.stateById(selState);
-    const s = E.stateShares(g, st.id);
+    const s = E.publishedStateShares(g, st.id);
     // Feste Skala für alle Länder (0–50 %), damit die 5-%-Linie beim Wechsel nicht springt; höhere Werte werden gekappt.
     const top = CHART_TOP;
     const box = $('state-detail');
@@ -314,6 +316,22 @@
     return { comp, now, trend };
   }
 
+  function groupNames(ids) {
+    return ids.map(id => { const k = D.GROUPS.find(x => x.id === id); return k.icon + ' ' + k.short; }).join(', ');
+  }
+
+  function topicGroupsLine(topic) {
+    const fans = D.GROUPS.filter(k => k.topics[topic]).sort((a, b) => b.topics[topic] - a.topics[topic]).map(k => k.id);
+    return '<p class="td-groups">' + (fans.length ? 'Besonders wichtig für: <b>' + groupNames(fans) + '</b>' : 'Kein Lieblingsthema einer bestimmten Wählergruppe.') + '</p>';
+  }
+
+  function stolenLine(topic) {
+    const thief = E.stolenBy(g, topic);
+    if (!thief) return '';
+    return '<p class="td-stolen">⚠️ ' + esc(E.party(thief).name) + ' macht euch dieses Thema streitig: Eure Aktionen wirken bis Woche ' +
+      g.steal[topic].until + ' um 30 % schwächer.</p>';
+  }
+
   function renderTopics() {
     const list = $('topic-list');
     const detail = $('topic-detail');
@@ -328,7 +346,7 @@
         '<p class="td-name">' + esc(t.name) + (E.isCore(g, t.id) ? ' <span class="td-core">🎯 Kernthema · Aktionen +25 %</span>' : '') + '</p>' +
         '<p class="td-stats">Kompetenz <b>' + st.comp + '</b>/100 · Wählerinteresse <b>' + Math.round(st.now) + ' %</b> ' +
         '<span class="' + (st.trend > 0.5 ? 'pos' : st.trend < -0.5 ? 'neg' : 'muted') + '">' + (st.trend > 0.5 ? '▲' : st.trend < -0.5 ? '▼' : '•') + '</span></p>' +
-        '</div></div>';
+        '</div></div>' + topicGroupsLine(t.id) + stolenLine(t.id);
       detail.querySelector('.td-back').addEventListener('click', () => { selTopic = null; renderGame(); $('topic-list').scrollIntoView({ block: 'nearest' }); });
       return;
     }
@@ -339,7 +357,9 @@
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'topic-card' + (core ? ' core' : '');
+      const thief = E.stolenBy(g, t.id);
       b.innerHTML = (core ? '<span class="tc-badge">🎯 Kernthema</span>' : '') +
+        (thief ? '<span class="tc-stolen" title="' + esc(E.party(thief).name) + ' macht euch das Thema streitig">⚠️ ' + esc(E.party(thief).short) + '</span>' : '') +
         '<span class="tc-icon" aria-hidden="true">' + t.icon + '</span>' +
         '<span class="tc-name">' + cardName(t.name) + '</span>' +
         '<span class="tc-meter"><span>Kompetenz <b>' + st.comp + '</b></span><span class="core-bar"><span style="width:' + st.comp + '%"></span></span></span>' +
@@ -366,21 +386,50 @@
   function topicActionHint(a, comp) {
     if (a.id === 'talkshow') return 'Erfolgschance ca. ' + Math.round((0.35 + 0.45 * comp / 100) * 100) + ' %';
     if (a.id === 'social') return 'Shitstorm-Risiko ca. ' + Math.round(Math.max(0, 0.25 - 0.1 * (comp - 50) / 50) * 100) + ' %';
-    if (a.id === 'tvspot') return comp >= 60 ? 'eure Stärke – lohnt sich' : comp < 40 ? 'schwaches Thema – wenig Wirkung' : 'mittlere Wirkung';
+    if (a.id === 'tvspot') return (comp >= 60 ? 'eure Stärke – lohnt sich' : comp < 40 ? 'schwaches Thema – wenig Wirkung' : 'mittlere Wirkung') + ' · Sendezeit wird jede Woche teurer';
     if (a.id === 'presse') return comp >= 50 ? 'rückt eure Stärke in den Fokus' : 'Vorsicht: rückt eine Schwäche in den Fokus';
     return '';
   }
 
+  // Schlüssel, unter dem der Spielkern die Abnutzung einer Aktion zählt.
+  function usageKey(a) {
+    if (a.id === 'talkshow') return 'talkshow';
+    if (a.scope === 'region') return a.id + ':' + selState;
+    if (a.scope === 'topic') return a.id + ':' + selTopic;
+    return null;
+  }
+
+  // Wirkung im Vergleich zu einer frischen Aktion (Abnutzung × verbrauchte Zielgruppen).
+  function freshness(a) {
+    if (a.id === 'spenden' || a.id === 'presse') return 1;
+    const key = usageKey(a);
+    const n = (key && g.usage[key]) || 0;
+    let f = 1 / (1 + 0.8 * n);
+    f *= E.groupEfficiency(g, g.party, a.id, a.scope === 'topic' ? selTopic : null);
+    return f;
+  }
+
+  function reachLine(a) {
+    if (!D.CHANNELS[a.id]) return '';
+    const mix = E.groupMix(a.id, a.scope === 'topic' ? selTopic : null);
+    const top = E.GROUP_IDS.slice().sort((x, y) => mix[y] - mix[x]).slice(0, 2);
+    return '<span class="areach">Erreicht v. a. ' + groupNames(top) + '</span>';
+  }
+
   function actionButton(a, extra) {
-    const cost = E.actionCost(a.id, selState);
-    const disabled = !E.canAct(g) || (a.scope === 'topic' && !selTopic) || g.money + 1e-9 < cost;
+    const cost = E.actionCost(a.id, selState, g);
+    const spendBlocked = a.id === 'spenden' && !E.spendenAvailable(g);
+    const disabled = !E.canAct(g) || (a.scope === 'topic' && !selTopic) || g.money + 1e-9 < cost || spendBlocked;
+    if (a.id === 'spenden') extra = spendBlocked ? 'Diese Woche schon veranstaltet – wieder ab nächster Woche' : 'bringt ca. ' + money(E.spendenYield(g)) + ' · jedes Mal weniger';
+    const f = freshness(a);
+    const worn = f < 0.92 ? '<span class="aworn">♻️ Abgenutzt: wirkt nur noch zu ca. ' + Math.round(f * 100) + ' %</span>' : '';
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'action';
     b.disabled = disabled;
     b.innerHTML = '<span class="aname">' + a.icon + ' ' + esc(a.name) + '</span>' +
       '<span class="adesc">' + esc(a.desc) + '</span>' +
-      (extra ? '<span class="ahint">' + esc(extra) + '</span>' : '') +
+      (extra ? '<span class="ahint">' + esc(extra) + '</span>' : '') + reachLine(a) + worn +
       '<span class="ameta">' + (cost ? money(cost) : 'kostenlos') + '</span>';
     b.addEventListener('click', () => {
       const res = E.performAction(g, a.id, { state: selState, topic: selTopic });
@@ -413,12 +462,16 @@
   const POLL_ORDER = ['union', 'afd', 'spd', 'gruene', 'linke', 'bsw', 'fdp', D.OTHER.id];
 
   function renderPollBars(shares) {
-    const top = Math.max(35, Math.ceil((Math.max.apply(null, POLL_ORDER.map(p => shares[p])) + 4) / 5) * 5);
+    const R = E.POLL_RANGE;
+    const top = Math.max(35, Math.ceil((Math.max.apply(null, POLL_ORDER.map(p => shares[p])) + R + 4) / 5) * 5);
     let cols = '';
     let labels = '';
     POLL_ORDER.forEach(p => {
       const d = p === D.OTHER.id ? null : shares[p] - g.startShares[p];
-      cols += '<div class="pc-col"><span class="pc-val">' + pct(shares[p]) + '</span>' +
+      const lo = Math.max(0, shares[p] - R);
+      const range = p === D.OTHER.id ? '' : '<i class="pc-range" style="bottom:' + (lo / top * 100) + '%;height:' + ((shares[p] + R - lo) / top * 100) + '%" title="Fehlerspanne ± ' + R + '"></i>';
+      cols += '<div class="pc-col"><span class="pc-val" style="bottom:' + ((shares[p] + (p === D.OTHER.id ? 0 : R)) / top * 100) + '%">' + pct(shares[p]) +
+        (p === D.OTHER.id ? '' : '<small>± ' + R + '</small>') + '</span>' + range +
         '<div class="pc-bar" style="height:' + (shares[p] / top * 100) + '%;background:' + col(p) + '"></div></div>';
       labels += '<div class="pc-label' + (p === g.party ? ' me' : '') + '"><span class="pc-name">' + (p === D.OTHER.id ? 'Andere' : short(p)) + '</span>' +
         '<span class="pc-diff">' + (d === null ? '' : signed(d)) + '</span></div>';
@@ -427,6 +480,36 @@
       '<div class="pc-labels">' + labels + '</div>';
   }
 
+
+  // Wählergruppen: euer Umfragewert je Gruppe, Veränderung seit Start und die Lieblingsthemen.
+  function renderGroups() {
+    const box = $('groups');
+    if (!box) return;
+    box.innerHTML = D.GROUPS.map(k => {
+      const v = E.groupShares(g, k.id)[g.party];
+      const d = v - (g.grpStart ? g.grpStart[k.id] : v);
+      const sat = 1 / (1 + Math.max(0, g.grp[k.id][g.party]) / 3);
+      const topics = Object.keys(k.topics).sort((a, b) => k.topics[b] - k.topics[a]).slice(0, 3).map(id => {
+        const t = E.topicById(id);
+        return '<span class="gp-topic' + (E.isCore(g, id) ? ' core' : '') + '" title="' + esc(t.name) + '">' + t.icon + ' ' + esc(t.name) + (E.isCore(g, id) ? ' 🎯' : '') + '</span>';
+      }).join('');
+      return '<div class="gp-card"><div class="gp-head"><span class="gp-icon" aria-hidden="true">' + k.icon + '</span>' +
+        '<span class="gp-name">' + esc(k.name) + '<small>' + Math.round(k.weight * 100) + ' % der Wähler</small></span>' +
+        '<span class="gp-val">' + pct(v) + '<small class="' + (d >= 0 ? 'pos' : 'neg') + '">' + signed(d) + '</small></span></div>' +
+        '<div class="gp-bar"><span style="width:' + Math.min(100, v / 50 * 100) + '%"></span></div>' +
+        '<div class="gp-topics">' + topics + '</div>' +
+        (sat < 0.6 ? '<p class="gp-sat">Schon stark umworben – weitere Ansprache wirkt schwächer.</p>' : '') + '</div>';
+    }).join('');
+  }
+
+  // Was die Konkurrenz in der letzten Woche getan hat.
+  function renderRivals() {
+    const box = $('rival-news');
+    if (!box) return;
+    const items = g.log.filter(l => l.type === 'ai' && l.week === g.week - 1);
+    box.hidden = !items.length;
+    box.innerHTML = '<strong>🥊 Die Konkurrenz letzte Woche</strong><ul>' + items.map(l => '<li>' + esc(l.text) + '</li>').join('') + '</ul>';
+  }
 
   function renderChart() {
     // Breite an den Platz anpassen, damit Beschriftungen bei Vollbild nicht mitwachsen.
@@ -501,7 +584,7 @@
 
   function renderNews() {
     $('news').innerHTML = g.log.map(l =>
-      '<li><span class="wk">Woche ' + l.week + '</span><span class="' + (l.type === 'event' || l.type === 'duel' ? 'event' : '') + '">' + esc(l.text) + '</span></li>'
+      '<li><span class="wk">Woche ' + l.week + '</span><span class="' + (l.type === 'event' || l.type === 'duel' ? 'event' : l.type === 'ai' ? 'ai' : '') + '">' + esc(l.text) + '</span></li>'
     ).join('');
   }
 
@@ -543,7 +626,7 @@
     openModal('Woche ' + g.week + ' · Eilmeldung', ev.title, '<p>' + esc(E.eventText(g, ev)) + '</p><p class="muted small">Wie reagiert ihr?</p>',
       ev.choices.map((c, i) => ({
         label: c.label,
-        hint: c.hint,
+        hint: c.hint + (c.later ? ' · ⏳ kann Spätfolgen haben' : ''),
         onClick: () => {
           const res = E.resolveEvent(g, i);
           save();
@@ -718,6 +801,8 @@
       '<p class="eyebrow">Euer Wahlabend</p><h2>' + esc(o.rating) + '</h2>' +
       '<div class="score">' + o.score + '</div><p class="muted small">Punkte</p>' +
       '<p><strong>' + esc(p.name) + ': ' + pct(r.shares[g.party]) + '</strong> (' + signed(o.delta) + ' seit Wahlkampfstart)</p>' +
+      (r.lastPoll ? '<p class="muted small">Letzte Umfrage: ' + pct(r.lastPoll[g.party]) + ' ± ' + E.POLL_RANGE + ' – das echte Ergebnis lag ' +
+        (Math.abs(r.shares[g.party] - r.lastPoll[g.party]) < 0.3 ? 'fast genau darauf.' : signed(r.shares[g.party] - r.lastPoll[g.party]) + ' Punkte daneben.') + '</p>' : '') +
       '<p>' + esc(statusText) + '</p>' +
       '<p>' + (o.goal ? '✅ Wahlziel erreicht: ' : '❌ Wahlziel verfehlt: ') + esc(p.goalText) + '</p>';
     card.hidden = false;
@@ -1226,7 +1311,7 @@
     show('kickoff');
     applyPartyTheme(screen, game.party);
     document.body.style.background = getComputedStyle(screen).getPropertyValue('--fl-paper').trim();
-    const shares = E.nationalShares(game);
+    const shares = E.publishedShares(game);
     const weeks = game.maxWeeks;
     $('ko-kicker').textContent = k.place + ' · noch ' + weeks + ' Wochen bis zur Bundestagswahl';
     $('ko-title').textContent = k.title;
@@ -1236,7 +1321,7 @@
     $('ko-speech').innerHTML = '<p>„' + esc(k.speech) + '“</p><footer>— ' + esc(speaker) + ' bei der Auftaktkundgebung</footer>';
     const core = game.program.core.map(id => E.topicById(id));
     $('ko-stats').innerHTML =
-      '<div class="ko-stat"><span class="ko-label">📊 Erste Umfrage</span><span class="ko-big">' + pct(shares[game.party]) + '</span></div>' +
+      '<div class="ko-stat"><span class="ko-label">📊 Erste Umfrage</span><span class="ko-big">' + pct(shares[game.party]) + '<small> ± ' + E.POLL_RANGE + '</small></span></div>' +
       '<div class="ko-stat"><span class="ko-label">🏁 Euer Wahlziel</span><span class="ko-goal">' + esc(p.goalText) + '</span></div>' +
       '<div class="ko-stat"><span class="ko-label">💶 Wahlkampfkasse</span><span class="ko-big">' + money(game.money) + '</span></div>' +
       '<div class="ko-stat ko-core"><span class="ko-label">🎯 Eure Kernthemen</span><span class="ko-topics">' +
@@ -1245,7 +1330,10 @@
       ['🗺️', 'Vor Ort kämpfen', 'Auf der Seite „Deutschland“ sucht ihr euch Bundesländer aus und geht mit Kundgebungen, Plakaten und Haustürwahlkampf auf Stimmenfang.'],
       ['📣', 'Themen setzen', 'Unter „Aktionen“ wählt ihr ein Thema und macht es mit TV-Spots, Social Media, Pressekonferenzen und Talkshows groß – am besten eure Kernthemen.'],
       ['📅', 'Woche für Woche', 'Jede Woche habt ihr ' + game.apMax + ' Aktionen. Danach gibt es eine neue Umfrage – und manchmal eine Eilmeldung, auf die ihr reagieren müsst.'],
-      ['📺', 'TV-Duell in Woche ' + E.DUEL_WEEK, 'Kurz vor der Wahl kommt die Elefantenrunde. Wer bei den wichtigsten Themen sattelfest ist, punktet.']
+      ['📺', 'TV-Duell in Woche ' + E.DUEL_WEEK, 'Kurz vor der Wahl kommt die Elefantenrunde. Wer bei den wichtigsten Themen sattelfest ist, punktet.'],
+      ['🥊', 'Die Konkurrenz schläft nicht', 'Die anderen Parteien setzen ihre Themen, kämpfen um knappe Länder – und schlagen zurück, wenn ihr zu stark werdet oder ihnen eure Kernthemen streitig machen wollt.'],
+      ['👥', 'Wählergruppen und Abnutzung', 'Junge, Ältere, Arbeitnehmer, Akademiker, Stadt und Land wollen unterschiedlich angesprochen werden. Wer immer dasselbe macht, verliert Wirkung – Geld ist knapp, TV-Zeit wird teurer.'],
+      ['📊', 'Umfragen sind nur Umfragen', 'Jede Umfrage hat eine Fehlerspanne von ± ' + E.POLL_RANGE + ' Punkten. Wo ihr wirklich steht, zeigt erst der Wahlabend. Und manche Entscheidung holt euch Wochen später wieder ein.']
     ].map(st => '<li><span class="ko-step-icon" aria-hidden="true">' + st[0] + '</span><div><b>' + st[1] + '</b><p>' + st[2] + '</p></div></li>').join('');
   }
 
@@ -1354,15 +1442,17 @@
 
   $('btn-end-week').addEventListener('click', () => {
     if (g.ap > 0 && !window.confirm('Du hast noch ' + g.ap + ' Aktion(en) übrig. Woche trotzdem beenden?')) return;
-    const before = E.nationalShares(g)[g.party];
+    const before = E.publishedShares(g)[g.party];
     const res = E.endWeek(g);
     if (!res.ok) { if (res.text) toast(res.text); return; }
     save();
     $('feedback').textContent = '';
     $('local-feedback').textContent = '';
     if (res.election) { closeModal(); showElection(); return; }
-    const after = E.nationalShares(g)[g.party];
-    toast('Neue Umfrage: ' + pct(after) + ' (' + signed(after - before) + ' zur Vorwoche)');
+    const after = E.publishedShares(g)[g.party];
+    const rivals = g.log.filter(l => l.type === 'ai' && l.week === g.week - 1 && /euch|Kernthema/.test(l.text)).length;
+    toast('Neue Umfrage: ' + pct(after) + ' ± ' + E.POLL_RANGE + ' (' + signed(after - before) + ' zur Vorwoche)' +
+      (rivals ? ' · 🥊 Die Konkurrenz greift euch an!' : ''));
     renderGame();
     checkPending();
   });
