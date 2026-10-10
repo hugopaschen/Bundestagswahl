@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261007-130600';
+  const APP_VERSION = '20261010-211155';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -71,7 +71,7 @@
   }
 
   function show(screen) {
-    ['intro', 'name', 'start', 'program', 'game', 'election'].forEach(s => { $('screen-' + s).hidden = s !== screen; });
+    ['intro', 'name', 'start', 'program', 'kickoff', 'game', 'election'].forEach(s => { $('screen-' + s).hidden = s !== screen; });
     // Die Programm-Website färbt den ganzen Seitenhintergrund in der Papierfarbe der Partei.
     // Seiten, die randlos über die ganze Breite gehen, färben auch den Seitenhintergrund ein.
     if (screen === 'start') document.body.style.background = '#f4f4f1';
@@ -1192,6 +1192,56 @@
 
   // ---------- Ereignis-Handler ----------
 
+
+  // ---------- Wahlkampfauftakt ----------
+  // Einstimmung je Partei: Überschrift und eine kurze (fiktive) Auftaktrede.
+  const KICKOFF = {
+    union: { title: 'Jetzt geht’s los!', place: 'Auftaktkundgebung der Union',
+      speech: 'Wir sind die Kraft der Mitte – und wir wollen wieder die Nummer eins werden. Acht Wochen lang zeigen wir, dass wir es können: Wirtschaft ankurbeln, Sicherheit garantieren, Deutschland wieder nach vorne bringen. Packen wir’s an!' },
+    afd: { title: 'Acht Wochen. Eine Chance.', place: 'Wahlkampfauftakt der AfD',
+      speech: 'Wir haben einen langen Weg hinter uns. Jetzt wollen wir mehr als je zuvor: eine eigene Mehrheit. Wir gehen in jede Stadt und jedes Dorf, im Osten wie im Westen – und kämpfen um jede einzelne Stimme.' },
+    spd: { title: 'Zusammen schaffen wir das!', place: 'Wahlkampfauftakt der SPD',
+      speech: 'Wir kämpfen für die, die jeden Tag den Laden am Laufen halten: für gute Löhne, sichere Renten und Respekt. Die Umfragen sagen, wir liegen zurück – das hat uns noch nie aufgehalten. Auf geht’s, Genossinnen und Genossen!' },
+    gruene: { title: 'Zuversicht wählen!', place: 'Wahlkampfauftakt von Bündnis 90/Die Grünen',
+      speech: 'Wir stehen für Mut statt Angst. Für Klimaschutz, der allen nützt, und für ein Land, das zusammenhält. Acht Wochen – lasst uns mit jedem Gespräch, an jeder Haustür zeigen, dass Zukunft machbar ist.' },
+    linke: { title: 'Jetzt wird’s gerecht!', place: 'Wahlkampfauftakt der Linken',
+      speech: 'Mieten runter, Löhne rauf, Reiche zur Kasse: Dafür gehen wir in diesen Wahlkampf. Gemeinsam mit SPD und Grünen ist eine soziale Mehrheit möglich – wenn wir jetzt richtig Druck machen.' },
+    bsw: { title: 'Neuer Name. Volle Kraft.', place: 'Wahlkampfauftakt des Bündnisses',
+      speech: 'Soziale Gerechtigkeit und wirtschaftliche Vernunft – dafür stehen wir, jetzt auch im Namen. Die Fünf-Prozent-Hürde ist hoch, aber nicht zu hoch. Acht Wochen, um alle zu überraschen.' },
+    fdp: { title: 'Das Comeback beginnt.', place: 'Wahlkampfauftakt der Freien Demokraten',
+      speech: 'Viele haben uns schon abgeschrieben. Genau deshalb kämpfen wir jetzt mit allem, was wir haben: für Freiheit, Fortschritt und ein Land, das wieder mehr kann. Zurück in den Bundestag – Schritt für Schritt.' }
+  };
+
+  function showKickoff(game) {
+    const p = E.party(game.party);
+    const k = KICKOFF[game.party] || { title: 'Auf in den Wahlkampf!', place: 'Wahlkampfauftakt', speech: '' };
+    const screen = $('screen-kickoff');
+    show('kickoff');
+    applyPartyTheme(screen, game.party);
+    document.body.style.background = getComputedStyle(screen).getPropertyValue('--fl-paper').trim();
+    const shares = E.nationalShares(game);
+    const weeks = game.maxWeeks;
+    $('ko-kicker').textContent = k.place + ' · noch ' + weeks + ' Wochen bis zur Bundestagswahl';
+    $('ko-title').textContent = k.title;
+    $('ko-slogan').textContent = '„' + game.program.slogan + '“';
+    $('ko-candidate').textContent = candidateLine(game.candidate);
+    const speaker = String(game.candidate || '').trim() && game.candidate !== DEFAULT_CANDIDATE ? game.candidate : 'Eure Spitzenkandidatur';
+    $('ko-speech').innerHTML = '<p>„' + esc(k.speech) + '“</p><footer>— ' + esc(speaker) + ' bei der Auftaktkundgebung</footer>';
+    const core = game.program.core.map(id => E.topicById(id));
+    $('ko-stats').innerHTML =
+      '<div class="ko-stat"><span class="ko-label">📊 Erste Umfrage</span><span class="ko-big">' + pct(shares[game.party]) + '</span></div>' +
+      '<div class="ko-stat"><span class="ko-label">🏁 Euer Wahlziel</span><span class="ko-goal">' + esc(p.goalText) + '</span></div>' +
+      '<div class="ko-stat"><span class="ko-label">💶 Wahlkampfkasse</span><span class="ko-big">' + money(game.money) + '</span></div>' +
+      '<div class="ko-stat ko-core"><span class="ko-label">🎯 Eure Kernthemen</span><span class="ko-topics">' +
+        core.map(t => '<span>' + t.icon + ' ' + esc(t.name) + '</span>').join('') + '</span></div>';
+    $('ko-steps').innerHTML = [
+      ['📣', 'Themen setzen', 'Unter „Aktionen“ wählt ihr ein Thema und macht es mit TV-Spots, Social Media, Pressekonferenzen und Talkshows groß – am besten eure Kernthemen.'],
+      ['🗺️', 'Vor Ort kämpfen', 'Auf der Deutschlandkarte sucht ihr euch Bundesländer aus und geht mit Kundgebungen, Plakaten und Haustürwahlkampf auf Stimmenfang.'],
+      ['📅', 'Woche für Woche', 'Jede Woche habt ihr ' + game.apMax + ' Aktionen. Danach gibt es eine neue Umfrage – und manchmal eine Eilmeldung, auf die ihr reagieren müsst.'],
+      ['📺', 'TV-Duell in Woche ' + E.DUEL_WEEK, 'Kurz vor der Wahl kommt die Elefantenrunde. Wer bei den wichtigsten Themen sattelfest ist, punktet.']
+    ].map(st => '<li><span class="ko-step-icon" aria-hidden="true">' + st[0] + '</span><div><b>' + st[1] + '</b><p>' + st[2] + '</p></div></li>').join('');
+  }
+
   // Wahlkampf-Bildschirm und Dialoge im Design der gespielten Partei.
   function applyPartyTheme(el, partyId) {
     el.classList.add('party-site');
@@ -1281,9 +1331,13 @@
 
   $('btn-program-confirm').addEventListener('click', () => {
     if (E.validateProgram(draft).length) return;
-    startGame(E.newGame(chosenParty, $('candidate').value, undefined, draft));
+    const game = E.newGame(chosenParty, $('candidate').value, undefined, draft);
+    g = game;
     save();
+    showKickoff(game);
   });
+
+  $('btn-kickoff-go').addEventListener('click', () => { if (g) startGame(g); });
 
   const resume = () => {
     const saved = loadSave();

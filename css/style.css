@@ -1494,3 +1494,49 @@ h2 .flyer-hint { margin: 0; }
 .local-block .action-list { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 .local-block .feedback:empty { display: none; }
 .local-block .feedback { margin-top: 12px; }
+
+/* ---------- Wahlkampfauftakt ---------- */
+#screen-kickoff.party-site { background: var(--fl-paper); padding: 0 0 56px; min-height: 100vh; }
+.ko-hero {
+  background: var(--fl-head); color: var(--fl-head-ink); text-align: center;
+  padding: clamp(48px, 9vh, 110px) clamp(16px, 4vw, 48px) clamp(44px, 8vh, 96px);
+}
+.ko-kicker { margin: 0 0 18px; font-size: clamp(.8rem, 1.4vw, 1rem); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; opacity: .85; }
+.ko-title { margin: 0 auto; max-width: 14ch; font-family: var(--fl-head-font, inherit); font-size: clamp(2.6rem, 8vw, 6rem); font-weight: 900; line-height: .98; letter-spacing: -.02em; }
+.ko-slogan { margin: 22px 0 6px; font-family: var(--fl-head-font, inherit); font-size: clamp(1.2rem, 2.6vw, 1.9rem); font-weight: 800; }
+.ko-candidate { margin: 0; font-size: clamp(1rem, 1.6vw, 1.2rem); opacity: .9; }
+.ko-body { max-width: 1100px; margin: 0 auto; padding: 0 clamp(16px, 3vw, 32px); }
+.ko-speech {
+  position: relative; margin: -36px auto 0; max-width: 860px; padding: clamp(22px, 3vw, 34px) clamp(22px, 3vw, 40px);
+  background: #ffffff; color: #1d1d1f; border-radius: 16px; border-left: 8px solid var(--fl-accent);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, .14);
+}
+.ko-speech p { margin: 0; font-size: clamp(1.1rem, 2vw, 1.4rem); line-height: 1.5; font-weight: 600; }
+.ko-speech footer { margin-top: 14px; font-size: .95rem; color: #666; font-weight: 700; }
+.ko-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 34px 0; }
+.ko-stat { display: flex; flex-direction: column; gap: 8px; padding: 18px; border-radius: 14px; background: #ffffff; color: #1d1d1f; border: 2px solid var(--border); }
+.ko-label { font-size: .9rem; font-weight: 700; color: #555; }
+.ko-big { font-family: var(--fl-head-font, inherit); font-size: clamp(1.8rem, 3vw, 2.4rem); font-weight: 900; color: var(--fl-accent); line-height: 1; }
+.ko-goal { font-family: var(--fl-head-font, inherit); font-size: 1.1rem; font-weight: 800; line-height: 1.25; }
+.ko-topics { display: flex; flex-direction: column; gap: 4px; font-weight: 700; }
+.ko-plan h2 { font-family: var(--fl-head-font, inherit); font-size: clamp(1.4rem, 2.6vw, 2rem); color: var(--fl-accent); margin: 0 0 14px; }
+.ko-steps { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.ko-steps li { display: flex; gap: 14px; padding: 16px 18px; border-radius: 14px; background: #ffffff; color: #1d1d1f; border: 2px solid var(--border); }
+.ko-steps b { font-family: var(--fl-head-font, inherit); font-size: 1.1rem; }
+.ko-steps p { margin: 4px 0 0; color: #555; line-height: 1.45; }
+.ko-step-icon { font-size: 1.8rem; line-height: 1; }
+.ko-go { text-align: center; margin-top: 36px; }
+.ko-go .btn { font-size: 1.25rem; padding: 1rem 2.4rem; font-family: var(--fl-head-font, inherit); font-weight: 800; }
+.party-site[data-party="gruene"] .ko-title span, .party-site[data-party="gruene"] .ko-title { color: var(--fl-hl); }
+.party-site[data-party="fdp"] .ko-hero { border-bottom: 8px solid #00a7e7; }
+.party-site[data-party="bsw"] .ko-hero { border-bottom: 6px solid #f39200; }
+.party-site[data-party="afd"] .ko-speech, .party-site[data-party="spd"] .ko-speech,
+.party-site[data-party="afd"] .ko-stat, .party-site[data-party="spd"] .ko-stat,
+.party-site[data-party="afd"] .ko-steps li, .party-site[data-party="spd"] .ko-steps li { border-radius: 0; }
+.party-site[data-party="union"] .ko-title { display: inline-block; background: #2d3c4b; color: #fff; padding: .05em .25em; max-width: none; }
+.party-site[data-party="spd"] .ko-title, .party-site[data-party="linke"] .ko-title { text-transform: uppercase; }
+@media (max-width: 860px) {
+  .ko-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ko-steps { grid-template-columns: 1fr; }
+}
+@media (max-width: 420px) { .ko-stats { grid-template-columns: 1fr; } }
