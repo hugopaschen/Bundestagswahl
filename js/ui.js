@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261010-231513';
+  const APP_VERSION = '20261010-232154';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -1376,7 +1376,7 @@
       ['📅', 'Woche für Woche', 'Jede Woche habt ihr ' + game.apMax + ' Aktionen. Danach gibt es eine neue Umfrage – und manchmal eine Eilmeldung, auf die ihr reagieren müsst.'],
       ['📺', 'TV-Duell in Woche ' + E.DUEL_WEEK, 'Kurz vor der Wahl kommt die Elefantenrunde. Wer bei den wichtigsten Themen sattelfest ist, punktet.'],
       ['🥊', 'Die Konkurrenz schläft nicht', 'Die anderen Parteien setzen ihre Themen, kämpfen um knappe Länder – und schlagen zurück, wenn ihr zu stark werdet oder ihnen eure Kernthemen streitig machen wollt.'],
-      ['👥', 'Wählergruppen und Abnutzung', 'Jung, mittel und alt, niedrige bis hohe Bildung, Stadt und Land wollen unterschiedlich angesprochen werden. Wer immer dasselbe macht, verliert Wirkung – Geld ist knapp, TV-Zeit wird teurer.'],
+      ['👥', 'Wählergruppen und Abnutzung', 'Jung, mittel und alt, niedrige bis hohe Bildung, Stadt und Land, Männer und Frauen wollen unterschiedlich angesprochen werden. Wer immer dasselbe macht, verliert Wirkung – Geld ist knapp, TV-Zeit wird teurer.'],
       ['📊', 'Umfragen sind nur Umfragen', 'Jede Umfrage hat eine Fehlerspanne von ± ' + E.POLL_RANGE + ' Punkten. Wo ihr wirklich steht, zeigt erst der Wahlabend. Und manche Entscheidung holt euch Wochen später wieder ein.']
     ].map(st => '<li><span class="ko-step-icon" aria-hidden="true">' + st[0] + '</span><div><b>' + st[1] + '</b><p>' + st[2] + '</p></div></li>').join('');
   }

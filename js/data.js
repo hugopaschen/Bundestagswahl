@@ -266,7 +266,7 @@
     ]
   };
 
-  // Wählergruppen in drei Dimensionen (Alter, Bildung, Wohnort). Eine Person gehört zu je einer
+  // Wählergruppen in vier Dimensionen (Alter, Bildung, Wohnort, Geschlecht). Eine Person gehört zu je einer
   // Gruppe pro Dimension (z. B. jung + hohe Bildung + Stadt). Innerhalb jeder Dimension ergeben
   // die Anteile zusammen 100 % der Wahlberechtigten:
   // – Alter: Wahlberechtigte zur Bundestagswahl 2025 (Bundeswahlleiterin/bpb): 13,0 / 44,4 / 42,6 %
@@ -274,6 +274,7 @@
   //   Berufsabschluss/Abitur (16,2 %), mittel = Berufsausbildung oder Abitur (50 %),
   //   hoch = Meister/Techniker, Fach-/Hochschulabschluss (33,8 %)
   // – Wohnort: 31,9 % leben in Großstädten ab 100.000 Einwohnern (Summe der 79 Großstädte)
+  // – Geschlecht: 51,4 % der Wahlberechtigten 2025 sind Frauen (bpb)
   // Länderwerte: STATE_GROUPS, Quellen: GROUP_SOURCES.
   // factor = Ergebnis der Partei in der Gruppe geteilt durch ihr Bundesergebnis, nach den
   // Wahltagsbefragungen zur Bundestagswahl 2025 (Infratest dimap, Forschungsgruppe Wahlen);
@@ -303,34 +304,41 @@
       factor: { union: 0.86, afd: 0.71, spd: 1.0, gruene: 1.52, linke: 1.57, bsw: 0.8, fdp: 1.23 } },
     { id: 'land', dim: 'ort', name: 'Kleinstadt & Land', short: 'Land', icon: '🌾', weight: 0.681,
       topics: { land: 2.2, verkehr: 1.5, migration: 1.4, familie: 1.4, wirtschaft: 1.2 },
-      factor: { union: 1.07, afd: 1.14, spd: 1.0, gruene: 0.74, linke: 0.77, bsw: 1.0, fdp: 1.0 } }
+      factor: { union: 1.07, afd: 1.14, spd: 1.0, gruene: 0.74, linke: 0.77, bsw: 1.0, fdp: 1.0 } },
+    { id: 'maenner', dim: 'geschlecht', name: 'Männer', short: 'Männer', icon: '👨', weight: 0.486,
+      topics: { wirtschaft: 1.4, verteidigung: 1.5, migration: 1.3, verkehr: 1.3, digitales: 1.3 },
+      factor: { union: 1.02, afd: 1.15, spd: 0.91, gruene: 0.86, linke: 0.8, bsw: 1.0, fdp: 1.16 } },
+    { id: 'frauen', dim: 'geschlecht', name: 'Frauen', short: 'Frauen', icon: '👩', weight: 0.514,
+      topics: { familie: 1.6, gesundheit: 1.5, soziales: 1.4, bildung: 1.4, klima: 1.3 },
+      factor: { union: 0.98, afd: 0.85, spd: 1.1, gruene: 1.12, linke: 1.25, bsw: 1.0, fdp: 0.84 } }
   ];
 
   var GROUP_DIMS = [
     { id: 'alter', name: 'Alter' },
     { id: 'bildung', name: 'Bildung' },
-    { id: 'ort', name: 'Wohnort' }
+    { id: 'ort', name: 'Wohnort' },
+    { id: 'geschlecht', name: 'Geschlecht' }
   ];
 
   // Zusammensetzung der Wählerschaft je Bundesland (Anteile je Dimension, Summe jeweils 1).
   // Quellen und Belastbarkeit siehe GROUP_SOURCES.
   var STATE_GROUPS = {
-    BW: { jung: 0.142, mitte: 0.441, aelter: 0.417, niedrig: 0.17, mittel: 0.457, hoch: 0.373, stadt: 0.191, land: 0.809 },
-    BY: { jung: 0.135, mitte: 0.456, aelter: 0.409, niedrig: 0.13, mittel: 0.5, hoch: 0.37, stadt: 0.227, land: 0.773 },
-    BE: { jung: 0.149, mitte: 0.478, aelter: 0.373, niedrig: 0.15, mittel: 0.389, hoch: 0.461, stadt: 1, land: 0 },
-    BB: { jung: 0.096, mitte: 0.437, aelter: 0.467, niedrig: 0.07, mittel: 0.612, hoch: 0.318, stadt: 0.072, land: 0.928 },
-    HB: { jung: 0.149, mitte: 0.433, aelter: 0.418, niedrig: 0.24, mittel: 0.453, hoch: 0.307, stadt: 1, land: 0 },
-    HH: { jung: 0.16, mitte: 0.492, aelter: 0.348, niedrig: 0.17, mittel: 0.408, hoch: 0.422, stadt: 1, land: 0 },
-    HE: { jung: 0.133, mitte: 0.448, aelter: 0.419, niedrig: 0.17, mittel: 0.476, hoch: 0.354, stadt: 0.245, land: 0.755 },
-    MV: { jung: 0.101, mitte: 0.422, aelter: 0.477, niedrig: 0.08, mittel: 0.638, hoch: 0.282, stadt: 0.13, land: 0.87 },
-    NI: { jung: 0.133, mitte: 0.442, aelter: 0.425, niedrig: 0.18, mittel: 0.502, hoch: 0.318, stadt: 0.184, land: 0.816 },
-    NW: { jung: 0.135, mitte: 0.444, aelter: 0.421, niedrig: 0.21, mittel: 0.479, hoch: 0.311, stadt: 0.457, land: 0.543 },
-    RP: { jung: 0.127, mitte: 0.436, aelter: 0.437, niedrig: 0.19, mittel: 0.5, hoch: 0.31, stadt: 0.174, land: 0.826 },
-    SL: { jung: 0.116, mitte: 0.412, aelter: 0.472, niedrig: 0.19, mittel: 0.54, hoch: 0.27, stadt: 0.182, land: 0.818 },
-    SN: { jung: 0.116, mitte: 0.429, aelter: 0.455, niedrig: 0.06, mittel: 0.6, hoch: 0.34, stadt: 0.354, land: 0.646 },
-    ST: { jung: 0.101, mitte: 0.414, aelter: 0.485, niedrig: 0.08, mittel: 0.67, hoch: 0.25, stadt: 0.222, land: 0.778 },
-    SH: { jung: 0.125, mitte: 0.442, aelter: 0.433, niedrig: 0.16, mittel: 0.54, hoch: 0.3, stadt: 0.158, land: 0.842 },
-    TH: { jung: 0.102, mitte: 0.417, aelter: 0.481, niedrig: 0.06, mittel: 0.638, hoch: 0.302, stadt: 0.156, land: 0.844 }
+    BW: { jung: 0.142, mitte: 0.441, aelter: 0.417, niedrig: 0.17, mittel: 0.457, hoch: 0.373, stadt: 0.191, land: 0.809, maenner: 0.487, frauen: 0.513 },
+    BY: { jung: 0.135, mitte: 0.456, aelter: 0.409, niedrig: 0.13, mittel: 0.5, hoch: 0.37, stadt: 0.227, land: 0.773, maenner: 0.487, frauen: 0.513 },
+    BE: { jung: 0.149, mitte: 0.478, aelter: 0.373, niedrig: 0.15, mittel: 0.389, hoch: 0.461, stadt: 1, land: 0, maenner: 0.489, frauen: 0.511 },
+    BB: { jung: 0.096, mitte: 0.437, aelter: 0.467, niedrig: 0.07, mittel: 0.612, hoch: 0.318, stadt: 0.072, land: 0.928, maenner: 0.49, frauen: 0.51 },
+    HB: { jung: 0.149, mitte: 0.433, aelter: 0.418, niedrig: 0.24, mittel: 0.453, hoch: 0.307, stadt: 1, land: 0, maenner: 0.487, frauen: 0.513 },
+    HH: { jung: 0.16, mitte: 0.492, aelter: 0.348, niedrig: 0.17, mittel: 0.408, hoch: 0.422, stadt: 1, land: 0, maenner: 0.49, frauen: 0.51 },
+    HE: { jung: 0.133, mitte: 0.448, aelter: 0.419, niedrig: 0.17, mittel: 0.476, hoch: 0.354, stadt: 0.245, land: 0.755, maenner: 0.486, frauen: 0.514 },
+    MV: { jung: 0.101, mitte: 0.422, aelter: 0.477, niedrig: 0.08, mittel: 0.638, hoch: 0.282, stadt: 0.13, land: 0.87, maenner: 0.489, frauen: 0.511 },
+    NI: { jung: 0.133, mitte: 0.442, aelter: 0.425, niedrig: 0.18, mittel: 0.502, hoch: 0.318, stadt: 0.184, land: 0.816, maenner: 0.486, frauen: 0.514 },
+    NW: { jung: 0.135, mitte: 0.444, aelter: 0.421, niedrig: 0.21, mittel: 0.479, hoch: 0.311, stadt: 0.457, land: 0.543, maenner: 0.486, frauen: 0.514 },
+    RP: { jung: 0.127, mitte: 0.436, aelter: 0.437, niedrig: 0.19, mittel: 0.5, hoch: 0.31, stadt: 0.174, land: 0.826, maenner: 0.486, frauen: 0.514 },
+    SL: { jung: 0.116, mitte: 0.412, aelter: 0.472, niedrig: 0.19, mittel: 0.54, hoch: 0.27, stadt: 0.182, land: 0.818, maenner: 0.484, frauen: 0.516 },
+    SN: { jung: 0.116, mitte: 0.429, aelter: 0.455, niedrig: 0.06, mittel: 0.6, hoch: 0.34, stadt: 0.354, land: 0.646, maenner: 0.491, frauen: 0.509 },
+    ST: { jung: 0.101, mitte: 0.414, aelter: 0.485, niedrig: 0.08, mittel: 0.67, hoch: 0.25, stadt: 0.222, land: 0.778, maenner: 0.489, frauen: 0.511 },
+    SH: { jung: 0.125, mitte: 0.442, aelter: 0.433, niedrig: 0.16, mittel: 0.54, hoch: 0.3, stadt: 0.158, land: 0.842, maenner: 0.486, frauen: 0.514 },
+    TH: { jung: 0.102, mitte: 0.417, aelter: 0.481, niedrig: 0.06, mittel: 0.638, hoch: 0.302, stadt: 0.156, land: 0.844, maenner: 0.489, frauen: 0.511 }
   };
 
   var GROUP_SOURCES = [
@@ -340,19 +348,21 @@
     { dim: 'Alter (SN)', text: 'Statistik Sachsen, repräsentative Wahlstatistik zur Bundestagswahl 2025.', url: 'https://wahlen.sachsen.de/bundestagswahl-2025-rws-repraesentative-wahlstatistik.html' },
     { dim: 'Bildung', text: 'Bildungsstand der 25- bis 64-Jährigen nach ISCED 2011 (niedrig 0–2, mittel 3–4, hoch 5–8), Mikrozensus 2024, „Internationale Bildungsindikatoren im Ländervergleich 2025“. Anteil „hoch“ für die meisten Länder aus der Veröffentlichung; „niedrig“ je Land und „hoch“ für RP, SN, SH geschätzt (± 1–3 Punkte), „mittel“ = Rest.',
       url: 'https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Bildung-Forschung-Kultur/Bildungsstand/Publikationen/Downloads-Bildungsstand/bildungsindikatoren-1023017257004.pdf?__blob=publicationFile&v=2' },
+    { dim: 'Geschlecht', text: 'Bund: 51,4 % der Wahlberechtigten zur Bundestagswahl 2025 waren Frauen (bpb nach Bundeswahlleiterin). Länderwerte geschätzt aus der Altersstruktur des Landes (Frauenanteil 18–29: 48,3 %, 30–59: 49,6 %, 60+: 54,2 %; in den ostdeutschen Flächenländern bei Jüngeren 1–1,5 Punkte weniger wegen Abwanderung junger Frauen). Parteiwerte nach den Wahltagsbefragungen 2025.',
+      url: 'https://www.bpb.de/kurz-knapp/zahlen-und-fakten/bundestagswahlen/564029/wahlberechtigte/' },
     { dim: 'Wohnort', text: 'Anteil der Einwohner in Großstädten ab 100.000 Einwohnern: Summe der 79 Großstädte je Land geteilt durch die Landesbevölkerung (Destatis, Statistische Landesämter, Stand 31.12.2024/2025, Zensus-2022-Basis). Berlin, Hamburg und Bremen: 100 %. Genauigkeit etwa ± 0,3 Punkte.',
       url: 'https://de.wikipedia.org/wiki/Liste_der_Gro%C3%9Fst%C3%A4dte_in_Deutschland' }
   ];
 
   // Wie gut ein Kanal die einzelnen Gruppen erreicht.
   var CHANNELS = {
-    social:     { jung: 2.2, mitte: 1.0, aelter: 0.4, niedrig: 0.8, mittel: 1.0, hoch: 1.2, stadt: 1.4, land: 0.7 },
-    tvspot:     { jung: 0.5, mitte: 1.0, aelter: 1.6, niedrig: 1.4, mittel: 1.1, hoch: 0.7, stadt: 0.8, land: 1.2 },
-    talkshow:   { jung: 0.5, mitte: 0.9, aelter: 1.4, niedrig: 0.6, mittel: 0.9, hoch: 1.6, stadt: 1.0, land: 0.8 },
-    presse:     { jung: 0.7, mitte: 0.9, aelter: 1.2, niedrig: 0.6, mittel: 0.9, hoch: 1.5, stadt: 1.1, land: 0.8 },
-    kundgebung: { jung: 0.7, mitte: 1.0, aelter: 1.1, niedrig: 1.4, mittel: 1.1, hoch: 0.6, stadt: 1.1, land: 1.3 },
-    plakate:    { jung: 0.8, mitte: 1.0, aelter: 1.2, niedrig: 1.3, mittel: 1.0, hoch: 0.7, stadt: 0.9, land: 1.4 },
-    haustuer:   { jung: 0.5, mitte: 0.9, aelter: 1.5, niedrig: 1.2, mittel: 1.0, hoch: 0.8, stadt: 1.1, land: 1.3 }
+    social:     { jung: 2.2, mitte: 1.0, aelter: 0.4, niedrig: 0.8, mittel: 1.0, hoch: 1.2, stadt: 1.4, land: 0.7, maenner: 1.05, frauen: 0.95 },
+    tvspot:     { jung: 0.5, mitte: 1.0, aelter: 1.6, niedrig: 1.4, mittel: 1.1, hoch: 0.7, stadt: 0.8, land: 1.2, maenner: 0.95, frauen: 1.05 },
+    talkshow:   { jung: 0.5, mitte: 0.9, aelter: 1.4, niedrig: 0.6, mittel: 0.9, hoch: 1.6, stadt: 1.0, land: 0.8, maenner: 0.9, frauen: 1.1 },
+    presse:     { jung: 0.7, mitte: 0.9, aelter: 1.2, niedrig: 0.6, mittel: 0.9, hoch: 1.5, stadt: 1.1, land: 0.8, maenner: 1.0, frauen: 1.0 },
+    kundgebung: { jung: 0.7, mitte: 1.0, aelter: 1.1, niedrig: 1.4, mittel: 1.1, hoch: 0.6, stadt: 1.1, land: 1.3, maenner: 1.1, frauen: 0.9 },
+    plakate:    { jung: 0.8, mitte: 1.0, aelter: 1.2, niedrig: 1.3, mittel: 1.0, hoch: 0.7, stadt: 0.9, land: 1.4, maenner: 1.0, frauen: 1.0 },
+    haustuer:   { jung: 0.5, mitte: 0.9, aelter: 1.5, niedrig: 1.2, mittel: 1.0, hoch: 0.8, stadt: 1.1, land: 1.3, maenner: 0.9, frauen: 1.1 }
   };
 
   var SEATS = 630;
