@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261010-211958';
+  const APP_VERSION = '20261010-212605';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -183,7 +183,7 @@
   }
 
   // ---------- Wahlkampf als Website: immer nur ein Bereich sichtbar ----------
-  let gameTab = 'actions';
+  let gameTab = 'map';
   let newsSeen = null; // oberste Meldung beim letzten Blick in die Nachrichten
 
   function applyGameTab() {
@@ -1236,8 +1236,8 @@
       '<div class="ko-stat ko-core"><span class="ko-label">🎯 Eure Kernthemen</span><span class="ko-topics">' +
         core.map(t => '<span>' + t.icon + ' ' + esc(t.name) + '</span>').join('') + '</span></div>';
     $('ko-steps').innerHTML = [
+      ['🗺️', 'Vor Ort kämpfen', 'Auf der Seite „Deutschland“ sucht ihr euch Bundesländer aus und geht mit Kundgebungen, Plakaten und Haustürwahlkampf auf Stimmenfang.'],
       ['📣', 'Themen setzen', 'Unter „Aktionen“ wählt ihr ein Thema und macht es mit TV-Spots, Social Media, Pressekonferenzen und Talkshows groß – am besten eure Kernthemen.'],
-      ['🗺️', 'Vor Ort kämpfen', 'Auf der Deutschlandkarte sucht ihr euch Bundesländer aus und geht mit Kundgebungen, Plakaten und Haustürwahlkampf auf Stimmenfang.'],
       ['📅', 'Woche für Woche', 'Jede Woche habt ihr ' + game.apMax + ' Aktionen. Danach gibt es eine neue Umfrage – und manchmal eine Eilmeldung, auf die ihr reagieren müsst.'],
       ['📺', 'TV-Duell in Woche ' + E.DUEL_WEEK, 'Kurz vor der Wahl kommt die Elefantenrunde. Wer bei den wichtigsten Themen sattelfest ist, punktet.']
     ].map(st => '<li><span class="ko-step-icon" aria-hidden="true">' + st[0] + '</span><div><b>' + st[1] + '</b><p>' + st[2] + '</p></div></li>').join('');
@@ -1258,7 +1258,7 @@
     $('feedback').textContent = '';
     $('local-feedback').textContent = '';
     if (g.phase !== 'campaign') { showElection(); return; }
-    gameTab = 'actions';
+    gameTab = 'map';
     newsSeen = g.log[0] || null; // Meldungen ab jetzt zählen als neu
     show('game');
     applyPartyTheme($('screen-game'), g.party);
