@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261010-225540';
+  const APP_VERSION = '20261010-231513';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -171,6 +171,7 @@
 
     renderMap();
     renderStateDetail();
+    renderStateGroups();
     renderTopics();
     renderMoneyHint();
     renderActions();
@@ -405,13 +406,13 @@
     const key = usageKey(a);
     const n = (key && g.usage[key]) || 0;
     let f = 1 / (1 + 0.8 * n);
-    f *= E.groupEfficiency(g, g.party, a.id, a.scope === 'topic' ? selTopic : null);
+    f *= E.groupEfficiency(g, g.party, a.id, a.scope === 'topic' ? selTopic : null, a.scope === 'region' ? selState : null);
     return f;
   }
 
   function reachLine(a) {
     if (!D.CHANNELS[a.id]) return '';
-    const mix = E.groupMix(a.id, a.scope === 'topic' ? selTopic : null);
+    const mix = E.groupMix(a.id, a.scope === 'topic' ? selTopic : null, a.scope === 'region' ? selState : null);
     const top = E.GROUP_IDS.slice().sort((x, y) => mix[y] - mix[x]).slice(0, 2);
     return '<span class="areach">Erreicht v. a. ' + groupNames(top) + '</span>';
   }
@@ -422,7 +423,10 @@
     const disabled = !E.canAct(g) || (a.scope === 'topic' && !selTopic) || g.money + 1e-9 < cost || spendBlocked;
     if (a.id === 'spenden') extra = spendBlocked ? 'Diese Woche schon veranstaltet – wieder ab nächster Woche' : 'bringt ca. ' + money(E.spendenYield(g)) + ' · jedes Mal weniger';
     const f = freshness(a);
-    const worn = f < 0.92 ? '<span class="aworn">♻️ Abgenutzt: wirkt nur noch zu ca. ' + Math.round(f * 100) + ' %</span>' : '';
+    const key = usageKey(a);
+    const repeated = key && g.usage[key] > 0.1 && a.id !== 'presse';
+    const worn = f < 0.92 ? '<span class="aworn">' + (repeated ? '♻️ Abgenutzt' : '👥 Zielgruppen schon stark umworben') +
+      ': wirkt nur noch zu ca. ' + Math.round(f * 100) + ' %</span>' : '';
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'action';
@@ -441,6 +445,45 @@
     return b;
   }
 
+  // Wie gut eine Vor-Ort-Aktion zur Wählerschaft des Landes passt.
+  function regionHint(a) {
+    const name = E.stateById(selState).name;
+    const fit = E.channelFit(a.id, selState);
+    const pctFit = Math.round((fit - 1) * 100);
+    if (pctFit >= 4) return 'in ' + name + ' · passt gut zur Wählerschaft (+' + pctFit + ' %)';
+    if (pctFit <= -4) return 'in ' + name + ' · passt schlecht zur Wählerschaft (−' + Math.abs(pctFit) + ' %)';
+    return 'in ' + name;
+  }
+
+  // Wählergruppen im ausgewählten Bundesland: Anteil an der Wählerschaft (mit Bundesvergleich)
+  // und euer Umfragewert in der Gruppe.
+  function renderStateGroups() {
+    const box = $('state-groups');
+    if (!box) return;
+    const st = E.stateById(selState);
+    const w = E.stateWeights(st.id);
+    $('sg-state').textContent = st.name;
+    box.innerHTML = D.GROUP_DIMS.map(dim => '<h4 class="gp-dim">' + esc(dim.name) + '</h4><div class="gp-row">' +
+      D.GROUPS.filter(k => k.dim === dim.id && w[k.id] > 0).map(k => {
+        const v = E.groupShares(g, k.id, st.id)[g.party];
+        const share = w[k.id] * 100;
+        const cmp = 'Bund ' + num1(k.weight * 100) + ' %';
+        const topics = Object.keys(k.topics).sort((a, b) => k.topics[b] - k.topics[a]).slice(0, 3)
+          .map(id => { const t = E.topicById(id); return '<span class="gp-topic' + (E.isCore(g, id) ? ' core' : '') + '">' + t.icon + ' ' + esc(t.name) + (E.isCore(g, id) ? ' 🎯' : '') + '</span>'; }).join('');
+        return '<div class="gp-card"><div class="gp-head"><span class="gp-icon" aria-hidden="true">' + k.icon + '</span>' +
+          '<span class="gp-name">' + esc(k.name) + '<small>' + num1(share) + ' % der Wähler (' + cmp + ')</small></span>' +
+          '<span class="gp-val">' + pct(v) + '<small>ihr in der Gruppe</small></span></div>' +
+          '<div class="gp-bar sg-bar" title="Anteil an der Wählerschaft im Land; Strich = Bundesschnitt"><span style="width:' + share + '%"></span><i style="left:' + (k.weight * 100) + '%"></i></div>' +
+          '<div class="gp-topics">' + topics + '</div></div>';
+      }).join('') + '</div>').join('');
+    const src = $('sg-sources');
+    if (src && !src.dataset.done) {
+      src.innerHTML = '<ul>' + (D.GROUP_SOURCES || []).map(q => '<li><b>' + esc(q.dim) + ':</b> ' + esc(q.text) +
+        (q.url ? ' <a href="' + esc(q.url) + '" target="_blank" rel="noopener">Quelle</a>' : '') + '</li>').join('') + '</ul>';
+      src.dataset.done = '1';
+    }
+  }
+
   function renderActions() {
     const list = $('action-list');
     const local = $('local-actions');
@@ -450,7 +493,7 @@
       const comp = E.competenceOf(g, g.party)[selTopic];
       E.ACTIONS.filter(a => a.scope === 'topic').forEach(a => list.appendChild(actionButton(a, topicActionHint(a, comp))));
     }
-    E.ACTIONS.filter(a => a.scope !== 'topic').forEach(a => local.appendChild(actionButton(a, a.scope === 'region' ? 'in ' + E.stateById(selState).name : 'füllt die Kasse')));
+    E.ACTIONS.filter(a => a.scope !== 'topic').forEach(a => local.appendChild(actionButton(a, a.scope === 'region' ? regionHint(a) : 'füllt die Kasse')));
     const hint = 'Keine Aktionen mehr – Zeit, die Woche zu beenden.';
     const fb = $('feedback');
     if (g.phase === 'campaign' && g.ap === 0 && !fb.textContent.includes(hint)) {

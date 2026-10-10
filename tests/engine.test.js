@@ -359,3 +359,25 @@ test('Wählergruppen: je Dimension (Alter, Bildung, Wohnort) ergeben die Anteile
     assert.ok(Math.abs(avg - nat) < 1.5, dim.id + ' ' + avg + ' vs ' + nat);
   }
 });
+
+test('Wählergruppen je Bundesland: Stadtstaaten nur Großstädter, Kanäle passen je nach Land', () => {
+  for (const st of D.STATES) {
+    const w = D.STATE_GROUPS[st.id];
+    assert.ok(w, st.id);
+    for (const dim of D.GROUP_DIMS) {
+      const sum = D.GROUPS.filter(k => k.dim === dim.id).reduce((s, k) => s + w[k.id], 0);
+      assert.ok(Math.abs(sum - 1) < 1e-6, st.id + ' ' + dim.id);
+    }
+  }
+  ['BE', 'HH', 'HB'].forEach(id => { assert.strictEqual(D.STATE_GROUPS[id].stadt, 1); assert.strictEqual(D.STATE_GROUPS[id].land, 0); });
+  // Plakate ziehen in Hamburg schlechter als in Mecklenburg-Vorpommern
+  assert.ok(E.channelFit('plakate', 'HH') < 1 && E.channelFit('plakate', 'MV') > E.channelFit('plakate', 'HH'));
+  // Gruppenwerte im Land mitteln sich zum Landeswert
+  const g = E.newGame('gruene', 'Test', 4);
+  for (const id of ['HH', 'SN']) {
+    const land = E.publishedStateShares(g, id).gruene;
+    const w = D.STATE_GROUPS[id];
+    const avg = D.GROUPS.filter(k => k.dim === 'alter').reduce((s, k) => s + w[k.id] * E.groupShares(g, k.id, id).gruene, 0);
+    assert.ok(Math.abs(avg - land) < 1.5, id);
+  }
+});

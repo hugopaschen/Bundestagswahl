@@ -45,6 +45,32 @@
     });
   });
 
+  // Zusammensetzung der Wählerschaft je Bundesland (Anteile je Dimension, Summe 1).
+  function stateWeights(stateId) {
+    const sg = D.STATE_GROUPS && D.STATE_GROUPS[stateId];
+    const out = {};
+    D.GROUPS.forEach(k => { out[k.id] = sg && sg[k.id] !== undefined ? sg[k.id] : k.weight; });
+    return out;
+  }
+  const W_STATE = {};
+  const FACTOR_STATE = {};
+  D.STATES.forEach(st => {
+    const w = stateWeights(st.id);
+    W_STATE[st.id] = {};
+    D.GROUPS.forEach(k => { W_STATE[st.id][k.id] = w[k.id] / DIM_COUNT; });
+    // Faktoren so ausgleichen, dass der Schnitt im Land wieder das Landesergebnis ergibt.
+    FACTOR_STATE[st.id] = {};
+    D.GROUPS.forEach(k => { FACTOR_STATE[st.id][k.id] = {}; });
+    PARTY_IDS.forEach(p => {
+      new Set(D.GROUPS.map(k => k.dim)).forEach(dim => {
+        const ks = D.GROUPS.filter(k => k.dim === dim && w[k.id] > 0);
+        const mean = ks.reduce((s, k) => s + w[k.id] * (k.factor[p] || 1), 0) / ks.reduce((s, k) => s + w[k.id], 0);
+        ks.forEach(k => { FACTOR_STATE[st.id][k.id][p] = (k.factor[p] || 1) / mean; });
+      });
+    });
+  });
+  const weightsFor = stateId => (stateId && W_STATE[stateId]) || W;
+
   const party = id => D.PARTIES.find(p => p.id === id);
   const stateById = id => D.STATES.find(s => s.id === id);
   const topicById = id => D.TOPICS.find(t => t.id === id);
@@ -330,13 +356,15 @@
 
   // Verteilung einer Wirkung auf die Gruppen: Kanal × Thema, so normiert, dass der
   // gewichtete Schnitt 1 ergibt.
-  function groupMix(channel, topic) {
+  // Mit stateId: Verteilung gemäß der Wählerschaft dieses Bundeslands.
+  function groupMix(channel, topic, stateId) {
     const ch = D.CHANNELS[channel] || {};
+    const w = weightsFor(stateId);
     const raw = {};
     let norm = 0;
     D.GROUPS.forEach(k => {
       raw[k.id] = (ch[k.id] || 1) * topicPref(k, topic);
-      norm += W[k.id] * raw[k.id];
+      norm += w[k.id] * raw[k.id];
     });
     GROUP_IDS.forEach(id => { raw[id] /= norm; });
     return raw;
@@ -347,14 +375,25 @@
   }
 
   // Wie viel einer Aktion bei den Zielgruppen noch ankommt (1 = unverbraucht).
-  function groupEfficiency(g, p, channel, topic) {
-    const mix = groupMix(channel, topic);
-    return D.GROUPS.reduce((s, k) => s + W[k.id] * mix[k.id] * groupSat(g, k.id, p), 0);
+  function groupEfficiency(g, p, channel, topic, stateId) {
+    const mix = groupMix(channel, topic, stateId);
+    const w = weightsFor(stateId);
+    return D.GROUPS.reduce((s, k) => s + w[k.id] * mix[k.id] * groupSat(g, k.id, p), 0);
+  }
+
+  // Wie gut ein Kanal zur Wählerschaft eines Landes passt (1 = wie im Bundesschnitt).
+  // Plakate und Kundgebungen ziehen auf dem Land, in den Stadtstaaten weniger.
+  function channelFit(channel, stateId) {
+    const ch = D.CHANNELS[channel];
+    if (!ch || !stateId) return 1;
+    const avg = w => D.GROUPS.reduce((s, k) => s + w[k.id] * (ch[k.id] || 1), 0);
+    const raw = avg(weightsFor(stateId)) / avg(W);
+    return Math.max(0.7, Math.min(1.3, 1 + 1.5 * (raw - 1)));
   }
 
   // Verteilt eine bundesweite Wirkung d auf die Gruppen. Gibt die tatsächliche Wirkung zurück.
-  function addGroups(g, p, d, channel, topic) {
-    const mix = groupMix(channel, topic);
+  function addGroups(g, p, d, channel, topic, stateId) {
+    const mix = groupMix(channel, topic, stateId);
     let total = 0;
     D.GROUPS.forEach(k => {
       const add = d * mix[k.id] * (d > 0 ? groupSat(g, k.id, p) : 1);
@@ -365,9 +404,11 @@
   }
 
   // Umfrage innerhalb einer Gruppe (veröffentlichte Werte, also auch mit Fehlerspanne).
-  function groupShares(g, groupId) {
+  // Mit stateId: Umfrage in dieser Gruppe innerhalb des Bundeslands.
+  function groupShares(g, groupId, stateId) {
     const k = D.GROUPS.find(x => x.id === groupId);
-    const pub = publishedShares(g);
+    const pub = stateId ? publishedStateShares(g, stateId) : publishedShares(g);
+    const factor = stateId ? FACTOR_STATE[stateId][groupId] : FACTOR[groupId];
     const raw = {};
     PARTY_IDS.forEach(p => {
       const comp = competenceOf(g, p);
@@ -375,7 +416,7 @@
       TOPIC_IDS.forEach(t => {
         topic += (g.salience[t] - D.SALIENCE0[t]) * (topicPref(k, t) - 1) * (comp[t] - MEAN_COMPETENCE[t]) / 100;
       });
-      raw[p] = Math.max(0.3, pub[p] * FACTOR[groupId][p] + (g.grp[groupId][p] - groupEffect(g, p)) + ISSUE_K * topic);
+      raw[p] = Math.max(0.3, pub[p] * (factor[p] || 1) + (g.grp[groupId][p] - groupEffect(g, p)) + ISSUE_K * topic);
     });
     raw[D.OTHER.id] = pub[D.OTHER.id];
     return normalize(raw);
@@ -496,14 +537,14 @@
     const thief = action.scope === 'topic' ? stolenBy(g, topic) : null;
     const r = reach(g) * (action.scope === 'topic' && isCore(g, topic) ? 1.25 : 1) * (thief ? 0.7 : 1);
     // Regionale Aktionen erreichen ihre Zielgruppen schlechter, wenn diese schon umworben sind.
-    const eff = action.scope === 'region' ? groupEfficiency(g, p, actionId) : 1;
+    const eff = action.scope === 'region' ? groupEfficiency(g, p, actionId, null, st.id) * channelFit(actionId, st.id) : 1;
     let text;
 
     switch (actionId) {
       case 'kundgebung': {
         const d = 1.7 * wear(g, 'kundgebung:' + st.id) * r * eff * between(g, 0.7, 1.3);
         g.reg[st.id][p] += d;
-        addGroups(g, p, 0.08 * d, 'kundgebung');
+        addGroups(g, p, 0.08 * d, 'kundgebung', null, st.id);
         text = pick(g, ['Volle Plätze', 'Begeisterte Menge', 'Solider Auftritt']) +
           ' bei der Kundgebung in ' + st.name + ' (' + fmt(d) + ' Pkt. im Land).';
         break;
@@ -511,14 +552,14 @@
       case 'plakate': {
         const d = 1.3 * wear(g, 'plakate:' + st.id) * r * eff * between(g, 0.8, 1.2);
         g.reg[st.id][p] += d;
-        addGroups(g, p, 0.05 * d, 'plakate');
+        addGroups(g, p, 0.05 * d, 'plakate', null, st.id);
         text = 'Plakate hängen in ganz ' + st.name + ' (' + fmt(d) + ' Pkt. im Land).';
         break;
       }
       case 'haustuer': {
         const d = (1.0 + 0.6 / Math.sqrt(st.voters)) * wear(g, 'haustuer:' + st.id) * r * eff * between(g, 0.7, 1.3);
         g.reg[st.id][p] += d;
-        addGroups(g, p, 0.05 * d, 'haustuer');
+        addGroups(g, p, 0.05 * d, 'haustuer', null, st.id);
         text = 'Ehrenamtliche klingeln an tausenden Türen in ' + st.name + ' (' + fmt(d) + ' Pkt. im Land).';
         break;
       }
@@ -1388,7 +1429,7 @@
     party, stateById, topicById, eventById, eventText,
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
-    publishedShares, publishedStateShares, groupShares, groupMix, groupEfficiency, groupEffect, stolenBy,
+    publishedShares, publishedStateShares, groupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
     POLL_RANGE, GROUP_IDS,
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent,

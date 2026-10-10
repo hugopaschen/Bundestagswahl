@@ -1612,3 +1612,12 @@ h2 .flyer-hint { margin: 0; }
 .gp-topic { font-size: .74rem; padding: 2px 8px; border-radius: 99px; background: var(--surface-2); }
 .gp-topic.core { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
 .gp-sat { margin: 0; font-size: .74rem; color: #b9770e; font-weight: 700; }
+
+/* Wählergruppen je Bundesland */
+.state-groups-block { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--border); }
+.sg-bar { position: relative; overflow: visible; }
+.sg-bar i { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--text); opacity: .55; border-radius: 1px; }
+.sg-sources { margin-top: 14px; font-size: .82rem; color: var(--text-2); }
+.sg-sources summary { cursor: pointer; font-weight: 700; }
+.sg-sources ul { margin: 8px 0 0; padding-left: 18px; }
+.sg-sources li { margin: 4px 0; }
