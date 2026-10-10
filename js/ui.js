@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261010-211155';
+  const APP_VERSION = '20261010-211958';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -250,6 +250,7 @@
   }
 
   // Säulendiagramm wie bei Hochrechnungen im Fernsehen: feste Reihenfolge, Wert unter dem Parteinamen.
+  const CHART_TOP = 50;
   const CHART_ORDER = ['union', 'spd', 'gruene', 'linke', 'afd', 'fdp', 'bsw', D.OTHER.id];
 
   // Das Diagramm wird nur einmal aufgebaut und danach nur noch verändert: So wachsen und schrumpfen
@@ -267,8 +268,8 @@
   function renderStateDetail() {
     const st = E.stateById(selState);
     const s = E.stateShares(g, st.id);
-    const max = Math.max.apply(null, CHART_ORDER.map(p => s[p]));
-    const top = Math.max(10, Math.ceil(max / 5) * 5); // Skala auf volle 5 % aufrunden
+    // Feste Skala für alle Länder (0–50 %), damit die 5-%-Linie beim Wechsel nicht springt; höhere Werte werden gekappt.
+    const top = CHART_TOP;
     const box = $('state-detail');
     if (!box.querySelector('.col-chart')) buildStateChart(box);
     box.querySelector('.cc-title').innerHTML = esc(st.name) + ' <span class="muted small">· ' + num1(st.voters) + ' Mio. Wahlberechtigte</span>';
@@ -276,7 +277,7 @@
     box.querySelector('.cc-hurdle').style.bottom = (5 / top * 100) + '%';
     // Höhe im nächsten Frame setzen, damit der Übergang auch beim ersten Aufbau greift
     requestAnimationFrame(() => {
-      box.querySelectorAll('.cc-bar').forEach(b => { b.style.height = (s[b.dataset.p] / top * 100) + '%'; });
+      box.querySelectorAll('.cc-bar').forEach(b => { b.style.height = Math.min(100, s[b.dataset.p] / top * 100) + '%'; });
     });
     const vals = box.querySelectorAll('.cc-label');
     const from = {};
