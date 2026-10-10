@@ -383,3 +383,19 @@ test('Wählergruppen je Bundesland: Stadtstaaten nur Großstädter, Kanäle pass
     assert.ok(Math.abs(avg - land) < 1.5, id);
   }
 });
+
+test('Programmparteitag wirkt auf Wählergruppen: Parteilinie neutral, Abweichungen verschieben Gruppen und Länder', () => {
+  const line = E.programEffects('gruene', E.defaultProgram('gruene'));
+  assert.ok(Object.values(line.groups).every(v => Math.abs(v) < 1e-9));
+  const hard = E.defaultProgram('gruene');
+  hard.positions.migration = D.PROGRAM.migration.findIndex(o => o.lean === 1);
+  const fx = E.programEffects('gruene', hard);
+  assert.ok(fx.groups.niedrig > 0 && fx.groups.hoch < 0);
+  assert.ok(E.programStateEffect(fx.groups, 'BB') > E.programStateEffect(fx.groups, 'BE'));
+  // im Spiel: Gruppenwerte und Landeswerte folgen dem Programm
+  const g1 = E.newGame('gruene', 'T', 1);
+  const g2 = E.newGame('gruene', 'T', 1, hard);
+  g1.pollErr = {}; g2.pollErr = {};
+  const rel = g => E.groupShares(g, 'niedrig').gruene - E.groupShares(g, 'hoch').gruene;
+  assert.ok(rel(g2) > rel(g1));
+});

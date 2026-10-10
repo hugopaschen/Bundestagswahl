@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261010-232613';
+  const APP_VERSION = '20261010-233353';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -1092,13 +1092,16 @@
         if (o.east >= 0.3) tags.push('<span class="tag">im Osten beliebt</span>');
         if (o.east <= -0.3) tags.push('<span class="tag">im Osten unbeliebt</span>');
         tags.push('<span class="tag' + (o.cost < 0 ? ' line' : '') + '">' + (o.cost > 0 ? '💶'.repeat(o.cost) : o.cost < 0 ? '💶 entlastet den Haushalt' : 'kostenneutral') + '</span>');
+        tags.push(positionGroupTags(t.id, i, D.PROGRAM[t.id].findIndex(x => x.lean === p.lean[t.id])));
         return '<label class="option"><input type="radio" name="pos-' + t.id + '" value="' + i + '"' +
           (draft.positions[t.id] === i ? ' checked' : '') + '>' +
           '<span class="olabel">' + esc(o.label) + '</span><span class="odesc">' + esc(o.desc) + '</span>' +
           '<span class="ometa">' + tags.join('') + '</span></label>';
       }).join('');
+      const fans = topicFans(t.id);
       return '<fieldset class="topic-set" data-topic="' + t.id + '"><legend>' + t.icon + ' ' + esc(t.name) +
         '<span class="core-mark" data-core="' + t.id + '" hidden>🎯 Kernthema</span></legend>' +
+        (fans.length ? '<p class="set-fans">Besonders wichtig für ' + groupIcons(fans) + '</p>' : '') +
         '<div class="options">' + options + '</div></fieldset>';
     }).join('');
     $('positions').querySelectorAll('input[type=radio]').forEach(inp => {
@@ -1110,6 +1113,27 @@
     updateCoreMarks();
     renderProgramSummary();
     document.body.style.background = getComputedStyle(flyer).getPropertyValue('--fl-paper').trim();
+  }
+
+  // Gruppen, denen ein Thema besonders wichtig ist.
+  function topicFans(topic, min) {
+    return D.GROUPS.filter(k => (k.topics[topic] || 1) >= (min || 1.4)).sort((a, b) => b.topics[topic] - a.topics[topic]);
+  }
+
+  function groupIcons(list) {
+    return list.map(k => '<span class="gfan" title="' + esc(k.name) + '">' + k.icon + ' ' + esc(k.short) + '</span>').join('');
+  }
+
+  // Wem eine Position mehr oder weniger gefällt als die Parteilinie.
+  function positionGroupTags(topic, i, lineIndex) {
+    if (i === lineIndex) return '';
+    const a = E.positionAppeal(topic, i);
+    const b = E.positionAppeal(topic, lineIndex);
+    const d = D.GROUPS.map(k => ({ k, v: a[k.id] - b[k.id] }));
+    const plus = d.filter(x => x.v >= 0.12).sort((x, y) => y.v - x.v).slice(0, 3).map(x => x.k);
+    const minus = d.filter(x => x.v <= -0.12).sort((x, y) => x.v - y.v).slice(0, 3).map(x => x.k);
+    return (plus.length ? '<span class="tag gtag plus">👍 ' + plus.map(k => k.icon + ' ' + esc(k.short)).join(', ') + '</span>' : '') +
+      (minus.length ? '<span class="tag gtag minus">👎 ' + minus.map(k => k.icon + ' ' + esc(k.short)).join(', ') + '</span>' : '');
   }
 
   function renderCoreChips() {
@@ -1134,7 +1158,8 @@
         '<span class="core-meter"><span class="core-meter-label">Kompetenz <b>' + comp + '</b>/100</span>' +
         '<span class="core-bar"><span style="width:' + comp + '%"></span></span></span>' +
         '<span class="core-meter"><span class="core-meter-label">Wählerinteresse <b>' + interest + '&nbsp;%</b></span>' +
-        '<span class="core-bar"><span style="width:' + Math.min(100, interest * 4) + '%"></span></span></span>';
+        '<span class="core-bar"><span style="width:' + Math.min(100, interest * 4) + '%"></span></span></span>' +
+        (topicFans(t.id).length ? '<span class="core-fans">Wichtig für ' + groupIcons(topicFans(t.id)) + '</span>' : '');
       b.title = 'Kompetenz deiner Partei: ' + comp + '/100 · so wichtig ist das Thema den Wählern zu Beginn: ' + interest + ' %';
       b.addEventListener('click', () => {
         if (on) {
@@ -1309,10 +1334,33 @@
             (core && Number.isInteger(draft.quiz[t.id]) ? '<span class="comp-quiz">Fachkonferenz ' + signedInt(QUIZ_EFFECT[draft.quiz[t.id]]) + '</span>' : '') +
             '</div>';
         }).join('') + '</div>' +
-        '<p class="flyer-hint comp-legend">Der Strich im Balken zeigt die Kompetenz vor eurem Programm.</p>';
+        '<p class="flyer-hint comp-legend">Der Strich im Balken zeigt die Kompetenz vor eurem Programm.</p>' +
+        bilanzGroupsHtml(fx.groups);
     }
     if (errors.length) html += '<ul class="errors">' + errors.map(e => '<li>' + esc(e) + '</li>').join('') + '</ul>';
     $('program-summary').innerHTML = html;
+  }
+
+  // Bilanz: Wie das Programm bei den Wählergruppen ankommt und wo es regional wirkt.
+  function bilanzGroupsHtml(groups) {
+    const max = Math.max(2, ...Object.values(groups).map(v => Math.abs(v)));
+    const rows = D.GROUP_DIMS.map(dim => '<div class="bg-dim"><h4 class="gp-dim">' + esc(dim.name) + '</h4>' +
+      D.GROUPS.filter(k => k.dim === dim.id).map(k => {
+        const v = groups[k.id] || 0;
+        const w = Math.min(50, Math.abs(v) / max * 50);
+        return '<div class="bg-row"><span class="bg-name">' + k.icon + ' ' + esc(k.short) + '</span>' +
+          '<span class="bg-track"><i class="' + (v >= 0 ? 'good' : 'bad') + '" style="' + (v >= 0 ? 'left:50%' : 'left:' + (50 - w) + '%') + ';width:' + w + '%"></i></span>' +
+          '<span class="bg-val ' + (v > 0.05 ? 'good' : v < -0.05 ? 'bad' : '') + '">' + signed(v) + '</span></div>';
+      }).join('') + '</div>').join('');
+    const states = D.STATES.map(st => ({ st, v: E.programStateEffect(groups, st.id) })).sort((a, b) => b.v - a.v);
+    const any = states.some(x => Math.abs(x.v) >= 0.05);
+    const list = arr => arr.map(x => esc(x.st.name) + ' <b class="' + (x.v >= 0 ? 'good' : 'bad') + '">' + signed(x.v) + '</b>').join(', ');
+    return '<h3 class="bilanz-h3">Wie das Programm bei den Wählergruppen ankommt</h3>' +
+      '<p class="flyer-hint">Gemessen an der Parteilinie: Wer Positionen wechselt oder andere Kernthemen setzt, gewinnt manche Gruppen und verliert andere. ' +
+      'Gruppen, die euer Programm mögen, lassen sich im Wahlkampf außerdem leichter mobilisieren.</p>' +
+      '<div class="bilanz-groups">' + rows + '</div>' +
+      (any ? '<p class="bilanz-regional">🗺️ <b>Regional:</b> Plus in ' + list(states.slice(0, 3)) + ' · Minus in ' + list(states.slice(-3).reverse()) + '</p>'
+        : '<p class="bilanz-regional muted">Auf Parteilinie: Die Wählergruppen bleiben, wie sie sind.</p>');
   }
 
   function renderProgramView() {

@@ -1621,3 +1621,23 @@ h2 .flyer-hint { margin: 0; }
 .sg-sources summary { cursor: pointer; font-weight: 700; }
 .sg-sources ul { margin: 8px 0 0; padding-left: 18px; }
 .sg-sources li { margin: 4px 0; }
+
+/* Programmparteitag: Wählergruppen */
+.core-fans, .set-fans { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: .72rem; color: var(--text-2); }
+.set-fans { margin: -2px 0 8px; font-size: .8rem; }
+.gfan { padding: 1px 7px; border-radius: 99px; background: color-mix(in srgb, var(--fl-accent, var(--accent)) 12%, transparent); white-space: nowrap; }
+.tag.gtag.plus { background: color-mix(in srgb, #1e8449 14%, transparent); color: #1e6b3c; }
+.tag.gtag.minus { background: color-mix(in srgb, #c0392b 12%, transparent); color: #a93226; }
+.bilanz-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 6px 22px; }
+.bg-dim .gp-dim { margin: 10px 0 4px; }
+.bg-row { display: grid; grid-template-columns: 110px 1fr 46px; align-items: center; gap: 8px; padding: 3px 0; font-size: .86rem; }
+.bg-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bg-track { position: relative; height: 10px; border-radius: 99px; background: color-mix(in srgb, currentColor 8%, transparent); }
+.bg-track::after { content: ''; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: currentColor; opacity: .4; }
+.bg-track i { position: absolute; top: 0; bottom: 0; border-radius: 99px; }
+.bg-track i.good { background: #27ae60; }
+.bg-track i.bad { background: #c0392b; }
+.bg-val { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; }
+.bg-val.good, .bilanz-regional b.good { color: #1e8449; }
+.bg-val.bad, .bilanz-regional b.bad { color: #c0392b; }
+.bilanz-regional { margin: 14px 0 0; font-size: .9rem; }

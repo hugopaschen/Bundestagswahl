@@ -71,6 +71,27 @@
   });
   const weightsFor = stateId => (stateId && W_STATE[stateId]) || W;
 
+  // Bevorzugte Position jeder Wählergruppe je Thema (−1 links … +1 rechts): Parteilinien,
+  // gewichtet mit dem Rückhalt der Parteien in der Gruppe (Bundesergebnis × Gruppenfaktor).
+  const BASE_SHARE = {};
+  PARTY_IDS.forEach(p => {
+    BASE_SHARE[p] = D.STATES.reduce((s, st) => s + st.result[p] * st.voters, 0) / TOTAL_VOTERS;
+  });
+  const POS_PREF = {};
+  const POS_PREF_NAT = {};
+  function prefOf(weightOf) {
+    const out = {};
+    TOPIC_IDS.forEach(t => {
+      let num = 0;
+      let den = 0;
+      PARTY_IDS.forEach(p => { const w = BASE_SHARE[p] * weightOf(p); num += w * D.PARTIES.find(x => x.id === p).lean[t]; den += w; });
+      out[t] = num / den;
+    });
+    return out;
+  }
+  Object.assign(POS_PREF_NAT, prefOf(() => 1));
+  D.GROUPS.forEach(k => { POS_PREF[k.id] = prefOf(p => FACTOR[k.id][p]); });
+
   const party = id => D.PARTIES.find(p => p.id === id);
   const stateById = id => D.STATES.find(s => s.id === id);
   const topicById = id => D.TOPICS.find(t => t.id === id);
@@ -184,7 +205,60 @@
       competence.wirtschaft += 5;
     }
     TOPIC_IDS.forEach(t => { competence[t] = Math.max(5, Math.min(95, competence[t])); });
-    return { competence, nat, east, cost, budget, finance, details };
+    return { competence, nat, east, cost, budget, finance, details, groups: programGroupEffects(partyId, prog) };
+  }
+
+  // Wie sehr eine Position einer Gruppe mehr (positiv) oder weniger (negativ) gefällt als dem
+  // Durchschnitt – stärker bei Themen, die der Gruppe besonders wichtig sind.
+  function positionAppeal(topic, optIndex) {
+    const L = D.PROGRAM[topic][optIndex].lean;
+    const out = {};
+    D.GROUPS.forEach(k => {
+      out[k.id] = topicPref(k, topic) * (Math.abs(L - POS_PREF_NAT[topic]) - Math.abs(L - POS_PREF[k.id][topic]));
+    });
+    return out;
+  }
+
+  // Wirkung des Programms auf die Wählergruppen (Punkte). Je Dimension zentriert: Bundesweit
+  // gleicht sich das aus, aber Länder mit vielen „Fans“ des Programms profitieren, und
+  // Gruppen, die das Programm mögen, lassen sich im Wahlkampf leichter gewinnen.
+  const PROG_GROUP_K = 3;
+  const CORE_GROUP_K = 1.5;
+  function groupAppealRaw(prog) {
+    const raw = {};
+    D.GROUPS.forEach(k => { raw[k.id] = 0; });
+    TOPIC_IDS.forEach(t => {
+      const a = positionAppeal(t, prog.positions[t]);
+      const core = prog.core.indexOf(t) !== -1;
+      D.GROUPS.forEach(k => {
+        raw[k.id] += PROG_GROUP_K * PROGRAM_WEIGHT[t] * a[k.id] * (core ? 1.5 : 1);
+        if (core) raw[k.id] += CORE_GROUP_K * (topicPref(k, t) - 1);
+      });
+    });
+    return raw;
+  }
+
+  // Gemessen an der Parteilinie: Wer bei seiner Linie bleibt, verändert seine Wählerschaft nicht
+  // (die steckt schon in den Umfragewerten); Abweichungen und andere Kernthemen verschieben sie.
+  function programGroupEffects(partyId, prog) {
+    const now = groupAppealRaw(prog);
+    const base = groupAppealRaw(defaultProgram(partyId));
+    const raw = {};
+    D.GROUPS.forEach(k => { raw[k.id] = now[k.id] - base[k.id]; });
+    const out = {};
+    new Set(D.GROUPS.map(k => k.dim)).forEach(dim => {
+      const ks = D.GROUPS.filter(k => k.dim === dim);
+      const mean = ks.reduce((s, k) => s + k.weight * raw[k.id], 0) / ks.reduce((s, k) => s + k.weight, 0);
+      ks.forEach(k => { out[k.id] = Math.round((raw[k.id] - mean) * 100) / 100; });
+    });
+    return out;
+  }
+
+  // Programmwirkung der Gruppen im Bundesland (gewichtet nach der Wählerschaft dort).
+  function programStateEffect(groups, stateId) {
+    if (!groups) return 0;
+    const w = weightsFor(stateId);
+    return D.GROUPS.reduce((s, k) => s + w[k.id] * (groups[k.id] || 0), 0);
   }
 
   function applyProgram(g, prog) {
@@ -194,6 +268,7 @@
     g.gaffe = gaffeTopic(prog);
     g.competence = fx.competence;
     g.prog = { nat: fx.nat, east: fx.east };
+    g.progGroups = fx.groups;
     g.finance = fx.finance;
     g.program.core.forEach(t => changeSalience(g, t, 0.02));
   }
@@ -290,7 +365,7 @@
     let other = 100;
     PARTY_IDS.forEach(p => {
       other -= st.result[p];
-      const prog = p === g.party && g.prog ? g.prog.nat + (st.east ? g.prog.east : 0) : 0;
+      const prog = p === g.party && g.prog ? g.prog.nat + (st.east ? g.prog.east : 0) + programStateEffect(g.progGroups, stateId) : 0;
       raw[p] = Math.max(0.2, st.result[p] + g.nat[p] + g.reg[stateId][p] + prog + issueEffect(g, p) + groupEffect(g, p));
     });
     raw[D.OTHER.id] = Math.max(0.5, other + (g.otherSwing || 0));
@@ -396,7 +471,9 @@
     const mix = groupMix(channel, topic, stateId);
     let total = 0;
     D.GROUPS.forEach(k => {
-      const add = d * mix[k.id] * (d > 0 ? groupSat(g, k.id, p) : 1);
+      // Gruppen, denen euer Programm gefällt, sind leichter zu mobilisieren (und umgekehrt).
+      const fan = p === g.party && g.progGroups && d > 0 ? Math.max(0.7, Math.min(1.3, 1 + 0.08 * (g.progGroups[k.id] || 0))) : 1;
+      const add = d * mix[k.id] * fan * (d > 0 ? groupSat(g, k.id, p) : 1);
       g.grp[k.id][p] += add;
       total += W[k.id] * add;
     });
@@ -416,7 +493,8 @@
       TOPIC_IDS.forEach(t => {
         topic += (g.salience[t] - D.SALIENCE0[t]) * (topicPref(k, t) - 1) * (comp[t] - MEAN_COMPETENCE[t]) / 100;
       });
-      raw[p] = Math.max(0.3, pub[p] * (factor[p] || 1) + (g.grp[groupId][p] - groupEffect(g, p)) + ISSUE_K * topic);
+      const pg = p === g.party && g.progGroups ? g.progGroups[groupId] - programStateEffect(g.progGroups, stateId) : 0;
+      raw[p] = Math.max(0.3, pub[p] * (factor[p] || 1) + pg + (g.grp[groupId][p] - groupEffect(g, p)) + ISSUE_K * topic);
     });
     raw[D.OTHER.id] = pub[D.OTHER.id];
     return normalize(raw);
@@ -1413,6 +1491,7 @@
     if (!g.pollErr) { g.pollErr = {}; ALL_IDS.forEach(p => { g.pollErr[p] = 0; }); }
     if (g.otherSwing === undefined) g.otherSwing = 0;
     if (g.spendCount === undefined) { g.spendCount = 0; g.spendWeek = 0; }
+    if (!g.progGroups && g.program) g.progGroups = programGroupEffects(g.party, g.program);
     if (!g.grpStart) g.grpStart = {};
     GROUP_IDS.forEach(k => { if (!(k in g.grpStart)) g.grpStart[k] = groupShares(g, k)[g.party]; });
     const line = defaultProgram(g.party);
@@ -1430,7 +1509,7 @@
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     publishedShares, publishedStateShares, groupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
-    POLL_RANGE, GROUP_IDS,
+    POLL_RANGE, GROUP_IDS, positionAppeal, programStateEffect,
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent,
     startDuel, duelAnswer,
