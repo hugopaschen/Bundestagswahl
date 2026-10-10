@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261010-222854';
+  const APP_VERSION = '20261010-223803';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -467,11 +467,11 @@
     let cols = '';
     let labels = '';
     POLL_ORDER.forEach(p => {
-      const d = p === D.OTHER.id ? null : shares[p] - g.startShares[p];
+      const d = shares[p] - g.startShares[p];
       const lo = Math.max(0, shares[p] - R);
-      const range = p === D.OTHER.id ? '' : '<i class="pc-range" style="bottom:' + (lo / top * 100) + '%;height:' + ((shares[p] + R - lo) / top * 100) + '%" title="Fehlerspanne ± ' + R + '"></i>';
-      cols += '<div class="pc-col"><span class="pc-val" style="bottom:' + ((shares[p] + (p === D.OTHER.id ? 0 : R)) / top * 100) + '%">' + pct(shares[p]) +
-        (p === D.OTHER.id ? '' : '<small>± ' + R + '</small>') + '</span>' + range +
+      const range = '<i class="pc-range" style="bottom:' + (lo / top * 100) + '%;height:' + ((shares[p] + R - lo) / top * 100) + '%" title="Fehlerspanne ± ' + R + '"></i>';
+      cols += '<div class="pc-col"><span class="pc-val" style="bottom:' + ((shares[p] + R) / top * 100) + '%">' + pct(shares[p]) +
+        '<small>± ' + R + '</small></span>' + range +
         '<div class="pc-bar" style="height:' + (shares[p] / top * 100) + '%;background:' + col(p) + '"></div></div>';
       labels += '<div class="pc-label' + (p === g.party ? ' me' : '') + '"><span class="pc-name">' + (p === D.OTHER.id ? 'Andere' : short(p)) + '</span>' +
         '<span class="pc-diff">' + (d === null ? '' : signed(d)) + '</span></div>';
@@ -520,7 +520,7 @@
     const T = 8;
     const B = 20;
     const hist = g.history;
-    const ids = D.PARTIES.map(p => p.id);
+    const ids = D.PARTIES.map(p => p.id).concat([D.OTHER.id]);
     let maxV = 0;
     hist.forEach(h => ids.forEach(p => { maxV = Math.max(maxV, h.shares[p]); }));
     const yMax = Math.ceil((maxV + 2) / 10) * 10;

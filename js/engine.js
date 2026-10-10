@@ -208,11 +208,13 @@
       steal: {},
       delayed: [],
       pollErr: {},
+      otherSwing: 0,       // Stimmung für die sonstigen Parteien (Freie Wähler, Volt, Tierschutzpartei …)
       spendCount: 0,
       spendWeek: 0,
       rng: (seed === undefined ? Math.floor(Math.random() * 2 ** 31) : seed) | 0
     };
-    PARTY_IDS.forEach(p => { g.nat[p] = 0; g.compAdj[p] = {}; g.pollErr[p] = 0; });
+    PARTY_IDS.forEach(p => { g.nat[p] = 0; g.compAdj[p] = {}; });
+    ALL_IDS.forEach(p => { g.pollErr[p] = 0; });
     GROUP_IDS.forEach(k => { g.grp[k] = {}; PARTY_IDS.forEach(p => { g.grp[k][p] = 0; }); });
     D.STATES.forEach(s => {
       g.reg[s.id] = {};
@@ -257,7 +259,7 @@
       const prog = p === g.party && g.prog ? g.prog.nat + (st.east ? g.prog.east : 0) : 0;
       raw[p] = Math.max(0.2, st.result[p] + g.nat[p] + g.reg[stateId][p] + prog + issueEffect(g, p) + groupEffect(g, p));
     });
-    raw[D.OTHER.id] = Math.max(0.5, other);
+    raw[D.OTHER.id] = Math.max(0.5, other + (g.otherSwing || 0));
     const sum = ALL_IDS.reduce((s, p) => s + raw[p], 0);
     const out = {};
     ALL_IDS.forEach(p => { out[p] = raw[p] / sum * 100; });
@@ -293,7 +295,7 @@
   // Kleine Parteien schwanken in absoluten Punkten weniger.
   function rollPollErr(g) {
     const shares = nationalShares(g);
-    PARTY_IDS.forEach(p => {
+    ALL_IDS.forEach(p => {
       const noise = (rand(g) + rand(g) + rand(g) - 1.5) * 2;
       const scale = Math.min(1, (shares[p] + 3) / 15);
       const e = 0.4 * (g.pollErr[p] || 0) + noise * scale;
@@ -951,6 +953,19 @@
     }
   );
 
+  EVENTS.push({
+    id: 'kleinpartei', title: 'Kleinpartei sorgt für Furore',
+    text: 'Eine junge Kleinpartei füllt mit einer frechen Kampagne die Timelines. In den Umfragen legen die Sonstigen kräftig zu – auch auf eure Kosten.',
+    before: g => { g.otherSwing = Math.min(4, (g.otherSwing || 0) + 1.2); },
+    choices: [
+      { label: 'Ihre Ideen aufgreifen', hint: 'Holt Wähler zurück, wirkt eher bei Jungen',
+        apply: g => { g.otherSwing -= 0.8; const d = addGroups(g, g.party, 0.4, 'social'); return 'Ihr nehmt der Kleinpartei den Wind aus den Segeln (' + fmt(d) + ').'; } },
+      { label: 'Vor verschenkten Stimmen warnen', hint: 'Riskant',
+        apply: g => { if (rand(g) < 0.55) { g.otherSwing -= 1.2; g.nat[g.party] += 0.4; return '„Jede Stimme zählt“ – die Botschaft kommt an (+0.4).'; } g.nat[g.party] -= 0.4; return 'Das wirkt arrogant (−0.4).'; } },
+      { label: 'Ignorieren', hint: 'Kein Risiko', apply: () => 'Ihr lasst die Kleinpartei links liegen.' }
+    ]
+  });
+
   function eventById(id) { return EVENTS.find(e => e.id === id); }
 
   function eventText(g, ev) {
@@ -1127,6 +1142,17 @@
     });
     PARTY_IDS.forEach(p => { g.nat[p] += between(g, -0.25, 0.25); }); // Stimmungsrauschen
 
+    // Auch die sonstigen Parteien gewinnen und verlieren: Verlieren die großen Parteien gemeinsam,
+    // profitieren Kleinparteien von der Protest- und Frustwahl.
+    const bigLoss = ['union', 'spd'].reduce((sum, p) => sum + (prev[p] - shares[p]), 0);
+    const swing = between(g, -0.45, 0.5) + Math.max(-0.3, Math.min(0.4, 0.25 * bigLoss));
+    g.otherSwing = Math.max(-3, Math.min(4, (g.otherSwing || 0) + swing));
+    if (Math.abs(swing) >= 0.55) {
+      news.push({ prio: 1, text: swing > 0
+        ? 'Kleinparteien im Aufwind: Freie Wähler, Volt und Co. legen in den Umfragen zu.'
+        : 'Die Kleinparteien verlieren an Zuspruch – ihre Wähler wandern zu den Großen.' });
+    }
+
     // Höchstens drei Meldungen pro Woche: Angriffe zuerst.
     news.sort((a, b) => b.prio - a.prio).slice(0, 3).forEach(n => addLog(g, 'ai', n.text));
   }
@@ -1141,6 +1167,7 @@
       D.STATES.forEach(s => { g.reg[s.id][p] *= BONUS_DECAY; });
       GROUP_IDS.forEach(k => { g.grp[k][p] *= BONUS_DECAY; });
     });
+    g.otherSwing = (g.otherSwing || 0) * 0.92; // langsame Rückkehr zum Normalwert
     TOPIC_IDS.forEach(t => {
       g.salience[t] += SALIENCE_DRIFT * (D.SALIENCE0[t] - g.salience[t]);
     });
@@ -1333,7 +1360,8 @@
     if (!g.compAdj) { g.compAdj = {}; PARTY_IDS.forEach(p => { g.compAdj[p] = {}; }); }
     if (!g.steal) g.steal = {};
     if (!g.delayed) g.delayed = [];
-    if (!g.pollErr) { g.pollErr = {}; PARTY_IDS.forEach(p => { g.pollErr[p] = 0; }); }
+    if (!g.pollErr) { g.pollErr = {}; ALL_IDS.forEach(p => { g.pollErr[p] = 0; }); }
+    if (g.otherSwing === undefined) g.otherSwing = 0;
     if (g.spendCount === undefined) { g.spendCount = 0; g.spendWeek = 0; }
     if (!g.grpStart) { g.grpStart = {}; GROUP_IDS.forEach(k => { g.grpStart[k] = groupShares(g, k)[g.party]; }); }
     const line = defaultProgram(g.party);

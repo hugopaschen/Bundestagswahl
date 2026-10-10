@@ -329,3 +329,15 @@ test('Spätfolgen: Eine angenommene Großspende kann Wochen später zur Spendena
   // Folgeereignisse werden nie zufällig gezogen
   assert.ok(E.EVENTS.filter(e => e.followUp).length >= 5);
 });
+
+test('Auch die sonstigen Parteien gewinnen und verlieren in den Umfragen', () => {
+  const finals = [];
+  for (let seed = 0; seed < 20; seed++) {
+    const g = E.newGame('linke', 'Test', seed);
+    const start = E.nationalShares(g).sonstige;
+    for (let w = 0; w < 6; w++) { E.endWeek(g); if (g.pendingEvent) E.resolveEvent(g, 0); }
+    assert.ok(g.otherSwing >= -3 && g.otherSwing <= 4);
+    finals.push(E.nationalShares(g).sonstige - start);
+  }
+  assert.ok(finals.some(d => d > 0.3) && finals.some(d => d < -0.3));
+});
