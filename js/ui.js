@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261010-213514';
+  const APP_VERSION = '20261010-214404';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -409,20 +409,24 @@
     }
   }
 
+  // Sonntagsfrage als Säulendiagramm: Wert über der Säule, Partei und Veränderung seit Wahlkampfstart darunter.
+  const POLL_ORDER = ['union', 'afd', 'spd', 'gruene', 'linke', 'bsw', 'fdp', D.OTHER.id];
+
   function renderPollBars(shares) {
-    const ids = ALL_IDS.slice().sort((a, b) => (a === D.OTHER.id) - (b === D.OTHER.id) || shares[b] - shares[a]);
-    const scale = Math.max(35, Math.max.apply(null, ids.map(p => shares[p])) + 3);
-    let html = '';
-    ids.forEach(p => {
+    const top = Math.max(35, Math.ceil((Math.max.apply(null, POLL_ORDER.map(p => shares[p])) + 4) / 5) * 5);
+    let cols = '';
+    let labels = '';
+    POLL_ORDER.forEach(p => {
       const d = p === D.OTHER.id ? null : shares[p] - g.startShares[p];
-      html += '<span class="label' + (p === g.party ? ' me' : '') + '">' + short(p) + '</span>' +
-        '<div class="track"><div class="bar" style="width:' + (shares[p] / scale * 100) + '%;background:' + col(p) + '"></div>' +
-        '<div class="hurdle" style="left:' + (5 / scale * 100) + '%" title="5-%-Hürde"></div></div>' +
-        '<span class="num">' + pct(shares[p]) + '</span>' +
-        '<span class="diff ' + (d === null ? '' : d >= 0 ? 'pos' : 'neg') + '">' + (d === null ? '' : signed(d)) + '</span>';
+      cols += '<div class="pc-col"><span class="pc-val">' + pct(shares[p]) + '</span>' +
+        '<div class="pc-bar" style="height:' + (shares[p] / top * 100) + '%;background:' + col(p) + '"></div></div>';
+      labels += '<div class="pc-label' + (p === g.party ? ' me' : '') + '"><span class="pc-name">' + (p === D.OTHER.id ? 'Andere' : short(p)) + '</span>' +
+        '<span class="pc-diff">' + (d === null ? '' : signed(d)) + '</span></div>';
     });
-    $('poll-bars').innerHTML = html;
+    $('poll-bars').innerHTML = '<div class="pc-plot"><i class="pc-hurdle" style="bottom:' + (5 / top * 100) + '%" title="5-%-Hürde"></i>' + cols + '</div>' +
+      '<div class="pc-labels">' + labels + '</div>';
   }
+
 
   function renderChart() {
     // Breite an den Platz anpassen, damit Beschriftungen bei Vollbild nicht mitwachsen.
@@ -449,6 +453,8 @@
     ids.slice().sort((a, b) => (a === g.party) - (b === g.party)).forEach(p => {
       const pts = hist.map((h, i) => x(i) + ',' + y(h.shares[p])).join(' ');
       svg += '<polyline class="series' + (p === g.party ? ' me' : '') + '" points="' + pts + '" style="stroke:' + col(p) + '"></polyline>';
+      const last = hist[hist.length - 1];
+      svg += '<circle cx="' + x(hist.length - 1) + '" cy="' + y(last.shares[p]) + '" r="' + (p === g.party ? 4.5 : 3) + '" style="fill:' + col(p) + '"></circle>';
     });
     svg += '<line class="crosshair" y1="' + T + '" y2="' + (H - B) + '" x1="0" x2="0" visibility="hidden"></line>';
     svg += '<rect class="hit" x="' + L + '" y="0" width="' + (W - L - R) + '" height="' + H + '" fill="transparent"></rect></svg>';
