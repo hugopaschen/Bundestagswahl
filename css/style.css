@@ -1641,3 +1641,9 @@ h2 .flyer-hint { margin: 0; }
 .bg-val.good, .bilanz-regional b.good { color: #1e8449; }
 .bg-val.bad, .bilanz-regional b.bad { color: #c0392b; }
 .bilanz-regional { margin: 14px 0 0; font-size: .9rem; }
+
+/* Landesthemen und Thema für Vor-Ort-Aktionen */
+.state-top-topics { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 10px; font-size: .86rem; color: var(--text-2); }
+.state-top-topics .stt { padding: 2px 9px; border-radius: 99px; background: var(--surface-2); color: var(--text); font-weight: 700; }
+.local-topic-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 12px; font-weight: 700; font-size: .9rem; }
+.local-topic-row select { flex: 1 1 220px; min-width: 0; font: inherit; font-weight: 600; padding: 8px 10px; border-radius: 10px; border: 2px solid var(--border); background: var(--surface); color: var(--text); }

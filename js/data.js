@@ -354,6 +354,64 @@
       url: 'https://de.wikipedia.org/wiki/Liste_der_Gro%C3%9Fst%C3%A4dte_in_Deutschland' }
   ];
 
+  // Landesthemen: wichtigste Probleme je Land nach Landesumfragen (offene Nennungen, oft bis zu
+  // zwei). Die Engine vergleicht jedes Land mit den anderen Ländern; nicht genannte Themen zählen
+  // wie im Bundesschnitt. vollstaendig = Umfrage führt alle nennenswerten Themen auf.
+  var STATE_TOPICS = {
+    BW: { werte: {wirtschaft:  31,  klima:  14,  bildung:  14,  verkehr:  13,  migration:  12,  wohnen:  10}, vollstaendig: false,
+      quelle: 'ZDF-Politbarometer Extra Baden-Württemberg, Feb. 2026', url: 'https://www.forschungsgruppe.de/Umfragen/Politbarometer/Archiv/Politbarometer-Extra/PB-Extra_Baden-Wuerttemberg_Februar_2026/' },
+    BY: { werte: {migration:  29,  wirtschaft:  20,  bildung:  13,  klima:  11}, vollstaendig: false,
+      quelle: 'Infratest dimap, BayernTREND (BR), Jan. 2026', url: 'https://www.infratest-dimap.de/umfragen-analysen/bundeslaender/bayern/laendertrend/2026/januar/' },
+    BE: { werte: {wohnen:  32,  migration:  10,  sicherheit:  9,  verkehr:  8}, vollstaendig: false,
+      quelle: 'Infratest dimap, BerlinTREND (rbb), Sep. 2026', url: 'https://www.echo24.de/welt/berlin-wahl-umfrage-cdu-ueberholt-linke-trotz-mieten-frust-zr-94473215.html' },
+    BB: { werte: {demokratie:  21,  bildung:  15,  migration:  13,  wirtschaft:  13,  klima:  12,  verkehr:  11}, vollstaendig: true,
+      quelle: 'forsa, Brandenburg-Monitor 2026 (Staatskanzlei), Juli/Aug. 2026', url: 'https://www.brandenburg.de/sixcms/detail.php?id=242495' },
+    HB: { werte: {bildung:  45,  verkehr:  28,  sicherheit:  15,  soziales:  13,  migration:  12,  wohnen:  8,  wirtschaft:  5}, vollstaendig: true,
+      quelle: 'Infratest dimap, BremenTREND (Radio Bremen), Apr. 2023', url: 'https://de.statista.com/statistik/daten/studie/1379910/umfrage/wichtigste-politische-probleme-in-bremen' },
+    HH: { werte: {verkehr:  42,  wohnen:  32,  migration:  15,  bildung:  12,  wirtschaft:  10}, vollstaendig: false,
+      quelle: 'ZDF-Politbarometer Extra Hamburg, Feb. 2025', url: 'https://www.zdfheute.de/politik/politbarometer-hamburg-buergerschaftswahl-100.html' },
+    HE: { werte: {bildung:  29,  migration:  22,  verkehr:  16,  wirtschaft:  13,  wohnen:  11}, vollstaendig: false,
+      quelle: 'Infratest dimap, hr-HessenTREND, Jan. 2026', url: 'https://www.infratest-dimap.de/umfragen-analysen/bundeslaender/hessen/laendertrend/2026/februar/' },
+    MV: { werte: {wirtschaft:  30,  bildung:  25,  migration:  16,  soziales:  6}, vollstaendig: false,
+      quelle: 'Infratest dimap, MV-TREND (NDR), 2026 – Werte nur über Social-Media-Zitat', url: 'https://x.com/Wahlen_DE/status/2095567466701226140' },
+    NI: { werte: {wirtschaft:  29,  migration:  27,  bildung:  20,  klima:  10}, vollstaendig: false,
+      quelle: 'Infratest dimap, NiedersachsenTREND (NDR), Nov. 2024', url: 'https://www.infratest-dimap.de/umfragen-analysen/bundeslaender/niedersachsen/laendertrend/2024/november/' },
+    NW: { werte: {verkehr:  31,  bildung:  24,  migration:  20,  soziales:  12,  wirtschaft:  9,  wohnen:  9,  klima:  9}, vollstaendig: false,
+      quelle: 'Infratest dimap, NRW-TREND (WDR), Juni 2026', url: 'https://www.infratest-dimap.de/umfragen-analysen/bundeslaender/nordrhein-westfalen/laendertrend/2026/juni/' },
+    RP: { werte: {bildung:  29,  migration:  22,  verkehr:  18,  wirtschaft:  13}, vollstaendig: false,
+      quelle: 'Infratest dimap, Rheinland-PfalzTREND (SWR), Jan. 2026 (statt Aug. 2026 mit hitzebedingter Klima-Spitze)', url: 'https://www.infratest-dimap.de/umfragen-analysen/bundeslaender/rheinland-pfalz/laendertrend/2026/august/' },
+    SL: { werte: {wirtschaft:  40,  migration:  25,  bildung:  23,  gesundheit:  12,  sicherheit:  11,  verkehr:  10,  klima:  9}, vollstaendig: false,
+      quelle: 'Infratest dimap, SaarlandTREND (SR), Apr. 2025', url: 'https://de.statista.com/statistik/daten/studie/2143/umfrage/wichtigste-politische-probleme-im-saarland' },
+    SN: { werte: {migration:  44,  bildung:  19,  demokratie:  19,  soziales:  12,  wirtschaft:  11,  gesundheit:  7,  verkehr:  7,  klima:  6,  sicherheit:  6}, vollstaendig: true,
+      quelle: 'Infratest dimap, SachsenTREND (MDR), Juni 2024', url: 'https://www.infratest-dimap.de/umfragen-analysen/bundeslaender/sachsen/laendertrend/2024/juni/' },
+    ST: { werte: {wirtschaft:  39,  bildung:  17,  migration:  14}, vollstaendig: false,
+      quelle: 'ZDF-Politbarometer Extra Sachsen-Anhalt, Aug. 2026; Migration aus Infratest dimap (MDR), Mai 2026', url: 'https://presseportal.zdf.de/pressemitteilung/zdf-politbarometer-extra-i-sachsen-anhalt-august-2026' },
+    SH: { werte: {verkehr:  28,  bildung:  22,  migration:  20}, vollstaendig: false,
+      quelle: 'Infratest dimap, Schleswig-HolsteinTREND (NDR), Apr. 2026 – nur Rangfolge bekannt, Werte geschätzt', url: 'https://www.infratest-dimap.de/umfragen-analysen/bundeslaender/schleswig-holstein/laendertrend/2026/april/' },
+    TH: { werte: {migration:  39,  bildung:  25,  wirtschaft:  11,  demokratie:  19,  soziales:  8,  verkehr:  8}, vollstaendig: true,
+      quelle: 'Infratest dimap, ThüringenTREND (MDR), Juni 2024', url: 'https://www.infratest-dimap.de/umfragen-analysen/bundeslaender/thueringen/laendertrend/2024/juni/' }
+  };
+
+  var STATE_TOPIC_SOURCES = [
+    { dim: 'Landesthemen', text: 'Wichtigste Probleme je Land aus Landesumfragen (Infratest dimap LänderTRENDs, ZDF-Politbarometer Extra, forsa Brandenburg-Monitor), meist 2025/2026; Sachsen und Thüringen Juni 2024, Bremen 2023, Niedersachsen Nov. 2024. Weil Landesumfragen nach Landespolitik fragen (Bildung, Verkehr oben), vergleicht das Spiel jedes Land nur mit den anderen Ländern. Werte über Suchergebnis-Auszüge erhoben; Schleswig-Holstein nur Rangfolge (Werte geschätzt), Mecklenburg-Vorpommern über Social-Media-Zitat.' },
+    { dim: 'Landesthemen (BW)', text: 'ZDF-Politbarometer Extra Baden-Württemberg, Feb. 2026', url: 'https://www.forschungsgruppe.de/Umfragen/Politbarometer/Archiv/Politbarometer-Extra/PB-Extra_Baden-Wuerttemberg_Februar_2026/' },
+    { dim: 'Landesthemen (BY)', text: 'Infratest dimap, BayernTREND (BR), Jan. 2026', url: 'https://www.infratest-dimap.de/umfragen-analysen/bundeslaender/bayern/laendertrend/2026/januar/' },
+    { dim: 'Landesthemen (BE)', text: 'Infratest dimap, BerlinTREND (rbb), Sep. 2026', url: 'https://www.echo24.de/welt/berlin-wahl-umfrage-cdu-ueberholt-linke-trotz-mieten-frust-zr-94473215.html' },
+    { dim: 'Landesthemen (BB)', text: 'forsa, Brandenburg-Monitor 2026 (Staatskanzlei), Juli/Aug. 2026', url: 'https://www.brandenburg.de/sixcms/detail.php?id=242495' },
+    { dim: 'Landesthemen (HB)', text: 'Infratest dimap, BremenTREND (Radio Bremen), Apr. 2023', url: 'https://de.statista.com/statistik/daten/studie/1379910/umfrage/wichtigste-politische-probleme-in-bremen' },
+    { dim: 'Landesthemen (HH)', text: 'ZDF-Politbarometer Extra Hamburg, Feb. 2025', url: 'https://www.zdfheute.de/politik/politbarometer-hamburg-buergerschaftswahl-100.html' },
+    { dim: 'Landesthemen (HE)', text: 'Infratest dimap, hr-HessenTREND, Jan. 2026', url: 'https://www.infratest-dimap.de/umfragen-analysen/bundeslaender/hessen/laendertrend/2026/februar/' },
+    { dim: 'Landesthemen (MV)', text: 'Infratest dimap, MV-TREND (NDR), 2026 – Werte nur über Social-Media-Zitat', url: 'https://x.com/Wahlen_DE/status/2095567466701226140' },
+    { dim: 'Landesthemen (NI)', text: 'Infratest dimap, NiedersachsenTREND (NDR), Nov. 2024', url: 'https://www.infratest-dimap.de/umfragen-analysen/bundeslaender/niedersachsen/laendertrend/2024/november/' },
+    { dim: 'Landesthemen (NW)', text: 'Infratest dimap, NRW-TREND (WDR), Juni 2026', url: 'https://www.infratest-dimap.de/umfragen-analysen/bundeslaender/nordrhein-westfalen/laendertrend/2026/juni/' },
+    { dim: 'Landesthemen (RP)', text: 'Infratest dimap, Rheinland-PfalzTREND (SWR), Jan. 2026 (statt Aug. 2026 mit hitzebedingter Klima-Spitze)', url: 'https://www.infratest-dimap.de/umfragen-analysen/bundeslaender/rheinland-pfalz/laendertrend/2026/august/' },
+    { dim: 'Landesthemen (SL)', text: 'Infratest dimap, SaarlandTREND (SR), Apr. 2025', url: 'https://de.statista.com/statistik/daten/studie/2143/umfrage/wichtigste-politische-probleme-im-saarland' },
+    { dim: 'Landesthemen (SN)', text: 'Infratest dimap, SachsenTREND (MDR), Juni 2024', url: 'https://www.infratest-dimap.de/umfragen-analysen/bundeslaender/sachsen/laendertrend/2024/juni/' },
+    { dim: 'Landesthemen (ST)', text: 'ZDF-Politbarometer Extra Sachsen-Anhalt, Aug. 2026; Migration aus Infratest dimap (MDR), Mai 2026', url: 'https://presseportal.zdf.de/pressemitteilung/zdf-politbarometer-extra-i-sachsen-anhalt-august-2026' },
+    { dim: 'Landesthemen (SH)', text: 'Infratest dimap, Schleswig-HolsteinTREND (NDR), Apr. 2026 – nur Rangfolge bekannt, Werte geschätzt', url: 'https://www.infratest-dimap.de/umfragen-analysen/bundeslaender/schleswig-holstein/laendertrend/2026/april/' },
+    { dim: 'Landesthemen (TH)', text: 'Infratest dimap, ThüringenTREND (MDR), Juni 2024', url: 'https://www.infratest-dimap.de/umfragen-analysen/bundeslaender/thueringen/laendertrend/2024/juni/' }
+  ];
+
   // Wie gut ein Kanal die einzelnen Gruppen erreicht.
   var CHANNELS = {
     social:     { jung: 2.2, mitte: 1.0, aelter: 0.4, niedrig: 0.8, mittel: 1.0, hoch: 1.2, stadt: 1.4, land: 0.7, maenner: 1.05, frauen: 0.95 },
@@ -380,6 +438,8 @@
     GROUP_DIMS: GROUP_DIMS,
     STATE_GROUPS: STATE_GROUPS,
     GROUP_SOURCES: GROUP_SOURCES,
+    STATE_TOPICS: STATE_TOPICS,
+    STATE_TOPIC_SOURCES: STATE_TOPIC_SOURCES,
     CHANNELS: CHANNELS
   };
 

@@ -399,3 +399,17 @@ test('Programmparteitag wirkt auf Wählergruppen: Parteilinie neutral, Abweichun
   const rel = g => E.groupShares(g, 'niedrig').gruene - E.groupShares(g, 'hoch').gruene;
   assert.ok(rel(g2) > rel(g1));
 });
+
+test('Landesthemen: Gruppen haben je Land andere Interessen, Themen-Aktionen wirken regional', () => {
+  assert.ok(D.STATES.every(st => D.STATE_TOPICS[st.id]));
+  assert.deepStrictEqual(E.stateTopTopics('HH', 2), ['verkehr', 'wohnen']);
+  // Großstädter: in Bayern andere Lieblingsthemen als in NRW
+  assert.notDeepStrictEqual(E.groupTopicsInState('stadt', 'BY', 3), E.groupTopicsInState('stadt', 'NW', 3));
+  // TV-Spot zu Migration bringt in Sachsen mehr als in Berlin
+  const g = E.newGame('afd', 'T', 3);
+  const before = { SN: E.stateShares(g, 'SN').afd, BE: E.stateShares(g, 'BE').afd };
+  E.performAction(g, 'tvspot', { topic: 'migration' });
+  assert.ok(E.stateShares(g, 'SN').afd - before.SN > E.stateShares(g, 'BE').afd - before.BE);
+  // Vor-Ort-Aktion mit passendem Thema wirkt besser als mit unpassendem
+  assert.ok(E.localTopicFactor(g, 'HH', 'wohnen') > E.localTopicFactor(g, 'HH', 'land'));
+});

@@ -71,6 +71,38 @@
   });
   const weightsFor = stateId => (stateId && W_STATE[stateId]) || W;
 
+  // Landesthemen: Wie wichtig ein Thema in einem Land im Vergleich zum Bundesschnitt ist
+  // (1 = wie im Bund). Grundlage: Umfragen zu den wichtigsten Problemen je Land (STATE_TOPICS).
+  // Die Landesumfragen nennen unterschiedlich viele Themen und erlauben teils Mehrfachnennungen.
+  // Darum: Jeder genannte Wert wird mit dem Schnitt der Länder verglichen, die das Thema auch nennen,
+  // und durch das allgemeine Antwortniveau des Landes geteilt. Nicht genannte Themen zählen wie im
+  // Bund – oder etwas weniger, wenn die Umfrage vollständig ist und das Thema anderswo oft vorkommt.
+  const STF = {};
+  (function () {
+    const ST = D.STATE_TOPICS || {};
+    const mean = {};
+    const count = {};
+    TOPIC_IDS.forEach(t => {
+      const vals = D.STATES.map(st => ST[st.id] && ST[st.id].werte[t]).filter(v => v > 0);
+      count[t] = vals.length;
+      mean[t] = vals.length ? vals.reduce((x, y) => x + y, 0) / vals.length : 0;
+    });
+    const nStates = D.STATES.filter(st => ST[st.id]).length;
+    D.STATES.forEach(st => {
+      STF[st.id] = {};
+      const v = ST[st.id];
+      TOPIC_IDS.forEach(t => { STF[st.id][t] = 1; });
+      if (!v) return;
+      const ratios = TOPIC_IDS.filter(t => v.werte[t] > 0 && count[t] >= 3).map(t => v.werte[t] / mean[t]).sort((x, y) => x - y);
+      const level = ratios.length ? ratios[Math.floor(ratios.length / 2)] : 1;
+      TOPIC_IDS.forEach(t => {
+        if (v.werte[t] > 0 && count[t] >= 3) STF[st.id][t] = Math.max(0.6, Math.min(1.8, v.werte[t] / mean[t] / level));
+        else if (!(v.werte[t] > 0) && v.vollstaendig && count[t] >= nStates / 2) STF[st.id][t] = 0.85;
+      });
+    });
+  })();
+  const stateTopicFactor = (stateId, topic) => (STF[stateId] && STF[stateId][topic]) || 1;
+
   // Bevorzugte Position jeder Wählergruppe je Thema (−1 links … +1 rechts): Parteilinien,
   // gewichtet mit dem Rückhalt der Parteien in der Gruppe (Bundesergebnis × Gruppenfaktor).
   const BASE_SHARE = {};
@@ -261,6 +293,17 @@
     return D.GROUPS.reduce((s, k) => s + w[k.id] * (groups[k.id] || 0), 0);
   }
 
+  // Positionen wirken stärker in Ländern, in denen ihr Thema wichtiger ist.
+  function programTopicStates(fx) {
+    const out = {};
+    D.STATES.forEach(st => {
+      let v = 0;
+      TOPIC_IDS.forEach(t => { v += 0.6 * fx.details[t].nat * (stateTopicFactor(st.id, t) - 1); });
+      out[st.id] = Math.round(v * 100) / 100;
+    });
+    return out;
+  }
+
   function applyProgram(g, prog) {
     const fx = programEffects(g.party, prog);
     g.program = { slogan: String(prog.slogan).trim().slice(0, 60), core: prog.core.slice(), positions: Object.assign({}, prog.positions),
@@ -269,6 +312,7 @@
     g.competence = fx.competence;
     g.prog = { nat: fx.nat, east: fx.east };
     g.progGroups = fx.groups;
+    g.progState = programTopicStates(fx);
     g.finance = fx.finance;
     g.program.core.forEach(t => changeSalience(g, t, 0.02));
   }
@@ -350,11 +394,12 @@
 
   // ---------- Umfragewerte ----------
 
-  function issueEffect(g, p) {
+  // Mit stateId zählt ein Thema dort stärker, wo es den Menschen wichtiger ist.
+  function issueEffect(g, p, stateId) {
     const comp = competenceOf(g, p);
     let e = 0;
     TOPIC_IDS.forEach(t => {
-      e += (g.salience[t] - D.SALIENCE0[t]) * (comp[t] - MEAN_COMPETENCE[t]) / 100;
+      e += (g.salience[t] - D.SALIENCE0[t]) * (comp[t] - MEAN_COMPETENCE[t]) / 100 * (stateId ? stateTopicFactor(stateId, t) : 1);
     });
     return ISSUE_K * e;
   }
@@ -365,8 +410,9 @@
     let other = 100;
     PARTY_IDS.forEach(p => {
       other -= st.result[p];
-      const prog = p === g.party && g.prog ? g.prog.nat + (st.east ? g.prog.east : 0) + programStateEffect(g.progGroups, stateId) : 0;
-      raw[p] = Math.max(0.2, st.result[p] + g.nat[p] + g.reg[stateId][p] + prog + issueEffect(g, p) + groupEffect(g, p));
+      const prog = p === g.party && g.prog ? g.prog.nat + (st.east ? g.prog.east : 0) + programStateEffect(g.progGroups, stateId) +
+        ((g.progState && g.progState[stateId]) || 0) : 0;
+      raw[p] = Math.max(0.2, st.result[p] + g.nat[p] + g.reg[stateId][p] + prog + issueEffect(g, p, stateId) + groupEffect(g, p));
     });
     raw[D.OTHER.id] = Math.max(0.5, other + (g.otherSwing || 0));
     const sum = ALL_IDS.reduce((s, p) => s + raw[p], 0);
@@ -425,8 +471,23 @@
 
   // ---------- Wählergruppen ----------
 
-  function topicPref(k, topic) {
-    return (topic && k.topics[topic]) || 1;
+  function topicPref(k, topic, stateId) {
+    const base = (topic && k.topics[topic]) || 1;
+    return stateId && topic ? base * Math.pow(stateTopicFactor(stateId, topic), 0.8) : base;
+  }
+
+  // Lieblingsthemen einer Gruppe in einem Land (Gruppenvorliebe × Landesthema × Wählerinteresse).
+  function groupTopicsInState(groupId, stateId, n) {
+    const k = D.GROUPS.find(x => x.id === groupId);
+    return TOPIC_IDS.slice().sort((a, b) => topicPref(k, b, stateId) * Math.sqrt(D.SALIENCE0[b]) - topicPref(k, a, stateId) * Math.sqrt(D.SALIENCE0[a])).slice(0, n || 3);
+  }
+
+  // Wichtigste Themen in einem Land.
+  // Wichtigste Themen in einem Land: Rangfolge der Landesumfrage, sonst Bundesschnitt.
+  function stateTopTopics(stateId, n) {
+    const v = D.STATE_TOPICS && D.STATE_TOPICS[stateId];
+    const score = t => (v && v.werte[t]) || (v ? 0 : D.SALIENCE0[t]);
+    return TOPIC_IDS.slice().sort((a, b) => score(b) - score(a)).slice(0, n || 3);
   }
 
   // Verteilung einer Wirkung auf die Gruppen: Kanal × Thema, so normiert, dass der
@@ -438,7 +499,7 @@
     const raw = {};
     let norm = 0;
     D.GROUPS.forEach(k => {
-      raw[k.id] = (ch[k.id] || 1) * topicPref(k, topic);
+      raw[k.id] = (ch[k.id] || 1) * topicPref(k, topic, stateId);
       norm += w[k.id] * raw[k.id];
     });
     GROUP_IDS.forEach(id => { raw[id] /= norm; });
@@ -576,6 +637,22 @@
     return { money: g.money, weeksLeft, lastWeek, tvCost: tv };
   }
 
+  // Vor-Ort-Aktion mit Thema: wirkt besser, wenn das Thema im Land und bei seinen Gruppen zählt
+  // und ihr dort kompetent seid. Ohne Thema: 1.
+  function localTopicFactor(g, stateId, topic) {
+    if (!topic || !topicById(topic)) return 1;
+    const w = weightsFor(stateId);
+    const fit = D.GROUPS.reduce((s, k) => s + w[k.id] * topicPref(k, topic, stateId), 0);
+    const rel = Math.sqrt(g.salience[topic] * TOPIC_IDS.length);
+    const interest = fit * rel;
+    return Math.max(0.7, Math.min(1.5, 0.72 + 0.3 * interest + 0.2 * compMod(g, topic)));
+  }
+
+  // Themen-Aktionen wirken bundesweit, aber stärker in Ländern, in denen das Thema wichtiger ist.
+  function spreadTopic(g, p, d, topic) {
+    D.STATES.forEach(st => { g.reg[st.id][p] += 0.6 * d * (stateTopicFactor(st.id, topic) - 1); });
+  }
+
   function canAct(g) {
     return g.phase === 'campaign' && !g.pendingEvent && !g.duel && g.ap > 0;
   }
@@ -615,35 +692,40 @@
     const thief = action.scope === 'topic' ? stolenBy(g, topic) : null;
     const r = reach(g) * (action.scope === 'topic' && isCore(g, topic) ? 1.25 : 1) * (thief ? 0.7 : 1);
     // Regionale Aktionen erreichen ihre Zielgruppen schlechter, wenn diese schon umworben sind.
-    const eff = action.scope === 'region' ? groupEfficiency(g, p, actionId, null, st.id) * channelFit(actionId, st.id) : 1;
+    const localTopic = action.scope === 'region' && topicById(topic) ? topic : null;
+    const eff = action.scope === 'region'
+      ? groupEfficiency(g, p, actionId, localTopic, st.id) * channelFit(actionId, st.id) * localTopicFactor(g, st.id, localTopic) : 1;
+    if (localTopic) changeSalience(g, localTopic, 0.005);
+    const about = localTopic ? ' zum Thema ' + topicById(localTopic).name : '';
     let text;
 
     switch (actionId) {
       case 'kundgebung': {
         const d = 1.7 * wear(g, 'kundgebung:' + st.id) * r * eff * between(g, 0.7, 1.3);
         g.reg[st.id][p] += d;
-        addGroups(g, p, 0.08 * d, 'kundgebung', null, st.id);
+        addGroups(g, p, 0.08 * d, 'kundgebung', localTopic, st.id);
         text = pick(g, ['Volle Plätze', 'Begeisterte Menge', 'Solider Auftritt']) +
-          ' bei der Kundgebung in ' + st.name + ' (' + fmt(d) + ' Pkt. im Land).';
+          ' bei der Kundgebung' + about + ' in ' + st.name + ' (' + fmt(d) + ' Pkt. im Land).';
         break;
       }
       case 'plakate': {
         const d = 1.3 * wear(g, 'plakate:' + st.id) * r * eff * between(g, 0.8, 1.2);
         g.reg[st.id][p] += d;
-        addGroups(g, p, 0.05 * d, 'plakate', null, st.id);
-        text = 'Plakate hängen in ganz ' + st.name + ' (' + fmt(d) + ' Pkt. im Land).';
+        addGroups(g, p, 0.05 * d, 'plakate', localTopic, st.id);
+        text = 'Plakate' + about + ' hängen in ganz ' + st.name + ' (' + fmt(d) + ' Pkt. im Land).';
         break;
       }
       case 'haustuer': {
         const d = (1.0 + 0.6 / Math.sqrt(st.voters)) * wear(g, 'haustuer:' + st.id) * r * eff * between(g, 0.7, 1.3);
         g.reg[st.id][p] += d;
-        addGroups(g, p, 0.05 * d, 'haustuer', null, st.id);
-        text = 'Ehrenamtliche klingeln an tausenden Türen in ' + st.name + ' (' + fmt(d) + ' Pkt. im Land).';
+        addGroups(g, p, 0.05 * d, 'haustuer', localTopic, st.id);
+        text = 'Ehrenamtliche klingeln' + about + ' an tausenden Türen in ' + st.name + ' (' + fmt(d) + ' Pkt. im Land).';
         break;
       }
       case 'tvspot': {
         const d = addGroups(g, p, Math.max(0.1, (0.5 + 0.8 * compMod(g, topic)) * wear(g, 'tvspot:' + topic) * r * between(g, 0.8, 1.2)), 'tvspot', topic);
         changeSalience(g, topic, 0.03);
+        spreadTopic(g, p, d, topic);
         text = 'Euer TV-Spot zum Thema ' + topicById(topic).name + ' läuft zur besten Sendezeit (' + fmt(d) + ' bundesweit).';
         break;
       }
@@ -651,16 +733,18 @@
         changeSalience(g, topic, 0.015);
         if (rand(g) < 0.25 - 0.1 * compMod(g, topic)) {
           const d = -addGroups(g, p, -between(g, 0.4, 1.0), 'social', topic);
+          spreadTopic(g, p, -d, topic);
           text = 'Shitstorm! Ein Post zum Thema ' + topicById(topic).name + ' geht nach hinten los (' + fmt(-d) + ').';
         } else {
           const d = addGroups(g, p, between(g, 0.3, 0.8) * wear(g, 'social:' + topic) * r, 'social', topic);
+          spreadTopic(g, p, d, topic);
           text = 'Euer Clip zum Thema ' + topicById(topic).name + ' geht viral (' + fmt(d) + ').';
         }
         break;
       }
       case 'presse': {
         changeSalience(g, topic, 0.045);
-        addGroups(g, p, 0.15 * compMod(g, topic) * (thief ? 0.7 : 1), 'presse', topic);
+        spreadTopic(g, p, addGroups(g, p, 0.15 * compMod(g, topic) * (thief ? 0.7 : 1), 'presse', topic), topic);
         text = 'Pressekonferenz: ' + topicById(topic).name + ' bestimmt jetzt stärker die Debatte.';
         break;
       }
@@ -668,9 +752,10 @@
         const comp = competenceOf(g, p)[topic];
         if (rand(g) < 0.35 + 0.45 * comp / 100) {
           const d = addGroups(g, p, 0.7 * wear(g, 'talkshow') * r, 'talkshow', topic);
+          spreadTopic(g, p, d, topic);
           text = 'Starker Talkshow-Auftritt zum Thema ' + topicById(topic).name + ' (' + fmt(d) + ').';
         } else {
-          addGroups(g, p, -0.5, 'talkshow', topic);
+          spreadTopic(g, p, addGroups(g, p, -0.5, 'talkshow', topic), topic);
           text = 'In der Talkshow zum Thema ' + topicById(topic).name + ' ins Schwimmen geraten (−0.5).';
         }
         break;
@@ -1492,6 +1577,7 @@
     if (g.otherSwing === undefined) g.otherSwing = 0;
     if (g.spendCount === undefined) { g.spendCount = 0; g.spendWeek = 0; }
     if (!g.progGroups && g.program) g.progGroups = programGroupEffects(g.party, g.program);
+    if (!g.progState && g.program) g.progState = programTopicStates(programEffects(g.party, g.program));
     if (!g.grpStart) g.grpStart = {};
     GROUP_IDS.forEach(k => { if (!(k in g.grpStart)) g.grpStart[k] = groupShares(g, k)[g.party]; });
     const line = defaultProgram(g.party);
@@ -1509,7 +1595,7 @@
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     publishedShares, publishedStateShares, groupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
-    POLL_RANGE, GROUP_IDS, positionAppeal, programStateEffect,
+    POLL_RANGE, GROUP_IDS, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent,
     startDuel, duelAnswer,

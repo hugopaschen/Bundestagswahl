@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261010-233353';
+  const APP_VERSION = '20261010-235220';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -54,6 +54,7 @@
   let selTopic = null;
   let toastTimer = null;
   let draft = null; // Wahlprogramm in Bearbeitung
+  let localTopic = ''; // Thema für Vor-Ort-Aktionen (leer = ohne Thema)
 
   // ---------- Speichern ----------
 
@@ -406,13 +407,13 @@
     const key = usageKey(a);
     const n = (key && g.usage[key]) || 0;
     let f = 1 / (1 + 0.8 * n);
-    f *= E.groupEfficiency(g, g.party, a.id, a.scope === 'topic' ? selTopic : null, a.scope === 'region' ? selState : null);
+    f *= E.groupEfficiency(g, g.party, a.id, a.scope === 'topic' ? selTopic : a.scope === 'region' ? (localTopic || null) : null, a.scope === 'region' ? selState : null);
     return f;
   }
 
   function reachLine(a) {
     if (!D.CHANNELS[a.id]) return '';
-    const mix = E.groupMix(a.id, a.scope === 'topic' ? selTopic : null, a.scope === 'region' ? selState : null);
+    const mix = E.groupMix(a.id, a.scope === 'topic' ? selTopic : a.scope === 'region' ? (localTopic || null) : null, a.scope === 'region' ? selState : null);
     const top = E.GROUP_IDS.slice().sort((x, y) => mix[y] - mix[x]).slice(0, 2);
     return '<span class="areach">Erreicht v. a. ' + groupNames(top) + '</span>';
   }
@@ -436,7 +437,7 @@
       (extra ? '<span class="ahint">' + esc(extra) + '</span>' : '') + reachLine(a) + worn +
       '<span class="ameta">' + (cost ? money(cost) : 'kostenlos') + '</span>';
     b.addEventListener('click', () => {
-      const res = E.performAction(g, a.id, { state: selState, topic: selTopic });
+      const res = E.performAction(g, a.id, { state: selState, topic: a.scope === 'region' ? (localTopic || null) : selTopic });
       $(a.scope === 'topic' ? 'feedback' : 'local-feedback').textContent = res.text;
       toast(res.text);
       save();
@@ -448,10 +449,11 @@
   // Wie gut eine Vor-Ort-Aktion zur Wählerschaft des Landes passt.
   function regionHint(a) {
     const name = E.stateById(selState).name;
-    const fit = E.channelFit(a.id, selState);
+    const fit = E.channelFit(a.id, selState) * E.localTopicFactor(g, selState, localTopic || null);
     const pctFit = Math.round((fit - 1) * 100);
-    if (pctFit >= 4) return 'in ' + name + ' · passt gut zur Wählerschaft (+' + pctFit + ' %)';
-    if (pctFit <= -4) return 'in ' + name + ' · passt schlecht zur Wählerschaft (−' + Math.abs(pctFit) + ' %)';
+    const what = localTopic ? 'Kanal und Thema passen' : 'passt';
+    if (pctFit >= 4) return 'in ' + name + ' · ' + what + ' gut (+' + pctFit + ' %)';
+    if (pctFit <= -4) return 'in ' + name + ' · ' + (localTopic ? 'Kanal und Thema passen schlecht' : 'passt schlecht zur Wählerschaft') + ' (−' + Math.abs(pctFit) + ' %)';
     return 'in ' + name;
   }
 
@@ -468,7 +470,7 @@
         const v = E.groupShares(g, k.id, st.id)[g.party];
         const share = w[k.id] * 100;
         const cmp = 'Bund ' + num1(k.weight * 100) + ' %';
-        const topics = Object.keys(k.topics).sort((a, b) => k.topics[b] - k.topics[a]).slice(0, 3)
+        const topics = E.groupTopicsInState(k.id, st.id, 3)
           .map(id => { const t = E.topicById(id); return '<span class="gp-topic' + (E.isCore(g, id) ? ' core' : '') + '">' + t.icon + ' ' + esc(t.name) + (E.isCore(g, id) ? ' 🎯' : '') + '</span>'; }).join('');
         return '<div class="gp-card"><div class="gp-head"><span class="gp-icon" aria-hidden="true">' + k.icon + '</span>' +
           '<span class="gp-name">' + esc(k.name) + '<small>' + num1(share) + ' % der Wähler (' + cmp + ')</small></span>' +
@@ -478,13 +480,33 @@
       }).join('') + '</div>').join('');
     const src = $('sg-sources');
     if (src && !src.dataset.done) {
-      src.innerHTML = '<ul>' + (D.GROUP_SOURCES || []).map(q => '<li><b>' + esc(q.dim) + ':</b> ' + esc(q.text) +
+      src.innerHTML = '<ul>' + (D.GROUP_SOURCES || []).concat(D.STATE_TOPIC_SOURCES || []).map(q => '<li><b>' + esc(q.dim) + ':</b> ' + esc(q.text) +
         (q.url ? ' <a href="' + esc(q.url) + '" target="_blank" rel="noopener">Quelle</a>' : '') + '</li>').join('') + '</ul>';
       src.dataset.done = '1';
     }
   }
 
+  // Themenwahl für Vor-Ort-Aktionen, sortiert nach Wirkung im gewählten Land.
+  function renderLocalTopic() {
+    const sel = $('local-topic');
+    if (!sel) return;
+    const st = E.stateById(selState);
+    const ranked = D.TOPICS.map(t => ({ t, f: E.localTopicFactor(g, st.id, t.id) })).sort((a, b) => b.f - a.f);
+    sel.innerHTML = '<option value="">Ohne Thema (±0 %)</option>' + ranked.map(x => {
+      const d = Math.round((x.f - 1) * 100);
+      return '<option value="' + x.t.id + '"' + (x.t.id === localTopic ? ' selected' : '') + '>' + x.t.icon + ' ' + esc(x.t.name) +
+        (E.isCore(g, x.t.id) ? ' 🎯' : '') + ' (' + (d >= 0 ? '+' : '−') + Math.abs(d) + ' %)</option>';
+    }).join('');
+    if (!sel.dataset.bound) {
+      sel.addEventListener('change', () => { localTopic = sel.value; renderGame(); });
+      sel.dataset.bound = '1';
+    }
+    $('state-top-topics').innerHTML = 'Was die Menschen in ' + esc(st.name) + ' bewegt: ' +
+      E.stateTopTopics(st.id, 3).map(id => { const t = E.topicById(id); return '<span class="stt">' + t.icon + ' ' + esc(t.name) + '</span>'; }).join('');
+  }
+
   function renderActions() {
+    renderLocalTopic();
     const list = $('action-list');
     const local = $('local-actions');
     list.innerHTML = '';
