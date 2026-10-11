@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261011-191249';
+  const APP_VERSION = '20261011-192731';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -555,7 +555,11 @@
       sel.dataset.bound = '1';
     }
     $('state-top-topics').innerHTML = 'Was die Menschen in ' + esc(st.name) + ' bewegt: ' +
-      E.stateTopTopics(st.id, 3).map(id => { const t = E.topicById(id); return '<span class="stt">' + t.icon + ' ' + esc(t.name) + '</span>'; }).join('');
+      E.stateTopTopics(st.id, 3).map(id => {
+        const t = E.topicById(id);
+        const core = E.isCore(g, id);
+        return '<span class="stt' + (core ? ' core' : '') + '"' + (core ? ' title="Euer Kernthema"' : '') + '>' + t.icon + ' ' + esc(t.name) + (core ? ' 🎯' : '') + '</span>';
+      }).join('');
   }
 
   const LOCAL_GROUPS = [

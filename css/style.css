@@ -1711,3 +1711,4 @@ h2 .flyer-hint { margin: 0; }
 .layout.tabbed .local-group .action-list { grid-template-columns: 1fr; gap: 10px; }
 @media (max-width: 1000px) { .local-groups { grid-template-columns: 1fr; } .layout.tabbed .local-group .action-list { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); } }
 #local-feedback { margin: 10px 0 0; }
+.state-top-topics .stt.core { background: var(--accent); color: var(--accent-ink); }
