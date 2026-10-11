@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261011-181015';
+  const APP_VERSION = '20261011-182021';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -196,7 +196,8 @@
   function applyGameTab() {
     document.querySelectorAll('#screen-game .layout > .card').forEach(c => { c.hidden = c.dataset.tab !== gameTab; });
     document.querySelectorAll('#game-nav .game-tab').forEach(b => {
-      if (b.dataset.tab === gameTab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+      const cur = gameTab === 'group' ? 'polls' : gameTab;
+      if (b.dataset.tab === cur) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
     if (gameTab === 'news' && g.log.length) newsSeen = g.log[0];
     let unread = newsSeen ? g.log.indexOf(newsSeen) : g.log.length;
@@ -209,12 +210,13 @@
   function showGameTab(tab) {
     gameTab = tab;
     applyGameTab();
-    if (tab === 'polls') renderChart(); // Breite erst bekannt, wenn sichtbar
+    if (tab === 'polls' || tab === 'group') renderChart(); // Breite erst bekannt, wenn sichtbar
     const nav = $('game-nav');
     if (nav.getBoundingClientRect().top < 0 || window.scrollY > nav.offsetTop) window.scrollTo({ top: nav.offsetTop - 8, behavior: 'instant' });
   }
 
   document.querySelectorAll('#game-nav .game-tab').forEach(b => b.addEventListener('click', () => showGameTab(b.dataset.tab)));
+  $('btn-group-back').addEventListener('click', () => showGameTab('polls'));
 
   // Echte Umrisse der Bundesländer (js/germany.js). Kleine Länder bekommen ein Etikett mit Hinweislinie.
   const GEO = (typeof window !== 'undefined' && window.BTW_MAP) || null;
@@ -579,12 +581,17 @@
   const POLL_ORDER = ['union', 'afd', 'spd', 'gruene', 'linke', 'bsw', 'fdp', D.OTHER.id];
 
   function renderPollBars(shares) {
+    $('poll-bars').innerHTML = pollColumnsHtml(shares, g.startShares);
+  }
+
+  // Säulendiagramm der Sonntagsfrage (auch für einzelne Wählergruppen).
+  function pollColumnsHtml(shares, base) {
     const R = E.POLL_RANGE;
     const top = Math.max(35, Math.ceil((Math.max.apply(null, POLL_ORDER.map(p => shares[p])) + R + 4) / 5) * 5);
     let cols = '';
     let labels = '';
     POLL_ORDER.forEach(p => {
-      const d = shares[p] - g.startShares[p];
+      const d = base && base[p] !== undefined ? shares[p] - base[p] : null;
       const lo = Math.max(0, shares[p] - R);
       const range = '<i class="pc-range" style="bottom:' + (lo / top * 100) + '%;height:' + ((shares[p] + R - lo) / top * 100) + '%" title="Fehlerspanne ± ' + R + '"></i>';
       cols += '<div class="pc-col"><span class="pc-val" style="bottom:' + ((shares[p] + R) / top * 100) + '%">' + pct(shares[p]) +
@@ -593,7 +600,7 @@
       labels += '<div class="pc-label' + (p === g.party ? ' me' : '') + '"><span class="pc-name">' + (p === D.OTHER.id ? 'Andere' : short(p)) + '</span>' +
         '<span class="pc-diff">' + (d === null ? '' : signed(d)) + '</span></div>';
     });
-    $('poll-bars').innerHTML = '<div class="pc-plot"><i class="pc-hurdle" style="bottom:' + (5 / top * 100) + '%" title="5-%-Hürde"></i>' + cols + '</div>' +
+    return '<div class="pc-plot"><i class="pc-hurdle" style="bottom:' + (5 / top * 100) + '%" title="5-%-Hürde"></i>' + cols + '</div>' +
       '<div class="pc-labels">' + labels + '</div>';
   }
 
@@ -632,13 +639,55 @@
         const t = E.topicById(id);
         return '<span class="gp-topic' + (E.isCore(g, id) ? ' core' : '') + '" title="' + esc(t.name) + '">' + t.icon + ' ' + esc(t.name) + (E.isCore(g, id) ? ' 🎯' : '') + '</span>';
       }).join('');
-      return '<div class="gp-card"><div class="gp-head"><span class="gp-icon" aria-hidden="true">' + k.icon + '</span>' +
+      return '<div class="gp-card gp-link" role="button" tabindex="0" data-group="' + k.id + '" title="Umfrage in dieser Gruppe ansehen"><div class="gp-head"><span class="gp-icon" aria-hidden="true">' + k.icon + '</span>' +
         '<span class="gp-name">' + esc(k.name) + '<small>' + Math.round(k.weight * 100) + ' % der Wähler · ✉️ ' + Math.round(E.groupPostal(k.id)) + ' % per Brief</small></span>' +
         '<span class="gp-val">' + pct(v) + '<small class="' + (d >= 0 ? 'pos' : 'neg') + '">' + signed(d) + '</small></span></div>' +
         '<div class="gp-bar"><span style="width:' + Math.min(100, v / 50 * 100) + '%"></span></div>' +
         '<div class="gp-topics">' + topics + '</div>' +
         (sat < 0.6 ? '<p class="gp-sat">Schon stark umworben – weitere Ansprache wirkt schwächer.</p>' : '') + '</div>';
       }).join('') + '</div>').join('');
+    box.querySelectorAll('.gp-link').forEach(c => {
+      c.addEventListener('click', () => openGroupPoll(c.dataset.group));
+      c.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openGroupPoll(c.dataset.group); } });
+    });
+  }
+
+  // Eigene Seite mit der Umfrage einer Wählergruppe (nur bundesweit).
+  let selGroupView = null;
+
+  function openGroupPoll(id) {
+    selGroupView = id;
+    showGameTab('group');
+    renderGroupPoll();
+  }
+
+  function renderGroupPoll() {
+    const k = D.GROUPS.find(x => x.id === selGroupView);
+    if (!k) return;
+    const shares = E.groupShares(g, k.id);
+    const start = g.history[0] && g.history[0].groups ? g.history[0].groups[k.id] : null;
+    const dim = D.GROUP_DIMS.find(d => d.id === k.dim);
+    const lead = E.leader(shares);
+    $('group-head').innerHTML = '<span class="gh-icon" aria-hidden="true">' + k.icon + '</span><div>' +
+      '<p class="gh-dim">Wählergruppe · ' + esc(dim ? dim.name : '') + '</p><h2>' + esc(k.name) + '</h2>' +
+      '<p class="muted">' + Math.round(k.weight * 100) + ' % der Wahlberechtigten · ✉️ ' + Math.round(E.groupPostal(k.id)) + ' % wählen per Brief · vorn: <b>' + esc(E.party(lead).short) + '</b> · ihr: <b>' + pct(shares[g.party]) + '</b></p></div>';
+    $('group-poll-bars').innerHTML = pollColumnsHtml(shares, start);
+    drawChart('group-poll-chart', g.history.filter(h => h.groups && h.groups[k.id]).map(h => h.groups[k.id]));
+    // Themen dieser Gruppe: Vorliebe × aktuelles Wählerinteresse
+    const ranked = D.TOPICS.map(t => ({ t, v: g.salience[t.id] * (k.topics[t.id] || 1) })).sort((a, b) => b.v - a.v);
+    const sum = ranked.reduce((x, r) => x + r.v, 0);
+    const max = ranked[0].v;
+    $('group-agenda').innerHTML = ranked.map(r => {
+      const core = E.isCore(g, r.t.id);
+      return '<span class="' + (core ? 'strong' : '') + '">' + r.t.icon + ' ' + esc(r.t.name) + (core ? ' 🎯' : '') + '</span>' +
+        '<div class="track"><div class="fill" style="width:' + (r.v / max * 100) + '%"></div></div>' +
+        '<span class="num">' + Math.round(r.v / sum * 100) + ' %</span>';
+    }).join('') + '<span class="muted small" style="grid-column:1/-1">🎯 = eure Kernthemen. Gewichtet nach den Lieblingsthemen der Gruppe.</span>';
+    const ch = Object.keys(D.CHANNELS).map(c => ({ c, v: D.CHANNELS[c][k.id] || 1 })).sort((a, b) => b.v - a.v);
+    const name = c => (E.ACTIONS.find(a => a.id === c) || { name: c }).name;
+    $('group-facts').innerHTML = '<h3>So erreicht ihr diese Gruppe</h3><p class="muted small">Am besten: ' +
+      ch.slice(0, 3).map(x => '<b>' + esc(name(x.c)) + '</b>').join(', ') + '. Am schwächsten: ' + ch.slice(-2).map(x => esc(name(x.c))).join(', ') +
+      '. Oder gezielt per Online-Werbung auf der Aktionen-Seite.</p>';
   }
 
   // Was die Konkurrenz in der letzten Woche getan hat.
@@ -651,14 +700,20 @@
   }
 
   function renderChart() {
+    drawChart('poll-chart', g.history.map(h => h.shares));
+    if (gameTab === 'group' && selGroupView) renderGroupPoll();
+  }
+
+  // Umfrageverlauf als Liniendiagramm in einen Container zeichnen.
+  function drawChart(boxId, series) {
     // Breite an den Platz anpassen, damit Beschriftungen bei Vollbild nicht mitwachsen.
-    const W = Math.max(300, Math.round($('poll-chart').clientWidth || 320));
+    const W = Math.max(300, Math.round($(boxId).clientWidth || 320));
     const H = Math.round(Math.min(260, Math.max(170, W * 0.42)));
     const L = 26;
     const R = 8;
     const T = 8;
     const B = 20;
-    const hist = g.history;
+    const hist = series.map(sh => ({ shares: sh }));
     const ids = D.PARTIES.map(p => p.id).concat([D.OTHER.id]);
     let maxV = 0;
     hist.forEach(h => ids.forEach(p => { maxV = Math.max(maxV, h.shares[p]); }));
@@ -682,7 +737,7 @@
     svg += '<rect class="hit" x="' + L + '" y="0" width="' + (W - L - R) + '" height="' + H + '" fill="transparent"></rect></svg>';
     svg += '<div class="tooltip" hidden></div>';
 
-    const box = $('poll-chart');
+    const box = $(boxId);
     box.innerHTML = svg;
     const svgEl = box.querySelector('svg');
     const cross = box.querySelector('.crosshair');

@@ -388,6 +388,8 @@
     applyProgram(g, program);
     g.grpStart = {};
     GROUP_IDS.forEach(k => { g.grpStart[k] = groupShares(g, k)[partyId]; });
+    // Ausgangsumfrage jeder Wählergruppe (für Verlauf und Veränderung seit Wahlkampfstart)
+    g.history[0].groups = allGroupShares(g);
     rollPollErr(g);
     const now = publishedShares(g)[partyId];
     addLog(g, 'event', 'Wahlprogramm „' + g.program.slogan + '“ vorgestellt. Erste Umfrage: ' +
@@ -647,6 +649,17 @@
     });
     raw[D.OTHER.id] = pub[D.OTHER.id];
     return normalize(raw);
+  }
+
+  // Umfragewerte aller Parteien in allen Wählergruppen (gerundet, für den Verlauf).
+  function allGroupShares(g) {
+    const out = {};
+    GROUP_IDS.forEach(k => {
+      const s = groupShares(g, k);
+      out[k] = {};
+      ALL_IDS.forEach(p => { out[k][p] = Math.round(s[p] * 10) / 10; });
+    });
+    return out;
   }
 
   function leader(shares) {
@@ -1626,7 +1639,7 @@
     Object.keys(g.usage).forEach(k => { g.usage[k] *= 0.6; });
 
     rollPollErr(g);
-    g.history.push({ week: g.week, shares: publishedShares(g), real: nationalShares(g) });
+    g.history.push({ week: g.week, shares: publishedShares(g), real: nationalShares(g), groups: allGroupShares(g) });
 
     if (g.week >= g.maxWeeks) {
       g.phase = 'election';

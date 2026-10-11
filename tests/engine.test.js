@@ -476,3 +476,15 @@ test('Briefwahl: Stimmen werden ab Woche 5 abgegeben und zählen mit der Stimmun
   const dropEl = E.electionShares(g).gruene - el;
   assert.ok(dropEl < dropUrn);
 });
+
+test('Umfrage je Wählergruppe: Verlauf wird jede Woche für alle Gruppen gespeichert', () => {
+  const g = E.newGame('fdp', 'T', 4);
+  assert.ok(g.history[0].groups && g.history[0].groups.arbeiter);
+  E.endWeek(g); if (g.pendingEvent) E.resolveEvent(g, 0);
+  const last = g.history[g.history.length - 1].groups;
+  assert.strictEqual(Object.keys(last).length, D.GROUPS.length);
+  for (const k of Object.keys(last)) {
+    const sum = Object.values(last[k]).reduce((a, b) => a + b, 0);
+    assert.ok(Math.abs(sum - 100) < 1, k);
+  }
+});
