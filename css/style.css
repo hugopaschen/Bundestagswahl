@@ -1647,3 +1647,12 @@ h2 .flyer-hint { margin: 0; }
 .state-top-topics .stt { padding: 2px 9px; border-radius: 99px; background: var(--surface-2); color: var(--text); font-weight: 700; }
 .local-topic-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 12px; font-weight: 700; font-size: .9rem; }
 .local-topic-row select { flex: 1 1 220px; min-width: 0; font: inherit; font-weight: 600; padding: 8px 10px; border-radius: 10px; border: 2px solid var(--border); background: var(--surface); color: var(--text); }
+
+/* Wahlbeteiligung & Mobilisierung */
+.mobilization { display: grid; grid-template-columns: minmax(180px, 240px) 1fr; gap: 14px 28px; align-items: start; margin: 8px 0 20px; }
+.mob-turnout { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.mob-label { font-size: .78rem; font-weight: 700; color: var(--text-2); }
+.mob-big { font-size: 2rem; font-weight: 900; font-variant-numeric: tabular-nums; }
+.mob-bars { display: flex; flex-direction: column; gap: 2px; }
+.mob-bars .bg-row.me .bg-name { font-weight: 900; }
+@media (max-width: 640px) { .mobilization { grid-template-columns: 1fr; } }

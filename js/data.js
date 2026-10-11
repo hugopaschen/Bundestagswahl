@@ -266,7 +266,7 @@
     ]
   };
 
-  // Wählergruppen in vier Dimensionen (Alter, Bildung, Wohnort, Geschlecht). Eine Person gehört zu je einer
+  // Wählergruppen in mehreren Dimensionen (Alter, Bildung, Wohnort, Geschlecht, Konfession, Beruf). Eine Person gehört zu je einer
   // Gruppe pro Dimension (z. B. jung + hohe Bildung + Stadt). Innerhalb jeder Dimension ergeben
   // die Anteile zusammen 100 % der Wahlberechtigten:
   // – Alter: Wahlberechtigte zur Bundestagswahl 2025 (Bundeswahlleiterin/bpb): 13,0 / 44,4 / 42,6 %
@@ -310,35 +310,67 @@
       factor: { union: 1.02, afd: 1.15, spd: 0.91, gruene: 0.86, linke: 0.8, bsw: 1.0, fdp: 1.16 } },
     { id: 'frauen', dim: 'geschlecht', name: 'Frauen', short: 'Frauen', icon: '👩', weight: 0.514,
       topics: { familie: 1.6, gesundheit: 1.5, soziales: 1.4, bildung: 1.4, klima: 1.3 },
-      factor: { union: 0.98, afd: 0.85, spd: 1.1, gruene: 1.12, linke: 1.25, bsw: 1.0, fdp: 0.84 } }
+      factor: { union: 0.98, afd: 0.85, spd: 1.1, gruene: 1.12, linke: 1.25, bsw: 1.0, fdp: 0.84 } },
+    { id: 'kath', dim: 'konfession', name: 'Katholiken', short: 'Katholisch', icon: '⛪', weight: 0.23,
+      topics: { familie: 1.5, soziales: 1.3, land: 1.3, migration: 1.2, sicherheit: 1.2 },
+      factor: { union: 1.37, afd: 0.87, spd: 0.91, gruene: 0.95, linke: 0.57, bsw: 0.6, fdp: 1.16 } },
+    { id: 'evang', dim: 'konfession', name: 'Protestanten', short: 'Evangelisch', icon: '✝️', weight: 0.208,
+      topics: { soziales: 1.4, gesundheit: 1.3, klima: 1.2, familie: 1.2, europa: 1.2 },
+      factor: { union: 1.02, afd: 0.96, spd: 1.22, gruene: 0.95, linke: 0.8, bsw: 0.8, fdp: 1.16 } },
+    { id: 'konfl', dim: 'konfession', name: 'Konfessionslose & andere', short: 'Konfessionslos', icon: '🔹', weight: 0.562,
+      topics: { wirtschaft: 1.2, wohnen: 1.3, digitales: 1.3, klima: 1.2, migration: 1.2 },
+      factor: { union: 0.77, afd: 1.15, spd: 0.85, gruene: 1.21, linke: 1.36, bsw: 1.2, fdp: 0.93 } },
+    { id: 'arbeiter', dim: 'beruf', name: 'Arbeiter', short: 'Arbeiter', icon: '🔧', weight: 0.104,
+      topics: { wirtschaft: 1.6, migration: 1.5, soziales: 1.4, finanzen: 1.2, verkehr: 1.2 },
+      factor: { union: 0.77, afd: 1.83, spd: 0.73, gruene: 0.43, linke: 0.91, bsw: 1.2, fdp: 0.7 } },
+    { id: 'angest', dim: 'beruf', name: 'Angestellte', short: 'Angestellte', icon: '💼', weight: 0.403,
+      topics: { wirtschaft: 1.3, wohnen: 1.3, bildung: 1.2, digitales: 1.2, familie: 1.2 },
+      factor: { union: 0.91, afd: 1.01, spd: 0.85, gruene: 1.29, linke: 1.02, bsw: 1.0, fdp: 0.93 } },
+    { id: 'beamte', dim: 'beruf', name: 'Beamte', short: 'Beamte', icon: '🏛️', weight: 0.03,
+      topics: { sicherheit: 1.4, bildung: 1.4, finanzen: 1.3, demokratie: 1.3, verteidigung: 1.2 },
+      factor: { union: 1.16, afd: 0.67, spd: 1.04, gruene: 1.47, linke: 0.8, bsw: 0.6, fdp: 0.93 } },
+    { id: 'selbst', dim: 'beruf', name: 'Selbstständige', short: 'Selbstständige', icon: '🧾', weight: 0.053,
+      topics: { wirtschaft: 1.8, finanzen: 1.6, digitales: 1.4, verkehr: 1.2 },
+      factor: { union: 1.23, afd: 0.91, spd: 0.55, gruene: 1.12, linke: 0.68, bsw: 0.8, fdp: 1.63 } },
+    { id: 'rentner', dim: 'beruf', name: 'Rentner & Pensionäre', short: 'Rentner', icon: '🧓', weight: 0.288,
+      topics: { soziales: 1.9, gesundheit: 1.8, sicherheit: 1.4, migration: 1.2 },
+      factor: { union: 1.37, afd: 0.72, spd: 1.46, gruene: 0.6, linke: 0.57, bsw: 0.8, fdp: 0.93 } },
+    { id: 'arbeitslos', dim: 'beruf', name: 'Arbeitslose', short: 'Arbeitslose', icon: '📉', weight: 0.042,
+      topics: { soziales: 2.0, wohnen: 1.5, wirtschaft: 1.4, migration: 1.2 },
+      factor: { union: 0.53, afd: 1.63, spd: 0.85, gruene: 0.6, linke: 1.48, bsw: 1.4, fdp: 0.47 } },
+    { id: 'ausbild', dim: 'beruf', name: 'In Ausbildung & Sonstige', short: 'Ausbildung', icon: '📚', weight: 0.08,
+      topics: { bildung: 1.8, wohnen: 1.6, klima: 1.5, digitales: 1.3 },
+      factor: { union: 0.53, afd: 0.82, spd: 0.73, gruene: 1.21, linke: 2.5, bsw: 1.0, fdp: 1.16 } }
   ];
 
   var GROUP_DIMS = [
     { id: 'alter', name: 'Alter' },
     { id: 'bildung', name: 'Bildung' },
     { id: 'ort', name: 'Wohnort' },
-    { id: 'geschlecht', name: 'Geschlecht' }
+    { id: 'geschlecht', name: 'Geschlecht' },
+    { id: 'konfession', name: 'Konfession' },
+    { id: 'beruf', name: 'Beruf' }
   ];
 
   // Zusammensetzung der Wählerschaft je Bundesland (Anteile je Dimension, Summe jeweils 1).
   // Quellen und Belastbarkeit siehe GROUP_SOURCES.
   var STATE_GROUPS = {
-    BW: { jung: 0.142, mitte: 0.441, aelter: 0.417, niedrig: 0.17, mittel: 0.457, hoch: 0.373, stadt: 0.191, land: 0.809, maenner: 0.487, frauen: 0.513 },
-    BY: { jung: 0.135, mitte: 0.456, aelter: 0.409, niedrig: 0.13, mittel: 0.5, hoch: 0.37, stadt: 0.227, land: 0.773, maenner: 0.487, frauen: 0.513 },
-    BE: { jung: 0.149, mitte: 0.478, aelter: 0.373, niedrig: 0.15, mittel: 0.389, hoch: 0.461, stadt: 1, land: 0, maenner: 0.489, frauen: 0.511 },
-    BB: { jung: 0.096, mitte: 0.437, aelter: 0.467, niedrig: 0.07, mittel: 0.612, hoch: 0.318, stadt: 0.072, land: 0.928, maenner: 0.49, frauen: 0.51 },
-    HB: { jung: 0.149, mitte: 0.433, aelter: 0.418, niedrig: 0.24, mittel: 0.453, hoch: 0.307, stadt: 1, land: 0, maenner: 0.487, frauen: 0.513 },
-    HH: { jung: 0.16, mitte: 0.492, aelter: 0.348, niedrig: 0.17, mittel: 0.408, hoch: 0.422, stadt: 1, land: 0, maenner: 0.49, frauen: 0.51 },
-    HE: { jung: 0.133, mitte: 0.448, aelter: 0.419, niedrig: 0.17, mittel: 0.476, hoch: 0.354, stadt: 0.245, land: 0.755, maenner: 0.486, frauen: 0.514 },
-    MV: { jung: 0.101, mitte: 0.422, aelter: 0.477, niedrig: 0.08, mittel: 0.638, hoch: 0.282, stadt: 0.13, land: 0.87, maenner: 0.489, frauen: 0.511 },
-    NI: { jung: 0.133, mitte: 0.442, aelter: 0.425, niedrig: 0.18, mittel: 0.502, hoch: 0.318, stadt: 0.184, land: 0.816, maenner: 0.486, frauen: 0.514 },
-    NW: { jung: 0.135, mitte: 0.444, aelter: 0.421, niedrig: 0.21, mittel: 0.479, hoch: 0.311, stadt: 0.457, land: 0.543, maenner: 0.486, frauen: 0.514 },
-    RP: { jung: 0.127, mitte: 0.436, aelter: 0.437, niedrig: 0.19, mittel: 0.5, hoch: 0.31, stadt: 0.174, land: 0.826, maenner: 0.486, frauen: 0.514 },
-    SL: { jung: 0.116, mitte: 0.412, aelter: 0.472, niedrig: 0.19, mittel: 0.54, hoch: 0.27, stadt: 0.182, land: 0.818, maenner: 0.484, frauen: 0.516 },
-    SN: { jung: 0.116, mitte: 0.429, aelter: 0.455, niedrig: 0.06, mittel: 0.6, hoch: 0.34, stadt: 0.354, land: 0.646, maenner: 0.491, frauen: 0.509 },
-    ST: { jung: 0.101, mitte: 0.414, aelter: 0.485, niedrig: 0.08, mittel: 0.67, hoch: 0.25, stadt: 0.222, land: 0.778, maenner: 0.489, frauen: 0.511 },
-    SH: { jung: 0.125, mitte: 0.442, aelter: 0.433, niedrig: 0.16, mittel: 0.54, hoch: 0.3, stadt: 0.158, land: 0.842, maenner: 0.486, frauen: 0.514 },
-    TH: { jung: 0.102, mitte: 0.417, aelter: 0.481, niedrig: 0.06, mittel: 0.638, hoch: 0.302, stadt: 0.156, land: 0.844, maenner: 0.489, frauen: 0.511 }
+    BW: { jung: 0.142, mitte: 0.441, aelter: 0.417, niedrig: 0.17, mittel: 0.457, hoch: 0.373, stadt: 0.191, land: 0.809, maenner: 0.487, frauen: 0.513, kath: 0.271, evang: 0.233, konfl: 0.496, arbeiter: 0.114, angest: 0.422, beamte: 0.032, selbst: 0.053, rentner: 0.274, arbeitslos: 0.03, ausbild: 0.075 },
+    BY: { jung: 0.135, mitte: 0.456, aelter: 0.409, niedrig: 0.13, mittel: 0.5, hoch: 0.37, stadt: 0.227, land: 0.773, maenner: 0.487, frauen: 0.513, kath: 0.407, evang: 0.149, konfl: 0.444, arbeiter: 0.108, angest: 0.421, beamte: 0.033, selbst: 0.061, rentner: 0.276, arbeitslos: 0.027, ausbild: 0.074 },
+    BE: { jung: 0.149, mitte: 0.478, aelter: 0.373, niedrig: 0.15, mittel: 0.389, hoch: 0.461, stadt: 1, land: 0, maenner: 0.489, frauen: 0.511, kath: 0.07, evang: 0.118, konfl: 0.812, arbeiter: 0.057, angest: 0.399, beamte: 0.031, selbst: 0.07, rentner: 0.252, arbeitslos: 0.067, ausbild: 0.124 },
+    BB: { jung: 0.096, mitte: 0.437, aelter: 0.467, niedrig: 0.07, mittel: 0.612, hoch: 0.318, stadt: 0.072, land: 0.928, maenner: 0.49, frauen: 0.51, kath: 0.033, evang: 0.119, konfl: 0.848, arbeiter: 0.123, angest: 0.371, beamte: 0.026, selbst: 0.05, rentner: 0.335, arbeitslos: 0.039, ausbild: 0.056 },
+    HB: { jung: 0.149, mitte: 0.433, aelter: 0.418, niedrig: 0.24, mittel: 0.453, hoch: 0.307, stadt: 1, land: 0, maenner: 0.487, frauen: 0.513, kath: 0.079, evang: 0.247, konfl: 0.674, arbeiter: 0.088, angest: 0.377, beamte: 0.03, selbst: 0.04, rentner: 0.274, arbeitslos: 0.073, ausbild: 0.118 },
+    HH: { jung: 0.16, mitte: 0.492, aelter: 0.348, niedrig: 0.17, mittel: 0.408, hoch: 0.422, stadt: 1, land: 0, maenner: 0.49, frauen: 0.51, kath: 0.078, evang: 0.191, konfl: 0.731, arbeiter: 0.062, angest: 0.441, beamte: 0.034, selbst: 0.064, rentner: 0.239, arbeitslos: 0.058, ausbild: 0.102 },
+    HE: { jung: 0.133, mitte: 0.448, aelter: 0.419, niedrig: 0.17, mittel: 0.476, hoch: 0.354, stadt: 0.245, land: 0.755, maenner: 0.486, frauen: 0.514, kath: 0.178, evang: 0.269, konfl: 0.553, arbeiter: 0.084, angest: 0.412, beamte: 0.032, selbst: 0.058, rentner: 0.275, arbeitslos: 0.039, ausbild: 0.1 },
+    MV: { jung: 0.101, mitte: 0.422, aelter: 0.477, niedrig: 0.08, mittel: 0.638, hoch: 0.282, stadt: 0.13, land: 0.87, maenner: 0.489, frauen: 0.511, kath: 0.031, evang: 0.121, konfl: 0.848, arbeiter: 0.125, angest: 0.38, beamte: 0.025, selbst: 0.05, rentner: 0.324, arbeitslos: 0.051, ausbild: 0.045 },
+    NI: { jung: 0.133, mitte: 0.442, aelter: 0.425, niedrig: 0.18, mittel: 0.502, hoch: 0.318, stadt: 0.184, land: 0.816, maenner: 0.486, frauen: 0.514, kath: 0.145, evang: 0.355, konfl: 0.5, arbeiter: 0.108, angest: 0.393, beamte: 0.033, selbst: 0.05, rentner: 0.29, arbeitslos: 0.041, ausbild: 0.085 },
+    NW: { jung: 0.135, mitte: 0.444, aelter: 0.421, niedrig: 0.21, mittel: 0.479, hoch: 0.311, stadt: 0.457, land: 0.543, maenner: 0.486, frauen: 0.514, kath: 0.312, evang: 0.197, konfl: 0.491, arbeiter: 0.094, angest: 0.405, beamte: 0.028, selbst: 0.048, rentner: 0.283, arbeitslos: 0.054, ausbild: 0.088 },
+    RP: { jung: 0.127, mitte: 0.436, aelter: 0.437, niedrig: 0.19, mittel: 0.5, hoch: 0.31, stadt: 0.174, land: 0.826, maenner: 0.486, frauen: 0.514, kath: 0.331, evang: 0.223, konfl: 0.446, arbeiter: 0.11, angest: 0.397, beamte: 0.037, selbst: 0.051, rentner: 0.293, arbeitslos: 0.038, ausbild: 0.074 },
+    SL: { jung: 0.116, mitte: 0.412, aelter: 0.472, niedrig: 0.19, mittel: 0.54, hoch: 0.27, stadt: 0.182, land: 0.818, maenner: 0.484, frauen: 0.516, kath: 0.451, evang: 0.145, konfl: 0.404, arbeiter: 0.11, angest: 0.378, beamte: 0.032, selbst: 0.045, rentner: 0.31, arbeitslos: 0.049, ausbild: 0.076 },
+    SN: { jung: 0.116, mitte: 0.429, aelter: 0.455, niedrig: 0.06, mittel: 0.6, hoch: 0.34, stadt: 0.354, land: 0.646, maenner: 0.491, frauen: 0.509, kath: 0.034, evang: 0.148, konfl: 0.818, arbeiter: 0.127, angest: 0.365, beamte: 0.02, selbst: 0.052, rentner: 0.339, arbeitslos: 0.044, ausbild: 0.053 },
+    ST: { jung: 0.101, mitte: 0.414, aelter: 0.485, niedrig: 0.08, mittel: 0.67, hoch: 0.25, stadt: 0.222, land: 0.778, maenner: 0.489, frauen: 0.511, kath: 0.029, evang: 0.098, konfl: 0.873, arbeiter: 0.133, angest: 0.349, beamte: 0.021, selbst: 0.038, rentner: 0.345, arbeitslos: 0.049, ausbild: 0.065 },
+    SH: { jung: 0.125, mitte: 0.442, aelter: 0.433, niedrig: 0.16, mittel: 0.54, hoch: 0.3, stadt: 0.158, land: 0.842, maenner: 0.486, frauen: 0.514, kath: 0.05, evang: 0.358, konfl: 0.592, arbeiter: 0.097, angest: 0.401, beamte: 0.036, selbst: 0.056, rentner: 0.302, arbeitslos: 0.041, ausbild: 0.067 },
+    TH: { jung: 0.102, mitte: 0.417, aelter: 0.481, niedrig: 0.06, mittel: 0.638, hoch: 0.302, stadt: 0.156, land: 0.844, maenner: 0.489, frauen: 0.511, kath: 0.069, evang: 0.171, konfl: 0.76, arbeiter: 0.146, angest: 0.353, beamte: 0.023, selbst: 0.047, rentner: 0.338, arbeitslos: 0.041, ausbild: 0.052 }
   };
 
   var GROUP_SOURCES = [
@@ -350,6 +382,12 @@
       url: 'https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Bildung-Forschung-Kultur/Bildungsstand/Publikationen/Downloads-Bildungsstand/bildungsindikatoren-1023017257004.pdf?__blob=publicationFile&v=2' },
     { dim: 'Geschlecht', text: 'Bund: 51,4 % der Wahlberechtigten zur Bundestagswahl 2025 waren Frauen (bpb nach Bundeswahlleiterin). Länderwerte geschätzt aus der Altersstruktur des Landes (Frauenanteil 18–29: 48,3 %, 30–59: 49,6 %, 60+: 54,2 %; in den ostdeutschen Flächenländern bei Jüngeren 1–1,5 Punkte weniger wegen Abwanderung junger Frauen). Parteiwerte nach den Wahltagsbefragungen 2025.',
       url: 'https://www.bpb.de/kurz-knapp/zahlen-und-fakten/bundestagswahlen/564029/wahlberechtigte/' },
+    { dim: 'Konfession', text: 'Katholiken je Land: Kirchenstatistik der Deutschen Bischofskonferenz 2025 (Bevölkerung nach Zensus 2022 fortgeschrieben). Protestanten: EKD-Mitgliederzahl 31.12.2025 (Bund 20,8 %), je Land für NI, NW, HB belegt, sonst aus der Ländertabelle 2023 mit dem bundesweiten Rückgang hochgerechnet. Anteile an der Gesamtbevölkerung, nicht nur an den Wahlberechtigten. Wahlverhalten: Forschungsgruppe Wahlen (ZDF), Wahltagsbefragung 2025.',
+      url: 'https://fowid.de/meldung/wahlverhalten-bundestagswahl-2025' },
+    { dim: 'Beruf', text: 'Wahlverhalten nach Beruf: Wahltagsbefragungen 2025 von Infratest dimap (ARD, über FES-Analyse) und Forschungsgruppe Wahlen (ZDF, über KAS); belegt u. a. Arbeiter AfD 38 %, Rentner Union 39 %, Arbeitslose AfD 34 %, Selbstständige Union 35 %, übrige Werte geschätzt und am Bundesergebnis geeicht. Anteile je Land: Modellrechnung aus Mikrozensus (Stellung im Beruf), Arbeitslosenzahlen der Bundesagentur für Arbeit 2025 und Altersstruktur – geschätzt; Basis Bevölkerung ab 18.',
+      url: 'https://dc.fes.de/fileadmin/user_upload/FES_Analyse_der_Bundestagswahl_2025_DE.pdf' },
+    { dim: 'Wahlbeteiligung', text: 'Wahlbeteiligung 2025 je Land: amtliche Endergebnisse der Landeswahlleitungen (Bund 82,5 %; höchste Bayern 84,3 %, niedrigste Sachsen-Anhalt 77,7 %). Schleswig-Holstein und Thüringen nur über Sekundärquellen. Mobilisierungspotenzial: Gewinne aus dem Nichtwählerlager 2025 laut Infratest dimap (KAS-, FES-Analysen) – Modellschätzungen.',
+      url: 'https://www.kas.de/documents/d/guest/wahlanalyse_bundestagswahl_23-02-2025' },
     { dim: 'Wohnort', text: 'Anteil der Einwohner in Großstädten ab 100.000 Einwohnern: Summe der 79 Großstädte je Land geteilt durch die Landesbevölkerung (Destatis, Statistische Landesämter, Stand 31.12.2024/2025, Zensus-2022-Basis). Berlin, Hamburg und Bremen: 100 %. Genauigkeit etwa ± 0,3 Punkte.',
       url: 'https://de.wikipedia.org/wiki/Liste_der_Gro%C3%9Fst%C3%A4dte_in_Deutschland' }
   ];
@@ -412,15 +450,24 @@
     { dim: 'Landesthemen (TH)', text: 'Infratest dimap, ThüringenTREND (MDR), Juni 2024', url: 'https://www.infratest-dimap.de/umfragen-analysen/bundeslaender/thueringen/laendertrend/2024/juni/' }
   ];
 
+  // Wahlbeteiligung bei der Bundestagswahl 2025 (amtliches Endergebnis, Landeswahlleitungen/Bundeswahlleiterin).
+  var TURNOUT = { DE: 82.5, BW: 83.4, BY: 84.3, BE: 80.3, BB: 81.6, HB: 77.8, HH: 80.9, HE: 83.1, MV: 79.5,
+    NI: 83.4, NW: 82.2, RP: 83.0, SL: 82.4, SN: 81.1, ST: 77.7, SH: 83.5, TH: 80.7 };
+
+  // Mobilisierungspotenzial im Nichtwählerlager: Gewinne aus dem Nichtwählerlager 2025 (Infratest dimap,
+  // Wählerwanderung) im Verhältnis zur Stimmenzahl der Partei, auf 0,6–1,5 skaliert. AfD: 1,81 Mio.,
+  // BSW: 0,40 Mio., Union: 0,90 Mio., Linke: 0,29 Mio., SPD: 0,25 Mio., Grüne: 0,11 Mio., FDP: ~0.
+  var NONVOTER_POTENTIAL = { union: 0.92, afd: 1.48, spd: 0.76, gruene: 0.7, linke: 0.93, bsw: 1.41, fdp: 0.6 };
+
   // Wie gut ein Kanal die einzelnen Gruppen erreicht.
   var CHANNELS = {
-    social:     { jung: 2.2, mitte: 1.0, aelter: 0.4, niedrig: 0.8, mittel: 1.0, hoch: 1.2, stadt: 1.4, land: 0.7, maenner: 1.05, frauen: 0.95 },
-    tvspot:     { jung: 0.5, mitte: 1.0, aelter: 1.6, niedrig: 1.4, mittel: 1.1, hoch: 0.7, stadt: 0.8, land: 1.2, maenner: 0.95, frauen: 1.05 },
-    talkshow:   { jung: 0.5, mitte: 0.9, aelter: 1.4, niedrig: 0.6, mittel: 0.9, hoch: 1.6, stadt: 1.0, land: 0.8, maenner: 0.9, frauen: 1.1 },
-    presse:     { jung: 0.7, mitte: 0.9, aelter: 1.2, niedrig: 0.6, mittel: 0.9, hoch: 1.5, stadt: 1.1, land: 0.8, maenner: 1.0, frauen: 1.0 },
-    kundgebung: { jung: 0.7, mitte: 1.0, aelter: 1.1, niedrig: 1.4, mittel: 1.1, hoch: 0.6, stadt: 1.1, land: 1.3, maenner: 1.1, frauen: 0.9 },
-    plakate:    { jung: 0.8, mitte: 1.0, aelter: 1.2, niedrig: 1.3, mittel: 1.0, hoch: 0.7, stadt: 0.9, land: 1.4, maenner: 1.0, frauen: 1.0 },
-    haustuer:   { jung: 0.5, mitte: 0.9, aelter: 1.5, niedrig: 1.2, mittel: 1.0, hoch: 0.8, stadt: 1.1, land: 1.3, maenner: 0.9, frauen: 1.1 }
+    social:     { jung: 2.2, mitte: 1.0, aelter: 0.4, niedrig: 0.8, mittel: 1.0, hoch: 1.2, stadt: 1.4, land: 0.7, maenner: 1.05, frauen: 0.95, kath: 0.9, evang: 0.95, konfl: 1.1, arbeiter: 0.9, angest: 1.1, beamte: 0.9, selbst: 1.1, rentner: 0.4, arbeitslos: 1.1, ausbild: 2.0 },
+    tvspot:     { jung: 0.5, mitte: 1.0, aelter: 1.6, niedrig: 1.4, mittel: 1.1, hoch: 0.7, stadt: 0.8, land: 1.2, maenner: 0.95, frauen: 1.05, kath: 1.05, evang: 1.05, konfl: 0.95, arbeiter: 1.2, angest: 1.0, beamte: 1.0, selbst: 0.9, rentner: 1.6, arbeitslos: 1.3, ausbild: 0.5 },
+    talkshow:   { jung: 0.5, mitte: 0.9, aelter: 1.4, niedrig: 0.6, mittel: 0.9, hoch: 1.6, stadt: 1.0, land: 0.8, maenner: 0.9, frauen: 1.1, kath: 1.0, evang: 1.05, konfl: 0.98, arbeiter: 0.6, angest: 1.0, beamte: 1.3, selbst: 1.1, rentner: 1.3, arbeitslos: 0.7, ausbild: 0.7 },
+    presse:     { jung: 0.7, mitte: 0.9, aelter: 1.2, niedrig: 0.6, mittel: 0.9, hoch: 1.5, stadt: 1.1, land: 0.8, maenner: 1.0, frauen: 1.0, kath: 1.0, evang: 1.0, konfl: 1.0, arbeiter: 0.6, angest: 1.0, beamte: 1.3, selbst: 1.2, rentner: 1.1, arbeitslos: 0.6, ausbild: 0.8 },
+    kundgebung: { jung: 0.7, mitte: 1.0, aelter: 1.1, niedrig: 1.4, mittel: 1.1, hoch: 0.6, stadt: 1.1, land: 1.3, maenner: 1.1, frauen: 0.9, kath: 1.1, evang: 1.0, konfl: 0.95, arbeiter: 1.4, angest: 0.9, beamte: 0.9, selbst: 0.9, rentner: 1.1, arbeitslos: 1.1, ausbild: 0.8 },
+    plakate:    { jung: 0.8, mitte: 1.0, aelter: 1.2, niedrig: 1.3, mittel: 1.0, hoch: 0.7, stadt: 0.9, land: 1.4, maenner: 1.0, frauen: 1.0, kath: 1.05, evang: 1.0, konfl: 0.98, arbeiter: 1.2, angest: 1.0, beamte: 0.9, selbst: 0.9, rentner: 1.2, arbeitslos: 1.1, ausbild: 0.8 },
+    haustuer:   { jung: 0.5, mitte: 0.9, aelter: 1.5, niedrig: 1.2, mittel: 1.0, hoch: 0.8, stadt: 1.1, land: 1.3, maenner: 0.9, frauen: 1.1, kath: 1.15, evang: 1.05, konfl: 0.92, arbeiter: 1.0, angest: 0.9, beamte: 1.0, selbst: 0.8, rentner: 1.5, arbeitslos: 1.3, ausbild: 0.6 }
   };
 
   var SEATS = 630;
@@ -439,6 +486,8 @@
     STATE_GROUPS: STATE_GROUPS,
     GROUP_SOURCES: GROUP_SOURCES,
     STATE_TOPICS: STATE_TOPICS,
+    TURNOUT: TURNOUT,
+    NONVOTER_POTENTIAL: NONVOTER_POTENTIAL,
     STATE_TOPIC_SOURCES: STATE_TOPIC_SOURCES,
     CHANNELS: CHANNELS
   };

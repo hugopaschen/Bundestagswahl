@@ -413,3 +413,27 @@ test('Landesthemen: Gruppen haben je Land andere Interessen, Themen-Aktionen wir
   // Vor-Ort-Aktion mit passendem Thema wirkt besser als mit unpassendem
   assert.ok(E.localTopicFactor(g, 'HH', 'wohnen') > E.localTopicFactor(g, 'HH', 'land'));
 });
+
+test('Neue Wählergruppen Beruf und Konfession, Mobilisierung erhöht Anteil und Wahlbeteiligung', () => {
+  assert.deepStrictEqual(D.GROUPS.filter(k => k.dim === 'konfession').map(k => k.id), ['kath', 'evang', 'konfl']);
+  assert.strictEqual(D.GROUPS.filter(k => k.dim === 'beruf').length, 7);
+  for (const st of D.STATES) {
+    for (const dim of D.GROUP_DIMS) {
+      const sum = D.GROUPS.filter(k => k.dim === dim.id).reduce((s, k) => s + D.STATE_GROUPS[st.id][k.id], 0);
+      assert.ok(Math.abs(sum - 1) < 1e-3, st.id + ' ' + dim.id);
+    }
+  }
+  const g = E.newGame('spd', 'T', 2);
+  g.pollErr = {};
+  const t0 = E.turnout(g, 'NW');
+  assert.ok(Math.abs(t0 - D.TURNOUT.NW) < 0.5);
+  const s0 = E.stateShares(g, 'NW').spd;
+  for (let i = 0; i < 3; i++) { g.ap = 3; E.performAction(g, 'haustuer', { state: 'NW' }); }
+  assert.ok(E.turnout(g, 'NW') > t0);
+  assert.ok(E.mobFactor(g, 'spd', 'NW') > 1);
+  assert.ok(E.stateShares(g, 'NW').spd > s0);
+  // Katholiken wählen häufiger Union: Union in Bayern bei Katholiken stärker als bei Konfessionslosen
+  const u = E.newGame('union', 'T', 2);
+  u.pollErr = {};
+  assert.ok(E.groupShares(u, 'kath', 'BY').union > E.groupShares(u, 'konfl', 'BY').union);
+});

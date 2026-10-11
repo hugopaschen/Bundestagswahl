@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261010-235220';
+  const APP_VERSION = '20261011-001318';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -178,6 +178,7 @@
     renderActions();
     renderRivals();
     renderPollBars(shares);
+    renderMobilization();
     renderGroups();
     renderChart();
     renderAgenda();
@@ -276,7 +277,8 @@
     const top = CHART_TOP;
     const box = $('state-detail');
     if (!box.querySelector('.col-chart')) buildStateChart(box);
-    box.querySelector('.cc-title').innerHTML = esc(st.name) + ' <span class="muted small">· ' + num1(st.voters) + ' Mio. Wahlberechtigte</span>';
+    box.querySelector('.cc-title').innerHTML = esc(st.name) + ' <span class="muted small">· ' + num1(st.voters) + ' Mio. Wahlberechtigte · erwartete Wahlbeteiligung ' + pct(E.turnout(g, st.id)) +
+      (D.TURNOUT && D.TURNOUT[st.id] ? ' (2025: ' + pct(D.TURNOUT[st.id]) + ')' : '') + '</span>';
     box.querySelector('.col-chart').setAttribute('aria-label', 'Umfrage in ' + st.name + ': ' + CHART_ORDER.map(p => short(p) + ' ' + pct(s[p])).join(', '));
     box.querySelector('.cc-hurdle').style.bottom = (5 / top * 100) + '%';
     // Höhe im nächsten Frame setzen, damit der Übergang auch beim ersten Aufbau greift
@@ -452,9 +454,10 @@
     const fit = E.channelFit(a.id, selState) * E.localTopicFactor(g, selState, localTopic || null);
     const pctFit = Math.round((fit - 1) * 100);
     const what = localTopic ? 'Kanal und Thema passen' : 'passt';
-    if (pctFit >= 4) return 'in ' + name + ' · ' + what + ' gut (+' + pctFit + ' %)';
-    if (pctFit <= -4) return 'in ' + name + ' · ' + (localTopic ? 'Kanal und Thema passen schlecht' : 'passt schlecht zur Wählerschaft') + ' (−' + Math.abs(pctFit) + ' %)';
-    return 'in ' + name;
+    const mob = a.id === 'haustuer' ? ' · 🗳️ mobilisiert stark' : a.id === 'kundgebung' ? ' · 🗳️ mobilisiert' : '';
+    if (pctFit >= 4) return 'in ' + name + mob + ' · ' + what + ' gut (+' + pctFit + ' %)';
+    if (pctFit <= -4) return 'in ' + name + mob + ' · ' + (localTopic ? 'Kanal und Thema passen schlecht' : 'passt schlecht zur Wählerschaft') + ' (−' + Math.abs(pctFit) + ' %)';
+    return 'in ' + name + mob;
   }
 
   // Wählergruppen im ausgewählten Bundesland: Anteil an der Wählerschaft (mit Bundesvergleich)
@@ -545,6 +548,25 @@
       '<div class="pc-labels">' + labels + '</div>';
   }
 
+
+  // Wahlbeteiligung und Mobilisierung aller Parteien.
+  function renderMobilization() {
+    const box = $('mobilization');
+    if (!box) return;
+    const t = E.turnout(g);
+    const base = (D.TURNOUT && D.TURNOUT.DE) || 82.5;
+    const ids = POLL_ORDER.filter(p => p !== D.OTHER.id);
+    const vals = ids.map(p => ({ p, v: (E.mobFactor(g, p) - 1) * 100 }));
+    const max = Math.max(4, ...vals.map(x => Math.abs(x.v)));
+    box.innerHTML = '<div class="mob-turnout"><span class="mob-label">Erwartete Wahlbeteiligung</span><span class="mob-big">' + pct(t) + '</span>' +
+      '<span class="muted small">Bundestagswahl 2025: ' + pct(base) + '</span></div>' +
+      '<div class="mob-bars"><span class="mob-label">Mobilisierung der Anhänger (bundesweit)</span>' + vals.map(x => {
+        const w = Math.min(50, Math.abs(x.v) / max * 50);
+        return '<div class="bg-row' + (x.p === g.party ? ' me' : '') + '"><span class="bg-name">' + short(x.p) + '</span>' +
+          '<span class="bg-track"><i style="background:' + col(x.p) + ';' + (x.v >= 0 ? 'left:50%' : 'left:' + (50 - w) + '%') + ';width:' + w + '%"></i></span>' +
+          '<span class="bg-val">' + signed(x.v) + ' %</span></div>';
+      }).join('') + '</div>';
+  }
 
   // Wählergruppen: euer Umfragewert je Gruppe, Veränderung seit Start und die Lieblingsthemen.
   function renderGroups() {
@@ -867,6 +889,7 @@
       '<p class="eyebrow">Euer Wahlabend</p><h2>' + esc(o.rating) + '</h2>' +
       '<div class="score">' + o.score + '</div><p class="muted small">Punkte</p>' +
       '<p><strong>' + esc(p.name) + ': ' + pct(r.shares[g.party]) + '</strong> (' + signed(o.delta) + ' seit Wahlkampfstart)</p>' +
+      (r.turnout ? '<p class="muted small">Wahlbeteiligung: ' + pct(r.turnout) + (D.TURNOUT ? ' (2025: ' + pct(D.TURNOUT.DE) + ')' : '') + '</p>' : '') +
       (r.lastPoll ? '<p class="muted small">Letzte Umfrage: ' + pct(r.lastPoll[g.party]) + ' ± ' + E.POLL_RANGE + ' – das echte Ergebnis lag ' +
         (Math.abs(r.shares[g.party] - r.lastPoll[g.party]) < 0.3 ? 'fast genau darauf.' : signed(r.shares[g.party] - r.lastPoll[g.party]) + ' Punkte daneben.') + '</p>' : '') +
       '<p>' + esc(statusText) + '</p>' +
@@ -1447,6 +1470,7 @@
       ['📺', 'TV-Duell in Woche ' + E.DUEL_WEEK, 'Kurz vor der Wahl kommt die Elefantenrunde. Wer bei den wichtigsten Themen sattelfest ist, punktet.'],
       ['🥊', 'Die Konkurrenz schläft nicht', 'Die anderen Parteien setzen ihre Themen, kämpfen um knappe Länder – und schlagen zurück, wenn ihr zu stark werdet oder ihnen eure Kernthemen streitig machen wollt.'],
       ['👥', 'Wählergruppen und Abnutzung', 'Jung, mittel und alt, niedrige bis hohe Bildung, Stadt und Land, Männer und Frauen wollen unterschiedlich angesprochen werden. Wer immer dasselbe macht, verliert Wirkung – Geld ist knapp, TV-Zeit wird teurer.'],
+      ['🗳️', 'Mobilisieren', 'Nur wer wählen geht, zählt: Haustürwahlkampf, Kundgebungen und Social Media bringen Anhänger und Nichtwähler an die Urne – am meisten kurz vor der Wahl.'],
       ['📊', 'Umfragen sind nur Umfragen', 'Jede Umfrage hat eine Fehlerspanne von ± ' + E.POLL_RANGE + ' Punkten. Wo ihr wirklich steht, zeigt erst der Wahlabend. Und manche Entscheidung holt euch Wochen später wieder ein.']
     ].map(st => '<li><span class="ko-step-icon" aria-hidden="true">' + st[0] + '</span><div><b>' + st[1] + '</b><p>' + st[2] + '</p></div></li>').join('');
   }

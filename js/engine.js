@@ -27,6 +27,7 @@
   const TOTAL_VOTERS = D.STATES.reduce((s, st) => s + st.voters, 0);
 
   const POLL_RANGE = 3;        // Fehlerspanne der veröffentlichten Umfragen (± Prozentpunkte)
+  const MOB_DECAY = 0.8;       // Mobilisierung lässt pro Woche nach – späte Mobilisierung zählt am meisten
   const GROUP_SAT = 3;         // Sättigung: je mehr Bonus eine Gruppe schon hat, desto weniger wirkt mehr
   const GROUP_IDS = D.GROUPS.map(k => k.id);
   // Jede Dimension (Alter, Bildung, Wohnort) zählt gleich; innerhalb einer Dimension ergeben
@@ -361,12 +362,15 @@
       steal: {},
       delayed: [],
       pollErr: {},
+      mob: {},             // Mobilisierung der eigenen Anhänger und von Nichtwählern (bundesweit)
+      mobReg: {},          // … und je Bundesland
       otherSwing: 0,       // Stimmung für die sonstigen Parteien (Freie Wähler, Volt, Tierschutzpartei …)
       spendCount: 0,
       spendWeek: 0,
       rng: (seed === undefined ? Math.floor(Math.random() * 2 ** 31) : seed) | 0
     };
-    PARTY_IDS.forEach(p => { g.nat[p] = 0; g.compAdj[p] = {}; });
+    PARTY_IDS.forEach(p => { g.nat[p] = 0; g.compAdj[p] = {}; g.mob[p] = 0; });
+    D.STATES.forEach(st => { g.mobReg[st.id] = {}; PARTY_IDS.forEach(p => { g.mobReg[st.id][p] = 0; }); });
     ALL_IDS.forEach(p => { g.pollErr[p] = 0; });
     GROUP_IDS.forEach(k => { g.grp[k] = {}; PARTY_IDS.forEach(p => { g.grp[k][p] = 0; }); });
     D.STATES.forEach(s => {
@@ -412,13 +416,47 @@
       other -= st.result[p];
       const prog = p === g.party && g.prog ? g.prog.nat + (st.east ? g.prog.east : 0) + programStateEffect(g.progGroups, stateId) +
         ((g.progState && g.progState[stateId]) || 0) : 0;
-      raw[p] = Math.max(0.2, st.result[p] + g.nat[p] + g.reg[stateId][p] + prog + issueEffect(g, p, stateId) + groupEffect(g, p));
+      raw[p] = Math.max(0.2, st.result[p] + g.nat[p] + g.reg[stateId][p] + prog + issueEffect(g, p, stateId) + groupEffect(g, p)) * mobFactor(g, p, stateId);
     });
     raw[D.OTHER.id] = Math.max(0.5, other + (g.otherSwing || 0));
     const sum = ALL_IDS.reduce((s, p) => s + raw[p], 0);
     const out = {};
     ALL_IDS.forEach(p => { out[p] = raw[p] / sum * 100; });
     return out;
+  }
+
+  // ---------- Mobilisierung und Wahlbeteiligung ----------
+
+  // Faktor auf den Stimmenanteil: Wer seine Anhänger und Nichtwähler an die Urne bringt, gewinnt.
+  function mobFactor(g, p, stateId) {
+    if (!g.mob) return 1;
+    const m = (g.mob[p] || 0) + ((g.mobReg && g.mobReg[stateId] && g.mobReg[stateId][p]) || 0);
+    return Math.max(0.85, Math.min(1.25, 1 + m));
+  }
+
+  // Wie viel Mobilisierung bei einer Partei ankommt: Parteien mit viel Potenzial im Nichtwählerlager
+  // (laut Wählerwanderung 2025) holen mehr heraus.
+  function mobPotential(p) {
+    return (D.NONVOTER_POTENTIAL && D.NONVOTER_POTENTIAL[p]) || 1;
+  }
+
+  function mobilize(g, p, amount, stateId) {
+    const a = amount * mobPotential(p);
+    if (stateId) g.mobReg[stateId][p] += a;
+    else g.mob[p] += a;
+    return a;
+  }
+
+  // Erwartete Wahlbeteiligung: Ausgangswert 2025 des Landes, verändert durch die Mobilisierung.
+  function turnout(g, stateId) {
+    if (!stateId) {
+      return D.STATES.reduce((s, st) => s + turnout(g, st.id) * st.voters, 0) / TOTAL_VOTERS;
+    }
+    const base = (D.TURNOUT && D.TURNOUT[stateId]) || (D.TURNOUT && D.TURNOUT.DE) || 82.5;
+    const sh = stateShares(g, stateId);
+    let avg = sh[D.OTHER.id] / 100;
+    PARTY_IDS.forEach(p => { avg += sh[p] / 100 * mobFactor(g, p, stateId); });
+    return Math.min(95, base * avg);
   }
 
   function nationalShares(g) {
@@ -704,6 +742,7 @@
         const d = 1.7 * wear(g, 'kundgebung:' + st.id) * r * eff * between(g, 0.7, 1.3);
         g.reg[st.id][p] += d;
         addGroups(g, p, 0.08 * d, 'kundgebung', localTopic, st.id);
+        mobilize(g, p, 0.012 * d, st.id);
         text = pick(g, ['Volle Plätze', 'Begeisterte Menge', 'Solider Auftritt']) +
           ' bei der Kundgebung' + about + ' in ' + st.name + ' (' + fmt(d) + ' Pkt. im Land).';
         break;
@@ -712,6 +751,7 @@
         const d = 1.3 * wear(g, 'plakate:' + st.id) * r * eff * between(g, 0.8, 1.2);
         g.reg[st.id][p] += d;
         addGroups(g, p, 0.05 * d, 'plakate', localTopic, st.id);
+        mobilize(g, p, 0.005 * d, st.id);
         text = 'Plakate' + about + ' hängen in ganz ' + st.name + ' (' + fmt(d) + ' Pkt. im Land).';
         break;
       }
@@ -719,6 +759,8 @@
         const d = (1.0 + 0.6 / Math.sqrt(st.voters)) * wear(g, 'haustuer:' + st.id) * r * eff * between(g, 0.7, 1.3);
         g.reg[st.id][p] += d;
         addGroups(g, p, 0.05 * d, 'haustuer', localTopic, st.id);
+        // Haustürwahlkampf ist das beste Mittel gegen Wahlmüdigkeit.
+        mobilize(g, p, 0.025 * d, st.id);
         text = 'Ehrenamtliche klingeln' + about + ' an tausenden Türen in ' + st.name + ' (' + fmt(d) + ' Pkt. im Land).';
         break;
       }
@@ -738,6 +780,7 @@
         } else {
           const d = addGroups(g, p, between(g, 0.3, 0.8) * wear(g, 'social:' + topic) * r, 'social', topic);
           spreadTopic(g, p, d, topic);
+          mobilize(g, p, 0.008 * d);
           text = 'Euer Clip zum Thema ' + topicById(topic).name + ' geht viral (' + fmt(d) + ').';
         }
         break;
@@ -1336,6 +1379,7 @@
           const st = close.length ? pick(g, close) : pick(g, D.STATES);
           const d = between(g, 0.5, 1.4);
           g.reg[st.id][p] += d;
+          mobilize(g, p, 0.012 * d, st.id);
           if (st.id in states && rand(g) < 0.35) {
             news.push({ prio: 1, text: name + ' kämpft mit einer Großkundgebung um ' + st.name + '.' });
           }
@@ -1346,6 +1390,7 @@
           changeSalience(g, t, 0.01);
           const d = between(g, 0.02, 0.22) + (nearHurdle ? 0.1 : 0);
           g.nat[p] += d;
+          mobilize(g, p, 0.004);
           if (rand(g) < 0.3) {
             news.push({ prio: 1, text: name + ' setzt im Wahlkampf auf das Thema ' + topicById(t).name + '.' });
           }
@@ -1378,6 +1423,8 @@
       g.nat[p] *= BONUS_DECAY;
       D.STATES.forEach(s => { g.reg[s.id][p] *= BONUS_DECAY; });
       GROUP_IDS.forEach(k => { g.grp[k][p] *= BONUS_DECAY; });
+      g.mob[p] *= MOB_DECAY;
+      D.STATES.forEach(s => { g.mobReg[s.id][p] *= MOB_DECAY; });
     });
     g.otherSwing = (g.otherSwing || 0) * 0.92; // langsame Rückkehr zum Normalwert
     TOPIC_IDS.forEach(t => {
@@ -1483,7 +1530,8 @@
       government: null,
       states,
       strongest: leader(final),
-      lastPoll: g.history.length ? g.history[g.history.length - 1].shares : null
+      lastPoll: g.history.length ? g.history[g.history.length - 1].shares : null,
+      turnout: Math.round(turnout(g) * 10) / 10
     };
 
     // Ist die Spielerpartei Wahlsiegerin mit Optionen, wählt sie selbst die Koalition.
@@ -1575,6 +1623,8 @@
     if (!g.delayed) g.delayed = [];
     if (!g.pollErr) { g.pollErr = {}; ALL_IDS.forEach(p => { g.pollErr[p] = 0; }); }
     if (g.otherSwing === undefined) g.otherSwing = 0;
+    if (!g.mob) { g.mob = {}; PARTY_IDS.forEach(p => { g.mob[p] = 0; }); }
+    if (!g.mobReg) { g.mobReg = {}; D.STATES.forEach(st => { g.mobReg[st.id] = {}; PARTY_IDS.forEach(p => { g.mobReg[st.id][p] = 0; }); }); }
     if (g.spendCount === undefined) { g.spendCount = 0; g.spendWeek = 0; }
     if (!g.progGroups && g.program) g.progGroups = programGroupEffects(g.party, g.program);
     if (!g.progState && g.program) g.progState = programTopicStates(programEffects(g.party, g.program));
@@ -1595,7 +1645,7 @@
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     publishedShares, publishedStateShares, groupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
-    POLL_RANGE, GROUP_IDS, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
+    POLL_RANGE, GROUP_IDS, turnout, mobFactor, mobPotential, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent,
     startDuel, duelAnswer,
