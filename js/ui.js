@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261011-190543';
+  const APP_VERSION = '20261011-191249';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -460,7 +460,7 @@
       '<span class="ameta">' + (cost ? money(cost) : 'kostenlos') + '</span>';
     b.addEventListener('click', () => {
       const res = E.performAction(g, a.id, actionTarget(a));
-      $(a.scope === 'region' || a.scope === 'none' ? 'local-feedback' : 'feedback').textContent = res.text;
+      $(a.scope === 'region' ? 'local-feedback' : 'feedback').textContent = res.text;
       toast(res.text);
       save();
       renderGame();
@@ -558,6 +558,12 @@
       E.stateTopTopics(st.id, 3).map(id => { const t = E.topicById(id); return '<span class="stt">' + t.icon + ' ' + esc(t.name) + '</span>'; }).join('');
   }
 
+  const LOCAL_GROUPS = [
+    { title: '🎤 Auftritte', desc: 'Große Bühne für eure Spitzenkandidatur – starke Wirkung im Land.', ids: ['kundgebung', 'buerger', 'betrieb'] },
+    { title: '🚪 Basisarbeit &amp; Mobilisierung', desc: 'Nah an den Menschen: bringt Anhänger und Nichtwähler an die Urne.', ids: ['haustuer', 'infostand', 'plakate'] },
+    { title: '📻 Medien im Land', desc: 'Lokalzeitung und Landesradio – am besten mit einem Landesthema.', ids: ['regional'] }
+  ];
+
   function renderActions() {
     renderLocalTopic();
     const list = $('action-list');
@@ -568,7 +574,22 @@
       const comp = E.competenceOf(g, g.party)[selTopic];
       E.ACTIONS.filter(a => a.scope === 'topic').forEach(a => list.appendChild(actionButton(a, topicActionHint(a, comp))));
     }
-    E.ACTIONS.filter(a => a.scope === 'region' || a.scope === 'none').forEach(a => local.appendChild(actionButton(a, a.scope === 'region' ? regionHint(a) : 'füllt die Kasse')));
+    // Vor-Ort-Aktionen nach Art gruppiert; Kasse und Briefwahl stehen auf der Aktionen-Seite.
+    LOCAL_GROUPS.forEach(grp => {
+      const sec = document.createElement('section');
+      sec.className = 'local-group';
+      sec.innerHTML = '<h4>' + grp.title + '</h4><p class="muted small">' + grp.desc + '</p>';
+      const listEl = document.createElement('div');
+      listEl.className = 'action-list';
+      grp.ids.forEach(id => { const a = E.ACTIONS.find(x => x.id === id); if (a) listEl.appendChild(actionButton(a, regionHint(a))); });
+      sec.appendChild(listEl);
+      local.appendChild(sec);
+    });
+    const nat = $('national-actions');
+    if (nat) {
+      nat.innerHTML = '';
+      E.ACTIONS.filter(a => a.scope === 'none').forEach(a => nat.appendChild(actionButton(a, 'füllt die Kasse')));
+    }
     renderExtraActions();
     const hint = 'Keine Aktionen mehr – Zeit, die Woche zu beenden.';
     const fb = $('feedback');

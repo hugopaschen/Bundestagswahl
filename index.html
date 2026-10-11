@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de" data-version="20261011-190543">
+<html lang="de" data-version="20261011-191249">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Montserrat:wght@700;800;900&family=Oswald:wght@600;700&family=Public+Sans:wght@500;700;800;900&family=Inter:wght@800&family=Open+Sans:wght@400;700;800&family=Caveat:wght@600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,700;1,400&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20261011-190543">
+  <link rel="stylesheet" href="css/style.css?v=20261011-191249">
 </head>
 <body>
   <!-- Startseite: Eröffnungsbild, ein eigener Bildschirm -->
@@ -258,15 +258,19 @@
           <div id="map" class="map"></div>
           <div class="map-side">
             <div id="state-detail" class="state-detail"></div>
-            <div class="local-block">
+          </div>
+        </div>
+        <div class="local-block">
+          <div class="local-head">
+            <div>
               <h3 class="act-title">📍 Wahlkampf vor Ort in <span id="local-state"></span></h3>
               <p id="state-top-topics" class="state-top-topics"></p>
-              <label class="local-topic-row"><span>Thema der Aktion</span>
-                <select id="local-topic"></select></label>
-              <div id="local-actions" class="action-list"></div>
-              <p id="local-feedback" class="feedback" role="status" aria-live="polite"></p>
             </div>
+            <label class="local-topic-row"><span>Thema der Aktion</span>
+              <select id="local-topic"></select></label>
           </div>
+          <p id="local-feedback" class="feedback" role="status" aria-live="polite"></p>
+          <div id="local-actions" class="local-groups"></div>
         </div>
         <div class="state-groups-block">
           <h3>👥 Wählergruppen in <span id="sg-state"></span></h3>
@@ -288,6 +292,11 @@
           <div id="topic-list" class="topic-grid"></div>
           <div id="topic-detail" class="topic-detail" hidden></div>
           <div id="action-list" class="action-list"></div>
+        </div>
+
+        <div class="act-block extra-block">
+          <h3 class="act-title">💶 Wahlkampfkasse &amp; Briefwahl</h3>
+          <div id="national-actions" class="action-list"></div>
         </div>
 
         <div class="act-block extra-block">
@@ -386,10 +395,10 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="js/data.js?v=20261011-190543"></script>
-  <script src="js/germany.js?v=20261011-190543"></script>
-  <script src="js/questions.js?v=20261011-190543"></script>
-  <script src="js/engine.js?v=20261011-190543"></script>
-  <script src="js/ui.js?v=20261011-190543"></script>
+  <script src="js/data.js?v=20261011-191249"></script>
+  <script src="js/germany.js?v=20261011-191249"></script>
+  <script src="js/questions.js?v=20261011-191249"></script>
+  <script src="js/engine.js?v=20261011-191249"></script>
+  <script src="js/ui.js?v=20261011-191249"></script>
 </body>
 </html>

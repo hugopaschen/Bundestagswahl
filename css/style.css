@@ -1696,3 +1696,18 @@ h2 .flyer-hint { margin: 0; }
 .rv-mood { color: #444; }
 .reveal-note { text-align: center; margin: 10px 0 0; }
 #screen-reveal .ko-go { display: flex; justify-content: center; align-items: center; gap: 18px; flex-wrap: wrap; }
+
+/* Vor-Ort-Aktionen: volle Breite, nach Art gruppiert */
+.map-card .local-block { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--border); }
+.local-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px 28px; margin-bottom: 6px; }
+.local-head .act-title { margin: 0 0 6px; }
+.local-head .state-top-topics { margin: 0; }
+.local-head .local-topic-row { margin: 0; flex: 0 1 380px; min-width: 0; max-width: 100%; }
+.local-head > div { min-width: 0; }
+.local-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 22px; margin-top: 14px; align-items: start; }
+.local-group { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.local-group h4 { margin: 0; font-size: 1rem; }
+.local-group > p { margin: -4px 0 2px; }
+.layout.tabbed .local-group .action-list { grid-template-columns: 1fr; gap: 10px; }
+@media (max-width: 1000px) { .local-groups { grid-template-columns: 1fr; } .layout.tabbed .local-group .action-list { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); } }
+#local-feedback { margin: 10px 0 0; }
