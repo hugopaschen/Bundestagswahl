@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261011-182415';
+  const APP_VERSION = '20261011-190543';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -74,7 +74,7 @@
   }
 
   function show(screen) {
-    ['intro', 'name', 'start', 'program', 'kickoff', 'game', 'election'].forEach(s => { $('screen-' + s).hidden = s !== screen; });
+    ['intro', 'name', 'start', 'program', 'reveal', 'kickoff', 'game', 'election'].forEach(s => { $('screen-' + s).hidden = s !== screen; });
     // Die Programm-Website färbt den ganzen Seitenhintergrund in der Papierfarbe der Partei.
     // Seiten, die randlos über die ganze Breite gehen, färben auch den Seitenhintergrund ein.
     if (screen === 'start') document.body.style.background = '#f4f4f1';
@@ -594,10 +594,10 @@
       const d = base && base[p] !== undefined ? shares[p] - base[p] : null;
       const lo = Math.max(0, shares[p] - R);
       const range = '<i class="pc-range" style="bottom:' + (lo / top * 100) + '%;height:' + ((shares[p] + R - lo) / top * 100) + '%" title="Fehlerspanne ± ' + R + '"></i>';
-      cols += '<div class="pc-col"><span class="pc-val" style="bottom:' + ((shares[p] + R) / top * 100) + '%">' + pct(shares[p]) +
+      cols += '<div class="pc-col" data-p="' + p + '"><span class="pc-val" style="bottom:' + ((shares[p] + R) / top * 100) + '%">' + pct(shares[p]) +
         '<small>± ' + R + '</small></span>' + range +
         '<div class="pc-bar" style="height:' + (shares[p] / top * 100) + '%;background:' + col(p) + '"></div></div>';
-      labels += '<div class="pc-label' + (p === g.party ? ' me' : '') + '"><span class="pc-name">' + (p === D.OTHER.id ? 'Andere' : short(p)) + '</span>' +
+      labels += '<div class="pc-label' + (p === (g ? g.party : chosenParty) ? ' me' : '') + '" data-p="' + p + '"><span class="pc-name">' + (p === D.OTHER.id ? 'Andere' : short(p)) + '</span>' +
         '<span class="pc-diff">' + (d === null ? '' : signed(d)) + '</span></div>';
     });
     return '<div class="pc-plot"><i class="pc-hurdle" style="bottom:' + (5 / top * 100) + '%" title="5-%-Hürde"></i>' + cols + '</div>' +
@@ -1427,12 +1427,6 @@
 
     // Aktionsleiste
     let bar = '<span class="step-label"></span>';
-    if (!errors.length) {
-      const tmp = E.newGame(chosenParty, '', 1, draft);
-      const now = E.nationalShares(tmp)[chosenParty];
-      const d = now - tmp.startShares[chosenParty];
-      bar += '<span>Erste Umfrage: <strong>' + pct(now) + '</strong> <span class="' + (d >= 0 ? 'pos' : 'neg') + '">' + signed(d) + '</span></span>';
-    }
     if (fx) bar += '<span>Finanzierung: <strong class="' + (fx.finance === 'over' ? 'neg' : '') + '">' + fx.cost + ' / ' + fx.budget + ' 💶</strong></span>';
     bar += '<span>Kernthemen: <strong>' + draft.core.length + ' / ' + D.PROGRAM_RULES.coreCount + '</strong></span>';
     bar += '<span class="neg step-hint" hidden></span>';
@@ -1451,15 +1445,8 @@
       const slots = Math.max(fx.budget, fx.cost);
       let seg = '';
       for (let i = 0; i < slots; i++) seg += '<span class="' + (i < fx.cost ? (i >= fx.budget ? 'on over' : 'on') : '') + '"></span>';
-      let poll = '';
-      if (!errors.length) {
-        const tmp = E.newGame(chosenParty, '', 1, draft);
-        const now = E.nationalShares(tmp)[chosenParty];
-        const d = now - tmp.startShares[chosenParty];
-        poll = '<div class="bilanz-card"><span class="bilanz-label">📊 Erste Umfrage</span>' +
-          '<span class="bilanz-big">' + pct(now) + '</span>' +
-          '<span class="bilanz-delta ' + (d >= 0 ? 'good' : 'bad') + '">' + signed(d) + ' Punkte durch das Programm</span></div>';
-      }
+      // Die erste Umfrage bleibt bis nach dem Parteitag geheim (eigener Bildschirm).
+      const poll = '';
       html += '<div class="bilanz-top">' +
         '<div class="bilanz-card bilanz-finance' + (over ? ' over' : '') + '">' +
           '<span class="bilanz-label">💶 Finanzierung <span class="bilanz-pill ' + finance.cls + '">' + finance.badge + '</span></span>' +
@@ -1677,8 +1664,79 @@
     const game = E.newGame(chosenParty, $('candidate').value, undefined, draft);
     g = game;
     save();
-    showKickoff(game);
+    showReveal(game);
   });
+
+  // Erste Umfrage nach dem Parteitag: Die Säulen erscheinen nacheinander, die eigene Partei zuletzt.
+  let revealTimers = [];
+  function showReveal(game) {
+    const screen = $('screen-reveal');
+    show('reveal');
+    window.scrollTo(0, 0);
+    applyPartyTheme(screen, game.party);
+    document.body.style.background = getComputedStyle(screen).getPropertyValue('--fl-paper').trim();
+    const shares = E.publishedShares(game);
+    const box = $('reveal-bars');
+    box.innerHTML = pollColumnsHtml(shares, game.startShares);
+    const me = game.party;
+    const cols = {};
+    box.querySelectorAll('.pc-col').forEach(c => {
+      const bar = c.querySelector('.pc-bar');
+      c.dataset.h = bar.style.height;
+      bar.style.height = '0';
+      cols[c.dataset.p] = c;
+    });
+    box.querySelectorAll('.pc-label').forEach(l => { cols[l.dataset.p + ':label'] = l; });
+    box.classList.add('revealing');
+    $('reveal-verdict').hidden = true;
+    $('btn-reveal-go').hidden = true;
+    $('btn-reveal-skip').hidden = false;
+    $('reveal-suspense').textContent = 'Die Stimmen werden ausgezählt …';
+    revealTimers.forEach(clearTimeout);
+    revealTimers = [];
+    // Erst „Andere“, dann die übrigen Parteien von klein nach groß, zum Schluss die eigene.
+    const others = POLL_ORDER.filter(p => p !== me && p !== D.OTHER.id).sort((a, b) => shares[a] - shares[b]);
+    const order = [D.OTHER.id].concat(others);
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const step = reduce ? 80 : 750;
+    const showCol = p => {
+      const c = cols[p];
+      if (!c) return;
+      c.classList.add('shown');
+      c.querySelector('.pc-bar').style.height = c.dataset.h;
+      if (cols[p + ':label']) cols[p + ':label'].classList.add('shown');
+    };
+    order.forEach((p, i) => revealTimers.push(setTimeout(() => showCol(p), 600 + i * step)));
+    const tMe = 600 + order.length * step + (reduce ? 100 : 1300);
+    revealTimers.push(setTimeout(() => { $('reveal-suspense').textContent = '… und ' + E.party(me).name + '?'; }, tMe - (reduce ? 50 : 1100)));
+    revealTimers.push(setTimeout(() => { showCol(me); }, tMe));
+    revealTimers.push(setTimeout(() => finishReveal(game, shares), tMe + (reduce ? 100 : 1100)));
+  }
+
+  function finishReveal(game, shares) {
+    revealTimers.forEach(clearTimeout);
+    revealTimers = [];
+    const box = $('reveal-bars');
+    box.querySelectorAll('.pc-col').forEach(c => { c.classList.add('shown'); c.querySelector('.pc-bar').style.height = c.dataset.h; });
+    box.querySelectorAll('.pc-label').forEach(l => l.classList.add('shown'));
+    const me = game.party;
+    const now = shares[me];
+    const d = now - game.startShares[me];
+    const rank = POLL_ORDER.filter(p => p !== D.OTHER.id).sort((a, b) => shares[b] - shares[a]).indexOf(me) + 1;
+    const mood = d >= 1.5 ? 'Der Parteitag war ein voller Erfolg!' : d >= 0.3 ? 'Rückenwind vom Parteitag.' : d > -0.3 ? 'Das Programm hat die Stimmung kaum bewegt.' : 'Der Parteitag kam nicht gut an.';
+    $('reveal-suspense').textContent = '';
+    const v = $('reveal-verdict');
+    v.innerHTML = '<span class="rv-big">' + pct(now) + '<small> ± ' + E.POLL_RANGE + '</small></span>' +
+      '<span class="rv-delta ' + (d >= 0 ? 'pos' : 'neg') + '">' + signed(d) + ' Punkte seit vor dem Parteitag</span>' +
+      '<span class="rv-mood">' + mood + ' Platz ' + rank + ' von ' + (POLL_ORDER.length - 1) + '.</span>';
+    v.hidden = false;
+    $('btn-reveal-skip').hidden = true;
+    $('btn-reveal-go').hidden = false;
+    $('btn-reveal-go').focus();
+  }
+
+  $('btn-reveal-skip').addEventListener('click', () => { if (g) finishReveal(g, E.publishedShares(g)); });
+  $('btn-reveal-go').addEventListener('click', () => { if (g) showKickoff(g); });
 
   $('btn-kickoff-go').addEventListener('click', () => { if (g) startGame(g); });
 

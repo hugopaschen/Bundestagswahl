@@ -486,7 +486,7 @@ h2 .flyer-hint { margin: 0; }
 }
 
 /* Bilanz für Strategen */
-.bilanz-top { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: clamp(12px, 2vw, 22px); }
+.bilanz-top { display: grid; grid-template-columns: 2fr 1fr; gap: clamp(12px, 2vw, 22px); }
 .bilanz-card, .comp-card {
   display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 20px 20px 22px; border-radius: 14px;
   border: 2px solid var(--border); background: #fff; color: #1d1d1b; box-shadow: 0 2px 6px rgba(0, 0, 0, .06);
@@ -1672,3 +1672,27 @@ h2 .flyer-hint { margin: 0; }
 .gh-icon { font-size: 2.8rem; }
 .gh-dim { font-size: .76rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .group-facts { margin-top: 18px; }
+
+/* Erste Umfrage nach dem Parteitag */
+#screen-reveal.party-site { background: var(--fl-paper); padding: 0 0 56px; min-height: 100vh; }
+.reveal-card {
+  position: relative; margin: -36px auto 0; max-width: 900px; padding: clamp(22px, 3vw, 36px);
+  background: #ffffff; color: #1d1d1f; border-radius: 16px; box-shadow: 0 14px 40px rgba(0, 0, 0, .14);
+  --text: #1d1d1f; --muted: #6b6b75; --border: #e3e3e8;
+}
+.reveal-card .pc-plot { height: clamp(240px, 38vh, 340px); }
+.revealing .pc-val, .revealing .pc-range, .revealing .pc-diff { opacity: 0; transition: opacity .4s; }
+.revealing .pc-col.shown .pc-val, .revealing .pc-col.shown .pc-range, .revealing .pc-label.shown .pc-diff { opacity: 1; }
+.revealing .pc-col .pc-bar { transition: height .7s cubic-bezier(.22, .8, .25, 1); }
+.revealing .pc-label.me.shown .pc-name { animation: rv-pop .6s ease; }
+@keyframes rv-pop { 0% { transform: scale(1); } 50% { transform: scale(1.35); } 100% { transform: scale(1); } }
+.reveal-suspense { min-height: 1.6em; margin: 16px 0 0; text-align: center; font-size: 1.15rem; font-weight: 800; color: var(--fl-accent, #333); }
+.reveal-verdict { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 14px 0 6px; text-align: center; animation: rv-in .5s ease; }
+@keyframes rv-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.rv-big { font-size: clamp(2.4rem, 6vw, 3.6rem); font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1; }
+.rv-big small { font-size: .4em; color: var(--muted); }
+.rv-delta { font-weight: 800; font-size: 1.05rem; }
+.rv-delta.pos { color: #1e8449; } .rv-delta.neg { color: #c0392b; }
+.rv-mood { color: #444; }
+.reveal-note { text-align: center; margin: 10px 0 0; }
+#screen-reveal .ko-go { display: flex; justify-content: center; align-items: center; gap: 18px; flex-wrap: wrap; }
