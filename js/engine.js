@@ -1837,6 +1837,8 @@
     if (g.spendCount === undefined) { g.spendCount = 0; g.spendWeek = 0; }
     if (!g.progGroups && g.program) g.progGroups = programGroupEffects(g.party, g.program);
     if (!g.progState && g.program) g.progState = programTopicStates(programEffects(g.party, g.program));
+    // Spielstände ohne Gruppenverlauf: aktuellen Stand nachtragen, damit die Gruppen-Umfragen funktionieren.
+    if (g.history && g.history.length && !g.history[g.history.length - 1].groups) g.history[g.history.length - 1].groups = allGroupShares(g);
     if (!g.grpStart) g.grpStart = {};
     GROUP_IDS.forEach(k => { if (!(k in g.grpStart)) g.grpStart[k] = groupShares(g, k)[g.party]; });
     const line = defaultProgram(g.party);

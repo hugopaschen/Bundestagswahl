@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261011-182021';
+  const APP_VERSION = '20261011-182415';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -672,7 +672,9 @@
       '<p class="gh-dim">Wählergruppe · ' + esc(dim ? dim.name : '') + '</p><h2>' + esc(k.name) + '</h2>' +
       '<p class="muted">' + Math.round(k.weight * 100) + ' % der Wahlberechtigten · ✉️ ' + Math.round(E.groupPostal(k.id)) + ' % wählen per Brief · vorn: <b>' + esc(E.party(lead).short) + '</b> · ihr: <b>' + pct(shares[g.party]) + '</b></p></div>';
     $('group-poll-bars').innerHTML = pollColumnsHtml(shares, start);
-    drawChart('group-poll-chart', g.history.filter(h => h.groups && h.groups[k.id]).map(h => h.groups[k.id]));
+    // Ältere Spielstände haben keinen Gruppenverlauf: dann zumindest der aktuelle Stand.
+    const series = g.history.filter(h => h.groups && h.groups[k.id]).map(h => h.groups[k.id]);
+    drawChart('group-poll-chart', series.length ? series : [shares]);
     // Themen dieser Gruppe: Vorliebe × aktuelles Wählerinteresse
     const ranked = D.TOPICS.map(t => ({ t, v: g.salience[t.id] * (k.topics[t.id] || 1) })).sort((a, b) => b.v - a.v);
     const sum = ranked.reduce((x, r) => x + r.v, 0);
@@ -713,6 +715,7 @@
     const R = 8;
     const T = 8;
     const B = 20;
+    if (!series.length) { $(boxId).innerHTML = ''; return; }
     const hist = series.map(sh => ({ shares: sh }));
     const ids = D.PARTIES.map(p => p.id).concat([D.OTHER.id]);
     let maxV = 0;
