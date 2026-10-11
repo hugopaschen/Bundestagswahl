@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261011-192731';
+  const APP_VERSION = '20261011-200248';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -152,7 +152,7 @@
   // ---------- Spielbildschirm ----------
 
   function renderGame() {
-    const shares = E.publishedShares(g);
+    const shares = E.pollShares(g);
     const me = g.party;
     const p = E.party(me);
 
@@ -233,7 +233,7 @@
     D.STATES.forEach(st => {
       const geo = GEO.states[st.id];
       if (!geo) return;
-      const s = E.publishedStateShares(g, st.id);
+      const s = E.pollStateShares(g, st.id);
       const lead = E.leader(s);
       const isSel = st.id === selState;
       const shape = '<path class="land-shape" d="' + geo.d + '" style="fill:' + col(lead) + '"></path>';
@@ -276,7 +276,7 @@
 
   function renderStateDetail() {
     const st = E.stateById(selState);
-    const s = E.publishedStateShares(g, st.id);
+    const s = E.pollStateShares(g, st.id);
     // Feste Skala für alle Länder (0–50 %), damit die 5-%-Linie beim Wechsel nicht springt; höhere Werte werden gekappt.
     const top = CHART_TOP;
     const box = $('state-detail');
@@ -520,7 +520,7 @@
     $('sg-state').textContent = st.name;
     box.innerHTML = D.GROUP_DIMS.map(dim => '<h4 class="gp-dim">' + esc(dim.name) + '</h4><div class="gp-row">' +
       D.GROUPS.filter(k => k.dim === dim.id && w[k.id] > 0).map(k => {
-        const v = E.groupShares(g, k.id, st.id)[g.party];
+        const v = E.pollGroupShares(g, k.id, st.id)[g.party];
         const share = w[k.id] * 100;
         const cmp = 'Bund ' + num1(k.weight * 100) + ' %';
         const topics = E.groupTopicsInState(k.id, st.id, 3)
@@ -657,7 +657,7 @@
     if (!box) return;
     box.innerHTML = D.GROUP_DIMS.map(dim => '<h4 class="gp-dim">' + esc(dim.name) + '</h4><div class="gp-row">' +
       D.GROUPS.filter(k => k.dim === dim.id).map(k => {
-      const v = E.groupShares(g, k.id)[g.party];
+      const v = E.pollGroupShares(g, k.id)[g.party];
       const d = v - (g.grpStart ? g.grpStart[k.id] : v);
       const sat = 1 / (1 + Math.max(0, g.grp[k.id][g.party]) / 3);
       const topics = Object.keys(k.topics).sort((a, b) => k.topics[b] - k.topics[a]).slice(0, 3).map(id => {
@@ -689,7 +689,7 @@
   function renderGroupPoll() {
     const k = D.GROUPS.find(x => x.id === selGroupView);
     if (!k) return;
-    const shares = E.groupShares(g, k.id);
+    const shares = E.pollGroupShares(g, k.id);
     const start = g.history[0] && g.history[0].groups ? g.history[0].groups[k.id] : null;
     const dim = D.GROUP_DIMS.find(d => d.id === k.dim);
     const lead = E.leader(shares);
@@ -1569,7 +1569,7 @@
     show('kickoff');
     applyPartyTheme(screen, game.party);
     document.body.style.background = getComputedStyle(screen).getPropertyValue('--fl-paper').trim();
-    const shares = E.publishedShares(game);
+    const shares = E.pollShares(game);
     const weeks = game.maxWeeks;
     $('ko-kicker').textContent = k.place + ' · noch ' + weeks + ' Wochen bis zur Bundestagswahl';
     $('ko-title').textContent = k.title;
@@ -1700,7 +1700,7 @@
     window.scrollTo(0, 0);
     applyPartyTheme(screen, game.party);
     document.body.style.background = getComputedStyle(screen).getPropertyValue('--fl-paper').trim();
-    const shares = E.publishedShares(game);
+    const shares = E.pollShares(game);
     const box = $('reveal-bars');
     box.innerHTML = pollColumnsHtml(shares, game.startShares);
     const me = game.party;
@@ -1760,7 +1760,7 @@
     $('btn-reveal-go').focus();
   }
 
-  $('btn-reveal-skip').addEventListener('click', () => { if (g) finishReveal(g, E.publishedShares(g)); });
+  $('btn-reveal-skip').addEventListener('click', () => { if (g) finishReveal(g, E.pollShares(g)); });
   $('btn-reveal-go').addEventListener('click', () => { if (g) showKickoff(g); });
 
   $('btn-kickoff-go').addEventListener('click', () => { if (g) startGame(g); });
@@ -1773,14 +1773,14 @@
 
   $('btn-end-week').addEventListener('click', () => {
     if (g.ap > 0 && !window.confirm('Du hast noch ' + g.ap + ' Aktion(en) übrig. Woche trotzdem beenden?')) return;
-    const before = E.publishedShares(g)[g.party];
+    const before = E.pollShares(g)[g.party];
     const res = E.endWeek(g);
     if (!res.ok) { if (res.text) toast(res.text); return; }
     save();
     $('feedback').textContent = '';
     $('local-feedback').textContent = '';
     if (res.election) { closeModal(); showElection(); return; }
-    const after = E.publishedShares(g)[g.party];
+    const after = E.pollShares(g)[g.party];
     const rivals = g.log.filter(l => l.type === 'ai' && l.week === g.week - 1 && /euch|Kernthema/.test(l.text)).length;
     toast('Neue Umfrage: ' + pct(after) + ' ± ' + E.POLL_RANGE + ' (' + signed(after - before) + ' zur Vorwoche)' +
       (rivals ? ' · 🥊 Die Konkurrenz greift euch an!' : ''));

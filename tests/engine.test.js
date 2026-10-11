@@ -488,3 +488,14 @@ test('Umfrage je Wählergruppe: Verlauf wird jede Woche für alle Gruppen gespei
     assert.ok(Math.abs(sum - 100) < 1, k);
   }
 });
+
+test('Sonntagsfrage und Umfrageverlauf zeigen dieselben veröffentlichten Werte', () => {
+  const g = E.newGame('union', 'T', 6);
+  assert.deepStrictEqual(g.history[0].shares, E.pollShares(g));
+  const before = E.pollShares(g).union;
+  E.performAction(g, 'tvspot', { topic: 'wirtschaft' });
+  assert.strictEqual(E.pollShares(g).union, before); // neue Werte erst mit der nächsten Umfrage
+  E.endWeek(g); if (g.pendingEvent) E.resolveEvent(g, 0);
+  assert.deepStrictEqual(g.history[g.history.length - 1].shares, E.pollShares(g));
+  assert.deepStrictEqual(g.history[g.history.length - 1].groups.jung, E.pollGroupShares(g, 'jung'));
+});

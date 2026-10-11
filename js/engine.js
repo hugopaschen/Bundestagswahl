@@ -388,10 +388,11 @@
     applyProgram(g, program);
     g.grpStart = {};
     GROUP_IDS.forEach(k => { g.grpStart[k] = groupShares(g, k)[partyId]; });
-    // Ausgangsumfrage jeder Wählergruppe (für Verlauf und Veränderung seit Wahlkampfstart)
-    g.history[0].groups = allGroupShares(g);
     rollPollErr(g);
-    const now = publishedShares(g)[partyId];
+    takePoll(g);
+    // Der Verlauf beginnt mit der ersten Umfrage nach dem Parteitag – dieselben Werte wie die Sonntagsfrage.
+    g.history[0] = { week: 0, shares: g.poll.nat, real: nationalShares(g), groups: g.poll.groups };
+    const now = g.poll.nat[partyId];
     addLog(g, 'event', 'Wahlprogramm „' + g.program.slogan + '“ vorgestellt. Erste Umfrage: ' +
       now.toFixed(1).replace('.', ',') + ' % (' + fmt(now - g.startShares[partyId]) + ').');
     return g;
@@ -649,6 +650,26 @@
     });
     raw[D.OTHER.id] = pub[D.OTHER.id];
     return normalize(raw);
+  }
+
+  // Die veröffentlichte Umfrage der Woche: Sie wird einmal pro Woche erhoben und bleibt bis zur
+  // nächsten Umfrage gleich – Aktionen zeigen sich also erst in der nächsten Umfrage.
+  const round1 = sh => { const o = {}; ALL_IDS.forEach(p => { o[p] = Math.round(sh[p] * 100) / 100; }); return o; };
+  function takePoll(g) {
+    const poll = { nat: round1(publishedShares(g)), states: {}, groups: allGroupShares(g), stateGroups: {} };
+    D.STATES.forEach(st => {
+      poll.states[st.id] = round1(publishedStateShares(g, st.id));
+      poll.stateGroups[st.id] = {};
+      GROUP_IDS.forEach(k => { poll.stateGroups[st.id][k] = round1(groupShares(g, k, st.id)); });
+    });
+    g.poll = poll;
+    return poll;
+  }
+  const pollShares = g => (g.poll ? g.poll.nat : publishedShares(g));
+  const pollStateShares = (g, stateId) => (g.poll ? g.poll.states[stateId] : publishedStateShares(g, stateId));
+  function pollGroupShares(g, groupId, stateId) {
+    if (!g.poll) return groupShares(g, groupId, stateId);
+    return stateId ? g.poll.stateGroups[stateId][groupId] : g.poll.groups[groupId];
   }
 
   // Umfragewerte aller Parteien in allen Wählergruppen (gerundet, für den Verlauf).
@@ -1639,7 +1660,8 @@
     Object.keys(g.usage).forEach(k => { g.usage[k] *= 0.6; });
 
     rollPollErr(g);
-    g.history.push({ week: g.week, shares: publishedShares(g), real: nationalShares(g), groups: allGroupShares(g) });
+    takePoll(g);
+    g.history.push({ week: g.week, shares: g.poll.nat, real: nationalShares(g), groups: g.poll.groups });
 
     if (g.week >= g.maxWeeks) {
       g.phase = 'election';
@@ -1839,6 +1861,7 @@
     if (!g.progState && g.program) g.progState = programTopicStates(programEffects(g.party, g.program));
     // Spielstände ohne Gruppenverlauf: aktuellen Stand nachtragen, damit die Gruppen-Umfragen funktionieren.
     if (g.history && g.history.length && !g.history[g.history.length - 1].groups) g.history[g.history.length - 1].groups = allGroupShares(g);
+    if (!g.poll) takePoll(g);
     if (!g.grpStart) g.grpStart = {};
     GROUP_IDS.forEach(k => { if (!(k in g.grpStart)) g.grpStart[k] = groupShares(g, k)[g.party]; });
     const line = defaultProgram(g.party);
@@ -1855,7 +1878,7 @@
     party, stateById, topicById, eventById, eventText,
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
-    publishedShares, publishedStateShares, groupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
+    publishedShares, publishedStateShares, groupShares, pollShares, pollStateShares, pollGroupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
     POLL_RANGE, GROUP_IDS, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent,
