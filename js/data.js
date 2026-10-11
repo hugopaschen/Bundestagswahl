@@ -388,6 +388,8 @@
       url: 'https://dc.fes.de/fileadmin/user_upload/FES_Analyse_der_Bundestagswahl_2025_DE.pdf' },
     { dim: 'Wahlbeteiligung', text: 'Wahlbeteiligung 2025 je Land: amtliche Endergebnisse der Landeswahlleitungen (Bund 82,5 %; höchste Bayern 84,3 %, niedrigste Sachsen-Anhalt 77,7 %). Schleswig-Holstein und Thüringen nur über Sekundärquellen. Mobilisierungspotenzial: Gewinne aus dem Nichtwählerlager 2025 laut Infratest dimap (KAS-, FES-Analysen) – Modellschätzungen.',
       url: 'https://www.kas.de/documents/d/guest/wahlanalyse_bundestagswahl_23-02-2025' },
+    { dim: 'Briefwahl', text: 'Briefwähleranteil 2025: Bund 37,0 %, Länder amtlich (Bayern 52,2 % am höchsten, Thüringen 25,6 % am niedrigsten). Je Gruppe: Alter und Geschlecht aus den Antragsquoten der repräsentativen Wahlstatistik geschätzt (± 3 Punkte), Stadt/Land und Beruf grob geschätzt, für Bildung und Konfession keine Daten (Bundesschnitt).',
+      url: 'https://www.bpb.de/kurz-knapp/zahlen-und-fakten/bundestagswahlen/560708/wahlbeteiligung-und-briefwahl/' },
     { dim: 'Wohnort', text: 'Anteil der Einwohner in Großstädten ab 100.000 Einwohnern: Summe der 79 Großstädte je Land geteilt durch die Landesbevölkerung (Destatis, Statistische Landesämter, Stand 31.12.2024/2025, Zensus-2022-Basis). Berlin, Hamburg und Bremen: 100 %. Genauigkeit etwa ± 0,3 Punkte.',
       url: 'https://de.wikipedia.org/wiki/Liste_der_Gro%C3%9Fst%C3%A4dte_in_Deutschland' }
   ];
@@ -459,6 +461,18 @@
   // BSW: 0,40 Mio., Union: 0,90 Mio., Linke: 0,29 Mio., SPD: 0,25 Mio., Grüne: 0,11 Mio., FDP: ~0.
   var NONVOTER_POTENTIAL = { union: 0.92, afd: 1.48, spd: 0.76, gruene: 0.7, linke: 0.93, bsw: 1.41, fdp: 0.6 };
 
+  // Briefwahl 2025 (Anteil der Briefwähler an allen Wählern, %): Bund und Länder amtlich
+  // (Bundeswahlleiterin, Landesämter). Gruppen: Alter und Geschlecht aus den Antragsquoten der
+  // repräsentativen Wahlstatistik geschätzt; Stadt/Land grobe Faustregel; Beruf geschätzt
+  // (Rentner ähnlich wie 70+); für Bildung und Konfession gibt es keine Daten (Bundesschnitt).
+  var POSTAL = {
+    states: { DE: 37.0, BW: 36.8, BY: 52.2, BE: 39.7, BB: 29.2, HB: 33.1, HH: 40.7, HE: 36.2, MV: 28.9,
+      NI: 25.9, NW: 36.1, RP: 45.7, SL: 37.9, SN: 31.5, ST: 26.8, SH: 28.8, TH: 25.6 },
+    groups: { jung: 32, mitte: 34, aelter: 41, niedrig: 37, mittel: 37, hoch: 37, stadt: 40, land: 35,
+      maenner: 35, frauen: 39, kath: 37, evang: 37, konfl: 37, arbeiter: 33, angest: 34, beamte: 35,
+      selbst: 35, rentner: 43, arbeitslos: 33, ausbild: 32 }
+  };
+
   // Wie gut ein Kanal die einzelnen Gruppen erreicht.
   var CHANNELS = {
     social:     { jung: 2.2, mitte: 1.0, aelter: 0.4, niedrig: 0.8, mittel: 1.0, hoch: 1.2, stadt: 1.4, land: 0.7, maenner: 1.05, frauen: 0.95, kath: 0.9, evang: 0.95, konfl: 1.1, arbeiter: 0.9, angest: 1.1, beamte: 0.9, selbst: 1.1, rentner: 0.4, arbeitslos: 1.1, ausbild: 2.0 },
@@ -467,7 +481,11 @@
     presse:     { jung: 0.7, mitte: 0.9, aelter: 1.2, niedrig: 0.6, mittel: 0.9, hoch: 1.5, stadt: 1.1, land: 0.8, maenner: 1.0, frauen: 1.0, kath: 1.0, evang: 1.0, konfl: 1.0, arbeiter: 0.6, angest: 1.0, beamte: 1.3, selbst: 1.2, rentner: 1.1, arbeitslos: 0.6, ausbild: 0.8 },
     kundgebung: { jung: 0.7, mitte: 1.0, aelter: 1.1, niedrig: 1.4, mittel: 1.1, hoch: 0.6, stadt: 1.1, land: 1.3, maenner: 1.1, frauen: 0.9, kath: 1.1, evang: 1.0, konfl: 0.95, arbeiter: 1.4, angest: 0.9, beamte: 0.9, selbst: 0.9, rentner: 1.1, arbeitslos: 1.1, ausbild: 0.8 },
     plakate:    { jung: 0.8, mitte: 1.0, aelter: 1.2, niedrig: 1.3, mittel: 1.0, hoch: 0.7, stadt: 0.9, land: 1.4, maenner: 1.0, frauen: 1.0, kath: 1.05, evang: 1.0, konfl: 0.98, arbeiter: 1.2, angest: 1.0, beamte: 0.9, selbst: 0.9, rentner: 1.2, arbeitslos: 1.1, ausbild: 0.8 },
-    haustuer:   { jung: 0.5, mitte: 0.9, aelter: 1.5, niedrig: 1.2, mittel: 1.0, hoch: 0.8, stadt: 1.1, land: 1.3, maenner: 0.9, frauen: 1.1, kath: 1.15, evang: 1.05, konfl: 0.92, arbeiter: 1.0, angest: 0.9, beamte: 1.0, selbst: 0.8, rentner: 1.5, arbeitslos: 1.3, ausbild: 0.6 }
+    haustuer:   { jung: 0.5, mitte: 0.9, aelter: 1.5, niedrig: 1.2, mittel: 1.0, hoch: 0.8, stadt: 1.1, land: 1.3, maenner: 0.9, frauen: 1.1, kath: 1.15, evang: 1.05, konfl: 0.92, arbeiter: 1.0, angest: 0.9, beamte: 1.0, selbst: 0.8, rentner: 1.5, arbeitslos: 1.3, ausbild: 0.6 },
+    betrieb: { jung: 0.9, mitte: 1.4, aelter: 0.5, niedrig: 1.3, mittel: 1.5, hoch: 0.7, stadt: 0.95, land: 1.1, maenner: 1.2, frauen: 0.85, kath: 1.0, evang: 1.0, konfl: 1.0, arbeiter: 2.2, angest: 1.4, beamte: 0.7, selbst: 0.9, rentner: 0.3, arbeitslos: 0.6, ausbild: 0.8 },
+    buerger: { jung: 0.7, mitte: 1.0, aelter: 1.3, niedrig: 0.8, mittel: 1.0, hoch: 1.3, stadt: 1.0, land: 1.0, maenner: 1.0, frauen: 1.0, kath: 1.05, evang: 1.05, konfl: 1.0, arbeiter: 1.0, angest: 1.0, beamte: 1.2, selbst: 1.0, rentner: 1.3, arbeitslos: 1.0, ausbild: 0.7 },
+    infostand: { jung: 0.7, mitte: 0.9, aelter: 1.3, niedrig: 1.0, mittel: 1.0, hoch: 1.0, stadt: 1.3, land: 0.9, maenner: 1.0, frauen: 1.05, kath: 1.0, evang: 1.0, konfl: 1.0, arbeiter: 1.0, angest: 1.0, beamte: 1.0, selbst: 1.0, rentner: 1.3, arbeitslos: 1.1, ausbild: 0.9 },
+    regional: { jung: 0.5, mitte: 0.9, aelter: 1.5, niedrig: 1.1, mittel: 1.0, hoch: 0.9, stadt: 0.85, land: 1.25, maenner: 1.0, frauen: 1.0, kath: 1.1, evang: 1.05, konfl: 0.95, arbeiter: 1.0, angest: 1.0, beamte: 1.0, selbst: 1.0, rentner: 1.5, arbeitslos: 1.0, ausbild: 0.5 }
   };
 
   var SEATS = 630;
@@ -487,6 +505,7 @@
     GROUP_SOURCES: GROUP_SOURCES,
     STATE_TOPICS: STATE_TOPICS,
     TURNOUT: TURNOUT,
+    POSTAL: POSTAL,
     NONVOTER_POTENTIAL: NONVOTER_POTENTIAL,
     STATE_TOPIC_SOURCES: STATE_TOPIC_SOURCES,
     CHANNELS: CHANNELS

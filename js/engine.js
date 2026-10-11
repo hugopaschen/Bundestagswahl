@@ -364,6 +364,10 @@
       pollErr: {},
       mob: {},             // Mobilisierung der eigenen Anhänger und von Nichtwählern (bundesweit)
       mobReg: {},          // … und je Bundesland
+      postal: { frac: {}, sum: {} }, // bereits abgegebene Briefwahlstimmen je Land
+      postalPush: {},      // Briefwahl-Kampagnen: Anteil der Anhänger, die früh wählen
+      mobPerm: {},         // dauerhafte Mobilisierung durch Briefwahl
+      grudge: {},          // wer von euch angegriffen wurde (reagiert eher mit Gegenangriffen)
       otherSwing: 0,       // Stimmung für die sonstigen Parteien (Freie Wähler, Volt, Tierschutzpartei …)
       spendCount: 0,
       spendWeek: 0,
@@ -430,7 +434,7 @@
   // Faktor auf den Stimmenanteil: Wer seine Anhänger und Nichtwähler an die Urne bringt, gewinnt.
   function mobFactor(g, p, stateId) {
     if (!g.mob) return 1;
-    const m = (g.mob[p] || 0) + ((g.mobReg && g.mobReg[stateId] && g.mobReg[stateId][p]) || 0);
+    const m = (g.mob[p] || 0) + ((g.mobReg && g.mobReg[stateId] && g.mobReg[stateId][p]) || 0) + ((g.mobPerm && g.mobPerm[p]) || 0);
     return Math.max(0.85, Math.min(1.25, 1 + m));
   }
 
@@ -457,6 +461,52 @@
     let avg = sh[D.OTHER.id] / 100;
     PARTY_IDS.forEach(p => { avg += sh[p] / 100 * mobFactor(g, p, stateId); });
     return Math.min(95, base * avg);
+  }
+
+  // ---------- Briefwahl ----------
+
+  // Ab Woche 5 wählt jede Woche ein Teil der Briefwähler – mit der Stimmung dieser Woche.
+  // Briefwahl-Kampagnen sorgen dafür, dass eure Anhänger überdurchschnittlich früh dabei sind.
+  function castPostal(g) {
+    const split = POSTAL_SPLIT[g.week];
+    if (!split) return;
+    if (!g.postal) g.postal = { frac: {}, sum: {} };
+    D.STATES.forEach(st => {
+      const f = postalShare(st.id) * split;
+      const sh = stateShares(g, st.id);
+      const raw = {};
+      let tot = 0;
+      ALL_IDS.forEach(p => { raw[p] = sh[p] * (1 + ((g.postalPush && g.postalPush[p]) || 0)); tot += raw[p]; });
+      g.postal.frac[st.id] = (g.postal.frac[st.id] || 0) + f;
+      if (!g.postal.sum[st.id]) g.postal.sum[st.id] = {};
+      ALL_IDS.forEach(p => { g.postal.sum[st.id][p] = (g.postal.sum[st.id][p] || 0) + f * raw[p] / tot * 100; });
+    });
+  }
+
+  // Anteil der Stimmen, die schon per Brief abgegeben sind (bundesweit).
+  function postalCast(g) {
+    if (!g.postal) return 0;
+    return D.STATES.reduce((s, st) => s + (g.postal.frac[st.id] || 0) * st.voters, 0) / TOTAL_VOTERS;
+  }
+
+  // Ergebnis eines Landes am Wahlabend: Briefwahlstimmen (früh abgegeben) + Urnenwahl (jetzt).
+  function electionStateShares(g, stateId) {
+    const now = stateShares(g, stateId);
+    const f = (g.postal && g.postal.frac[stateId]) || 0;
+    if (!f) return now;
+    const out = {};
+    ALL_IDS.forEach(p => { out[p] = g.postal.sum[stateId][p] + (1 - f) * now[p]; });
+    return out;
+  }
+
+  function electionShares(g) {
+    const out = {};
+    ALL_IDS.forEach(p => { out[p] = 0; });
+    D.STATES.forEach(st => {
+      const s = electionStateShares(g, st.id);
+      ALL_IDS.forEach(p => { out[p] += s[p] * st.voters / TOTAL_VOTERS; });
+    });
+    return out;
   }
 
   function nationalShares(g) {
@@ -648,8 +698,47 @@
     { id: 'talkshow', name: 'Talkshow-Auftritt', icon: '🛋️', scope: 'topic',
       desc: 'Kostenlos, aber riskant. Gelingt eher bei Themen, die du beherrschst.' },
     { id: 'spenden', name: 'Spendendinner', icon: '💶', scope: 'none',
-      desc: 'Füllt die Wahlkampfkasse auf.' }
+      desc: 'Füllt die Wahlkampfkasse auf.' },
+    { id: 'betrieb', name: 'Betriebsbesuch', icon: '🏭', scope: 'region',
+      desc: 'Werkshalle statt Marktplatz: erreicht Arbeiter und Angestellte, am besten mit Wirtschaftsthemen.' },
+    { id: 'buerger', name: 'Bürgerdialog', icon: '🎙️', scope: 'region',
+      desc: 'Offene Fragerunde ohne Drehbuch. Gelingt sie, wirkt sie stark – kritische Fragen können aber schiefgehen.' },
+    { id: 'infostand', name: 'Infostand', icon: '⛺', scope: 'region',
+      desc: 'Billig, kleine Wirkung – aber gut, um Anhänger und Nichtwähler an die Urne zu bringen.' },
+    { id: 'regional', name: 'Interview im Regionalmedium', icon: '📻', scope: 'region',
+      desc: 'Lokalzeitung und Landesradio: kostenlos, wirkt im Land – besonders mit einem Landesthema.' },
+    { id: 'briefwahl', name: 'Briefwahl-Kampagne', icon: '✉️', scope: 'none',
+      desc: 'Bringt eure Anhänger dazu, früh per Brief zu wählen. Ihre Stimmen sind dann sicher – egal, was kurz vor der Wahl passiert.' },
+    { id: 'online', name: 'Online-Werbung mit Zielgruppe', icon: '🎯', scope: 'group',
+      desc: 'Bezahlte Anzeigen gezielt für eine Wählergruppe. Kein Shitstorm-Risiko, wirkt genau dort, wo ihr es braucht.' },
+    { id: 'angriff', name: 'Gegenangriff / Vergleichskampagne', icon: '🥊', scope: 'rival',
+      desc: 'Stellt eine andere Partei bloß und holt Stimmen von ihr. Geht es schief oder tretet ihr nach unten, schadet es euch.' }
   ];
+
+  const POSTAL_START = 5;              // ab dieser Woche werden Briefwahlstimmen abgegeben
+  const POSTAL_SPLIT = { 5: 0.2, 6: 0.3, 7: 0.3, 8: 0.2 }; // Anteil der Briefwähler, der in der Woche wählt
+
+  function postalShare(stateId) {
+    const P = D.POSTAL || {};
+    return ((P.states && (P.states[stateId] || P.states.DE)) || 35) / 100;
+  }
+
+  // Wie stark die Wählerschaft einer Partei per Brief wählt (1 = Bundesschnitt): Parteien mit
+  // vielen älteren Anhängern profitieren mehr von Briefwahl-Kampagnen.
+  function postalAffinity(p) {
+    let num = 0;
+    let den = 0;
+    D.GROUPS.forEach(k => { const w = W[k.id] * FACTOR[k.id][p]; num += w * groupPostal(k.id); den += w; });
+    const base = (D.POSTAL && D.POSTAL.states && D.POSTAL.states.DE) || 37;
+    // Unterschiede verstärken: Viele Dimensionen haben keine Briefwahl-Daten und mitteln sie sonst weg.
+    return den ? Math.max(0.85, Math.min(1.15, 1 + 6 * (num / den / base - 1))) : 1;
+  }
+
+  // Briefwahlanteil einer Wählergruppe (in %).
+  function groupPostal(groupId) {
+    const P = D.POSTAL || {};
+    return (P.groups && P.groups[groupId]) || ((P.states && P.states.DE) || 35);
+  }
 
   function actionCost(actionId, stateId, g) {
     switch (actionId) {
@@ -659,6 +748,14 @@
       // Sendezeit wird zum Wahltag hin knapp und teuer.
       case 'tvspot': return Math.round((2.5 + 0.25 * ((g && g.week) || 1) - 0.25) * 100) / 100;
       case 'social': return 0.6;
+      case 'betrieb': return 0.1;
+      case 'infostand': return 0.05;
+      case 'briefwahl': return 0.8;
+      case 'angriff': return 0.8;
+      case 'online': {
+        const k = D.GROUPS.find(x => x.id === stateId); // bei 'online' steht hier die Zielgruppe
+        return Math.round((0.4 + 2.5 * (k ? k.weight : 0.3)) * 10) / 10;
+      }
       default: return 0;
     }
   }
@@ -720,7 +817,11 @@
     if (action.scope === 'region' && !st) return { ok: false, text: 'Bitte zuerst ein Bundesland wählen.' };
     if (action.scope === 'topic' && !topicById(topic)) return { ok: false, text: 'Bitte zuerst ein Thema wählen.' };
     if (actionId === 'spenden' && !spendenAvailable(g)) return { ok: false, text: 'Diese Woche gab es schon ein Spendendinner.' };
-    const cost = actionCost(actionId, target.state, g);
+    if (actionId === 'briefwahl' && g.week < POSTAL_START - 1) return { ok: false, text: 'Die Briefwahlunterlagen werden erst ab Woche ' + (POSTAL_START - 1) + ' verschickt.' };
+    const grpT = action.scope === 'group' ? D.GROUPS.find(k => k.id === target.group) : null;
+    if (action.scope === 'group' && !grpT) return { ok: false, text: 'Bitte zuerst eine Zielgruppe wählen.' };
+    if (action.scope === 'rival' && (!party(target.rival) || target.rival === g.party)) return { ok: false, text: 'Bitte zuerst eine gegnerische Partei wählen.' };
+    const cost = actionCost(actionId, action.scope === 'group' ? target.group : target.state, g);
     if (g.money + 1e-9 < cost) return { ok: false, text: 'Dafür reicht das Geld in der Wahlkampfkasse nicht.' };
 
     g.ap -= 1;
@@ -800,6 +901,91 @@
         } else {
           spreadTopic(g, p, addGroups(g, p, -0.5, 'talkshow', topic), topic);
           text = 'In der Talkshow zum Thema ' + topicById(topic).name + ' ins Schwimmen geraten (−0.5).';
+        }
+        break;
+      }
+      case 'betrieb': {
+        const d = 1.1 * wear(g, 'betrieb:' + st.id) * r * eff * between(g, 0.8, 1.2);
+        g.reg[st.id][p] += d;
+        addGroups(g, p, 0.08 * d, 'betrieb', localTopic, st.id);
+        mobilize(g, p, 0.008 * d, st.id);
+        text = 'Betriebsbesuch' + about + ' in ' + st.name + ': Gespräche am Band und in der Kantine (' + fmt(d) + ' Pkt. im Land).';
+        break;
+      }
+      case 'buerger': {
+        const cm = localTopic ? compMod(g, localTopic) : 0;
+        const w = wear(g, 'buerger:' + st.id);
+        if (rand(g) < Math.max(0.25, Math.min(0.85, 0.55 + 0.25 * cm))) {
+          const d = 1.9 * w * r * eff * between(g, 0.8, 1.2);
+          g.reg[st.id][p] += d;
+          g.nat[p] += 0.15;
+          addGroups(g, p, 0.1 * d, 'buerger', localTopic, st.id);
+          text = 'Der Bürgerdialog' + about + ' in ' + st.name + ' überzeugt – ehrliche Antworten kommen an (' + fmt(d) + ' Pkt. im Land).';
+        } else {
+          g.reg[st.id][p] -= 0.7;
+          g.nat[p] -= 0.15;
+          text = 'Beim Bürgerdialog' + about + ' in ' + st.name + ' gerät ' + g.candidate + ' bei kritischen Fragen ins Straucheln (−0.7 im Land).';
+        }
+        break;
+      }
+      case 'infostand': {
+        const d = 0.55 * wear(g, 'infostand:' + st.id) * r * eff * between(g, 0.8, 1.2);
+        g.reg[st.id][p] += d;
+        addGroups(g, p, 0.04 * d, 'infostand', localTopic, st.id);
+        mobilize(g, p, 0.03 * Math.min(1.5, eff), st.id);
+        text = 'Infostände' + about + ' in den Fußgängerzonen von ' + st.name + ': Flyer, Kugelschreiber, viele Gespräche (' + fmt(d) + ' Pkt. im Land).';
+        break;
+      }
+      case 'regional': {
+        const d = 0.9 * wear(g, 'regional:' + st.id) * r * eff * (localTopic ? 1 : 0.8) * between(g, 0.8, 1.2);
+        g.reg[st.id][p] += d;
+        addGroups(g, p, 0.05 * d, 'regional', localTopic, st.id);
+        text = 'Interview' + about + ' in Lokalzeitung und Landesradio von ' + st.name + ' (' + fmt(d) + ' Pkt. im Land).';
+        break;
+      }
+      case 'briefwahl': {
+        const w = wear(g, 'briefwahl');
+        g.postalPush[p] = Math.min(0.25, (g.postalPush[p] || 0) + 0.06 * w * postalAffinity(p));
+        g.mobPerm[p] = (g.mobPerm[p] || 0) + 0.005 * w * mobPotential(p);
+        text = 'Briefwahl-Kampagne: Eure Anhänger bestellen ihre Unterlagen und wählen früh – diese Stimmen sind sicher.';
+        break;
+      }
+      case 'online': {
+        const k = grpT;
+        const tp = topic && topicById(topic) ? topic : null;
+        const fit = tp ? Math.max(0.7, Math.min(1.5, 1 + 0.3 * (topicPref(k, tp) - 1) + 0.3 * compMod(g, tp))) : 1;
+        const delta = 3.2 * (1 - k.weight) * wear(g, 'online:' + k.id) * reach(g) * groupSat(g, k.id, p) * fit * between(g, 0.85, 1.15);
+        if (rand(g) < 0.07) {
+          g.nat[p] -= 0.3;
+          text = 'Datenschutz-Debatte um eure Online-Anzeigen für ' + k.name + ' (−0.3).';
+          break;
+        }
+        g.nat[p] += k.weight * delta;
+        g.grp[k.id][p] += delta * (1 - k.weight);
+        if (tp) changeSalience(g, tp, 0.005);
+        text = 'Online-Anzeigen' + (tp ? ' zum Thema ' + topicById(tp).name : '') + ' erreichen ' + k.name + ' (' + fmt(delta) + ' in der Gruppe, ' + fmt(k.weight * delta) + ' bundesweit).';
+        break;
+      }
+      case 'angriff': {
+        const rv = target.rival;
+        const tp = topic && topicById(topic) ? topic : null;
+        const shares = nationalShares(g);
+        const adv = tp ? (competenceOf(g, p)[tp] - competenceOf(g, rv)[tp]) / 50 : 0;
+        const down = shares[rv] < 0.6 * shares[p] ? 0.15 : 0;
+        const chance = Math.max(0.2, Math.min(0.85, 0.55 + 0.25 * adv - down));
+        const w = wear(g, 'angriff:' + rv);
+        g.grudge = g.grudge || {};
+        g.grudge[rv] = g.week;
+        if (rand(g) < chance) {
+          const d = between(g, 0.6, 1.1) * w;
+          g.nat[rv] -= d;
+          g.nat[p] += 0.35 * d;
+          text = 'Eure Kampagne gegen ' + party(rv).name + (tp ? ' beim Thema ' + topicById(tp).name : '') + ' sitzt (' + party(rv).short + ' ' + fmt(-d) + ', ihr ' + fmt(0.35 * d) + ').';
+        } else {
+          const d = between(g, 0.4, 0.7);
+          g.nat[p] -= d;
+          g.nat[rv] += 0.2;
+          text = 'Der Angriff auf ' + party(rv).name + ' geht nach hinten los – die Kampagne wirkt ' + (down ? 'kleinlich' : 'unfair') + ' (' + fmt(-d) + ').';
         }
         break;
       }
@@ -1327,7 +1513,7 @@
     const prev = g.history.length ? (g.history[g.history.length - 1].real || g.history[g.history.length - 1].shares) : shares;
     const gain = shares[me] - prev[me];
     const states = {};
-    D.STATES.forEach(st => { states[st.id] = stateShares(g, st.id); });
+    D.STATES.forEach(st => { states[st.id] = electionStateShares(g, st.id); });
     const news = [];
     let attacks = 0;
     let steals = 0;
@@ -1341,7 +1527,8 @@
 
       // Reaktion 1: Gegenkampagne, wenn ihr stark zulegt oder ihnen gefährlich nahe kommt.
       const gap = Math.abs(shares[p] - shares[me]);
-      const threat = (gain >= 0.7 ? 1 : 0) + (gain >= 1.5 ? 1 : 0) + (gap < 3 ? 1 : 0);
+      const hit = g.grudge && g.grudge[p] >= g.week - 1 ? 2 : 0; // gerade von euch angegriffen
+      const threat = (gain >= 0.7 ? 1 : 0) + (gain >= 1.5 ? 1 : 0) + (gap < 3 ? 1 : 0) + hit;
       if (threat && attacks < 1 && g.week >= 2 && rand(g) < 0.1 + 0.12 * threat) {
         const d = between(g, 0.2, 0.4) * (1 + 0.25 * (threat - 1));
         g.nat[me] -= d;
@@ -1398,6 +1585,10 @@
       }
     });
     PARTY_IDS.forEach(p => { g.nat[p] += between(g, -0.25, 0.25); }); // Stimmungsrauschen
+    // Auch die Konkurrenz wirbt für die Briefwahl.
+    if (g.week >= POSTAL_START - 1) {
+      rivals.forEach(p => { if (rand(g) < 0.3) g.postalPush[p] = Math.min(0.25, (g.postalPush[p] || 0) + 0.04); });
+    }
 
     // Auch die sonstigen Parteien gewinnen und verlieren: Verlieren die großen Parteien gemeinsam,
     // profitieren Kleinparteien von der Protest- und Frustwahl.
@@ -1419,6 +1610,7 @@
     if (g.week === DUEL_WEEK && !g.duelDone) return { ok: false, text: 'Erst steht noch die Elefantenrunde an!' };
 
     aiTurn(g);
+    castPostal(g);
     PARTY_IDS.forEach(p => {
       g.nat[p] *= BONUS_DECAY;
       D.STATES.forEach(s => { g.reg[s.id][p] *= BONUS_DECAY; });
@@ -1502,7 +1694,7 @@
   }
 
   function runElection(g) {
-    const shares = nationalShares(g);
+    const shares = electionShares(g);
     // Letzte Unsicherheit: Umfragen sind keine Wahlergebnisse.
     const raw = {};
     let sum = 0;
@@ -1623,6 +1815,10 @@
     if (!g.delayed) g.delayed = [];
     if (!g.pollErr) { g.pollErr = {}; ALL_IDS.forEach(p => { g.pollErr[p] = 0; }); }
     if (g.otherSwing === undefined) g.otherSwing = 0;
+    if (!g.postal) g.postal = { frac: {}, sum: {} };
+    if (!g.postalPush) g.postalPush = {};
+    if (!g.mobPerm) g.mobPerm = {};
+    if (!g.grudge) g.grudge = {};
     if (!g.mob) { g.mob = {}; PARTY_IDS.forEach(p => { g.mob[p] = 0; }); }
     if (!g.mobReg) { g.mobReg = {}; D.STATES.forEach(st => { g.mobReg[st.id] = {}; PARTY_IDS.forEach(p => { g.mobReg[st.id][p] = 0; }); }); }
     if (g.spendCount === undefined) { g.spendCount = 0; g.spendWeek = 0; }
@@ -1645,7 +1841,7 @@
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     publishedShares, publishedStateShares, groupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
-    POLL_RANGE, GROUP_IDS, turnout, mobFactor, mobPotential, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
+    POLL_RANGE, GROUP_IDS, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent,
     startDuel, duelAnswer,

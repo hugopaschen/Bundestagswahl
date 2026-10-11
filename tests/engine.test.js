@@ -437,3 +437,42 @@ test('Neue Wählergruppen Beruf und Konfession, Mobilisierung erhöht Anteil und
   u.pollErr = {};
   assert.ok(E.groupShares(u, 'kath', 'BY').union > E.groupShares(u, 'konfl', 'BY').union);
 });
+
+test('Neue Aktionen: Betrieb, Bürgerdialog, Infostand, Regionalmedium, Online-Werbung, Gegenangriff', () => {
+  const g = E.newGame('spd', 'T', 5);
+  for (const id of ['betrieb', 'buerger', 'infostand', 'regional']) {
+    g.ap = 3;
+    assert.ok(E.performAction(g, id, { state: 'NW', topic: 'wirtschaft' }).ok, id);
+  }
+  // Online-Werbung wirkt vor allem in der Zielgruppe
+  const before = g.grp.arbeiter.spd;
+  g.ap = 3;
+  assert.strictEqual(E.performAction(g, 'online', { topic: 'wirtschaft' }).ok, false);
+  const r = E.performAction(g, 'online', { group: 'arbeiter', topic: 'wirtschaft' });
+  assert.ok(r.ok);
+  if (!/Datenschutz/.test(r.text)) assert.ok(g.grp.arbeiter.spd > before);
+  // Gegenangriff: Ziel muss eine andere Partei sein, der Angegriffene merkt es sich
+  g.ap = 3;
+  assert.strictEqual(E.performAction(g, 'angriff', { rival: 'spd' }).ok, false);
+  assert.ok(E.performAction(g, 'angriff', { rival: 'union', topic: 'soziales' }).ok);
+  assert.strictEqual(g.grudge.union, g.week);
+});
+
+test('Briefwahl: Stimmen werden ab Woche 5 abgegeben und zählen mit der Stimmung von damals', () => {
+  const g = E.newGame('gruene', 'T', 7);
+  assert.strictEqual(E.performAction(g, 'briefwahl').ok, false); // vor Woche 4 nicht möglich
+  while (g.week < 5) { E.endWeek(g); if (g.pendingEvent) E.resolveEvent(g, 0); }
+  assert.strictEqual(E.postalCast(g), 0);
+  g.ap = 3;
+  assert.ok(E.performAction(g, 'briefwahl').ok);
+  E.endWeek(g); if (g.pendingEvent) E.resolveEvent(g, 0);
+  assert.ok(E.postalCast(g) > 0);
+  // Ein später Einbruch trifft die Urnenwahl voll, die Briefwahl nur teilweise
+  const urn = E.nationalShares(g).gruene;
+  g.nat.gruene -= 5;
+  const dropUrn = urn - E.nationalShares(g).gruene;
+  const el = E.electionShares(g).gruene;
+  g.nat.gruene += 5;
+  const dropEl = E.electionShares(g).gruene - el;
+  assert.ok(dropEl < dropUrn);
+});

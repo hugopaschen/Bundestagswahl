@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261011-001318';
+  const APP_VERSION = '20261011-181015';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -55,6 +55,8 @@
   let toastTimer = null;
   let draft = null; // Wahlprogramm in Bearbeitung
   let localTopic = ''; // Thema für Vor-Ort-Aktionen (leer = ohne Thema)
+  let selGroup = 'jung'; // Zielgruppe für Online-Werbung
+  let selRival = null;   // Ziel eines Gegenangriffs
 
   // ---------- Speichern ----------
 
@@ -400,12 +402,19 @@
     if (a.id === 'talkshow') return 'talkshow';
     if (a.scope === 'region') return a.id + ':' + selState;
     if (a.scope === 'topic') return a.id + ':' + selTopic;
+    if (a.scope === 'group') return a.id + ':' + selGroup;
+    if (a.scope === 'rival') return a.id + ':' + selRival;
+    if (a.id === 'briefwahl') return 'briefwahl';
     return null;
   }
 
   // Wirkung im Vergleich zu einer frischen Aktion (Abnutzung × verbrauchte Zielgruppen).
   function freshness(a) {
     if (a.id === 'spenden' || a.id === 'presse') return 1;
+    if (a.scope === 'group' || a.scope === 'rival' || a.id === 'briefwahl') {
+      const n = g.usage[usageKey(a)] || 0;
+      return 1 / (1 + 0.8 * n);
+    }
     const key = usageKey(a);
     const n = (key && g.usage[key]) || 0;
     let f = 1 / (1 + 0.8 * n);
@@ -420,10 +429,19 @@
     return '<span class="areach">Erreicht v. a. ' + groupNames(top) + '</span>';
   }
 
+  function actionTarget(a) {
+    if (a.scope === 'region') return { state: selState, topic: localTopic || null };
+    if (a.scope === 'group') return { group: selGroup, topic: selTopic };
+    if (a.scope === 'rival') return { rival: selRival, topic: selTopic };
+    return { state: selState, topic: selTopic };
+  }
+
   function actionButton(a, extra) {
-    const cost = E.actionCost(a.id, selState, g);
+    const cost = E.actionCost(a.id, a.scope === 'group' ? selGroup : selState, g);
     const spendBlocked = a.id === 'spenden' && !E.spendenAvailable(g);
-    const disabled = !E.canAct(g) || (a.scope === 'topic' && !selTopic) || g.money + 1e-9 < cost || spendBlocked;
+    const postalBlocked = a.id === 'briefwahl' && g.week < E.POSTAL_START - 1;
+    if (a.id === 'briefwahl') extra = postalBlocked ? 'Unterlagen werden ab Woche ' + (E.POSTAL_START - 1) + ' verschickt' : 'sichert Stimmen vor späten Skandalen · ✉️ ' + Math.round(E.postalCast(g) * 100) + ' % schon abgegeben';
+    const disabled = !E.canAct(g) || (a.scope === 'topic' && !selTopic) || (a.scope === 'rival' && !selRival) || g.money + 1e-9 < cost || spendBlocked || postalBlocked;
     if (a.id === 'spenden') extra = spendBlocked ? 'Diese Woche schon veranstaltet – wieder ab nächster Woche' : 'bringt ca. ' + money(E.spendenYield(g)) + ' · jedes Mal weniger';
     const f = freshness(a);
     const key = usageKey(a);
@@ -439,13 +457,43 @@
       (extra ? '<span class="ahint">' + esc(extra) + '</span>' : '') + reachLine(a) + worn +
       '<span class="ameta">' + (cost ? money(cost) : 'kostenlos') + '</span>';
     b.addEventListener('click', () => {
-      const res = E.performAction(g, a.id, { state: selState, topic: a.scope === 'region' ? (localTopic || null) : selTopic });
-      $(a.scope === 'topic' ? 'feedback' : 'local-feedback').textContent = res.text;
+      const res = E.performAction(g, a.id, actionTarget(a));
+      $(a.scope === 'region' || a.scope === 'none' ? 'local-feedback' : 'feedback').textContent = res.text;
       toast(res.text);
       save();
       renderGame();
     });
     return b;
+  }
+
+  // Online-Werbung für eine Zielgruppe und Gegenangriff (Aktionen-Seite).
+  function renderExtraActions() {
+    const gs = $('online-group');
+    if (!gs) return;
+    gs.innerHTML = D.GROUP_DIMS.map(dim => '<optgroup label="' + esc(dim.name) + '">' +
+      D.GROUPS.filter(k => k.dim === dim.id).map(k => '<option value="' + k.id + '"' + (k.id === selGroup ? ' selected' : '') + '>' +
+        k.icon + ' ' + esc(k.name) + ' (' + Math.round(k.weight * 100) + ' %)</option>').join('') + '</optgroup>').join('');
+    if (!gs.dataset.bound) { gs.addEventListener('change', () => { selGroup = gs.value; renderGame(); }); gs.dataset.bound = '1'; }
+    const k = D.GROUPS.find(x => x.id === selGroup);
+    const tp = selTopic ? E.topicById(selTopic) : null;
+    const fav = tp && (k.topics[tp.id] || 1) >= 1.3;
+    const online = E.ACTIONS.find(a => a.id === 'online');
+    $('online-action').innerHTML = '';
+    $('online-action').appendChild(actionButton(online, 'für ' + k.name + (tp ? ' · Thema ' + tp.name + (fav ? ' – Lieblingsthema der Gruppe 👍' : '') : ' · ohne Thema (oben wählbar)')));
+
+    const rs = $('rival-party');
+    const rivals = POLL_ORDER.filter(p => p !== D.OTHER.id && p !== g.party);
+    if (!selRival || rivals.indexOf(selRival) === -1) selRival = rivals[0];
+    const sh = E.nationalShares(g);
+    rs.innerHTML = rivals.map(p => '<option value="' + p + '"' + (p === selRival ? ' selected' : '') + '>' + esc(E.party(p).name) + '</option>').join('');
+    if (!rs.dataset.bound) { rs.addEventListener('change', () => { selRival = rs.value; renderGame(); }); rs.dataset.bound = '1'; }
+    const adv = tp ? (E.competenceOf(g, g.party)[tp.id] - E.competenceOf(g, selRival)[tp.id]) / 50 : 0;
+    const down = sh[selRival] < 0.6 * sh[g.party];
+    const chance = Math.max(0.2, Math.min(0.85, 0.55 + 0.25 * adv - (down ? 0.15 : 0)));
+    const angriff = E.ACTIONS.find(a => a.id === 'angriff');
+    $('rival-action').innerHTML = '';
+    $('rival-action').appendChild(actionButton(angriff, 'gegen ' + E.party(selRival).short + (tp ? ' beim Thema ' + tp.name : '') +
+      ' · Erfolgschance ca. ' + Math.round(chance * 100) + ' %' + (down ? ' · Vorsicht: deutlich kleinere Partei' : '')));
   }
 
   // Wie gut eine Vor-Ort-Aktion zur Wählerschaft des Landes passt.
@@ -454,7 +502,7 @@
     const fit = E.channelFit(a.id, selState) * E.localTopicFactor(g, selState, localTopic || null);
     const pctFit = Math.round((fit - 1) * 100);
     const what = localTopic ? 'Kanal und Thema passen' : 'passt';
-    const mob = a.id === 'haustuer' ? ' · 🗳️ mobilisiert stark' : a.id === 'kundgebung' ? ' · 🗳️ mobilisiert' : '';
+    const mob = a.id === 'haustuer' || a.id === 'infostand' ? ' · 🗳️ mobilisiert stark' : a.id === 'kundgebung' || a.id === 'betrieb' ? ' · 🗳️ mobilisiert' : '';
     if (pctFit >= 4) return 'in ' + name + mob + ' · ' + what + ' gut (+' + pctFit + ' %)';
     if (pctFit <= -4) return 'in ' + name + mob + ' · ' + (localTopic ? 'Kanal und Thema passen schlecht' : 'passt schlecht zur Wählerschaft') + ' (−' + Math.abs(pctFit) + ' %)';
     return 'in ' + name + mob;
@@ -476,7 +524,7 @@
         const topics = E.groupTopicsInState(k.id, st.id, 3)
           .map(id => { const t = E.topicById(id); return '<span class="gp-topic' + (E.isCore(g, id) ? ' core' : '') + '">' + t.icon + ' ' + esc(t.name) + (E.isCore(g, id) ? ' 🎯' : '') + '</span>'; }).join('');
         return '<div class="gp-card"><div class="gp-head"><span class="gp-icon" aria-hidden="true">' + k.icon + '</span>' +
-          '<span class="gp-name">' + esc(k.name) + '<small>' + num1(share) + ' % der Wähler (' + cmp + ')</small></span>' +
+          '<span class="gp-name">' + esc(k.name) + '<small>' + num1(share) + ' % der Wähler (' + cmp + ') · ✉️ ' + Math.round(E.groupPostal(k.id)) + ' % per Brief</small></span>' +
           '<span class="gp-val">' + pct(v) + '<small>ihr in der Gruppe</small></span></div>' +
           '<div class="gp-bar sg-bar" title="Anteil an der Wählerschaft im Land; Strich = Bundesschnitt"><span style="width:' + share + '%"></span><i style="left:' + (k.weight * 100) + '%"></i></div>' +
           '<div class="gp-topics">' + topics + '</div></div>';
@@ -518,7 +566,8 @@
       const comp = E.competenceOf(g, g.party)[selTopic];
       E.ACTIONS.filter(a => a.scope === 'topic').forEach(a => list.appendChild(actionButton(a, topicActionHint(a, comp))));
     }
-    E.ACTIONS.filter(a => a.scope !== 'topic').forEach(a => local.appendChild(actionButton(a, a.scope === 'region' ? regionHint(a) : 'füllt die Kasse')));
+    E.ACTIONS.filter(a => a.scope === 'region' || a.scope === 'none').forEach(a => local.appendChild(actionButton(a, a.scope === 'region' ? regionHint(a) : 'füllt die Kasse')));
+    renderExtraActions();
     const hint = 'Keine Aktionen mehr – Zeit, die Woche zu beenden.';
     const fb = $('feedback');
     if (g.phase === 'campaign' && g.ap === 0 && !fb.textContent.includes(hint)) {
@@ -559,7 +608,9 @@
     const vals = ids.map(p => ({ p, v: (E.mobFactor(g, p) - 1) * 100 }));
     const max = Math.max(4, ...vals.map(x => Math.abs(x.v)));
     box.innerHTML = '<div class="mob-turnout"><span class="mob-label">Erwartete Wahlbeteiligung</span><span class="mob-big">' + pct(t) + '</span>' +
-      '<span class="muted small">Bundestagswahl 2025: ' + pct(base) + '</span></div>' +
+      '<span class="muted small">Bundestagswahl 2025: ' + pct(base) + '</span>' +
+      '<span class="mob-postal">✉️ Briefwahl: ' + (E.postalCast(g) > 0 ? Math.round(E.postalCast(g) * 100) + ' % der Stimmen schon abgegeben'
+        : 'beginnt in Woche ' + E.POSTAL_START) + '</span></div>' +
       '<div class="mob-bars"><span class="mob-label">Mobilisierung der Anhänger (bundesweit)</span>' + vals.map(x => {
         const w = Math.min(50, Math.abs(x.v) / max * 50);
         return '<div class="bg-row' + (x.p === g.party ? ' me' : '') + '"><span class="bg-name">' + short(x.p) + '</span>' +
@@ -582,7 +633,7 @@
         return '<span class="gp-topic' + (E.isCore(g, id) ? ' core' : '') + '" title="' + esc(t.name) + '">' + t.icon + ' ' + esc(t.name) + (E.isCore(g, id) ? ' 🎯' : '') + '</span>';
       }).join('');
       return '<div class="gp-card"><div class="gp-head"><span class="gp-icon" aria-hidden="true">' + k.icon + '</span>' +
-        '<span class="gp-name">' + esc(k.name) + '<small>' + Math.round(k.weight * 100) + ' % der Wähler</small></span>' +
+        '<span class="gp-name">' + esc(k.name) + '<small>' + Math.round(k.weight * 100) + ' % der Wähler · ✉️ ' + Math.round(E.groupPostal(k.id)) + ' % per Brief</small></span>' +
         '<span class="gp-val">' + pct(v) + '<small class="' + (d >= 0 ? 'pos' : 'neg') + '">' + signed(d) + '</small></span></div>' +
         '<div class="gp-bar"><span style="width:' + Math.min(100, v / 50 * 100) + '%"></span></div>' +
         '<div class="gp-topics">' + topics + '</div>' +
@@ -1470,6 +1521,7 @@
       ['📺', 'TV-Duell in Woche ' + E.DUEL_WEEK, 'Kurz vor der Wahl kommt die Elefantenrunde. Wer bei den wichtigsten Themen sattelfest ist, punktet.'],
       ['🥊', 'Die Konkurrenz schläft nicht', 'Die anderen Parteien setzen ihre Themen, kämpfen um knappe Länder – und schlagen zurück, wenn ihr zu stark werdet oder ihnen eure Kernthemen streitig machen wollt.'],
       ['👥', 'Wählergruppen und Abnutzung', 'Jung, mittel und alt, niedrige bis hohe Bildung, Stadt und Land, Männer und Frauen wollen unterschiedlich angesprochen werden. Wer immer dasselbe macht, verliert Wirkung – Geld ist knapp, TV-Zeit wird teurer.'],
+      ['✉️', 'Briefwahl', 'Ab Woche ' + E.POSTAL_START + ' wählt ein Teil der Menschen per Brief – mit der Stimmung dieser Woche. Mit Briefwahl-Kampagnen sichert ihr eure Stimmen früh.'],
       ['🗳️', 'Mobilisieren', 'Nur wer wählen geht, zählt: Haustürwahlkampf, Kundgebungen und Social Media bringen Anhänger und Nichtwähler an die Urne – am meisten kurz vor der Wahl.'],
       ['📊', 'Umfragen sind nur Umfragen', 'Jede Umfrage hat eine Fehlerspanne von ± ' + E.POLL_RANGE + ' Punkten. Wo ihr wirklich steht, zeigt erst der Wahlabend. Und manche Entscheidung holt euch Wochen später wieder ein.']
     ].map(st => '<li><span class="ko-step-icon" aria-hidden="true">' + st[0] + '</span><div><b>' + st[1] + '</b><p>' + st[2] + '</p></div></li>').join('');

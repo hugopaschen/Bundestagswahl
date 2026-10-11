@@ -1656,3 +1656,8 @@ h2 .flyer-hint { margin: 0; }
 .mob-bars { display: flex; flex-direction: column; gap: 2px; }
 .mob-bars .bg-row.me .bg-name { font-weight: 900; }
 @media (max-width: 640px) { .mobilization { grid-template-columns: 1fr; } }
+
+/* Briefwahl und zusätzliche Aktionen */
+.mob-postal { margin-top: 8px; font-size: .84rem; font-weight: 700; }
+.extra-block { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border); }
+.extra-block .action-list { grid-template-columns: minmax(0, 420px); }
