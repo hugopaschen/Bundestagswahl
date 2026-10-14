@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261011-200248';
+  const APP_VERSION = '20261014-192404';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -56,6 +56,8 @@
   let draft = null; // Wahlprogramm in Bearbeitung
   let localTopic = ''; // Thema für Vor-Ort-Aktionen (leer = ohne Thema)
   let selGroup = 'jung'; // Zielgruppe für Online-Werbung
+  let pendingLocal = null; // ausgewählte Vor-Ort-Aktion (wird nach Wahl der Zielgruppe durchgeführt)
+  let localGroup = '';     // Zielgruppe der Vor-Ort-Aktion ('' = alle)
   let selRival = null;   // Ziel eines Gegenangriffs
 
   // ---------- Speichern ----------
@@ -402,7 +404,7 @@
   // Schlüssel, unter dem der Spielkern die Abnutzung einer Aktion zählt.
   function usageKey(a) {
     if (a.id === 'talkshow') return 'talkshow';
-    if (a.scope === 'region') return a.id + ':' + selState;
+    if (a.scope === 'region') return a.id + ':' + selState + ':' + (localTopic || '_');
     if (a.scope === 'topic') return a.id + ':' + selTopic;
     if (a.scope === 'group') return a.id + ':' + selGroup;
     if (a.scope === 'rival') return a.id + ':' + selRival;
@@ -432,7 +434,7 @@
   }
 
   function actionTarget(a) {
-    if (a.scope === 'region') return { state: selState, topic: localTopic || null };
+    if (a.scope === 'region') return { state: selState, topic: localTopic || null, group: localGroup || null };
     if (a.scope === 'group') return { group: selGroup, topic: selTopic };
     if (a.scope === 'rival') return { rival: selRival, topic: selTopic };
     return { state: selState, topic: selTopic };
@@ -458,6 +460,17 @@
       '<span class="adesc">' + esc(a.desc) + '</span>' +
       (extra ? '<span class="ahint">' + esc(extra) + '</span>' : '') + reachLine(a) + worn +
       '<span class="ameta">' + (cost ? money(cost) : 'kostenlos') + '</span>';
+    if (a.scope === 'region') {
+      // Vor Ort: Aktion erst auswählen, dann Zielgruppe wählen und durchführen.
+      if (pendingLocal === a.id) b.classList.add('selected');
+      b.setAttribute('aria-pressed', String(pendingLocal === a.id));
+      b.addEventListener('click', () => {
+        pendingLocal = pendingLocal === a.id ? null : a.id;
+        renderGame();
+        if (pendingLocal) { const t = $('local-target'); if (t) t.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+      });
+      return b;
+    }
     b.addEventListener('click', () => {
       const res = E.performAction(g, a.id, actionTarget(a));
       $(a.scope === 'region' ? 'local-feedback' : 'feedback').textContent = res.text;
@@ -466,6 +479,49 @@
       renderGame();
     });
     return b;
+  }
+
+  // Schritt 3 vor Ort: Zielgruppe wählen und Aktion durchführen.
+  function renderLocalTarget() {
+    const box = $('local-target');
+    if (!box) return;
+    const a = pendingLocal && E.ACTIONS.find(x => x.id === pendingLocal);
+    if (!a) { box.hidden = true; box.innerHTML = ''; return; }
+    const st = E.stateById(selState);
+    const w = E.stateWeights(st.id);
+    const tf = E.localTopicFactor(g, st.id, localTopic || null);
+    const all = E.groupEfficiency(g, g.party, a.id, localTopic || null, st.id) * E.channelFit(a.id, st.id) * tf;
+    if (localGroup && !(w[localGroup] > 0)) localGroup = '';
+    const pctOf = v => Math.round(v * 100);
+    const chip = (id, icon, name, v, extra) => '<button type="button" class="tg-chip' + (localGroup === id ? ' on' : '') + '" data-g="' + id + '" aria-pressed="' + (localGroup === id) + '">' +
+      '<span class="tg-name">' + icon + ' ' + esc(name) + '</span><span class="tg-val ' + (v >= 1.05 ? 'pos' : v < 0.9 ? 'neg' : '') + '">Wirkung ' + pctOf(v) + ' %</span>' + (extra || '') + '</button>';
+    let html = '<h4>3 · Zielgruppe für „' + esc(a.name) + '“' + (localTopic ? ' zum Thema ' + esc(E.topicById(localTopic).name) : '') + '</h4>' +
+      '<p class="muted small">Wen wollt ihr ansprechen? Die Wirkung hängt davon ab, ob Aktion und Thema zur Gruppe passen, wie groß sie im Land ist – und ob ihr sie <b>mit diesem Thema</b> schon umworben habt.</p>' +
+      '<div class="tg-all">' + chip('', '👥', 'Alle Gruppen', all) + '</div>';
+    html += D.GROUP_DIMS.map(dim => '<div class="tg-dim"><span class="tg-dim-name">' + esc(dim.name) + '</span><div class="tg-row">' +
+      D.GROUPS.filter(k => k.dim === dim.id && w[k.id] > 0).map(k => {
+        const v = E.focusFactor(g, a.id, localTopic || null, st.id, k.id) * tf;
+        const sat = E.saturatedTopics(g, k.id, 0.8).indexOf(localTopic || '_') !== -1;
+        return chip(k.id, k.icon, k.short, v, sat ? '<span class="tg-sat">schon umworben</span>' : '');
+      }).join('') + '</div></div>').join('');
+    const cost = E.actionCost(a.id, selState, g);
+    const ok = E.canAct(g) && g.money + 1e-9 >= cost;
+    const who = localGroup ? D.GROUPS.find(k => k.id === localGroup).name : 'alle Gruppen';
+    html += '<div class="tg-go"><button type="button" class="btn primary" id="btn-local-go"' + (ok ? '' : ' disabled') + '>▶ ' + esc(a.name) +
+      (localTopic ? ' zu ' + esc(E.topicById(localTopic).name) : '') + ' für ' + esc(who) + ' in ' + esc(st.name) + ' (' + (cost ? money(cost) : 'kostenlos') + ')</button>' +
+      '<button type="button" class="link-btn" id="btn-local-cancel">Abbrechen</button></div>';
+    box.innerHTML = html;
+    box.hidden = false;
+    box.querySelectorAll('.tg-chip').forEach(c => c.addEventListener('click', () => { localGroup = c.dataset.g; renderGame(); }));
+    $('btn-local-cancel').addEventListener('click', () => { pendingLocal = null; renderGame(); });
+    $('btn-local-go').addEventListener('click', () => {
+      const res = E.performAction(g, a.id, actionTarget(a));
+      $('local-feedback').textContent = res.text;
+      toast(res.text);
+      if (res.ok) pendingLocal = null;
+      save();
+      renderGame();
+    });
   }
 
   // Online-Werbung für eine Zielgruppe und Gegenangriff (Aktionen-Seite).
@@ -589,6 +645,7 @@
       sec.appendChild(listEl);
       local.appendChild(sec);
     });
+    renderLocalTarget();
     const nat = $('national-actions');
     if (nat) {
       nat.innerHTML = '';
@@ -659,7 +716,7 @@
       D.GROUPS.filter(k => k.dim === dim.id).map(k => {
       const v = E.pollGroupShares(g, k.id)[g.party];
       const d = v - (g.grpStart ? g.grpStart[k.id] : v);
-      const sat = 1 / (1 + Math.max(0, g.grp[k.id][g.party]) / 3);
+      const satT = E.saturatedTopics(g, k.id).map(t => t === '_' ? 'ohne Thema' : E.topicById(t).name);
       const topics = Object.keys(k.topics).sort((a, b) => k.topics[b] - k.topics[a]).slice(0, 3).map(id => {
         const t = E.topicById(id);
         return '<span class="gp-topic' + (E.isCore(g, id) ? ' core' : '') + '" title="' + esc(t.name) + '">' + t.icon + ' ' + esc(t.name) + (E.isCore(g, id) ? ' 🎯' : '') + '</span>';
@@ -669,7 +726,7 @@
         '<span class="gp-val">' + pct(v) + '<small class="' + (d >= 0 ? 'pos' : 'neg') + '">' + signed(d) + '</small></span></div>' +
         '<div class="gp-bar"><span style="width:' + Math.min(100, v / 50 * 100) + '%"></span></div>' +
         '<div class="gp-topics">' + topics + '</div>' +
-        (sat < 0.6 ? '<p class="gp-sat">Schon stark umworben – weitere Ansprache wirkt schwächer.</p>' : '') + '</div>';
+        (satT.length ? '<p class="gp-sat">Schon stark umworben bei: ' + esc(satT.join(', ')) + ' – mit anderen Themen wirkt ihr wieder voll.</p>' : '') + '</div>';
       }).join('') + '</div>').join('');
     box.querySelectorAll('.gp-link').forEach(c => {
       c.addEventListener('click', () => openGroupPoll(c.dataset.group));

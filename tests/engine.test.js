@@ -499,3 +499,17 @@ test('Sonntagsfrage und Umfrageverlauf zeigen dieselben veröffentlichten Werte'
   assert.deepStrictEqual(g.history[g.history.length - 1].shares, E.pollShares(g));
   assert.deepStrictEqual(g.history[g.history.length - 1].groups.jung, E.pollGroupShares(g, 'jung'));
 });
+
+test('Sättigung je Gruppe und Thema; Vor-Ort-Aktion mit Zielgruppe', () => {
+  const g = E.newGame('spd', 'T', 8);
+  const fresh = E.focusFactor(g, 'kundgebung', 'bildung', 'NW', 'arbeiter');
+  const freshW = E.focusFactor(g, 'kundgebung', 'wirtschaft', 'NW', 'arbeiter');
+  for (let i = 0; i < 3; i++) { g.ap = 3; assert.ok(E.performAction(g, 'kundgebung', { state: 'NW', topic: 'wirtschaft', group: 'arbeiter' }).ok); }
+  // Mit Wirtschaft umworben – beim Thema Bildung wirkt die Ansprache weiter voll
+  assert.ok(E.focusFactor(g, 'kundgebung', 'wirtschaft', 'NW', 'arbeiter') < freshW);
+  assert.ok(Math.abs(E.focusFactor(g, 'kundgebung', 'bildung', 'NW', 'arbeiter') - fresh) < 1e-9);
+  assert.ok(E.saturatedTopics(g, 'arbeiter', 0.9).indexOf('wirtschaft') !== -1);
+  // In Stadtstaaten gibt es keine Landbevölkerung
+  g.ap = 3;
+  assert.strictEqual(E.performAction(g, 'kundgebung', { state: 'HH', group: 'land' }).ok, false);
+});

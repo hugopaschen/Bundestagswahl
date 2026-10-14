@@ -1712,3 +1712,22 @@ h2 .flyer-hint { margin: 0; }
 @media (max-width: 1000px) { .local-groups { grid-template-columns: 1fr; } .layout.tabbed .local-group .action-list { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); } }
 #local-feedback { margin: 10px 0 0; }
 .state-top-topics .stt.core { background: var(--accent); color: var(--accent-ink); }
+
+/* Vor Ort: Aktion wählen, dann Zielgruppe */
+.local-steps { margin: 8px 0 0; }
+.local-steps b { display: inline-grid; place-items: center; width: 1.4em; height: 1.4em; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: .8em; }
+.action.selected { border: 2px solid var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+.local-target { margin-top: 18px; padding: 16px 18px; border: 2px solid var(--accent); border-radius: 14px; background: var(--surface); }
+.local-target h4 { margin: 0 0 4px; font-size: 1.05rem; }
+.tg-all { margin: 10px 0 6px; }
+.tg-dim { display: grid; grid-template-columns: 110px 1fr; gap: 8px; align-items: start; padding: 6px 0; border-top: 1px dashed var(--border); }
+.tg-dim-name { font-size: .78rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding-top: 8px; }
+.tg-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.tg-chip { font: inherit; cursor: pointer; display: inline-flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); text-align: left; }
+.tg-chip.on { border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+.tg-name { font-weight: 700; font-size: .86rem; }
+.tg-val { font-size: .74rem; font-weight: 700; color: var(--text-2); }
+.tg-val.pos { color: #1e8449; } .tg-val.neg { color: #c0392b; }
+.tg-sat { font-size: .68rem; font-weight: 700; color: #b9770e; }
+.tg-go { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-top: 14px; }
+@media (max-width: 640px) { .tg-dim { grid-template-columns: 1fr; } .tg-dim-name { padding-top: 0; } }
