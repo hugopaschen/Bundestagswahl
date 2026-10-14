@@ -1765,3 +1765,8 @@ h2 .flyer-hint { margin: 0; }
 .scen-modal .modal-box, #modal.scen-modal .box { max-width: 640px; }
 .scen-text { font-size: 1.05rem; line-height: 1.5; }
 .scen-score { font-size: 2rem; letter-spacing: .2em; text-align: center; margin: 6px 0 10px; }
+
+/* Termine der Kandidatur vs. Team-Einsätze */
+.apool { font-weight: 700; }
+.apool.cand { color: var(--accent); }
+.apool.team { color: var(--text-2); }

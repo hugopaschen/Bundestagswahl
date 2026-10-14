@@ -560,3 +560,18 @@ test('Bürgerfragen: 20 je Thema, andere als in der Fachkonferenz; Antworten än
   E.performAction(g, 'infostand', { state: 'BE', cq: { right: 2, wrong: 0 } });
   assert.deepStrictEqual(g.competence, k);
 });
+
+test('Termine der Kandidatur und Team-Einsätze sind getrennte Kontingente', () => {
+  const g = E.newGame('union', 'T', 4);
+  assert.strictEqual(g.ap, 3);
+  assert.strictEqual(g.team, 4);
+  for (let i = 0; i < 4; i++) assert.ok(E.performAction(g, 'haustuer', { state: 'BY', topic: 'wirtschaft' }).ok);
+  assert.strictEqual(g.team, 0);
+  assert.strictEqual(g.ap, 3);
+  assert.strictEqual(E.performAction(g, 'infostand', { state: 'BY' }).ok, false);
+  assert.ok(E.performAction(g, 'kundgebung', { state: 'BY' }).ok);
+  assert.strictEqual(g.ap, 2);
+  while (g.week < 5) { E.endWeek(g); if (g.pendingEvent) E.resolveEvent(g, 0); }
+  assert.strictEqual(g.teamMax, 5);
+  assert.strictEqual(g.team, 5);
+});

@@ -20,7 +20,15 @@
   const CQ_COMP_MAX = 12; // höchstens so viel Veränderung je Thema über den ganzen Wahlkampf
 
   const MAX_WEEKS = 8;
-  const AP_PER_WEEK = 3;
+  const AP_PER_WEEK = 3;       // Termine der Spitzenkandidatur pro Woche
+  const TEAM_PER_WEEK = 4;     // Einsätze des Wahlkampfteams pro Woche …
+  const TEAM_LATE = 5;         // … ab Woche 5 (mehr Ehrenamtliche in der Schlussphase)
+  const TEAM_LATE_WEEK = 5;
+  const TEAM_EFFECT = 0.35;    // Team-Einsätze wirken schwächer als Auftritte der Kandidatur
+  // Auftritte der Spitzenkandidatur – alles andere erledigt das Team.
+  const CANDIDATE_ACTIONS = ['kundgebung', 'buerger', 'betrieb', 'talkshow', 'presse', 'regional'];
+  const isTeamAction = id => CANDIDATE_ACTIONS.indexOf(id) === -1;
+  const teamMaxFor = week => (week >= TEAM_LATE_WEEK ? TEAM_LATE : TEAM_PER_WEEK);
   const DUEL_WEEK = 7;
   const ISSUE_K = 40;          // Stärke des Themen-Effekts
   const BONUS_DECAY = 0.88;    // Wahlkampf-Effekte verblassen pro Woche
@@ -351,6 +359,8 @@
       maxWeeks: MAX_WEEKS,
       ap: AP_PER_WEEK,
       apMax: AP_PER_WEEK,
+      team: TEAM_PER_WEEK,
+      teamMax: TEAM_PER_WEEK,
       money: party(partyId).budget,
       salience: Object.assign({}, D.SALIENCE0),
       nat: {},
@@ -924,8 +934,11 @@
     return d;
   }
 
-  function canAct(g) {
-    return g.phase === 'campaign' && !g.pendingEvent && !g.duel && g.ap > 0;
+  // Ohne actionId: ob überhaupt noch etwas geht; mit actionId: ob das passende Kontingent reicht.
+  function canAct(g, actionId) {
+    if (g.phase !== 'campaign' || g.pendingEvent || g.duel) return false;
+    if (!actionId) return g.ap > 0 || (g.team || 0) > 0;
+    return isTeamAction(actionId) ? (g.team || 0) > 0 : g.ap > 0;
   }
 
   function spendenAvailable(g) {
@@ -947,7 +960,9 @@
     target = target || {};
     const action = ACTIONS.find(a => a.id === actionId);
     if (!action) return { ok: false, text: 'Unbekannte Aktion.' };
-    if (!canAct(g)) return { ok: false, text: 'Gerade ist keine Aktion möglich.' };
+    if (!canAct(g, actionId)) {
+      return { ok: false, text: canAct(g) ? (isTeamAction(actionId) ? 'Das Team hat diese Woche keine Einsätze mehr frei.' : 'Die Spitzenkandidatur hat diese Woche keine Termine mehr frei.') : 'Gerade ist keine Aktion möglich.' };
+    }
     const st = stateById(target.state);
     const topic = target.topic;
     if (action.scope === 'region' && !st) return { ok: false, text: 'Bitte zuerst ein Bundesland wählen.' };
@@ -960,7 +975,8 @@
     const cost = actionCost(actionId, action.scope === 'group' ? target.group : target.state, g);
     if (g.money + 1e-9 < cost) return { ok: false, text: 'Dafür reicht das Geld in der Wahlkampfkasse nicht.' };
 
-    g.ap -= 1;
+    const team = isTeamAction(actionId);
+    if (team) g.team -= 1; else g.ap -= 1;
     g.money = Math.round((g.money - cost) * 100) / 100;
     const p = g.party;
     // Aktionen zu Kernthemen des Wahlprogramms wirken stärker.
@@ -969,7 +985,7 @@
     const prep = target.prep === 'skip' ? null : Math.max(-3, Math.min(3, Number(target.prep) || 0));
     const qm = prep === null ? 0.9 : 1 + 0.15 * prep;
     const qc = prep === null ? -0.03 : 0.06 * prep; // Verschiebung von Erfolgschancen
-    const r = reach(g) * (action.scope === 'topic' && isCore(g, topic) ? 1.25 : 1) * (thief ? 0.7 : 1) * qm;
+    const r = reach(g) * (action.scope === 'topic' && isCore(g, topic) ? 1.25 : 1) * (thief ? 0.7 : 1) * qm * (team ? TEAM_EFFECT : 1);
     // Regionale Aktionen erreichen ihre Zielgruppen schlechter, wenn diese schon umworben sind.
     const localTopic = action.scope === 'region' && topicById(topic) ? topic : null;
     // Vor Ort: optional eine Zielgruppe, die gezielt angesprochen wird.
@@ -1099,7 +1115,7 @@
         const k = grpT;
         const tp = topic && topicById(topic) ? topic : null;
         const fit = tp ? Math.max(0.7, Math.min(1.5, 1 + 0.3 * (topicPref(k, tp) - 1) + 0.3 * compMod(g, tp))) : 1;
-        const delta = 3.2 * qm * (1 - k.weight) * wear(g, 'online:' + k.id) * reach(g) * groupSat(g, k.id, p, tp, null, 'online') * fit * between(g, 0.85, 1.15);
+        const delta = 3.2 * qm * TEAM_EFFECT * (1 - k.weight) * wear(g, 'online:' + k.id) * reach(g) * groupSat(g, k.id, p, tp, null, 'online') * fit * between(g, 0.85, 1.15);
         if (rand(g) < Math.max(0.01, 0.07 - 0.3 * qc)) {
           g.nat[p] -= 0.3;
           text = 'Datenschutz-Debatte um eure Online-Anzeigen für ' + k.name + ' (−0.3).';
@@ -1123,7 +1139,7 @@
         g.grudge = g.grudge || {};
         g.grudge[rv] = g.week;
         if (rand(g) < chance) {
-          const d = between(g, 0.6, 1.1) * w * qm;
+          const d = between(g, 0.6, 1.1) * w * qm * TEAM_EFFECT;
           g.nat[rv] -= d;
           g.nat[p] += 0.35 * d;
           text = 'Eure Kampagne gegen ' + party(rv).name + (tp ? ' beim Thema ' + topicById(tp).name : '') + ' sitzt (' + party(rv).short + ' ' + fmt(-d) + ', ihr ' + fmt(0.35 * d) + ').';
@@ -1789,6 +1805,8 @@
 
     g.week += 1;
     g.ap = g.apMax;
+    g.teamMax = teamMaxFor(g.week);
+    g.team = g.teamMax;
     addLog(g, 'week', 'Woche ' + g.week + ' beginnt. Noch ' + (g.maxWeeks - g.week + 1) + ' Wochen bis zur Wahl.');
     const ev = dueFollowUp(g) || drawEvent(g);
     return { ok: true, event: ev ? ev.id : null, duel: g.week === DUEL_WEEK };
@@ -1974,6 +1992,7 @@
     if (!g.grudge) g.grudge = {};
     if (!g.mob) { g.mob = {}; PARTY_IDS.forEach(p => { g.mob[p] = 0; }); }
     if (!g.mobReg) { g.mobReg = {}; D.STATES.forEach(st => { g.mobReg[st.id] = {}; PARTY_IDS.forEach(p => { g.mobReg[st.id][p] = 0; }); }); }
+    if (g.team === undefined) { g.teamMax = teamMaxFor(g.week); g.team = g.teamMax; }
     if (g.spendCount === undefined) { g.spendCount = 0; g.spendWeek = 0; }
     if (!g.progGroups && g.program) g.progGroups = programGroupEffects(g.party, g.program);
     if (!g.progState && g.program) g.progState = programTopicStates(programEffects(g.party, g.program));
@@ -1992,7 +2011,7 @@
   }
 
   const engine = {
-    MAX_WEEKS, AP_PER_WEEK, DUEL_WEEK, THRESHOLD, MAJORITY,
+    MAX_WEEKS, AP_PER_WEEK, TEAM_PER_WEEK, TEAM_LATE, TEAM_LATE_WEEK, CANDIDATE_ACTIONS, isTeamAction, DUEL_WEEK, THRESHOLD, MAJORITY,
     ACTIONS, EVENTS, DUEL_STYLES,
     party, stateById, topicById, eventById, eventText,
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,

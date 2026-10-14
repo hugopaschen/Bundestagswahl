@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261014-203724';
+  const APP_VERSION = '20261014-211422';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -168,7 +168,9 @@
     $('stat-week').textContent = g.week + ' / ' + g.maxWeeks;
     $('stat-money').textContent = money(g.money);
     $('stat-ap').textContent = '●'.repeat(g.ap) + '○'.repeat(g.apMax - g.ap);
-    $('stat-ap').setAttribute('aria-label', g.ap + ' von ' + g.apMax + ' Aktionen übrig');
+    $('stat-ap').setAttribute('aria-label', g.ap + ' von ' + g.apMax + ' Terminen der Spitzenkandidatur übrig');
+    $('stat-team').textContent = '●'.repeat(g.team || 0) + '○'.repeat(Math.max(0, (g.teamMax || 0) - (g.team || 0)));
+    $('stat-team').setAttribute('aria-label', (g.team || 0) + ' von ' + (g.teamMax || 0) + ' Team-Einsätzen übrig');
     const diff = shares[me] - g.startShares[me];
     $('stat-poll').innerHTML = pct(shares[me]) + '<span class="poll-err"> ± ' + E.POLL_RANGE + '</span> <span class="small ' + (diff >= 0 ? 'pos' : 'neg') + '">' + signed(diff) + '</span>';
     $('week-bar').style.width = ((g.week - 1) / g.maxWeeks * 100) + '%';
@@ -452,7 +454,7 @@
     const spendBlocked = a.id === 'spenden' && !E.spendenAvailable(g);
     const postalBlocked = a.id === 'briefwahl' && g.week < E.POSTAL_START - 1;
     if (a.id === 'briefwahl') extra = postalBlocked ? 'Unterlagen werden ab Woche ' + (E.POSTAL_START - 1) + ' verschickt' : 'sichert Stimmen vor späten Skandalen · ✉️ ' + Math.round(E.postalCast(g) * 100) + ' % schon abgegeben';
-    const disabled = !E.canAct(g) || (a.scope === 'topic' && !selTopic) || (a.scope === 'rival' && !selRival) || g.money + 1e-9 < cost || spendBlocked || postalBlocked;
+    const disabled = !E.canAct(g, a.id) || (a.scope === 'topic' && !selTopic) || (a.scope === 'rival' && !selRival) || g.money + 1e-9 < cost || spendBlocked || postalBlocked;
     if (a.id === 'spenden') extra = spendBlocked ? 'Diese Woche schon veranstaltet – wieder ab nächster Woche' : 'bringt ca. ' + money(E.spendenYield(g)) + ' · jedes Mal weniger';
     const f = freshness(a);
     const key = usageKey(a);
@@ -466,7 +468,7 @@
     b.innerHTML = '<span class="aname">' + a.icon + ' ' + esc(a.name) + '</span>' +
       '<span class="adesc">' + esc(a.desc) + '</span>' +
       (extra ? '<span class="ahint">' + esc(extra) + '</span>' : '') + reachLine(a) + worn +
-      '<span class="ameta">' + (cost ? money(cost) : 'kostenlos') + '</span>';
+      '<span class="ameta">' + (E.isTeamAction(a.id) ? '<span class="apool team">👥 Team-Einsatz</span>' : '<span class="apool cand">🎤 Termin</span>') + ' · ' + (cost ? money(cost) : 'kostenlos') + '</span>';
     if (a.scope === 'region') {
       // Vor Ort: Aktion erst auswählen, dann Zielgruppe wählen und durchführen.
       if (pendingLocal === a.id) b.classList.add('selected');
@@ -492,7 +494,7 @@
   // und richtige Antworten machen die Aktion wirksamer, schlechte schwächen sie; richtige Antworten
   // stärken außerdem die Kompetenz im Thema. Ohne Vorbereitung wirkt die Aktion 10 % schwächer.
   function runAction(a, target, done) {
-    if (!E.canAct(g)) return;
+    if (!E.canAct(g, a.id)) return;
     let score = 0;
     const cq = { right: 0, wrong: 0 };
     const finish = prep => {
@@ -516,6 +518,7 @@
       .replace(/\{kandidat\}/g, g.candidate);
     const fill = txt => esc(fillRaw(txt));
     const head = 'Vorbereitung · ' + a.name;
+    const teamAct = E.isTeamAction(a.id);
     let items = [];
     let i = 0;
     const marks = [];
@@ -526,7 +529,7 @@
         const q = E.CITIZEN_QUESTIONS[tp.id][it.idx];
         const order = q.a.map((x, k) => k).sort(() => Math.random() - 0.5);
         openModal(label(i), '🙋 ' + tp.icon + ' ' + tp.name,
-          '<p class="scen-text">' + esc(q.q) + '</p><p class="muted small">Was antwortet ' + esc(g.candidate) + '?</p>',
+          '<p class="scen-text">' + esc(q.q) + '</p><p class="muted small">Was antwortet ' + (teamAct ? 'euer Team' : esc(g.candidate)) + '?</p>',
           order.map(k => ({ label: q.a[k], onClick: () => answerQ(q, k) })));
       } else {
         const sc = scen[it.idx];
@@ -568,10 +571,12 @@
     };
     const intro = withQuestions
       ? '<p>Vor Ort warten eine Situation und <b>zwei Fragen von Bürgerinnen und Bürgern zum Thema ' + esc(tp.name) + '</b> auf euch. Jede gute Entscheidung und jede richtige Antwort macht die Aktion <b>15 % wirksamer</b>, jede schlechte <b>15 % schwächer</b>. Richtige Antworten stärken eure Kompetenz im Thema, falsche schwächen sie.</p>'
-      : '<p>Bevor es losgeht, müsst ihr drei Situationen meistern. Jede gute Entscheidung macht die Aktion <b>15 % wirksamer</b>, jede schlechte <b>15 % schwächer</b>.</p>';
-    openModal(head, withQuestions ? 'Situation und Bürgerfragen' : 'Drei Situationen – wie reagiert ihr?', intro,
+      : teamAct
+        ? '<p>Euer Team ist im Einsatz – eine Situation müsst ihr entscheiden. Eine gute Entscheidung macht den Einsatz <b>15 % wirksamer</b>, eine schlechte <b>15 % schwächer</b>.</p>'
+        : '<p>Bevor es losgeht, müsst ihr drei Situationen meistern. Jede gute Entscheidung macht die Aktion <b>15 % wirksamer</b>, jede schlechte <b>15 % schwächer</b>.</p>';
+    openModal(head, withQuestions ? 'Situation und Bürgerfragen' : teamAct ? 'Eine Situation – wie entscheidet ihr?' : 'Drei Situationen – wie reagiert ihr?', intro,
       [{ label: 'Los geht’s', primary: true, onClick: () => {
-        const sIds = E.pickScenarios(g, a.id, withQuestions ? 1 : 3).map(idx => ({ type: 'scen', idx }));
+        const sIds = E.pickScenarios(g, a.id, withQuestions || teamAct ? 1 : 3).map(idx => ({ type: 'scen', idx }));
         const qIds = withQuestions ? E.pickCitizenQuestions(g, tp.id, 2).map(idx => ({ type: 'cq', idx })) : [];
         items = sIds.concat(qIds);
         step();
@@ -604,7 +609,7 @@
         return chip(k.id, k.icon, k.short, v, sat ? '<span class="tg-sat">schon umworben</span>' : '');
       }).join('') + '</div></div>').join('');
     const cost = E.actionCost(a.id, selState, g);
-    const ok = E.canAct(g) && g.money + 1e-9 >= cost;
+    const ok = E.canAct(g, a.id) && g.money + 1e-9 >= cost;
     const who = localGroup ? D.GROUPS.find(k => k.id === localGroup).name : 'alle Gruppen';
     html += '<div class="tg-go"><button type="button" class="btn primary" id="btn-local-go"' + (ok ? '' : ' disabled') + '>▶ ' + esc(a.name) +
       (localTopic ? ' zu ' + esc(E.topicById(localTopic).name) : '') + ' für ' + esc(who) + ' in ' + esc(st.name) + ' (' + (cost ? money(cost) : 'kostenlos') + ')</button>' +
@@ -742,9 +747,9 @@
   }
 
   const LOCAL_GROUPS = [
-    { title: '🎤 Auftritte', desc: 'Große Bühne für eure Spitzenkandidatur – starke Wirkung im Land.', ids: ['kundgebung', 'buerger', 'betrieb'] },
-    { title: '🚪 Basisarbeit &amp; Mobilisierung', desc: 'Nah an den Menschen: bringt Anhänger und Nichtwähler an die Urne.', ids: ['haustuer', 'infostand', 'plakate'] },
-    { title: '📻 Medien im Land', desc: 'Lokalzeitung und Landesradio – am besten mit einem Landesthema.', ids: ['regional'] }
+    { title: '🎤 Auftritte', desc: '🎤 Termine eurer Spitzenkandidatur – große Bühne, starke Wirkung im Land.', ids: ['kundgebung', 'buerger', 'betrieb'] },
+    { title: '🚪 Basisarbeit &amp; Mobilisierung', desc: '👥 Einsätze eures Teams – nah an den Menschen, bringt Anhänger und Nichtwähler an die Urne.', ids: ['haustuer', 'infostand', 'plakate'] },
+    { title: '📻 Medien im Land', desc: '🎤 Termin eurer Spitzenkandidatur – Lokalzeitung und Landesradio, am besten mit einem Landesthema.', ids: ['regional'] }
   ];
 
   function renderActions() {
@@ -784,7 +789,7 @@
     renderExtraActions();
     const hint = 'Keine Aktionen mehr – Zeit, die Woche zu beenden.';
     const fb = $('feedback');
-    if (g.phase === 'campaign' && g.ap === 0 && !fb.textContent.includes(hint)) {
+    if (g.phase === 'campaign' && !E.canAct(g) && !fb.textContent.includes(hint)) {
       fb.textContent += (fb.textContent ? ' ' : '') + hint;
     }
   }
@@ -1777,7 +1782,7 @@
     $('ko-steps').innerHTML = [
       ['🗺️', 'Vor Ort kämpfen', 'Auf der Seite „Deutschland“ sucht ihr euch Bundesländer aus und geht mit Kundgebungen, Plakaten und Haustürwahlkampf auf Stimmenfang.'],
       ['📣', 'Themen setzen', 'Unter „Aktionen“ wählt ihr ein Thema und macht es mit TV-Spots, Social Media, Pressekonferenzen und Talkshows groß – am besten eure Kernthemen.'],
-      ['📅', 'Woche für Woche', 'Jede Woche habt ihr ' + game.apMax + ' Aktionen. Danach gibt es eine neue Umfrage – und manchmal eine Eilmeldung, auf die ihr reagieren müsst.'],
+      ['📅', 'Woche für Woche', 'Jede Woche hat eure Spitzenkandidatur ' + game.apMax + ' Termine (Kundgebung, Bürgerdialog, Betriebsbesuch, Talkshow, Presse, Interview), euer Team ' + E.TEAM_PER_WEEK + ' Einsätze (ab Woche ' + E.TEAM_LATE_WEEK + ': ' + E.TEAM_LATE + ') für Haustür, Infostand, Plakate, Social Media und mehr. Danach gibt es eine neue Umfrage – und manchmal eine Eilmeldung, auf die ihr reagieren müsst.'],
       ['📺', 'TV-Duell in Woche ' + E.DUEL_WEEK, 'Kurz vor der Wahl kommt die Elefantenrunde. Wer bei den wichtigsten Themen sattelfest ist, punktet.'],
       ['🥊', 'Die Konkurrenz schläft nicht', 'Die anderen Parteien setzen ihre Themen, kämpfen um knappe Länder – und schlagen zurück, wenn ihr zu stark werdet oder ihnen eure Kernthemen streitig machen wollt.'],
       ['👥', 'Wählergruppen und Abnutzung', 'Jung, mittel und alt, niedrige bis hohe Bildung, Stadt und Land, Männer und Frauen wollen unterschiedlich angesprochen werden. Wer immer dasselbe macht, verliert Wirkung – Geld ist knapp, TV-Zeit wird teurer.'],
@@ -1962,7 +1967,8 @@
   $('btn-intro-resume').addEventListener('click', resume);
 
   $('btn-end-week').addEventListener('click', () => {
-    if (g.ap > 0 && !window.confirm('Du hast noch ' + g.ap + ' Aktion(en) übrig. Woche trotzdem beenden?')) return;
+    const left = g.ap + (g.team || 0);
+    if (left > 0 && !window.confirm('Ihr habt noch ' + g.ap + ' Termin(e) und ' + (g.team || 0) + ' Team-Einsatz/-Einsätze übrig. Woche trotzdem beenden?')) return;
     const before = E.pollShares(g)[g.party];
     const res = E.endWeek(g);
     if (!res.ok) { if (res.text) toast(res.text); return; }
