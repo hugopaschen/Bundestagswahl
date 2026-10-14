@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261014-231737';
+  const APP_VERSION = '20261014-232107';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -865,10 +865,11 @@
     const net = E.flowSummary(g, g.party);
     const top = Object.keys(net).filter(q => net[q] > 0.05).sort((a, b) => net[b] - net[a])[0];
     const low = Object.keys(net).filter(q => net[q] < -0.05).sort((a, b) => net[a] - net[b])[0];
-    const nm = q => q === 'nw' ? 'Nichtwählern' : q === D.OTHER.id ? 'Kleinparteien' : short(q);
+    const DAT = { union: 'der Union', afd: 'der AfD', spd: 'der SPD', gruene: 'den Grünen', linke: 'der Linken', bsw: 'dem BSW', fdp: 'der FDP', sonstige: 'den Kleinparteien', nw: 'den Nichtwählern' };
+    const AKK = { union: 'die Union', afd: 'die AfD', spd: 'die SPD', gruene: 'die Grünen', linke: 'die Linke', bsw: 'das BSW', fdp: 'die FDP', sonstige: 'die Kleinparteien', nw: 'die Nichtwähler' };
     box.innerHTML = '<div class="mob-bars"><span class="mob-label">Saldo mit … (Prozentpunkte, bundesweit)</span>' + flowBarsHtml(net, g.party) + '</div>' +
-      '<p class="muted small">' + (top ? 'Am meisten holt ihr bei ' + nm(top) + ' (' + signed(net[top]) + ').' : 'Noch kaum Wählerwanderung.') +
-      (low ? ' Am meisten verliert ihr an ' + nm(low) + ' (' + signed(net[low]) + ').' : '') + '</p>';
+      '<p class="muted small">' + (top ? 'Am meisten holt ihr bei ' + DAT[top] + ' (' + signed(net[top]) + ').' : 'Noch kaum Wählerwanderung.') +
+      (low ? ' Am meisten verliert ihr an ' + AKK[low] + ' (' + signed(net[low]) + ').' : '') + '</p>';
   }
 
   // Wählergruppen: euer Umfragewert je Gruppe, Veränderung seit Start und die Lieblingsthemen.
@@ -1250,7 +1251,8 @@
       (r.lastPoll ? '<p class="muted small">Letzte Umfrage: ' + pct(r.lastPoll[g.party]) + ' ± ' + E.POLL_RANGE + ' – das echte Ergebnis lag ' +
         (Math.abs(r.shares[g.party] - r.lastPoll[g.party]) < 0.3 ? 'fast genau darauf.' : signed(r.shares[g.party] - r.lastPoll[g.party]) + ' Punkte daneben.') + '</p>' : '') +
       '<p>' + esc(statusText) + '</p>' +
-      '<p>' + (o.goal ? '✅ Wahlziel erreicht: ' : '❌ Wahlziel verfehlt: ') + esc(p.goalText) + '</p>';
+      '<p>' + (o.goal ? '✅ Wahlziel erreicht: ' : '❌ Wahlziel verfehlt: ') + esc(p.goalText) + '</p>' +
+      '<div class="mob-bars flows result-flows"><span class="mob-label">Wählerwanderung seit Wahlkampfstart (Prozentpunkte)</span>' + flowBarsHtml(E.flowSummary(g, g.party), g.party) + '</div>';
     card.hidden = false;
   }
 

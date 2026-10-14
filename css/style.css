@@ -1771,3 +1771,4 @@ h2 .flyer-hint { margin: 0; }
 .apool { font-weight: 700; }
 .apool.cand { color: var(--accent); }
 .apool.team { color: var(--text-2); }
+.result-flows { margin: 14px auto 0; text-align: left; }

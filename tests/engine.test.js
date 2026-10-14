@@ -577,3 +577,32 @@ test('Termine der Kandidatur und Team-Einsätze sind getrennte Kontingente', () 
   assert.strictEqual(g.teamMax, base + 1);
   assert.strictEqual(g.team, base + 1);
 });
+
+test('Wählerwanderung: Gewinne gehen vor allem zulasten der Nachbarn (Daten 2025)', () => {
+  const g = E.newGame('spd', 'T', 4);
+  const before = E.nationalShares(g);
+  g.nat.union += 3;
+  const after = E.nationalShares(g);
+  const loss = p => before[p] - after[p];
+  assert.ok(after.union > before.union);
+  // Die Union tauscht real viel mit SPD, FDP und AfD, kaum mit der Linken.
+  assert.ok(loss('afd') > loss('linke'));
+  assert.ok(loss('spd') > loss('gruene'));
+  const net = E.flowSummary(g, 'union');
+  assert.ok(net.spd > 0 && net.afd > 0);
+  assert.ok(net.spd > net.linke);
+});
+
+test('Abwerbung: Kompetenz bei einem fremden Thema holt Stimmen bei dessen Besitzer', () => {
+  const g = E.newGame('fdp', 'T', 4);
+  g.competence.klima = 75;
+  const from = E.steerVotes(g, 'fdp', 'klima', 'jung', 1);
+  assert.strictEqual(from, 'gruene');
+  const src = g.src.fdp;
+  assert.ok(Object.keys(src).every(q => q === 'gruene' || src[q] < src.gruene));
+  // Ohne Kompetenz kein gezieltes Abwerben bei den Grünen.
+  const h = E.newGame('fdp', 'T', 4);
+  h.competence.klima = 20;
+  E.steerVotes(h, 'fdp', 'klima', 'jung', 1);
+  assert.ok(!h.src || !h.src.fdp || !(h.src.fdp.gruene > 0));
+});
