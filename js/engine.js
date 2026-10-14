@@ -11,6 +11,8 @@
  */
 (function (root) {
   const D = (typeof module !== 'undefined' && module.exports) ? require('./data.js') : root.BTW_DATA;
+  // Szenarien zur Vorbereitung der Aktionen (Texte in js/scenarios.js)
+  const SC = (typeof module !== 'undefined' && module.exports) ? require('./scenarios.js') : (root.BTW_SCENARIOS || {});
 
   const MAX_WEEKS = 8;
   const AP_PER_WEEK = 3;
@@ -863,6 +865,23 @@
     D.STATES.forEach(st => { g.reg[st.id][p] += 0.6 * d * (stateTopicFactor(st.id, topic) - 1); });
   }
 
+  // Drei Szenarien zur Vorbereitung einer Aktion, bevorzugt solche, die der Spieler noch nicht kennt.
+  function pickScenarios(g, actionId, n) {
+    const list = SC[actionId] || [];
+    n = Math.min(n || 3, list.length);
+    if (!g.seenScen) g.seenScen = {};
+    const seen = g.seenScen[actionId] || [];
+    let pool = list.map((x, i) => i).filter(i => seen.indexOf(i) === -1);
+    if (pool.length < n) { pool = list.map((x, i) => i); g.seenScen[actionId] = []; }
+    const out = [];
+    while (out.length < n) {
+      const i = pool.splice(Math.floor(rand(g) * pool.length), 1)[0];
+      out.push(i);
+    }
+    g.seenScen[actionId] = (g.seenScen[actionId] || []).concat(out);
+    return out;
+  }
+
   function canAct(g) {
     return g.phase === 'campaign' && !g.pendingEvent && !g.duel && g.ap > 0;
   }
@@ -904,7 +923,11 @@
     const p = g.party;
     // Aktionen zu Kernthemen des Wahlprogramms wirken stärker.
     const thief = action.scope === 'topic' ? stolenBy(g, topic) : null;
-    const r = reach(g) * (action.scope === 'topic' && isCore(g, topic) ? 1.25 : 1) * (thief ? 0.7 : 1);
+    // Vorbereitung (Szenarien): Bilanz −3 … +3, je Punkt ±15 % Wirkung; ohne Vorbereitung −10 %.
+    const prep = target.prep === 'skip' ? null : Math.max(-3, Math.min(3, Number(target.prep) || 0));
+    const qm = prep === null ? 0.9 : 1 + 0.15 * prep;
+    const qc = prep === null ? -0.03 : 0.06 * prep; // Verschiebung von Erfolgschancen
+    const r = reach(g) * (action.scope === 'topic' && isCore(g, topic) ? 1.25 : 1) * (thief ? 0.7 : 1) * qm;
     // Regionale Aktionen erreichen ihre Zielgruppen schlechter, wenn diese schon umworben sind.
     const localTopic = action.scope === 'region' && topicById(topic) ? topic : null;
     // Vor Ort: optional eine Zielgruppe, die gezielt angesprochen wird.
@@ -954,7 +977,7 @@
       }
       case 'social': {
         changeSalience(g, topic, 0.015);
-        if (rand(g) < 0.25 - 0.1 * compMod(g, topic)) {
+        if (rand(g) < Math.max(0.03, 0.25 - 0.1 * compMod(g, topic) - 0.7 * qc)) {
           const d = -addGroups(g, p, -between(g, 0.4, 1.0), 'social', topic);
           spreadTopic(g, p, -d, topic);
           text = 'Shitstorm! Ein Post zum Thema ' + topicById(topic).name + ' geht nach hinten los (' + fmt(-d) + ').';
@@ -968,13 +991,13 @@
       }
       case 'presse': {
         changeSalience(g, topic, 0.045);
-        spreadTopic(g, p, addGroups(g, p, 0.15 * compMod(g, topic) * (thief ? 0.7 : 1), 'presse', topic), topic);
+        spreadTopic(g, p, addGroups(g, p, (0.15 * compMod(g, topic) + 0.1 * (qm - 1)) * (thief ? 0.7 : 1), 'presse', topic), topic);
         text = 'Pressekonferenz: ' + topicById(topic).name + ' bestimmt jetzt stärker die Debatte.';
         break;
       }
       case 'talkshow': {
         const comp = competenceOf(g, p)[topic];
-        if (rand(g) < 0.35 + 0.45 * comp / 100) {
+        if (rand(g) < 0.35 + 0.45 * comp / 100 + qc) {
           const d = addGroups(g, p, 0.7 * wear(g, 'talkshow') * r, 'talkshow', topic);
           spreadTopic(g, p, d, topic);
           text = 'Starker Talkshow-Auftritt zum Thema ' + topicById(topic).name + ' (' + fmt(d) + ').';
@@ -995,7 +1018,7 @@
       case 'buerger': {
         const cm = localTopic ? compMod(g, localTopic) : 0;
         const w = wear(g, 'buerger:' + st.id + ':' + (localTopic || '_'));
-        if (rand(g) < Math.max(0.25, Math.min(0.85, 0.55 + 0.25 * cm))) {
+        if (rand(g) < Math.max(0.2, Math.min(0.9, 0.55 + 0.25 * cm + qc))) {
           const d = 1.9 * w * r * eff * between(g, 0.8, 1.2);
           g.reg[st.id][p] += d;
           g.nat[p] += 0.15;
@@ -1025,7 +1048,7 @@
       }
       case 'briefwahl': {
         const w = wear(g, 'briefwahl');
-        g.postalPush[p] = Math.min(0.25, (g.postalPush[p] || 0) + 0.06 * w * postalAffinity(p));
+        g.postalPush[p] = Math.min(0.25, (g.postalPush[p] || 0) + 0.06 * w * qm * postalAffinity(p));
         g.mobPerm[p] = (g.mobPerm[p] || 0) + 0.005 * w * mobPotential(p);
         text = 'Briefwahl-Kampagne: Eure Anhänger bestellen ihre Unterlagen und wählen früh – diese Stimmen sind sicher.';
         break;
@@ -1034,8 +1057,8 @@
         const k = grpT;
         const tp = topic && topicById(topic) ? topic : null;
         const fit = tp ? Math.max(0.7, Math.min(1.5, 1 + 0.3 * (topicPref(k, tp) - 1) + 0.3 * compMod(g, tp))) : 1;
-        const delta = 3.2 * (1 - k.weight) * wear(g, 'online:' + k.id) * reach(g) * groupSat(g, k.id, p, tp) * fit * between(g, 0.85, 1.15);
-        if (rand(g) < 0.07) {
+        const delta = 3.2 * qm * (1 - k.weight) * wear(g, 'online:' + k.id) * reach(g) * groupSat(g, k.id, p, tp) * fit * between(g, 0.85, 1.15);
+        if (rand(g) < Math.max(0.01, 0.07 - 0.3 * qc)) {
           g.nat[p] -= 0.3;
           text = 'Datenschutz-Debatte um eure Online-Anzeigen für ' + k.name + ' (−0.3).';
           break;
@@ -1053,12 +1076,12 @@
         const shares = nationalShares(g);
         const adv = tp ? (competenceOf(g, p)[tp] - competenceOf(g, rv)[tp]) / 50 : 0;
         const down = shares[rv] < 0.6 * shares[p] ? 0.15 : 0;
-        const chance = Math.max(0.2, Math.min(0.85, 0.55 + 0.25 * adv - down));
+        const chance = Math.max(0.15, Math.min(0.9, 0.55 + 0.25 * adv - down + qc));
         const w = wear(g, 'angriff:' + rv);
         g.grudge = g.grudge || {};
         g.grudge[rv] = g.week;
         if (rand(g) < chance) {
-          const d = between(g, 0.6, 1.1) * w;
+          const d = between(g, 0.6, 1.1) * w * qm;
           g.nat[rv] -= d;
           g.nat[p] += 0.35 * d;
           text = 'Eure Kampagne gegen ' + party(rv).name + (tp ? ' beim Thema ' + topicById(tp).name : '') + ' sitzt (' + party(rv).short + ' ' + fmt(-d) + ', ihr ' + fmt(0.35 * d) + ').';
@@ -1072,7 +1095,7 @@
       }
       case 'spenden': {
         // Einmal pro Woche; die Spenderkreise sind irgendwann ausgeschöpft.
-        const m = Math.round((0.8 + 0.08 * party(p).budget + between(g, 0, 0.5)) / (1 + 0.35 * (g.spendCount || 0)) * 10) / 10;
+        const m = Math.round((0.8 + 0.08 * party(p).budget + between(g, 0, 0.5)) / (1 + 0.35 * (g.spendCount || 0)) * qm * 10) / 10;
         g.money = Math.round((g.money + m) * 100) / 100;
         g.spendCount = (g.spendCount || 0) + 1;
         g.spendWeek = g.week;
@@ -1927,7 +1950,7 @@
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     publishedShares, publishedStateShares, groupShares, pollShares, pollStateShares, pollGroupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
-    POLL_RANGE, GROUP_IDS, focusFactor, saturatedTopics, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
+    POLL_RANGE, GROUP_IDS, pickScenarios, SCENARIOS: SC, focusFactor, saturatedTopics, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent,
     startDuel, duelAnswer,

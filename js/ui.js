@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261014-193552';
+  const APP_VERSION = '20261014-195310';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -480,13 +480,68 @@
       return b;
     }
     b.addEventListener('click', () => {
-      const res = E.performAction(g, a.id, actionTarget(a));
-      $(a.scope === 'region' ? 'local-feedback' : 'feedback').textContent = res.text;
+      runAction(a, actionTarget(a), res => {
+        $(a.scope === 'region' ? 'local-feedback' : 'feedback').textContent = res.text;
+      });
+    });
+    return b;
+  }
+
+  // Vor jeder Aktion: drei Situationen (aus zehn je Aktion). Gute Entscheidungen machen die Aktion
+  // wirksamer, schlechte schwächen sie. Wer keine Zeit hat, führt sie ohne Vorbereitung aus (−10 %).
+  function runAction(a, target, done) {
+    if (!E.canAct(g)) return;
+    const finish = prep => {
+      const res = E.performAction(g, a.id, Object.assign({}, target, { prep }));
+      closeModal();
+      if (done) done(res);
       toast(res.text);
       save();
       renderGame();
-    });
-    return b;
+    };
+    const list = (E.SCENARIOS && E.SCENARIOS[a.id]) || [];
+    if (!list.length) { finish(0); return; }
+    const st = target.state ? E.stateById(target.state) : null;
+    const tp = target.topic ? E.topicById(target.topic) : null;
+    const fillRaw = txt => String(txt)
+      .replace(/\{land\}/g, st ? st.name : 'eurem Land')
+      .replace(/\{thema\}/g, tp ? tp.name : 'eurer Wahl')
+      .replace(/\{kandidat\}/g, g.candidate);
+    const fill = txt => esc(fillRaw(txt));
+    const head = 'Vorbereitung · ' + a.name;
+    let ids = null;
+    let i = 0;
+    let score = 0;
+    const marks = [];
+    const step = () => {
+      const sc = list[ids[i]];
+      const opts = sc.o.map(o => o).sort(() => Math.random() - 0.5);
+      openModal(head + ' · Situation ' + (i + 1) + ' von ' + ids.length, a.icon + ' ' + a.name,
+        '<p class="scen-text">' + fill(sc.s) + '</p><p class="muted small">Wie reagiert ihr?</p>',
+        opts.map(o => ({ label: fillRaw(o.t), onClick: () => answer(o) })));
+      $('modal').classList.add('scen-modal');
+    };
+    const answer = o => {
+      score += o.q;
+      marks.push(o.q);
+      const verdict = o.q > 0 ? '👍 Gute Entscheidung' : o.q < 0 ? '👎 Das ging daneben' : '😐 Geht so';
+      i += 1;
+      openModal(head + ' · Situation ' + i + ' von ' + ids.length, verdict, '<p>' + fill(o.f) + '</p>',
+        [{ label: i < ids.length ? 'Nächste Situation →' : 'Zur Auswertung →', primary: true, onClick: () => (i < ids.length ? step() : summary()) }]);
+    };
+    const summary = () => {
+      const pctEff = Math.round(score * 15);
+      const icons = marks.map(q => (q > 0 ? '👍' : q < 0 ? '👎' : '😐')).join(' ');
+      openModal(head, score > 0 ? 'Gut vorbereitet!' : score < 0 ? 'Holprige Vorbereitung' : 'Durchwachsene Vorbereitung',
+        '<p class="scen-score">' + icons + '</p><p>Die Aktion wirkt dadurch <b>' + (pctEff >= 0 ? '+' : '−') + Math.abs(pctEff) + ' %</b> ' +
+        (pctEff >= 0 ? 'stärker' : 'schwächer') + ' als üblich' + (a.id === 'buerger' || a.id === 'talkshow' || a.id === 'angriff' ? ', und die Erfolgschance ändert sich entsprechend' : '') + '.</p>',
+        [{ label: '▶ ' + a.name + ' durchführen', primary: true, onClick: () => finish(score) }]);
+    };
+    openModal(head, 'Drei Situationen – wie reagiert ihr?',
+      '<p>Bevor es losgeht, müsst ihr drei Situationen meistern. Jede gute Entscheidung macht die Aktion <b>15 % wirksamer</b>, jede schlechte <b>15 % schwächer</b>.</p>',
+      [{ label: 'Los geht’s', primary: true, onClick: () => { ids = E.pickScenarios(g, a.id, 3); step(); } },
+        { label: 'Ohne Vorbereitung durchführen', hint: '−10 % Wirkung', onClick: () => finish('skip') },
+        { label: 'Abbrechen', onClick: () => closeModal() }]);
   }
 
   // Schritt 3 vor Ort: Zielgruppe wählen und Aktion durchführen.
@@ -523,12 +578,10 @@
     box.querySelectorAll('.tg-chip').forEach(c => c.addEventListener('click', () => { localGroup = c.dataset.g; renderGame(); }));
     $('btn-local-cancel').addEventListener('click', () => { pendingLocal = null; localStep = 2; renderGame(); });
     $('btn-local-go').addEventListener('click', () => {
-      const res = E.performAction(g, a.id, actionTarget(a));
-      $('local-feedback').textContent = res.text;
-      toast(res.text);
-      if (res.ok) { pendingLocal = null; localStep = 1; }
-      save();
-      renderGame();
+      runAction(a, actionTarget(a), res => {
+        $('local-feedback').textContent = res.text;
+        if (res.ok) { pendingLocal = null; localStep = 1; }
+      });
     });
   }
 
@@ -929,7 +982,7 @@
     if (first) first.focus();
   }
 
-  function closeModal() { $('modal').hidden = true; }
+  function closeModal() { $('modal').hidden = true; $('modal').classList.remove('scen-modal'); }
 
   function checkPending() {
     if (g.phase !== 'campaign') { closeModal(); showElection(); return; }

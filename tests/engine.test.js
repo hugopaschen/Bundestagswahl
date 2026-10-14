@@ -513,3 +513,19 @@ test('Sättigung je Gruppe und Thema; Vor-Ort-Aktion mit Zielgruppe', () => {
   g.ap = 3;
   assert.strictEqual(E.performAction(g, 'kundgebung', { state: 'HH', group: 'land' }).ok, false);
 });
+
+test('Szenarien: 10 je Aktion, 3 werden gestellt; gute Vorbereitung macht Aktionen wirksamer', () => {
+  const S = require('../js/scenarios.js');
+  for (const a of E.ACTIONS) {
+    assert.strictEqual((S[a.id] || []).length, 10, a.id);
+    for (const sc of S[a.id]) assert.deepStrictEqual(sc.o.map(o => o.q).sort(), [-1, 0, 1]);
+  }
+  const g = E.newGame('spd', 'T', 3);
+  const ids = E.pickScenarios(g, 'kundgebung', 3);
+  assert.strictEqual(new Set(ids).size, 3);
+  // die nächsten drei Szenarien sind neue
+  const ids2 = E.pickScenarios(g, 'kundgebung', 3);
+  assert.ok(ids2.every(i => ids.indexOf(i) === -1));
+  const run = prep => { const h = E.newGame('spd', 'T', 3); E.performAction(h, 'kundgebung', { state: 'NW', prep }); return h.reg.NW.spd; };
+  assert.ok(run(3) > run(0) && run(0) > run(-3) && run('skip') < run(0));
+});
