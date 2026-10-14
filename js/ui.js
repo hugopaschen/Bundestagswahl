@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261014-200304';
+  const APP_VERSION = '20261014-201814';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -564,7 +564,7 @@
     html += D.GROUP_DIMS.map(dim => '<div class="tg-dim"><span class="tg-dim-name">' + esc(dim.name) + '</span><div class="tg-row">' +
       D.GROUPS.filter(k => k.dim === dim.id && w[k.id] > 0).map(k => {
         const v = E.focusFactor(g, a.id, localTopic || null, st.id, k.id) * tf;
-        const sat = E.saturatedTopics(g, k.id, 0.8).indexOf(localTopic || '_') !== -1;
+        const sat = E.groupSat(g, k.id, g.party, localTopic || null, st.id, a.id) < 0.8;
         return chip(k.id, k.icon, k.short, v, sat ? '<span class="tg-sat">schon umworben</span>' : '');
       }).join('') + '</div></div>').join('');
     const cost = E.actionCost(a.id, selState, g);
@@ -810,7 +810,10 @@
       D.GROUPS.filter(k => k.dim === dim.id).map(k => {
       const v = E.pollGroupShares(g, k.id)[g.party];
       const d = v - (g.grpStart ? g.grpStart[k.id] : v);
-      const satT = E.saturatedTopics(g, k.id).map(t => t === '_' ? 'ohne Thema' : E.topicById(t).name);
+      const satT = E.saturatedContexts(g, k.id).map(c => {
+        const act = c.channel && E.ACTIONS.find(x => x.id === c.channel);
+        return (act ? act.name : 'Aktionen') + ' zu ' + (c.topic ? E.topicById(c.topic).name : 'ohne Thema') + ' ' + (c.state ? 'in ' + E.stateById(c.state).name : 'bundesweit');
+      });
       const topics = Object.keys(k.topics).sort((a, b) => k.topics[b] - k.topics[a]).slice(0, 3).map(id => {
         const t = E.topicById(id);
         return '<span class="gp-topic' + (E.isCore(g, id) ? ' core' : '') + '" title="' + esc(t.name) + '">' + t.icon + ' ' + esc(t.name) + (E.isCore(g, id) ? ' 🎯' : '') + '</span>';
@@ -820,7 +823,7 @@
         '<span class="gp-val">' + pct(v) + '<small class="' + (d >= 0 ? 'pos' : 'neg') + '">' + signed(d) + '</small></span></div>' +
         '<div class="gp-bar"><span style="width:' + Math.min(100, v / 50 * 100) + '%"></span></div>' +
         '<div class="gp-topics">' + topics + '</div>' +
-        (satT.length ? '<p class="gp-sat">Schon stark umworben bei: ' + esc(satT.join(', ')) + ' – mit anderen Themen wirkt ihr wieder voll.</p>' : '') + '</div>';
+        (satT.length ? '<p class="gp-sat">Schon stark umworben durch: ' + esc(satT.join('; ')) + '. Andere Aktionen, Themen oder Länder wirken wieder voll.</p>' : '') + '</div>';
       }).join('') + '</div>').join('');
     box.querySelectorAll('.gp-link').forEach(c => {
       c.addEventListener('click', () => openGroupPoll(c.dataset.group));

@@ -508,7 +508,11 @@ test('Sättigung je Gruppe und Thema; Vor-Ort-Aktion mit Zielgruppe', () => {
   // Mit Wirtschaft umworben – beim Thema Bildung wirkt die Ansprache weiter voll
   assert.ok(E.focusFactor(g, 'kundgebung', 'wirtschaft', 'NW', 'arbeiter') < freshW);
   assert.ok(Math.abs(E.focusFactor(g, 'kundgebung', 'bildung', 'NW', 'arbeiter') - fresh) < 1e-9);
-  assert.ok(E.saturatedTopics(g, 'arbeiter', 0.9).indexOf('wirtschaft') !== -1);
+  assert.ok(E.saturatedContexts(g, 'arbeiter', 0.9).some(c => c.topic === 'wirtschaft' && c.state === 'NW' && c.channel === 'kundgebung'));
+  // Andere Länder und andere Aktionen sind davon nicht betroffen
+  assert.ok(Math.abs(E.focusFactor(g, 'kundgebung', 'wirtschaft', 'NI', 'arbeiter') - E.focusFactor(E.newGame('spd', 'T', 8), 'kundgebung', 'wirtschaft', 'NI', 'arbeiter')) < 1e-9);
+  assert.strictEqual(E.groupSat(g, 'arbeiter', 'spd', 'wirtschaft', 'NW', 'infostand'), 1);
+  assert.ok(E.groupSat(g, 'arbeiter', 'spd', 'wirtschaft', 'NW', 'kundgebung') < 1);
   // In Stadtstaaten gibt es keine Landbevölkerung
   g.ap = 3;
   assert.strictEqual(E.performAction(g, 'kundgebung', { state: 'HH', group: 'land' }).ok, false);

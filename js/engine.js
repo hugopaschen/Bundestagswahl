@@ -600,24 +600,35 @@
     return raw;
   }
 
-  // Sättigung je Gruppe UND Thema: Wer die Arbeiter mit Wirtschaft umwirbt, hat sie beim Thema
-  // Bildung noch nicht „verbraucht“. Gilt nur für die eigene Partei.
-  const satKey = topic => topic || '_';
-  function groupSat(g, k, p, topic) {
-    if (p !== g.party || !g.sat || !g.sat[k]) return 1;
-    return 1 / (1 + Math.max(0, g.sat[k][satKey(topic)] || 0) / GROUP_SAT);
+  // Sättigung je Gruppe in einem bestimmten Zusammenhang: Ort (Bundesland oder bundesweit) ×
+  // Aktion × Thema. Wer die Arbeiter in Bayern mit einer Kundgebung zu Wirtschaft umwirbt, hat sie
+  // in Baden-Württemberg, bei einem Infostand oder beim Thema Bildung noch nicht „verbraucht“.
+  // Gilt nur für die eigene Partei.
+  const satCtx = (stateId, channel, topic) => (stateId || 'bund') + '|' + (channel || '_') + '|' + (topic || '_');
+  function groupSat(g, k, p, topic, stateId, channel) {
+    if (p !== g.party || !g.sat) return 1;
+    const c = g.sat[satCtx(stateId, channel, topic)];
+    return 1 / (1 + Math.max(0, (c && c[k]) || 0) / GROUP_SAT);
   }
 
-  function addSat(g, k, topic, amount) {
+  function addSat(g, k, topic, amount, stateId, channel) {
     if (!g.sat) g.sat = {};
-    if (!g.sat[k]) g.sat[k] = {};
-    g.sat[k][satKey(topic)] = (g.sat[k][satKey(topic)] || 0) + amount;
+    const key = satCtx(stateId, channel, topic);
+    if (!g.sat[key]) g.sat[key] = {};
+    g.sat[key][k] = (g.sat[key][k] || 0) + amount;
   }
 
-  // Themen, bei denen eine Gruppe schon stark umworben ist (für die Anzeige).
-  function saturatedTopics(g, k, limit) {
-    const s = (g.sat && g.sat[k]) || {};
-    return Object.keys(s).filter(t => 1 / (1 + s[t] / GROUP_SAT) < (limit || 0.6));
+  // Wo eine Gruppe schon stark umworben ist (für die Anzeige): Liste von {state, channel, topic}.
+  function saturatedContexts(g, k, limit) {
+    const out = [];
+    Object.keys(g.sat || {}).forEach(key => {
+      const v = g.sat[key][k] || 0;
+      if (1 / (1 + v / GROUP_SAT) < (limit || 0.6)) {
+        const parts = key.split('|');
+        out.push({ state: parts[0] === 'bund' ? null : parts[0], channel: parts[1] === '_' ? null : parts[1], topic: parts[2] === '_' ? null : parts[2] });
+      }
+    });
+    return out;
   }
 
   // Wirkung einer Vor-Ort-Aktion, die gezielt eine Wählergruppe anspricht (1 = durchschnittlich):
@@ -630,14 +641,14 @@
     const fit = Math.max(0.75, Math.min(1.45, Math.pow(m, 0.6)));
     const size = Math.max(0.72, Math.min(1.15, 0.7 + 0.9 * share));
     const fan = g.progGroups ? Math.max(0.8, Math.min(1.2, 1 + 0.05 * (g.progGroups[groupId] || 0))) : 1;
-    return fit * size * fan * groupSat(g, groupId, g.party, topic);
+    return fit * size * fan * groupSat(g, groupId, g.party, topic, stateId, channel);
   }
 
   // Wie viel einer Aktion bei den Zielgruppen noch ankommt (1 = unverbraucht).
   function groupEfficiency(g, p, channel, topic, stateId) {
     const mix = groupMix(channel, topic, stateId);
     const w = weightsFor(stateId);
-    return D.GROUPS.reduce((s, k) => s + w[k.id] * mix[k.id] * groupSat(g, k.id, p, topic), 0);
+    return D.GROUPS.reduce((s, k) => s + w[k.id] * mix[k.id] * groupSat(g, k.id, p, topic, stateId, channel), 0);
   }
 
   // Wie gut ein Kanal zur Wählerschaft eines Landes passt (1 = wie im Bundesschnitt).
@@ -657,9 +668,9 @@
     D.GROUPS.forEach(k => {
       // Gruppen, denen euer Programm gefällt, sind leichter zu mobilisieren (und umgekehrt).
       const fan = p === g.party && g.progGroups && d > 0 ? Math.max(0.7, Math.min(1.3, 1 + 0.08 * (g.progGroups[k.id] || 0))) : 1;
-      const add = d * mix[k.id] * fan * (d > 0 ? groupSat(g, k.id, p, topic) : 1);
+      const add = d * mix[k.id] * fan * (d > 0 ? groupSat(g, k.id, p, topic, stateId, channel) : 1);
       g.grp[k.id][p] += add;
-      if (add > 0 && p === g.party) addSat(g, k.id, topic, add);
+      if (add > 0 && p === g.party) addSat(g, k.id, topic, add, stateId, channel);
       total += W[k.id] * add;
     });
     return total;
@@ -671,7 +682,7 @@
     const k = D.GROUPS.find(x => x.id === focus);
     const amount = 3 * d * (1 - k.weight);
     g.grp[focus][p] += amount;
-    addSat(g, focus, topic, amount);
+    addSat(g, focus, topic, amount, stateId, channel);
     return addGroups(g, p, 0.3 * d, channel, topic, stateId);
   }
 
@@ -1057,7 +1068,7 @@
         const k = grpT;
         const tp = topic && topicById(topic) ? topic : null;
         const fit = tp ? Math.max(0.7, Math.min(1.5, 1 + 0.3 * (topicPref(k, tp) - 1) + 0.3 * compMod(g, tp))) : 1;
-        const delta = 3.2 * qm * (1 - k.weight) * wear(g, 'online:' + k.id) * reach(g) * groupSat(g, k.id, p, tp) * fit * between(g, 0.85, 1.15);
+        const delta = 3.2 * qm * (1 - k.weight) * wear(g, 'online:' + k.id) * reach(g) * groupSat(g, k.id, p, tp, null, 'online') * fit * between(g, 0.85, 1.15);
         if (rand(g) < Math.max(0.01, 0.07 - 0.3 * qc)) {
           g.nat[p] -= 0.3;
           text = 'Datenschutz-Debatte um eure Online-Anzeigen für ' + k.name + ' (−0.3).';
@@ -1065,7 +1076,7 @@
         }
         g.nat[p] += k.weight * delta;
         g.grp[k.id][p] += delta * (1 - k.weight);
-        addSat(g, k.id, tp, delta * (1 - k.weight));
+        addSat(g, k.id, tp, delta * (1 - k.weight), null, 'online');
         if (tp) changeSalience(g, tp, 0.005);
         text = 'Online-Anzeigen' + (tp ? ' zum Thema ' + topicById(tp).name : '') + ' erreichen ' + k.name + ' (' + fmt(delta) + ' in der Gruppe, ' + fmt(k.weight * delta) + ' bundesweit).';
         break;
@@ -1723,7 +1734,7 @@
       D.STATES.forEach(s => { g.mobReg[s.id][p] *= MOB_DECAY; });
     });
     g.otherSwing = (g.otherSwing || 0) * 0.92;
-    if (g.sat) Object.keys(g.sat).forEach(k => Object.keys(g.sat[k]).forEach(t => { g.sat[k][t] *= BONUS_DECAY; })); // langsame Rückkehr zum Normalwert
+    if (g.sat) Object.keys(g.sat).forEach(c => Object.keys(g.sat[c]).forEach(k => { g.sat[c][k] *= BONUS_DECAY; })); // langsame Rückkehr zum Normalwert
     TOPIC_IDS.forEach(t => {
       g.salience[t] += SALIENCE_DRIFT * (D.SALIENCE0[t] - g.salience[t]);
     });
@@ -1932,6 +1943,7 @@
     if (!g.progState && g.program) g.progState = programTopicStates(programEffects(g.party, g.program));
     // Spielstände ohne Gruppenverlauf: aktuellen Stand nachtragen, damit die Gruppen-Umfragen funktionieren.
     if (g.history && g.history.length && !g.history[g.history.length - 1].groups) g.history[g.history.length - 1].groups = allGroupShares(g);
+    if (g.sat && Object.keys(g.sat).some(key => key.indexOf('|') === -1)) g.sat = {}; // altes Format
     if (!g.poll) takePoll(g);
     if (!g.grpStart) g.grpStart = {};
     GROUP_IDS.forEach(k => { if (!(k in g.grpStart)) g.grpStart[k] = groupShares(g, k)[g.party]; });
@@ -1950,7 +1962,7 @@
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     publishedShares, publishedStateShares, groupShares, pollShares, pollStateShares, pollGroupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
-    POLL_RANGE, GROUP_IDS, pickScenarios, SCENARIOS: SC, focusFactor, saturatedTopics, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
+    POLL_RANGE, GROUP_IDS, pickScenarios, SCENARIOS: SC, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent,
     startDuel, duelAnswer,
