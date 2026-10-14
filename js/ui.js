@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261014-224220';
+  const APP_VERSION = '20261014-224522';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -271,7 +271,7 @@
 
   // Säulendiagramm wie bei Hochrechnungen im Fernsehen: feste Reihenfolge, Wert unter dem Parteinamen.
   const CHART_TOP = 50;
-  const CHART_ORDER = ['union', 'spd', 'gruene', 'linke', 'afd', 'fdp', 'bsw', D.OTHER.id];
+  const CHART_ORDER = ['union', 'afd', 'spd', 'gruene', 'linke', 'bsw', 'fdp', D.OTHER.id]; // wie auf der Seite „Umfragen“
 
   // Das Diagramm wird nur einmal aufgebaut und danach nur noch verändert: So wachsen und schrumpfen
   // die Säulen beim Wechsel des Bundeslands sichtbar (CSS-Übergang), die Zahlen zählen mit.
