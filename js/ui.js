@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261014-201814';
+  const APP_VERSION = '20261014-202921';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -487,59 +487,95 @@
     return b;
   }
 
-  // Vor jeder Aktion: drei Situationen (aus zehn je Aktion). Gute Entscheidungen machen die Aktion
-  // wirksamer, schlechte schwächen sie. Wer keine Zeit hat, führt sie ohne Vorbereitung aus (−10 %).
+  // Vor jeder Aktion: drei Prüfungen. Meist drei Situationen (aus zehn je Aktion); bei Vor-Ort-Aktionen
+  // mit Thema eine Situation und zwei Fragen von Bürgerinnen und Bürgern zum Thema. Gute Entscheidungen
+  // und richtige Antworten machen die Aktion wirksamer, schlechte schwächen sie; richtige Antworten
+  // stärken außerdem die Kompetenz im Thema. Ohne Vorbereitung wirkt die Aktion 10 % schwächer.
   function runAction(a, target, done) {
     if (!E.canAct(g)) return;
+    let score = 0;
+    const cq = { right: 0, wrong: 0 };
     const finish = prep => {
-      const res = E.performAction(g, a.id, Object.assign({}, target, { prep }));
+      const t = Object.assign({}, target, { prep });
+      if (prep !== 'skip' && (cq.right || cq.wrong)) t.cq = cq;
+      const res = E.performAction(g, a.id, t);
       closeModal();
       if (done) done(res);
       toast(res.text);
       save();
       renderGame();
     };
-    const list = (E.SCENARIOS && E.SCENARIOS[a.id]) || [];
-    if (!list.length) { finish(0); return; }
-    const st = target.state ? E.stateById(target.state) : null;
+    const scen = (E.SCENARIOS && E.SCENARIOS[a.id]) || [];
     const tp = target.topic ? E.topicById(target.topic) : null;
+    const withQuestions = tp && E.CQ_ACTIONS.indexOf(a.id) !== -1 && ((E.CITIZEN_QUESTIONS[tp.id] || []).length >= 2);
+    if (!scen.length && !withQuestions) { finish(0); return; }
+    const st = target.state ? E.stateById(target.state) : null;
     const fillRaw = txt => String(txt)
       .replace(/\{land\}/g, st ? st.name : 'eurem Land')
       .replace(/\{thema\}/g, tp ? tp.name : 'eurer Wahl')
       .replace(/\{kandidat\}/g, g.candidate);
     const fill = txt => esc(fillRaw(txt));
     const head = 'Vorbereitung · ' + a.name;
-    let ids = null;
+    let items = [];
     let i = 0;
-    let score = 0;
     const marks = [];
+    const label = n => head + ' · ' + (items[n].type === 'cq' ? 'Bürgerfrage' : 'Situation') + ' ' + (n + 1) + ' von ' + items.length;
     const step = () => {
-      const sc = list[ids[i]];
-      const opts = sc.o.map(o => o).sort(() => Math.random() - 0.5);
-      openModal(head + ' · Situation ' + (i + 1) + ' von ' + ids.length, a.icon + ' ' + a.name,
-        '<p class="scen-text">' + fill(sc.s) + '</p><p class="muted small">Wie reagiert ihr?</p>',
-        opts.map(o => ({ label: fillRaw(o.t), onClick: () => answer(o) })));
+      const it = items[i];
+      if (it.type === 'cq') {
+        const q = E.CITIZEN_QUESTIONS[tp.id][it.idx];
+        const order = q.a.map((x, k) => k).sort(() => Math.random() - 0.5);
+        openModal(label(i), '🙋 ' + tp.icon + ' ' + tp.name,
+          '<p class="scen-text">' + esc(q.q) + '</p><p class="muted small">Was antwortet ' + esc(g.candidate) + '?</p>',
+          order.map(k => ({ label: q.a[k], onClick: () => answerQ(q, k) })));
+      } else {
+        const sc = scen[it.idx];
+        const opts = sc.o.slice().sort(() => Math.random() - 0.5);
+        openModal(label(i), a.icon + ' ' + a.name,
+          '<p class="scen-text">' + fill(sc.s) + '</p><p class="muted small">Wie reagiert ihr?</p>',
+          opts.map(o => ({ label: fillRaw(o.t), onClick: () => answer(o) })));
+      }
       $('modal').classList.add('scen-modal');
+    };
+    const next = (title, body) => {
+      i += 1;
+      openModal(label(i - 1), title, body,
+        [{ label: i < items.length ? 'Weiter →' : 'Zur Auswertung →', primary: true, onClick: () => (i < items.length ? step() : summary()) }]);
     };
     const answer = o => {
       score += o.q;
       marks.push(o.q);
-      const verdict = o.q > 0 ? '👍 Gute Entscheidung' : o.q < 0 ? '👎 Das ging daneben' : '😐 Geht so';
-      i += 1;
-      openModal(head + ' · Situation ' + i + ' von ' + ids.length, verdict, '<p>' + fill(o.f) + '</p>',
-        [{ label: i < ids.length ? 'Nächste Situation →' : 'Zur Auswertung →', primary: true, onClick: () => (i < ids.length ? step() : summary()) }]);
+      next(o.q > 0 ? '👍 Gute Entscheidung' : o.q < 0 ? '👎 Das ging daneben' : '😐 Geht so', '<p>' + fill(o.f) + '</p>');
+    };
+    const answerQ = (q, k) => {
+      const ok = k === q.c;
+      score += ok ? 1 : -1;
+      marks.push(ok ? 1 : -1);
+      if (ok) cq.right += 1; else cq.wrong += 1;
+      next(ok ? '✅ Richtig beantwortet' : '❌ Leider falsch',
+        (ok ? '' : '<p>Richtig wäre gewesen: <b>' + esc(q.a[q.c]) + '</b></p>') + '<p>' + esc(q.e) + '</p>' +
+        '<p class="muted small">Kompetenz ' + esc(tp.name) + ': ' + (ok ? '+' : '−') + E.CQ_COMP + ' (wenn ihr die Aktion durchführt)</p>');
     };
     const summary = () => {
       const pctEff = Math.round(score * 15);
       const icons = marks.map(q => (q > 0 ? '👍' : q < 0 ? '👎' : '😐')).join(' ');
+      const comp = cq.right || cq.wrong ? '<p>Bürgerfragen: ' + cq.right + ' von ' + (cq.right + cq.wrong) + ' richtig – Kompetenz ' + esc(tp.name) + ' ' +
+        ((cq.right - cq.wrong) * E.CQ_COMP >= 0 ? '+' : '−') + Math.abs((cq.right - cq.wrong) * E.CQ_COMP) + '.</p>' : '';
       openModal(head, score > 0 ? 'Gut vorbereitet!' : score < 0 ? 'Holprige Vorbereitung' : 'Durchwachsene Vorbereitung',
         '<p class="scen-score">' + icons + '</p><p>Die Aktion wirkt dadurch <b>' + (pctEff >= 0 ? '+' : '−') + Math.abs(pctEff) + ' %</b> ' +
-        (pctEff >= 0 ? 'stärker' : 'schwächer') + ' als üblich' + (a.id === 'buerger' || a.id === 'talkshow' || a.id === 'angriff' ? ', und die Erfolgschance ändert sich entsprechend' : '') + '.</p>',
+        (pctEff >= 0 ? 'stärker' : 'schwächer') + ' als üblich' + (a.id === 'buerger' || a.id === 'talkshow' || a.id === 'angriff' ? ', und die Erfolgschance ändert sich entsprechend' : '') + '.</p>' + comp,
         [{ label: '▶ ' + a.name + ' durchführen', primary: true, onClick: () => finish(score) }]);
     };
-    openModal(head, 'Drei Situationen – wie reagiert ihr?',
-      '<p>Bevor es losgeht, müsst ihr drei Situationen meistern. Jede gute Entscheidung macht die Aktion <b>15 % wirksamer</b>, jede schlechte <b>15 % schwächer</b>.</p>',
-      [{ label: 'Los geht’s', primary: true, onClick: () => { ids = E.pickScenarios(g, a.id, 3); step(); } },
+    const intro = withQuestions
+      ? '<p>Vor Ort warten eine Situation und <b>zwei Fragen von Bürgerinnen und Bürgern zum Thema ' + esc(tp.name) + '</b> auf euch. Jede gute Entscheidung und jede richtige Antwort macht die Aktion <b>15 % wirksamer</b>, jede schlechte <b>15 % schwächer</b>. Richtige Antworten stärken eure Kompetenz im Thema, falsche schwächen sie.</p>'
+      : '<p>Bevor es losgeht, müsst ihr drei Situationen meistern. Jede gute Entscheidung macht die Aktion <b>15 % wirksamer</b>, jede schlechte <b>15 % schwächer</b>.</p>';
+    openModal(head, withQuestions ? 'Situation und Bürgerfragen' : 'Drei Situationen – wie reagiert ihr?', intro,
+      [{ label: 'Los geht’s', primary: true, onClick: () => {
+        const sIds = E.pickScenarios(g, a.id, withQuestions ? 1 : 3).map(idx => ({ type: 'scen', idx }));
+        const qIds = withQuestions ? E.pickCitizenQuestions(g, tp.id, 2).map(idx => ({ type: 'cq', idx })) : [];
+        items = sIds.concat(qIds);
+        step();
+      } },
         { label: 'Ohne Vorbereitung durchführen', hint: '−10 % Wirkung', onClick: () => finish('skip') },
         { label: 'Abbrechen', onClick: () => closeModal() }]);
   }

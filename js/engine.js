@@ -13,6 +13,11 @@
   const D = (typeof module !== 'undefined' && module.exports) ? require('./data.js') : root.BTW_DATA;
   // Szenarien zur Vorbereitung der Aktionen (Texte in js/scenarios.js)
   const SC = (typeof module !== 'undefined' && module.exports) ? require('./scenarios.js') : (root.BTW_SCENARIOS || {});
+  // Fragen von Bürgerinnen und Bürgern zum Thema einer Vor-Ort-Aktion (js/citizenq.js)
+  const CQ = (typeof module !== 'undefined' && module.exports) ? require('./citizenq.js') : (root.BTW_CITIZENQ || {});
+  const CQ_ACTIONS = ['buerger', 'infostand', 'betrieb', 'haustuer', 'regional'];
+  const CQ_COMP = 2;      // Kompetenzpunkte je richtiger/falscher Antwort
+  const CQ_COMP_MAX = 12; // höchstens so viel Veränderung je Thema über den ganzen Wahlkampf
 
   const MAX_WEEKS = 8;
   const AP_PER_WEEK = 3;
@@ -893,6 +898,32 @@
     return out;
   }
 
+  // Bürgerfragen zu einem Thema, bevorzugt noch nicht gestellte.
+  function pickCitizenQuestions(g, topic, n) {
+    const list = CQ[topic] || [];
+    n = Math.min(n || 2, list.length);
+    if (!g.seenCQ) g.seenCQ = {};
+    const seen = g.seenCQ[topic] || [];
+    let pool = list.map((x, i) => i).filter(i => seen.indexOf(i) === -1);
+    if (pool.length < n) { pool = list.map((x, i) => i); g.seenCQ[topic] = []; }
+    const out = [];
+    while (out.length < n) out.push(pool.splice(Math.floor(rand(g) * pool.length), 1)[0]);
+    g.seenCQ[topic] = (g.seenCQ[topic] || []).concat(out);
+    return out;
+  }
+
+  // Kompetenz im Thema ändert sich durch Antworten auf Bürgerfragen (gedeckelt je Thema).
+  function citizenCompetence(g, topic, right, wrong) {
+    if (!g.competence || !topicById(topic)) return 0;
+    if (!g.compQ) g.compQ = {};
+    const before = g.compQ[topic] || 0;
+    const after = Math.max(-CQ_COMP_MAX, Math.min(CQ_COMP_MAX, before + CQ_COMP * (right - wrong)));
+    const d = after - before;
+    g.compQ[topic] = after;
+    g.competence[topic] = Math.max(5, Math.min(95, g.competence[topic] + d));
+    return d;
+  }
+
   function canAct(g) {
     return g.phase === 'campaign' && !g.pendingEvent && !g.duel && g.ap > 0;
   }
@@ -1115,6 +1146,11 @@
       }
     }
     if (thief) text += ' ' + party(thief).name + ' macht euch das Thema streitig.';
+    // Bürgerfragen beantwortet: Kompetenz im Thema steigt oder sinkt.
+    if (target.cq && localTopic) {
+      const dc = citizenCompetence(g, localTopic, target.cq.right || 0, target.cq.wrong || 0);
+      if (dc) text += ' Kompetenz ' + topicById(localTopic).name + ' ' + (dc > 0 ? '+' : '−') + Math.abs(dc) + '.';
+    }
     addLog(g, 'action', text);
     return { ok: true, text };
   }
@@ -1962,7 +1998,7 @@
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     publishedShares, publishedStateShares, groupShares, pollShares, pollStateShares, pollGroupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
-    POLL_RANGE, GROUP_IDS, pickScenarios, SCENARIOS: SC, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
+    POLL_RANGE, GROUP_IDS, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent,
     startDuel, duelAnswer,
