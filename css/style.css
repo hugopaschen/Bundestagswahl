@@ -1659,6 +1659,7 @@ h2 .flyer-hint { margin: 0; }
 
 /* Briefwahl und zusätzliche Aktionen */
 .mob-postal { margin-top: 8px; font-size: .84rem; font-weight: 700; }
+.flows { margin: 8px 0 20px; max-width: 640px; }
 .extra-block { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border); }
 .extra-block .action-list { grid-template-columns: minmax(0, 420px); }
 

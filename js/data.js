@@ -462,6 +462,19 @@
   // Mobilisierungspotenzial im Nichtwählerlager: Gewinne aus dem Nichtwählerlager 2025 (Infratest dimap,
   // Wählerwanderung) im Verhältnis zur Stimmenzahl der Partei, auf 0,6–1,5 skaliert. AfD: 1,81 Mio.,
   // BSW: 0,40 Mio., Union: 0,90 Mio., Linke: 0,29 Mio., SPD: 0,25 Mio., Grüne: 0,11 Mio., FDP: ~0.
+  // Konfrontationslinien im Wahlkampf 2025 (Hauptgegner, gegen die eine Partei sich profiliert):
+  // Union ↔ AfD (Migration, „Brandmauer“), Union ↔ SPD (Kanzlerduell Merz–Scholz), Union ↔ Grüne,
+  // Grüne ↔ AfD, SPD/Grüne ↔ FDP (Ampel-Bruch), Linke ↔ Union/AfD, BSW ↔ Grüne (Ukraine-Politik) und ↔ Linke.
+  var RIVALS = {
+    union: ['afd', 'spd', 'gruene'],
+    afd: ['union', 'gruene'],
+    spd: ['union', 'fdp'],
+    gruene: ['union', 'afd', 'fdp'],
+    linke: ['union', 'afd', 'spd'],
+    bsw: ['gruene', 'linke', 'union'],
+    fdp: ['gruene', 'spd']
+  };
+
   var NONVOTER_POTENTIAL = { union: 0.92, afd: 1.48, spd: 0.76, gruene: 0.7, linke: 0.93, bsw: 1.41, fdp: 0.6 };
 
   // Briefwahl 2025 (Anteil der Briefwähler an allen Wählern, %): Bund und Länder amtlich
@@ -510,6 +523,7 @@
     TURNOUT: TURNOUT,
     POSTAL: POSTAL,
     NONVOTER_POTENTIAL: NONVOTER_POTENTIAL,
+    RIVALS: RIVALS,
     STATE_TOPIC_SOURCES: STATE_TOPIC_SOURCES,
     CHANNELS: CHANNELS
   };

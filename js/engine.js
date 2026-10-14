@@ -143,6 +143,9 @@
   D.GROUPS.forEach(k => { POS_PREF[k.id] = prefOf(p => FACTOR[k.id][p]); });
 
   const party = id => D.PARTIES.find(p => p.id === id);
+  // Genitiv für Texte: „Wähler der Grünen“, „Wähler des BSW“.
+  const GEN = { union: 'der Union', afd: 'der AfD', spd: 'der SPD', gruene: 'der Grünen', linke: 'der Linken', bsw: 'des BSW', fdp: 'der FDP', sonstige: 'der Kleinparteien', nw: 'aus dem Nichtwählerlager' };
+  const partyGen = id => GEN[id] || ('von ' + ((party(id) && party(id).short) || id));
   const stateById = id => D.STATES.find(s => s.id === id);
   const topicById = id => D.TOPICS.find(t => t.id === id);
 
@@ -438,21 +441,121 @@
     return ISSUE_K * e * Math.min(1, sizeFactor(BASE_SHARE[p] || 10));
   }
 
+  // Wählerwanderung: Wer zulegt, holt die Stimmen nicht gleichmäßig von allen, sondern vor allem von
+  // den Parteien, mit denen er real Wähler austauscht (Wanderungsbilanz 2025, D.FLOWS). Wer verliert,
+  // gibt in dieselben Richtungen ab. Gezielte Abwerbung (g.src: über Themenkompetenz in einer
+  // Zielgruppe oder gewonnene Duelle) geht direkt zulasten der getroffenen Partei.
+  function flowRow(p, east) {
+    return FLOW_ROWS[(east && D.FLOWS_EAST ? 'e:' : 'w:') + p];
+  }
+  const FLOW_ROWS = {};
+  [['w:', D.FLOWS], ['e:', D.FLOWS_EAST]].forEach(([pre, rows]) => {
+    if (!rows) return;
+    PARTY_IDS.forEach(p => {
+      const r = rows[p] || {};
+      const sum = Object.keys(r).filter(q => q !== p).reduce((s, q) => s + r[q], 0) || 1;
+      const out = {};
+      Object.keys(r).forEach(q => { if (q !== p) out[q] = r[q] / sum; });
+      FLOW_ROWS[pre + p] = out;
+    });
+  });
+
+  // Kampagnen-Bonus je Partei im Land und wer ihn bezahlt: taken[p][q] = Punkte, die p von q holt.
+  function stateFlows(g, stateId) {
+    const st = stateById(stateId);
+    const bonus = {};
+    const taken = {};
+    PARTY_IDS.forEach(p => {
+      const prog = p === g.party && g.prog ? g.prog.nat + (st.east ? g.prog.east : 0) + programStateEffect(g.progGroups, stateId) +
+        ((g.progState && g.progState[stateId]) || 0) : 0;
+      bonus[p] = g.nat[p] + g.reg[stateId][p] + prog + issueEffect(g, p, stateId) + groupEffect(g, p);
+    });
+    PARTY_IDS.forEach(p => {
+      const b = bonus[p];
+      const t = {};
+      taken[p] = t;
+      if (!b) return;
+      let rest = b;
+      const src = g.src && g.src[p];
+      if (b > 0 && src) {
+        const T = Object.keys(src).reduce((s, q) => s + Math.max(0, src[q]), 0);
+        if (T > 0) {
+          const k = T > b ? b / T : 1;
+          Object.keys(src).forEach(q => { if (src[q] > 0) t[q] = (t[q] || 0) + src[q] * k; });
+          rest -= T * k;
+        }
+      }
+      const row = flowRow(p, st.east);
+      if (row) Object.keys(row).forEach(q => { t[q] = (t[q] || 0) + rest * row[q]; });
+    });
+    return { bonus, taken };
+  }
+
   function stateShares(g, stateId) {
     const st = stateById(stateId);
     const raw = {};
+    const { bonus, taken } = stateFlows(g, stateId);
+    const lose = {};
+    ALL_IDS.forEach(q => { lose[q] = 0; });
+    PARTY_IDS.forEach(p => { Object.keys(taken[p]).forEach(q => { if (q in lose) lose[q] += taken[p][q]; }); });
     let other = 100;
     PARTY_IDS.forEach(p => {
       other -= st.result[p];
-      const prog = p === g.party && g.prog ? g.prog.nat + (st.east ? g.prog.east : 0) + programStateEffect(g.progGroups, stateId) +
-        ((g.progState && g.progState[stateId]) || 0) : 0;
-      raw[p] = Math.max(0.2, st.result[p] + g.nat[p] + g.reg[stateId][p] + prog + issueEffect(g, p, stateId) + groupEffect(g, p)) * mobFactor(g, p, stateId);
+      raw[p] = Math.max(0.2, st.result[p] + bonus[p] - lose[p]) * mobFactor(g, p, stateId);
     });
-    raw[D.OTHER.id] = Math.max(0.5, other + (g.otherSwing || 0));
+    raw[D.OTHER.id] = Math.max(0.5, other + (g.otherSwing || 0) - lose[D.OTHER.id]);
     const sum = ALL_IDS.reduce((s, p) => s + raw[p], 0);
     const out = {};
     ALL_IDS.forEach(p => { out[p] = raw[p] / sum * 100; });
     return out;
+  }
+
+  // Wählerwanderung bundesweit seit Wahlkampfbeginn: net[q] > 0 heißt, p hat netto von q gewonnen.
+  function flowSummary(g, p) {
+    const net = {};
+    ALL_IDS.concat(['nw']).forEach(q => { if (q !== p) net[q] = 0; });
+    D.STATES.forEach(st => {
+      const w = st.voters / TOTAL_VOTERS;
+      const { taken } = stateFlows(g, st.id);
+      Object.keys(taken[p]).forEach(q => { if (q in net) net[q] += w * taken[p][q]; });
+      PARTY_IDS.forEach(q => { if (q !== p && taken[q][p]) net[q] -= w * taken[q][p]; });
+    });
+    return net;
+  }
+
+  // Gezielte Abwerbung: Wer bei einem Thema Kompetenz aufgebaut hat und damit eine Zielgruppe
+  // erreicht, holt die Stimmen vor allem von der Partei, die das Thema sonst besetzt –
+  // und die in dieser Gruppe stark ist.
+  const STEER_MAX = 0.75;
+  function steerVotes(g, p, topic, groupId, amount) {
+    if (!(amount > 0) || !topicById(topic)) return null;
+    const mine = competenceOf(g, p)[topic];
+    const k = groupId ? D.GROUPS.find(x => x.id === groupId) : null;
+    const gs = k ? groupShares(g, k.id) : null;
+    const pub = gs ? publishedShares(g) : null;
+    const care = k ? Math.max(0.6, Math.min(1.6, topicPref(k, topic))) : 1;
+    const w = {};
+    let W = 0;
+    PARTY_IDS.forEach(q => {
+      if (q === p) return;
+      const theirs = competenceOf(g, q)[topic];
+      const own = Math.max(0, theirs - MEAN_COMPETENCE[topic]);
+      const rel = Math.max(0, Math.min(1.2, 1 + (mine - theirs) / 40));
+      const fit = gs && pub[q] > 0 ? Math.max(0.5, Math.min(2, gs[q] / pub[q])) : 1;
+      w[q] = own * rel * fit * care;
+      W += w[q];
+    });
+    if (W < 1) return null;
+    const steer = amount * Math.min(STEER_MAX, W / 30);
+    if (!g.src) g.src = {};
+    if (!g.src[p]) g.src[p] = {};
+    let best = null;
+    Object.keys(w).forEach(q => {
+      if (!w[q]) return;
+      g.src[p][q] = (g.src[p][q] || 0) + steer * w[q] / W;
+      if (!best || w[q] > w[best]) best = q;
+    });
+    return best && w[best] / W >= 0.35 ? best : null;
   }
 
   // ---------- Mobilisierung und Wahlbeteiligung ----------
@@ -1046,6 +1149,10 @@
     if (localTopic) changeSalience(g, localTopic, 0.005);
     const about = (localTopic ? ' zum Thema ' + topicById(localTopic).name : '') +
       (focus ? ' für ' + D.GROUPS.find(k => k.id === focus).name : '');
+    // Für die Wählerwanderung: Thema und Zielgruppe der Aktion.
+    const steerTopic = localTopic || ((action.scope === 'topic' || actionId === 'online') && topicById(topic) ? topic : null);
+    const steerGroup = focus || (grpT ? grpT.id : null);
+    const shareBefore = steerTopic ? nationalShares(g)[p] : 0;
     let text;
 
     switch (actionId) {
@@ -1224,6 +1331,10 @@
       }
     }
     if (thief) text += ' ' + party(thief).name + ' macht euch das Thema streitig.';
+    if (steerTopic) {
+      const from = steerVotes(g, p, steerTopic, steerGroup, nationalShares(g)[p] - shareBefore);
+      if (from) text += ' Ihr holt dabei vor allem Wähler ' + partyGen(from) + '.';
+    }
     // Bürgerfragen beantwortet: Kompetenz im Thema steigt oder sinkt.
     if (target.cq && localTopic) {
       const dc = citizenCompetence(g, localTopic, target.cq.right || 0, target.cq.wrong || 0);
@@ -1800,6 +1911,11 @@
           const t = options.reduce((a, b) => (comp[b] > comp[a] ? b : a));
           g.steal[t] = { party: p, until: g.week + 2 };
           g.compAdj[p][t] = Math.min(6, (g.compAdj[p][t] || 0) + 3);
+          // Wer euer Kernthema besetzt, wirbt euch auch Wähler ab.
+          if (!g.src) g.src = {};
+          if (!g.src[p]) g.src[p] = {};
+          g.src[p][me] = (g.src[p][me] || 0) + 0.2 * sizeFactor(shares[p]);
+          g.nat[p] += 0.2 * sizeFactor(shares[p]);
           if (g.competence) g.competence[t] = Math.max(5, g.competence[t] - 2);
           changeSalience(g, t, 0.01);
           steals++;
@@ -1833,12 +1949,43 @@
           const d = between(g, 0.02, 0.22) * sizeFactor(shares[p]);
           g.nat[p] += d;
           mobilize(g, p, 0.004);
-          if (rand(g) < 0.3) {
+          // Konfrontationslinie: Oft wird das Thema zum Schlagabtausch mit einem Rivalen.
+          // Wer beim Thema kompetenter ist, gewinnt eher – und holt die Stimmen direkt beim Gegner.
+          const foes = (D.RIVALS[p] || []).filter(o => o !== p);
+          if (foes.length && rand(g) < 0.5) {
+            const o = foes.slice().sort((a, b) => competenceOf(g, a)[t] - competenceOf(g, b)[t])[0];
+            const won = rand(g) < Math.max(0.2, Math.min(0.8, 0.5 + (comp[t] - competenceOf(g, o)[t]) / 100));
+            const w = won ? p : o;
+            const l = won ? o : p;
+            const dd = between(g, 0.15, 0.35) * sizeFactor(shares[w]);
+            g.nat[w] += dd;
+            if (!g.src) g.src = {};
+            if (!g.src[w]) g.src[w] = {};
+            g.src[w][l] = (g.src[w][l] || 0) + dd;
+            const vs = o === me ? 'euch' : party(o).short;
+            if (o === me || rand(g) < 0.4) {
+              news.push({ prio: o === me ? 2 : 1, text: name + ' sucht beim Thema ' + topicById(t).name + ' den Schlagabtausch mit ' + vs + ' – ' +
+                (w === me ? 'ihr behaltet die Oberhand (' + fmt(dd) + ').' : l === me ? party(w).short + ' punktet auf eure Kosten (' + fmt(-dd) + ').' : party(w).short + ' punktet.') });
+            }
+          } else if (rand(g) < 0.3) {
             news.push({ prio: 1, text: name + ' setzt im Wahlkampf auf das Thema ' + topicById(t).name + '.' });
           }
         }
       }
     });
+    // Nachrichtenlage: Jede Woche schiebt sich ein Thema nach vorn. Davon profitieren die Parteien,
+    // die dort als kompetent gelten – ihre Gegenpole verlieren.
+    {
+      const tot = TOPIC_IDS.reduce((s, t) => s + D.SALIENCE0[t], 0);
+      let x = rand(g) * tot;
+      const t = TOPIC_IDS.find(tt => (x -= D.SALIENCE0[tt]) <= 0) || TOPIC_IDS[0];
+      const push = between(g, 0.006, 0.02);
+      changeSalience(g, t, push);
+      if (push >= 0.012) {
+        const pc = PARTY_IDS.slice().sort((a, b) => competenceOf(g, b)[t] - competenceOf(g, a)[t]);
+        news.push({ prio: 1, text: 'Nachrichtenlage: ' + topicById(t).name + ' beherrscht die Schlagzeilen – Rückenwind für ' + party(pc[0]).short + ' und ' + party(pc[1]).short + ', Gegenwind für ' + party(pc[pc.length - 1]).short + '.' });
+      }
+    }
     PARTY_IDS.forEach(p => { g.nat[p] += between(g, -0.25, 0.25); }); // Stimmungsrauschen
     // Auch die Konkurrenz wirbt für die Briefwahl.
     if (g.week >= POSTAL_START - 1) {
@@ -1873,6 +2020,7 @@
       g.mob[p] *= MOB_DECAY;
       D.STATES.forEach(s => { g.mobReg[s.id][p] *= MOB_DECAY; });
     });
+    if (g.src) Object.keys(g.src).forEach(p => Object.keys(g.src[p]).forEach(q => { g.src[p][q] *= BONUS_DECAY; }));
     g.otherSwing = (g.otherSwing || 0) * 0.92;
     if (g.sat) Object.keys(g.sat).forEach(c => Object.keys(g.sat[c]).forEach(k => { g.sat[c][k] *= BONUS_DECAY; })); // langsame Rückkehr zum Normalwert
     TOPIC_IDS.forEach(t => {
@@ -2107,7 +2255,7 @@
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     publishedShares, publishedStateShares, groupShares, pollShares, pollStateShares, pollGroupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
-    POLL_RANGE, GROUP_IDS, regionFactor, nationalFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
+    POLL_RANGE, GROUP_IDS, flowSummary, steerVotes, stateFlows, regionFactor, nationalFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent,
     startDuel, duelAnswer,

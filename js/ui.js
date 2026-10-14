@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261014-224522';
+  const APP_VERSION = '20261014-230756';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -186,6 +186,7 @@
     renderRivals();
     renderPollBars(shares);
     renderMobilization();
+    renderFlows();
     renderGroups();
     renderChart();
     renderAgenda();
@@ -841,6 +842,33 @@
           '<span class="bg-track"><i style="background:' + col(x.p) + ';' + (x.v >= 0 ? 'left:50%' : 'left:' + (50 - w) + '%') + ';width:' + w + '%"></i></span>' +
           '<span class="bg-val">' + signed(x.v) + ' %</span></div>';
       }).join('') + '</div>';
+  }
+
+  // Wählerwanderung: netto gewonnene (+) bzw. abgegebene (−) Punkte je Partei seit Wahlkampfbeginn.
+  function flowBarsHtml(net, me) {
+    const ids = POLL_ORDER.filter(p => p !== me).concat(['nw']).filter(q => q in net);
+    const max = Math.max(1, ...ids.map(q => Math.abs(net[q])));
+    return ids.map(q => {
+      const v = net[q];
+      const w = Math.min(50, Math.abs(v) / max * 50);
+      const name = q === 'nw' ? 'Nichtwähler' : q === D.OTHER.id ? 'Andere' : short(q);
+      const c = q === 'nw' ? 'var(--text-2)' : col(q);
+      return '<div class="bg-row"><span class="bg-name">' + name + '</span>' +
+        '<span class="bg-track"><i style="background:' + c + ';' + (v >= 0 ? 'left:50%' : 'left:' + (50 - w) + '%') + ';width:' + w + '%"></i></span>' +
+        '<span class="bg-val">' + signed(v) + '</span></div>';
+    }).join('');
+  }
+
+  function renderFlows() {
+    const box = $('flows');
+    if (!box) return;
+    const net = E.flowSummary(g, g.party);
+    const top = Object.keys(net).filter(q => net[q] > 0.05).sort((a, b) => net[b] - net[a])[0];
+    const low = Object.keys(net).filter(q => net[q] < -0.05).sort((a, b) => net[a] - net[b])[0];
+    const nm = q => q === 'nw' ? 'Nichtwählern' : q === D.OTHER.id ? 'Kleinparteien' : short(q);
+    box.innerHTML = '<div class="mob-bars"><span class="mob-label">Saldo mit … (Prozentpunkte, bundesweit)</span>' + flowBarsHtml(net, g.party) + '</div>' +
+      '<p class="muted small">' + (top ? 'Am meisten holt ihr bei ' + nm(top) + ' (' + signed(net[top]) + ').' : 'Noch kaum Wählerwanderung.') +
+      (low ? ' Am meisten verliert ihr an ' + nm(low) + ' (' + signed(net[low]) + ').' : '') + '</p>';
   }
 
   // Wählergruppen: euer Umfragewert je Gruppe, Veränderung seit Start und die Lieblingsthemen.
