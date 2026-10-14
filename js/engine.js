@@ -1961,7 +1961,7 @@
           // Wer beim Thema kompetenter ist, gewinnt eher – und holt die Stimmen direkt beim Gegner.
           const foes = (D.RIVALS[p] || []).filter(o => o !== p);
           if (foes.length && rand(g) < 0.35) {
-            const o = foes.slice().sort((a, b) => competenceOf(g, a)[t] - competenceOf(g, b)[t])[0];
+            const o = pick(g, foes);
             const won = rand(g) < Math.max(0.2, Math.min(0.8, 0.5 + (comp[t] - competenceOf(g, o)[t]) / 100));
             const w = won ? p : o;
             const l = won ? o : p;
