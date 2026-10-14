@@ -685,7 +685,8 @@
       const fan = p === g.party && g.progGroups && d > 0 ? Math.max(0.7, Math.min(1.3, 1 + 0.08 * (g.progGroups[k.id] || 0))) : 1;
       const add = d * mix[k.id] * fan * (d > 0 ? groupSat(g, k.id, p, topic, stateId, channel) : 1);
       g.grp[k.id][p] += add;
-      if (add > 0 && p === g.party) addSat(g, k.id, topic, add, stateId, channel);
+      // Vor Ort zählt die Ansprache, nicht die (gedämpfte) Stimmenwirkung – daher hochgerechnet.
+      if (add > 0 && p === g.party) addSat(g, k.id, topic, stateId ? add / REGION_SCALE : add, stateId, channel);
       total += W[k.id] * add;
     });
     return total;
@@ -697,7 +698,7 @@
     const k = D.GROUPS.find(x => x.id === focus);
     const amount = 3 * d * (1 - k.weight);
     g.grp[focus][p] += amount;
-    addSat(g, focus, topic, amount, stateId, channel);
+    addSat(g, focus, topic, amount / REGION_SCALE, stateId, channel);
     return addGroups(g, p, 0.3 * d, channel, topic, stateId);
   }
 
@@ -886,6 +887,24 @@
     return Math.max(0.7, Math.min(1.5, 0.72 + 0.3 * interest + 0.2 * compMod(g, topic)));
   }
 
+  // Realistische Größenordnung vor Ort: Kleine Parteien gewinnen in absoluten Punkten weniger als
+  // große, und wer in einer Woche viel in einem Land macht, stößt an Grenzen (jede weitere Aktion
+  // dort wirkt schwächer). Ergebnis: ein konzentrierter Einsatz bringt in einer Woche etwa 1–3 Punkte.
+  const REGION_SCALE = 0.6;
+  const REGION_WEEK_SAT = 1.0;
+  function regionFactor(g, p, stateId) {
+    const share = stateShares(g, stateId)[p];
+    const size = Math.max(0.4, Math.min(1.15, 0.3 + 0.7 * Math.sqrt(share / 20)));
+    const used = (g.regWeek && g.regWeek[stateId] && g.regWeek[stateId][p]) || 0;
+    return REGION_SCALE * size / (1 + Math.max(0, used) / REGION_WEEK_SAT);
+  }
+
+  function noteRegion(g, p, stateId, d) {
+    if (!g.regWeek) g.regWeek = {};
+    if (!g.regWeek[stateId]) g.regWeek[stateId] = {};
+    g.regWeek[stateId][p] = (g.regWeek[stateId][p] || 0) + Math.max(0, d);
+  }
+
   // Themen-Aktionen wirken bundesweit, aber stärker in Ländern, in denen das Thema wichtiger ist.
   function spreadTopic(g, p, d, topic) {
     D.STATES.forEach(st => { g.reg[st.id][p] += 0.6 * d * (stateTopicFactor(st.id, topic) - 1); });
@@ -991,9 +1010,11 @@
     // Vor Ort: optional eine Zielgruppe, die gezielt angesprochen wird.
     const focus = action.scope === 'region' && target.group && D.GROUPS.some(k => k.id === target.group) ? target.group : null;
     if (focus && !(stateWeights(st.id)[focus] > 0)) return { ok: false, text: 'Diese Gruppe gibt es in ' + st.name + ' nicht.' };
+    // Vor Ort: Zielgruppe, Thema und Kanal (gedeckelt, damit sich Boni nicht ins Absurde stapeln),
+    // dazu Größe der Partei im Land und Sättigung des Landes in dieser Woche.
     const eff = action.scope === 'region'
-      ? (focus ? focusFactor(g, actionId, localTopic, st.id, focus) : groupEfficiency(g, p, actionId, localTopic, st.id) * channelFit(actionId, st.id)) *
-        localTopicFactor(g, st.id, localTopic) : 1;
+      ? Math.max(0.5, Math.min(1.4, (focus ? focusFactor(g, actionId, localTopic, st.id, focus) : groupEfficiency(g, p, actionId, localTopic, st.id) * channelFit(actionId, st.id)) *
+        localTopicFactor(g, st.id, localTopic))) * regionFactor(g, p, st.id) : 1;
     if (localTopic) changeSalience(g, localTopic, 0.005);
     const about = (localTopic ? ' zum Thema ' + topicById(localTopic).name : '') +
       (focus ? ' für ' + D.GROUPS.find(k => k.id === focus).name : '');
@@ -1003,6 +1024,7 @@
       case 'kundgebung': {
         const d = 1.7 * wear(g, 'kundgebung:' + st.id + ':' + (localTopic || '_')) * r * eff * between(g, 0.7, 1.3);
         g.reg[st.id][p] += d;
+        noteRegion(g, p, st.id, d);
         regionGroups(g, p, 0.08 * d, 'kundgebung', localTopic, st.id, focus);
         mobilize(g, p, 0.012 * d, st.id);
         text = pick(g, ['Volle Plätze', 'Begeisterte Menge', 'Solider Auftritt']) +
@@ -1012,6 +1034,7 @@
       case 'plakate': {
         const d = 1.3 * wear(g, 'plakate:' + st.id + ':' + (localTopic || '_')) * r * eff * between(g, 0.8, 1.2);
         g.reg[st.id][p] += d;
+        noteRegion(g, p, st.id, d);
         regionGroups(g, p, 0.05 * d, 'plakate', localTopic, st.id, focus);
         mobilize(g, p, 0.005 * d, st.id);
         text = 'Plakate' + about + ' hängen in ganz ' + st.name + ' (' + fmt(d) + ' Pkt. im Land).';
@@ -1020,6 +1043,7 @@
       case 'haustuer': {
         const d = (1.0 + 0.6 / Math.sqrt(st.voters)) * wear(g, 'haustuer:' + st.id + ':' + (localTopic || '_')) * r * eff * between(g, 0.7, 1.3);
         g.reg[st.id][p] += d;
+        noteRegion(g, p, st.id, d);
         regionGroups(g, p, 0.05 * d, 'haustuer', localTopic, st.id, focus);
         // Haustürwahlkampf ist das beste Mittel gegen Wahlmüdigkeit.
         mobilize(g, p, 0.025 * d, st.id);
@@ -1068,6 +1092,7 @@
       case 'betrieb': {
         const d = 1.1 * wear(g, 'betrieb:' + st.id + ':' + (localTopic || '_')) * r * eff * between(g, 0.8, 1.2);
         g.reg[st.id][p] += d;
+        noteRegion(g, p, st.id, d);
         regionGroups(g, p, 0.08 * d, 'betrieb', localTopic, st.id, focus);
         mobilize(g, p, 0.008 * d, st.id);
         text = 'Betriebsbesuch' + about + ' in ' + st.name + ': Gespräche am Band und in der Kantine (' + fmt(d) + ' Pkt. im Land).';
@@ -1079,6 +1104,7 @@
         if (rand(g) < Math.max(0.2, Math.min(0.9, 0.55 + 0.25 * cm + qc))) {
           const d = 1.9 * w * r * eff * between(g, 0.8, 1.2);
           g.reg[st.id][p] += d;
+        noteRegion(g, p, st.id, d);
           g.nat[p] += 0.15;
           regionGroups(g, p, 0.1 * d, 'buerger', localTopic, st.id, focus);
           text = 'Der Bürgerdialog' + about + ' in ' + st.name + ' überzeugt – ehrliche Antworten kommen an (' + fmt(d) + ' Pkt. im Land).';
@@ -1092,6 +1118,7 @@
       case 'infostand': {
         const d = 0.55 * wear(g, 'infostand:' + st.id + ':' + (localTopic || '_')) * r * eff * between(g, 0.8, 1.2);
         g.reg[st.id][p] += d;
+        noteRegion(g, p, st.id, d);
         regionGroups(g, p, 0.04 * d, 'infostand', localTopic, st.id, focus);
         mobilize(g, p, 0.03 * Math.min(1.5, eff), st.id);
         text = 'Infostände' + about + ' in den Fußgängerzonen von ' + st.name + ': Flyer, Kugelschreiber, viele Gespräche (' + fmt(d) + ' Pkt. im Land).';
@@ -1100,6 +1127,7 @@
       case 'regional': {
         const d = 0.9 * wear(g, 'regional:' + st.id + ':' + (localTopic || '_')) * r * eff * (localTopic ? 1 : 0.8) * between(g, 0.8, 1.2);
         g.reg[st.id][p] += d;
+        noteRegion(g, p, st.id, d);
         regionGroups(g, p, 0.05 * d, 'regional', localTopic, st.id, focus);
         text = 'Interview' + about + ' in Lokalzeitung und Landesradio von ' + st.name + ' (' + fmt(d) + ' Pkt. im Land).';
         break;
@@ -1805,6 +1833,7 @@
 
     g.week += 1;
     g.ap = g.apMax;
+    g.regWeek = {};
     g.teamMax = teamMaxFor(g.week);
     g.team = g.teamMax;
     addLog(g, 'week', 'Woche ' + g.week + ' beginnt. Noch ' + (g.maxWeeks - g.week + 1) + ' Wochen bis zur Wahl.');
@@ -2017,7 +2046,7 @@
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     publishedShares, publishedStateShares, groupShares, pollShares, pollStateShares, pollGroupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
-    POLL_RANGE, GROUP_IDS, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
+    POLL_RANGE, GROUP_IDS, regionFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent,
     startDuel, duelAnswer,
