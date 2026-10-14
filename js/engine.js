@@ -24,7 +24,7 @@
   const TEAM_PER_WEEK = 4;     // Einsätze des Wahlkampfteams pro Woche …
   const TEAM_LATE = 5;         // … ab Woche 5 (mehr Ehrenamtliche in der Schlussphase)
   const TEAM_LATE_WEEK = 5;
-  const TEAM_EFFECT = 0.35;    // Team-Einsätze wirken schwächer als Auftritte der Kandidatur
+  const TEAM_EFFECT = 0.4;    // Team-Einsätze wirken schwächer als Auftritte der Kandidatur
   // Auftritte der Spitzenkandidatur – alles andere erledigt das Team.
   const CANDIDATE_ACTIONS = ['kundgebung', 'buerger', 'betrieb', 'talkshow', 'presse', 'regional'];
   const isTeamAction = id => CANDIDATE_ACTIONS.indexOf(id) === -1;
@@ -898,9 +898,9 @@
   // Bundesweit dasselbe Prinzip: Kleine Parteien gewinnen mit einem TV-Spot weniger Punkte als große,
   // und jede weitere bundesweite Themen-Aktion in derselben Woche wirkt schwächer.
   // Größe der Partei: Wirkung wächst mit dem Stimmenanteil, aber abgeschwächt (Exponent < 1).
-  const SIZE_EXP = 0.6;
+  const SIZE_EXP = 0.45;
   const sizeFactor = share => Math.max(0.25, Math.min(1.2, 0.1 + 0.9 * Math.pow(Math.max(0, share) / 20, SIZE_EXP)));
-  const NAT_SCALE = 1.15;
+  const NAT_SCALE = 1.35;
   const NAT_WEEK_SAT = 0.8;
   function nationalFactor(g, p) {
     const share = nationalShares(g)[p];
@@ -917,7 +917,7 @@
   // Realistische Größenordnung vor Ort: Kleine Parteien gewinnen in absoluten Punkten weniger als
   // große, und wer in einer Woche viel in einem Land macht, stößt an Grenzen (jede weitere Aktion
   // dort wirkt schwächer). Ergebnis: ein konzentrierter Einsatz bringt in einer Woche etwa 1–3 Punkte.
-  const REGION_SCALE = 0.6;
+  const REGION_SCALE = 0.7;
   const REGION_WEEK_SAT = 1.0;
   function regionFactor(g, p, stateId) {
     const share = stateShares(g, stateId)[p];
@@ -1819,7 +1819,7 @@
         if (rand(g) < (close.length ? 0.45 : 0.25) && !nearHurdle) {
           // Regionaler Kampf um knappe Länder.
           const st = close.length ? pick(g, close) : pick(g, D.STATES);
-          const d = between(g, 0.5, 1.4);
+          const d = between(g, 0.5, 1.4) * sizeFactor(states[st.id][p]);
           g.reg[st.id][p] += d;
           mobilize(g, p, 0.012 * d, st.id);
           if (st.id in states && rand(g) < 0.35) {
@@ -1830,7 +1830,7 @@
           const best = TOPIC_IDS.slice().sort((a, b) => comp[b] - comp[a]).slice(0, 3);
           const t = pick(g, best);
           changeSalience(g, t, 0.01);
-          const d = between(g, 0.02, 0.22) + (nearHurdle ? 0.1 : 0);
+          const d = between(g, 0.02, 0.22) * sizeFactor(shares[p]);
           g.nat[p] += d;
           mobilize(g, p, 0.004);
           if (rand(g) < 0.3) {
