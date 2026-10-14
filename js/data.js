@@ -57,9 +57,12 @@
   // (RND-Umfrage unter den Parteien): CDU 28 (+ geschätzter CSU-Anteil), Grüne 19, SPD 15, BSW 6.
   // Linke aus der RND-Gesamtsumme abgeleitet (~7). AfD und FDP haben keine Zahlen genannt:
   // AfD nach Medienberichten etwa halb so viel wie die SPD (~8), FDP geschätzt aus ihren Spenden (~6).
+  // team = Einsätze des Wahlkampfteams pro Woche (ab Woche 5 einer mehr), nach Mitgliederzahl
+  // (members, Stand 31.12.2025, Oskar Niedermayer „Parteimitglieder in Deutschland“, FU Berlin;
+  // BSW nach Parteiangaben Dez. 2025, ca. 11.200).
   var PARTIES = [
     {
-      id: 'union', ballot: 'CDU/CSU', fullName: 'Christlich Demokratische Union / Christlich-Soziale Union', flyerLogo: 'CDU', short: 'Union', name: 'CDU/CSU',
+      id: 'union', team: 6, members: 482333, ballot: 'CDU/CSU', fullName: 'Christlich Demokratische Union / Christlich-Soziale Union', flyerLogo: 'CDU', short: 'Union', name: 'CDU/CSU',
       budget: 30, goal: 0, mustLead: true,
       goalText: 'Stärkste Kraft werden',
       desc: 'Die Volkspartei der Mitte. Stark bei Wirtschaft und Sicherheit, großes Budget.',
@@ -68,7 +71,7 @@
       lean: { wirtschaft: 1, migration: 1, soziales: 0, klima: 0, sicherheit: 1, bildung: 1, digitales: 0, wohnen: 1 , verteidigung: 1, gesundheit: 0, verkehr: 1, europa: 0, familie: 1, land: 1, demokratie: 0, finanzen: 1 }
     },
     {
-      id: 'afd', ballot: 'AfD', fullName: 'Alternative für Deutschland', flyerLogo: 'AfD', short: 'AfD', name: 'AfD',
+      id: 'afd', team: 4, members: 73249, ballot: 'AfD', fullName: 'Alternative für Deutschland', flyerLogo: 'AfD', short: 'AfD', name: 'AfD',
       budget: 8, goal: 0, goalMajority: true,
       goalText: 'Die absolute Mehrheit der Sitze im Bundestag erringen',
       desc: 'Rechtspopulistische Oppositionspartei, besonders stark im Osten. Kein anderer Partner will koalieren.',
@@ -77,7 +80,7 @@
       lean: { wirtschaft: 1, migration: 1, soziales: 0, klima: 1, sicherheit: 1, bildung: 1, digitales: 0, wohnen: 1 , verteidigung: -1, gesundheit: 0, verkehr: 1, europa: 1, familie: 1, land: 1, demokratie: 1, finanzen: 1 }
     },
     {
-      id: 'spd', ballot: 'SPD', fullName: 'Sozialdemokratische Partei Deutschlands', flyerLogo: 'SPD', short: 'SPD', name: 'SPD',
+      id: 'spd', team: 6, members: 348451, ballot: 'SPD', fullName: 'Sozialdemokratische Partei Deutschlands', flyerLogo: 'SPD', short: 'SPD', name: 'SPD',
       budget: 15, goal: 20,
       goalText: '20 % holen',
       desc: 'Die traditionsreiche Sozialdemokratie. Stark bei Sozialem und Rente.',
@@ -86,7 +89,7 @@
       lean: { wirtschaft: 0, migration: 0, soziales: -1, klima: 0, sicherheit: 0, bildung: -1, digitales: 0, wohnen: 0 , verteidigung: 0, gesundheit: -1, verkehr: 0, europa: 0, familie: -1, land: 0, demokratie: -1, finanzen: -1 }
     },
     {
-      id: 'gruene', ballot: 'GRÜNE', fullName: 'Bündnis 90/Die Grünen', flyerLogo: 'GRÜNE', short: 'Grüne', name: 'Bündnis 90/Die Grünen',
+      id: 'gruene', team: 5, members: 183761, ballot: 'GRÜNE', fullName: 'Bündnis 90/Die Grünen', flyerLogo: 'GRÜNE', short: 'Grüne', name: 'Bündnis 90/Die Grünen',
       budget: 19, goal: 20,
       goalText: '20 % holen',
       desc: 'Die Ökopartei mit Hochburgen in den Großstädten. Unschlagbar beim Klima.',
@@ -95,7 +98,7 @@
       lean: { wirtschaft: 0, migration: -1, soziales: -1, klima: -1, sicherheit: -1, bildung: -1, digitales: -1, wohnen: 0 , verteidigung: 0, gesundheit: -1, verkehr: -1, europa: -1, familie: -1, land: -1, demokratie: -1, finanzen: -1 }
     },
     {
-      id: 'linke', ballot: 'Die Linke', fullName: 'Die Linke', flyerLogo: 'Die Linke', short: 'Linke', name: 'Die Linke',
+      id: 'linke', team: 5, members: 123558, ballot: 'Die Linke', fullName: 'Die Linke', flyerLogo: 'Die Linke', short: 'Linke', name: 'Die Linke',
       budget: 7, goal: 0, goalCoalition: ['spd', 'gruene', 'linke'],
       goalText: 'Genug Stimmen für eine Regierungsmehrheit mit SPD und Grünen holen',
       desc: 'Linke Oppositionspartei mit junger Basis. Stark bei Mieten, Preisen und sozialer Gerechtigkeit.',
@@ -104,7 +107,7 @@
       lean: { wirtschaft: -1, migration: -1, soziales: -1, klima: -1, sicherheit: -1, bildung: -1, digitales: -1, wohnen: -1 , verteidigung: -1, gesundheit: -1, verkehr: -1, europa: 0, familie: -1, land: 0, demokratie: -1, finanzen: -1 }
     },
     {
-      id: 'bsw', ballot: 'BSW', fullName: 'Bündnis Soziale Gerechtigkeit und Wirtschaftliche Vernunft', flyerLogo: 'BSW', short: 'BSW', name: 'Bündnis Soziale Gerechtigkeit und Wirtschaftliche Vernunft',
+      id: 'bsw', team: 2, members: 11200, ballot: 'BSW', fullName: 'Bündnis Soziale Gerechtigkeit und Wirtschaftliche Vernunft', flyerLogo: 'BSW', short: 'BSW', name: 'Bündnis Soziale Gerechtigkeit und Wirtschaftliche Vernunft',
       budget: 6, goal: 5,
       goalText: 'Unter neuem Namen 5 % holen',
       desc: 'Neu benannte Partei, 2025 knapp an der Hürde gescheitert. Kleines Budget, viel zu gewinnen.',
@@ -113,7 +116,7 @@
       lean: { wirtschaft: -1, migration: 1, soziales: -1, klima: 1, sicherheit: 0, bildung: 0, digitales: 0, wohnen: 0 , verteidigung: -1, gesundheit: -1, verkehr: 0, europa: 1, familie: 0, land: 0, demokratie: 1, finanzen: -1 }
     },
     {
-      id: 'fdp', ballot: 'FDP', fullName: 'Freie Demokratische Partei', flyerLogo: 'FDP', short: 'FDP', name: 'FDP',
+      id: 'fdp', team: 4, members: 64781, ballot: 'FDP', fullName: 'Freie Demokratische Partei', flyerLogo: 'FDP', short: 'FDP', name: 'FDP',
       budget: 6, goal: 5,
       goalText: 'Wieder in den Bundestag einziehen (5 %)',
       desc: 'Die Liberalen kämpfen um den Wiedereinzug. Stark bei Wirtschaft und Digitalisierung.',

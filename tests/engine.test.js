@@ -564,14 +564,16 @@ test('Bürgerfragen: 20 je Thema, andere als in der Fachkonferenz; Antworten än
 test('Termine der Kandidatur und Team-Einsätze sind getrennte Kontingente', () => {
   const g = E.newGame('union', 'T', 4);
   assert.strictEqual(g.ap, 3);
-  assert.strictEqual(g.team, 4);
-  for (let i = 0; i < 4; i++) assert.ok(E.performAction(g, 'haustuer', { state: 'BY', topic: 'wirtschaft' }).ok);
+  const base = D.PARTIES.find(x => x.id === 'union').team;
+  assert.strictEqual(g.team, base);
+  assert.strictEqual(E.newGame('bsw', 'T', 4).team, D.PARTIES.find(x => x.id === 'bsw').team);
+  for (let i = 0; i < base; i++) assert.ok(E.performAction(g, 'haustuer', { state: 'BY', topic: 'wirtschaft' }).ok);
   assert.strictEqual(g.team, 0);
   assert.strictEqual(g.ap, 3);
   assert.strictEqual(E.performAction(g, 'infostand', { state: 'BY' }).ok, false);
   assert.ok(E.performAction(g, 'kundgebung', { state: 'BY' }).ok);
   assert.strictEqual(g.ap, 2);
   while (g.week < 5) { E.endWeek(g); if (g.pendingEvent) E.resolveEvent(g, 0); }
-  assert.strictEqual(g.teamMax, 5);
-  assert.strictEqual(g.team, 5);
+  assert.strictEqual(g.teamMax, base + 1);
+  assert.strictEqual(g.team, base + 1);
 });

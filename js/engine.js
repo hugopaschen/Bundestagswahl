@@ -28,7 +28,9 @@
   // Auftritte der Spitzenkandidatur – alles andere erledigt das Team.
   const CANDIDATE_ACTIONS = ['kundgebung', 'buerger', 'betrieb', 'talkshow', 'presse', 'regional'];
   const isTeamAction = id => CANDIDATE_ACTIONS.indexOf(id) === -1;
-  const teamMaxFor = week => (week >= TEAM_LATE_WEEK ? TEAM_LATE : TEAM_PER_WEEK);
+  // Teamgröße je Partei nach Mitgliederzahl (data.js: team), ab Woche 5 ein Einsatz mehr.
+  const teamBase = partyId => { const pp = D.PARTIES.find(x => x.id === partyId); return (pp && pp.team) || TEAM_PER_WEEK; };
+  const teamMaxFor = (week, partyId) => teamBase(partyId) + (week >= TEAM_LATE_WEEK ? TEAM_LATE - TEAM_PER_WEEK : 0);
   const DUEL_WEEK = 7;
   const ISSUE_K = 40;          // Stärke des Themen-Effekts
   const BONUS_DECAY = 0.88;    // Wahlkampf-Effekte verblassen pro Woche
@@ -359,8 +361,8 @@
       maxWeeks: MAX_WEEKS,
       ap: AP_PER_WEEK,
       apMax: AP_PER_WEEK,
-      team: TEAM_PER_WEEK,
-      teamMax: TEAM_PER_WEEK,
+      team: teamMaxFor(1, partyId),
+      teamMax: teamMaxFor(1, partyId),
       money: party(partyId).budget,
       salience: Object.assign({}, D.SALIENCE0),
       nat: {},
@@ -887,6 +889,22 @@
     return Math.max(0.7, Math.min(1.5, 0.72 + 0.3 * interest + 0.2 * compMod(g, topic)));
   }
 
+  // Bundesweit dasselbe Prinzip: Kleine Parteien gewinnen mit einem TV-Spot weniger Punkte als große,
+  // und jede weitere bundesweite Themen-Aktion in derselben Woche wirkt schwächer.
+  const NAT_SCALE = 1;
+  const NAT_WEEK_SAT = 0.8;
+  function nationalFactor(g, p) {
+    const share = nationalShares(g)[p];
+    const size = Math.max(0.4, Math.min(1.15, 0.3 + 0.7 * Math.sqrt(share / 20)));
+    const used = (g.natWeek && g.natWeek[p]) || 0;
+    return NAT_SCALE * size / (1 + Math.max(0, used) / NAT_WEEK_SAT);
+  }
+
+  function noteNational(g, p, d) {
+    if (!g.natWeek) g.natWeek = {};
+    g.natWeek[p] = (g.natWeek[p] || 0) + Math.max(0, d);
+  }
+
   // Realistische Größenordnung vor Ort: Kleine Parteien gewinnen in absoluten Punkten weniger als
   // große, und wer in einer Woche viel in einem Land macht, stößt an Grenzen (jede weitere Aktion
   // dort wirkt schwächer). Ergebnis: ein konzentrierter Einsatz bringt in einer Woche etwa 1–3 Punkte.
@@ -1004,7 +1022,8 @@
     const prep = target.prep === 'skip' ? null : Math.max(-3, Math.min(3, Number(target.prep) || 0));
     const qm = prep === null ? 0.9 : 1 + 0.15 * prep;
     const qc = prep === null ? -0.03 : 0.06 * prep; // Verschiebung von Erfolgschancen
-    const r = reach(g) * (action.scope === 'topic' && isCore(g, topic) ? 1.25 : 1) * (thief ? 0.7 : 1) * qm * (team ? TEAM_EFFECT : 1);
+    const natF = action.scope === 'topic' || action.scope === 'group' ? nationalFactor(g, p) : 1;
+    const r = reach(g) * (action.scope === 'topic' && isCore(g, topic) ? 1.25 : 1) * (thief ? 0.7 : 1) * qm * (team ? TEAM_EFFECT : 1) * natF;
     // Regionale Aktionen erreichen ihre Zielgruppen schlechter, wenn diese schon umworben sind.
     const localTopic = action.scope === 'region' && topicById(topic) ? topic : null;
     // Vor Ort: optional eine Zielgruppe, die gezielt angesprochen wird.
@@ -1054,6 +1073,7 @@
         const d = addGroups(g, p, Math.max(0.1, (0.5 + 0.8 * compMod(g, topic)) * wear(g, 'tvspot:' + topic) * r * between(g, 0.8, 1.2)), 'tvspot', topic);
         changeSalience(g, topic, 0.03);
         spreadTopic(g, p, d, topic);
+        noteNational(g, p, d);
         text = 'Euer TV-Spot zum Thema ' + topicById(topic).name + ' läuft zur besten Sendezeit (' + fmt(d) + ' bundesweit).';
         break;
       }
@@ -1066,6 +1086,7 @@
         } else {
           const d = addGroups(g, p, between(g, 0.3, 0.8) * wear(g, 'social:' + topic) * r, 'social', topic);
           spreadTopic(g, p, d, topic);
+          noteNational(g, p, d);
           mobilize(g, p, 0.008 * d);
           text = 'Euer Clip zum Thema ' + topicById(topic).name + ' geht viral (' + fmt(d) + ').';
         }
@@ -1073,7 +1094,9 @@
       }
       case 'presse': {
         changeSalience(g, topic, 0.045);
-        spreadTopic(g, p, addGroups(g, p, (0.15 * compMod(g, topic) + 0.1 * (qm - 1)) * (thief ? 0.7 : 1), 'presse', topic), topic);
+        const dp = addGroups(g, p, (0.15 * compMod(g, topic) + 0.1 * (qm - 1)) * (thief ? 0.7 : 1) * natF, 'presse', topic);
+        spreadTopic(g, p, dp, topic);
+        noteNational(g, p, dp);
         text = 'Pressekonferenz: ' + topicById(topic).name + ' bestimmt jetzt stärker die Debatte.';
         break;
       }
@@ -1082,6 +1105,7 @@
         if (rand(g) < 0.35 + 0.45 * comp / 100 + qc) {
           const d = addGroups(g, p, 0.7 * wear(g, 'talkshow') * r, 'talkshow', topic);
           spreadTopic(g, p, d, topic);
+          noteNational(g, p, d);
           text = 'Starker Talkshow-Auftritt zum Thema ' + topicById(topic).name + ' (' + fmt(d) + ').';
         } else {
           spreadTopic(g, p, addGroups(g, p, -0.5, 'talkshow', topic), topic);
@@ -1143,13 +1167,14 @@
         const k = grpT;
         const tp = topic && topicById(topic) ? topic : null;
         const fit = tp ? Math.max(0.7, Math.min(1.5, 1 + 0.3 * (topicPref(k, tp) - 1) + 0.3 * compMod(g, tp))) : 1;
-        const delta = 3.2 * qm * TEAM_EFFECT * (1 - k.weight) * wear(g, 'online:' + k.id) * reach(g) * groupSat(g, k.id, p, tp, null, 'online') * fit * between(g, 0.85, 1.15);
+        const delta = 3.2 * qm * TEAM_EFFECT * natF * (1 - k.weight) * wear(g, 'online:' + k.id) * reach(g) * groupSat(g, k.id, p, tp, null, 'online') * fit * between(g, 0.85, 1.15);
         if (rand(g) < Math.max(0.01, 0.07 - 0.3 * qc)) {
           g.nat[p] -= 0.3;
           text = 'Datenschutz-Debatte um eure Online-Anzeigen für ' + k.name + ' (−0.3).';
           break;
         }
         g.nat[p] += k.weight * delta;
+        noteNational(g, p, k.weight * delta);
         g.grp[k.id][p] += delta * (1 - k.weight);
         addSat(g, k.id, tp, delta * (1 - k.weight), null, 'online');
         if (tp) changeSalience(g, tp, 0.005);
@@ -1834,7 +1859,8 @@
     g.week += 1;
     g.ap = g.apMax;
     g.regWeek = {};
-    g.teamMax = teamMaxFor(g.week);
+    g.natWeek = {};
+    g.teamMax = teamMaxFor(g.week, g.party);
     g.team = g.teamMax;
     addLog(g, 'week', 'Woche ' + g.week + ' beginnt. Noch ' + (g.maxWeeks - g.week + 1) + ' Wochen bis zur Wahl.');
     const ev = dueFollowUp(g) || drawEvent(g);
@@ -2021,7 +2047,7 @@
     if (!g.grudge) g.grudge = {};
     if (!g.mob) { g.mob = {}; PARTY_IDS.forEach(p => { g.mob[p] = 0; }); }
     if (!g.mobReg) { g.mobReg = {}; D.STATES.forEach(st => { g.mobReg[st.id] = {}; PARTY_IDS.forEach(p => { g.mobReg[st.id][p] = 0; }); }); }
-    if (g.team === undefined) { g.teamMax = teamMaxFor(g.week); g.team = g.teamMax; }
+    if (g.team === undefined) { g.teamMax = teamMaxFor(g.week, g.party); g.team = g.teamMax; }
     if (g.spendCount === undefined) { g.spendCount = 0; g.spendWeek = 0; }
     if (!g.progGroups && g.program) g.progGroups = programGroupEffects(g.party, g.program);
     if (!g.progState && g.program) g.progState = programTopicStates(programEffects(g.party, g.program));
@@ -2046,7 +2072,7 @@
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     publishedShares, publishedStateShares, groupShares, pollShares, pollStateShares, pollGroupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
-    POLL_RANGE, GROUP_IDS, regionFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
+    POLL_RANGE, GROUP_IDS, regionFactor, nationalFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent,
     startDuel, duelAnswer,

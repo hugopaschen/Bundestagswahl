@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261014-213149';
+  const APP_VERSION = '20261014-214227';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -1777,12 +1777,14 @@
       '<div class="ko-stat"><span class="ko-label">📊 Erste Umfrage</span><span class="ko-big">' + pct(shares[game.party]) + '<small> ± ' + E.POLL_RANGE + '</small></span></div>' +
       '<div class="ko-stat"><span class="ko-label">🏁 Euer Wahlziel</span><span class="ko-goal">' + esc(p.goalText) + '</span></div>' +
       '<div class="ko-stat"><span class="ko-label">💶 Wahlkampfkasse</span><span class="ko-big">' + money(game.money) + '</span></div>' +
+      '<div class="ko-stat"><span class="ko-label">👥 Wahlkampfteam</span><span class="ko-big">' + game.teamMax + '<small> Einsätze/Woche</small></span>' +
+        '<span class="ko-goal">' + (p.members ? p.members.toLocaleString('de-DE') + ' Mitglieder' : '') + '</span></div>' +
       '<div class="ko-stat ko-core"><span class="ko-label">🎯 Eure Kernthemen</span><span class="ko-topics">' +
         core.map(t => '<span>' + t.icon + ' ' + esc(t.name) + '</span>').join('') + '</span></div>';
     $('ko-steps').innerHTML = [
       ['🗺️', 'Vor Ort kämpfen', 'Auf der Seite „Deutschland“ sucht ihr euch Bundesländer aus und geht mit Kundgebungen, Plakaten und Haustürwahlkampf auf Stimmenfang.'],
       ['📣', 'Themen setzen', 'Unter „Aktionen“ wählt ihr ein Thema und macht es mit TV-Spots, Social Media, Pressekonferenzen und Talkshows groß – am besten eure Kernthemen.'],
-      ['📅', 'Woche für Woche', 'Jede Woche hat eure Spitzenkandidatur ' + game.apMax + ' Termine (Kundgebung, Bürgerdialog, Betriebsbesuch, Talkshow, Presse, Interview), euer Team ' + E.TEAM_PER_WEEK + ' Einsätze (ab Woche ' + E.TEAM_LATE_WEEK + ': ' + E.TEAM_LATE + ') für Haustür, Infostand, Plakate, Social Media und mehr. Danach gibt es eine neue Umfrage – und manchmal eine Eilmeldung, auf die ihr reagieren müsst.'],
+      ['📅', 'Woche für Woche', 'Jede Woche hat eure Spitzenkandidatur ' + game.apMax + ' Termine (Kundgebung, Bürgerdialog, Betriebsbesuch, Talkshow, Presse, Interview), euer Team ' + game.teamMax + ' Einsätze (ab Woche ' + E.TEAM_LATE_WEEK + ': ' + (game.teamMax + E.TEAM_LATE - E.TEAM_PER_WEEK) + ') für Haustür, Infostand, Plakate, Social Media und mehr. Danach gibt es eine neue Umfrage – und manchmal eine Eilmeldung, auf die ihr reagieren müsst.'],
       ['📺', 'TV-Duell in Woche ' + E.DUEL_WEEK, 'Kurz vor der Wahl kommt die Elefantenrunde. Wer bei den wichtigsten Themen sattelfest ist, punktet.'],
       ['🥊', 'Die Konkurrenz schläft nicht', 'Die anderen Parteien setzen ihre Themen, kämpfen um knappe Länder – und schlagen zurück, wenn ihr zu stark werdet oder ihnen eure Kernthemen streitig machen wollt.'],
       ['👥', 'Wählergruppen und Abnutzung', 'Jung, mittel und alt, niedrige bis hohe Bildung, Stadt und Land, Männer und Frauen wollen unterschiedlich angesprochen werden. Wer immer dasselbe macht, verliert Wirkung – Geld ist knapp, TV-Zeit wird teurer.'],
