@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261014-193246';
+  const APP_VERSION = '20261014-193552';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -220,6 +220,12 @@
 
   document.querySelectorAll('#game-nav .game-tab').forEach(b => b.addEventListener('click', () => showGameTab(b.dataset.tab)));
   $('btn-group-back').addEventListener('click', () => showGameTab('polls'));
+  // Wählergruppen im Land ein- und ausklappbar; der Zustand wird gemerkt.
+  (function () {
+    const d = $('sg-block');
+    try { d.open = localStorage.getItem('btw-sg-open') === '1'; } catch (e) { /* optional */ }
+    d.addEventListener('toggle', () => { try { localStorage.setItem('btw-sg-open', d.open ? '1' : '0'); } catch (e) { /* optional */ } });
+  })();
 
   // Echte Umrisse der Bundesländer (js/germany.js). Kleine Länder bekommen ein Etikett mit Hinweislinie.
   const GEO = (typeof window !== 'undefined' && window.BTW_MAP) || null;

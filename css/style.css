@@ -1752,3 +1752,11 @@ h2 .flyer-hint { margin: 0; }
 .lt-val { font-size: .8rem; font-weight: 700; color: var(--text-2); }
 .lt-val.pos { color: #1e8449; } .lt-val.neg { color: #c0392b; }
 .lt-tags { font-size: .72rem; font-weight: 700; color: var(--accent); }
+
+/* Wählergruppen im Land: ein- und ausklappbar */
+#sg-block > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; padding: 10px 14px; margin: 0 -14px; border-radius: 10px; }
+#sg-block > summary::-webkit-details-marker { display: none; }
+#sg-block > summary:hover { background: var(--surface-2); }
+#sg-block > summary h3 { margin: 0; }
+.sg-toggle::after { content: 'Ausklappen ▾'; font-size: .85rem; font-weight: 700; color: var(--accent); white-space: nowrap; }
+#sg-block[open] .sg-toggle::after { content: 'Einklappen ▴'; }
