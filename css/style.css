@@ -1731,3 +1731,24 @@ h2 .flyer-hint { margin: 0; }
 .tg-sat { font-size: .68rem; font-weight: 700; color: #b9770e; }
 .tg-go { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-top: 14px; }
 @media (max-width: 640px) { .tg-dim { grid-template-columns: 1fr; } .tg-dim-name { padding-top: 0; } }
+
+/* Vor Ort als Schritte */
+.local-steps { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 12px 0 4px; }
+.ls-step { font: inherit; font-size: .88rem; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 99px; border: 1px solid var(--border); background: var(--surface-2); color: var(--muted); }
+.ls-step b { display: inline-grid; place-items: center; width: 1.5em; height: 1.5em; border-radius: 50%; background: var(--border); color: var(--text); font-size: .8em; }
+.ls-step.current { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 800; }
+.ls-step.current b { background: var(--accent-ink); color: var(--accent); }
+.ls-step.done { cursor: pointer; color: var(--text); }
+.ls-step.done:hover { border-color: var(--accent); }
+.ls-step.done b { background: var(--accent); color: var(--accent-ink); }
+.ls-step em { font-style: normal; font-weight: 700; }
+.ls-step:disabled { cursor: default; }
+.ls-sep { color: var(--muted); }
+.ls-title, .local-topic-step h4 { grid-column: 1 / -1; margin: 6px 0 0; font-size: 1.05rem; }
+.lt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-top: 10px; }
+.lt-card { font: inherit; cursor: pointer; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); text-align: left; }
+.lt-card:hover, .lt-card.on { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+.lt-name { font-weight: 800; }
+.lt-val { font-size: .8rem; font-weight: 700; color: var(--text-2); }
+.lt-val.pos { color: #1e8449; } .lt-val.neg { color: #c0392b; }
+.lt-tags { font-size: .72rem; font-weight: 700; color: var(--accent); }

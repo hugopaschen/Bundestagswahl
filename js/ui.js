@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261014-192404';
+  const APP_VERSION = '20261014-193246';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -57,6 +57,7 @@
   let localTopic = ''; // Thema für Vor-Ort-Aktionen (leer = ohne Thema)
   let selGroup = 'jung'; // Zielgruppe für Online-Werbung
   let pendingLocal = null; // ausgewählte Vor-Ort-Aktion (wird nach Wahl der Zielgruppe durchgeführt)
+  let localStep = 1;       // aktueller Schritt vor Ort: 1 Thema, 2 Aktion, 3 Zielgruppe
   let localGroup = '';     // Zielgruppe der Vor-Ort-Aktion ('' = alle)
   let selRival = null;   // Ziel eines Gegenangriffs
 
@@ -465,9 +466,10 @@
       if (pendingLocal === a.id) b.classList.add('selected');
       b.setAttribute('aria-pressed', String(pendingLocal === a.id));
       b.addEventListener('click', () => {
-        pendingLocal = pendingLocal === a.id ? null : a.id;
+        pendingLocal = a.id;
+        localStep = 3;
         renderGame();
-        if (pendingLocal) { const t = $('local-target'); if (t) t.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+        const t = $('local-steps'); if (t) t.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       });
       return b;
     }
@@ -486,7 +488,7 @@
     const box = $('local-target');
     if (!box) return;
     const a = pendingLocal && E.ACTIONS.find(x => x.id === pendingLocal);
-    if (!a) { box.hidden = true; box.innerHTML = ''; return; }
+    if (!a || localStep !== 3) { box.hidden = true; box.innerHTML = ''; return; }
     const st = E.stateById(selState);
     const w = E.stateWeights(st.id);
     const tf = E.localTopicFactor(g, st.id, localTopic || null);
@@ -509,16 +511,16 @@
     const who = localGroup ? D.GROUPS.find(k => k.id === localGroup).name : 'alle Gruppen';
     html += '<div class="tg-go"><button type="button" class="btn primary" id="btn-local-go"' + (ok ? '' : ' disabled') + '>▶ ' + esc(a.name) +
       (localTopic ? ' zu ' + esc(E.topicById(localTopic).name) : '') + ' für ' + esc(who) + ' in ' + esc(st.name) + ' (' + (cost ? money(cost) : 'kostenlos') + ')</button>' +
-      '<button type="button" class="link-btn" id="btn-local-cancel">Abbrechen</button></div>';
+      '<button type="button" class="link-btn" id="btn-local-cancel">← Andere Aktion</button></div>';
     box.innerHTML = html;
     box.hidden = false;
     box.querySelectorAll('.tg-chip').forEach(c => c.addEventListener('click', () => { localGroup = c.dataset.g; renderGame(); }));
-    $('btn-local-cancel').addEventListener('click', () => { pendingLocal = null; renderGame(); });
+    $('btn-local-cancel').addEventListener('click', () => { pendingLocal = null; localStep = 2; renderGame(); });
     $('btn-local-go').addEventListener('click', () => {
       const res = E.performAction(g, a.id, actionTarget(a));
       $('local-feedback').textContent = res.text;
       toast(res.text);
-      if (res.ok) pendingLocal = null;
+      if (res.ok) { pendingLocal = null; localStep = 1; }
       save();
       renderGame();
     });
@@ -596,26 +598,52 @@
   }
 
   // Themenwahl für Vor-Ort-Aktionen, sortiert nach Wirkung im gewählten Land.
+  // Wahlkampf vor Ort als Schritte: 1 Thema → 2 Aktion → 3 Zielgruppe. Sichtbar ist nur der aktuelle Schritt.
   function renderLocalTopic() {
-    const sel = $('local-topic');
-    if (!sel) return;
+    const box = $('local-topic-step');
+    if (!box) return;
     const st = E.stateById(selState);
-    const ranked = D.TOPICS.map(t => ({ t, f: E.localTopicFactor(g, st.id, t.id) })).sort((a, b) => b.f - a.f);
-    sel.innerHTML = '<option value="">Ohne Thema (±0 %)</option>' + ranked.map(x => {
-      const d = Math.round((x.f - 1) * 100);
-      return '<option value="' + x.t.id + '"' + (x.t.id === localTopic ? ' selected' : '') + '>' + x.t.icon + ' ' + esc(x.t.name) +
-        (E.isCore(g, x.t.id) ? ' 🎯' : '') + ' (' + (d >= 0 ? '+' : '−') + Math.abs(d) + ' %)</option>';
-    }).join('');
-    if (!sel.dataset.bound) {
-      sel.addEventListener('change', () => { localTopic = sel.value; renderGame(); });
-      sel.dataset.bound = '1';
-    }
+    const top = E.stateTopTopics(st.id, 3);
     $('state-top-topics').innerHTML = 'Was die Menschen in ' + esc(st.name) + ' bewegt: ' +
-      E.stateTopTopics(st.id, 3).map(id => {
+      top.map(id => {
         const t = E.topicById(id);
         const core = E.isCore(g, id);
         return '<span class="stt' + (core ? ' core' : '') + '"' + (core ? ' title="Euer Kernthema"' : '') + '>' + t.icon + ' ' + esc(t.name) + (core ? ' 🎯' : '') + '</span>';
       }).join('');
+
+    // Schrittleiste: erledigte Schritte sind anklickbar, um zurückzugehen.
+    const act = pendingLocal && E.ACTIONS.find(x => x.id === pendingLocal);
+    const topicName = localTopic ? E.topicById(localTopic).name : 'ohne Thema';
+    const stepBtn = (n, label, value) => '<button type="button" class="ls-step' + (localStep === n ? ' current' : '') + (localStep > n ? ' done' : '') + '" data-step="' + n + '"' +
+      (localStep > n ? '' : ' disabled') + '><b>' + n + '</b> ' + label + (localStep > n && value ? ': <em>' + esc(value) + '</em>' : '') + '</button>';
+    $('local-steps').innerHTML = stepBtn(1, 'Thema', topicName) + '<span class="ls-sep">›</span>' +
+      stepBtn(2, 'Aktion', act ? act.name : '') + '<span class="ls-sep">›</span>' + stepBtn(3, 'Zielgruppe', '');
+    $('local-steps').querySelectorAll('.ls-step.done').forEach(bt => bt.addEventListener('click', () => {
+      localStep = Number(bt.dataset.step);
+      if (localStep < 3) pendingLocal = localStep === 2 ? pendingLocal : null;
+      renderGame();
+    }));
+
+    box.hidden = localStep !== 1;
+    if (localStep !== 1) return;
+    const ranked = D.TOPICS.map(t => ({ t, f: E.localTopicFactor(g, st.id, t.id) })).sort((a, b) => b.f - a.f);
+    const card = (id, icon, name, f, tags) => {
+      const d = Math.round((f - 1) * 100);
+      return '<button type="button" class="lt-card' + ((localTopic || '') === id ? ' on' : '') + '" data-t="' + id + '">' +
+        '<span class="lt-name">' + icon + ' ' + esc(name) + '</span>' +
+        '<span class="lt-val ' + (d >= 4 ? 'pos' : d <= -4 ? 'neg' : '') + '">' + (d >= 0 ? '+' : '−') + Math.abs(d) + ' % Wirkung</span>' +
+        (tags ? '<span class="lt-tags">' + tags + '</span>' : '') + '</button>';
+    };
+    box.innerHTML = '<h4>1 · Mit welchem Thema geht ihr in ' + esc(st.name) + ' auf die Menschen zu?</h4>' +
+      '<p class="muted small">Sortiert nach Wirkung im Land: Landesthemen, Interessen der Gruppen hier und eure Kompetenz.</p>' +
+      '<div class="lt-grid">' + ranked.map(x => card(x.t.id, x.t.icon, x.t.name, x.f,
+        (E.isCore(g, x.t.id) ? '🎯 Kernthema ' : '') + (top.indexOf(x.t.id) !== -1 ? '📍 Landesthema' : ''))).join('') +
+      card('', '⚪', 'Ohne Thema', 1, '') + '</div>';
+    box.querySelectorAll('.lt-card').forEach(c => c.addEventListener('click', () => {
+      localTopic = c.dataset.t;
+      localStep = 2;
+      renderGame();
+    }));
   }
 
   const LOCAL_GROUPS = [
@@ -645,6 +673,13 @@
       sec.appendChild(listEl);
       local.appendChild(sec);
     });
+    local.hidden = localStep !== 2;
+    if (localStep === 2) {
+      const intro = document.createElement('h4');
+      intro.className = 'ls-title';
+      intro.textContent = '2 · Welche Aktion' + (localTopic ? ' zum Thema ' + E.topicById(localTopic).name : '') + '?';
+      local.prepend(intro);
+    }
     renderLocalTarget();
     const nat = $('national-actions');
     if (nat) {

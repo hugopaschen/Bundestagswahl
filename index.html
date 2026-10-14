@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de" data-version="20261014-192404">
+<html lang="de" data-version="20261014-193246">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Montserrat:wght@700;800;900&family=Oswald:wght@600;700&family=Public+Sans:wght@500;700;800;900&family=Inter:wght@800&family=Open+Sans:wght@400;700;800&family=Caveat:wght@600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,700;1,400&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20261014-192404">
+  <link rel="stylesheet" href="css/style.css?v=20261014-193246">
 </head>
 <body>
   <!-- Startseite: Eröffnungsbild, ein eigener Bildschirm -->
@@ -262,15 +262,12 @@
         </div>
         <div class="local-block">
           <div class="local-head">
-            <div>
-              <h3 class="act-title">📍 Wahlkampf vor Ort in <span id="local-state"></span></h3>
-              <p id="state-top-topics" class="state-top-topics"></p>
-            </div>
-            <label class="local-topic-row"><span>1 · Thema der Aktion</span>
-              <select id="local-topic"></select></label>
+            <h3 class="act-title">📍 Wahlkampf vor Ort in <span id="local-state"></span></h3>
+            <p id="state-top-topics" class="state-top-topics"></p>
           </div>
+          <nav id="local-steps" class="local-steps" aria-label="Schritte"></nav>
           <p id="local-feedback" class="feedback" role="status" aria-live="polite"></p>
-          <p class="local-steps muted small"><b>1</b> Thema wählen · <b>2</b> Aktion wählen · <b>3</b> Zielgruppe wählen und durchführen</p>
+          <div id="local-topic-step" class="local-topic-step"></div>
           <div id="local-actions" class="local-groups"></div>
           <div id="local-target" class="local-target" hidden></div>
         </div>
@@ -397,10 +394,10 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="js/data.js?v=20261014-192404"></script>
-  <script src="js/germany.js?v=20261014-192404"></script>
-  <script src="js/questions.js?v=20261014-192404"></script>
-  <script src="js/engine.js?v=20261014-192404"></script>
-  <script src="js/ui.js?v=20261014-192404"></script>
+  <script src="js/data.js?v=20261014-193246"></script>
+  <script src="js/germany.js?v=20261014-193246"></script>
+  <script src="js/questions.js?v=20261014-193246"></script>
+  <script src="js/engine.js?v=20261014-193246"></script>
+  <script src="js/ui.js?v=20261014-193246"></script>
 </body>
 </html>
