@@ -533,3 +533,30 @@ test('Szenarien: 10 je Aktion, 3 werden gestellt; gute Vorbereitung macht Aktion
   const run = prep => { const h = E.newGame('spd', 'T', 3); E.performAction(h, 'kundgebung', { state: 'NW', prep }); return h.reg.NW.spd; };
   assert.ok(run(3) > run(0) && run(0) > run(-3) && run('skip') < run(0));
 });
+
+test('Bürgerfragen: 20 je Thema, andere als in der Fachkonferenz; Antworten ändern die Kompetenz', () => {
+  const CQ = require('../js/citizenq.js');
+  const QS = require('../js/questions.js');
+  for (const t of D.TOPICS) {
+    assert.strictEqual((CQ[t.id] || []).length, 20, t.id);
+    const fk = new Set((QS[t.id] || []).map(q => q.q));
+    for (const q of CQ[t.id]) {
+      assert.strictEqual(q.a.length, 4);
+      assert.ok(q.c >= 0 && q.c <= 3 && q.e);
+      assert.ok(!fk.has(q.q));
+    }
+  }
+  const g = E.newGame('gruene', 'T', 2);
+  const before = g.competence.wohnen;
+  const r = E.performAction(g, 'infostand', { state: 'BE', topic: 'wohnen', prep: 2, cq: { right: 2, wrong: 0 } });
+  assert.ok(r.ok && /Kompetenz/.test(r.text));
+  assert.strictEqual(g.competence.wohnen, before + 2 * E.CQ_COMP);
+  // gedeckelt: höchstens ±12 über den Wahlkampf
+  for (let i = 0; i < 10; i++) E.citizenCompetence(g, 'wohnen', 2, 0);
+  assert.strictEqual(g.competence.wohnen, before + 12);
+  // ohne Thema keine Bürgerfragen-Wirkung auf die Kompetenz
+  const k = Object.assign({}, g.competence);
+  g.ap = 3;
+  E.performAction(g, 'infostand', { state: 'BE', cq: { right: 2, wrong: 0 } });
+  assert.deepStrictEqual(g.competence, k);
+});
