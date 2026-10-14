@@ -462,6 +462,35 @@
   // Mobilisierungspotenzial im Nichtwählerlager: Gewinne aus dem Nichtwählerlager 2025 (Infratest dimap,
   // Wählerwanderung) im Verhältnis zur Stimmenzahl der Partei, auf 0,6–1,5 skaliert. AfD: 1,81 Mio.,
   // BSW: 0,40 Mio., Union: 0,90 Mio., Linke: 0,29 Mio., SPD: 0,25 Mio., Grüne: 0,11 Mio., FDP: ~0.
+  // Wählerwanderung Bundestagswahl 2025 gegenüber 2021: Netto-Salden in Tsd. Wählern laut infratest dimap
+  // (ARD), aktualisierte Fassung. Zitiert nach LpB Baden-Württemberg („Wer wählt wen?“), KAS-Wahlanalyse
+  // vom 23.02.2025, FES-Analyse der BTW 2025 und Statista; Original: tagesschau.de/wahl/archiv/
+  // 2025-02-23-BT-DE/analyse-wanderung.shtml. Linke ↔ AfD ist nicht beziffert (laut KAS „kaum“), hier
+  // geschätzt aus der Bilanz. Nicht ausgewiesene Paare (z. B. Union ↔ Sonstige) zählen als 0.
+  // Im Spiel dient die Größe des Austauschs als Nähe: Wer zulegt, holt die Stimmen anteilig von den
+  // Parteien, mit denen er 2025 am meisten Wähler getauscht hat (nw = Nichtwähler).
+  var FLOW_PAIRS = [
+    ['spd', 'union', 1760], ['fdp', 'union', 1350], ['nw', 'union', 900], ['gruene', 'union', 460],
+    ['union', 'afd', 1010], ['union', 'bsw', 220], ['union', 'linke', 70],
+    ['nw', 'afd', 1810], ['fdp', 'afd', 890], ['sonstige', 'afd', 790], ['spd', 'afd', 720], ['gruene', 'afd', 100],
+    ['linke', 'afd', 100], ['afd', 'bsw', 60],
+    ['spd', 'linke', 560], ['spd', 'bsw', 440], ['spd', 'gruene', 100], ['nw', 'spd', 250], ['fdp', 'spd', 120], ['sonstige', 'spd', 60],
+    ['gruene', 'linke', 700], ['gruene', 'bsw', 150], ['fdp', 'gruene', 140], ['nw', 'gruene', 110],
+    ['sonstige', 'linke', 310], ['nw', 'linke', 290], ['fdp', 'linke', 100], ['linke', 'bsw', 350],
+    ['sonstige', 'bsw', 500], ['nw', 'bsw', 400], ['fdp', 'bsw', 260],
+    ['fdp', 'nw', 40]
+  ];
+  // Zweitstimmenergebnis 2025 (Bundeswahlleiterin, amtlich): Bezugsgröße für die Wanderungsdaten.
+  var RESULT_2025 = { union: 28.5, afd: 20.8, spd: 16.4, gruene: 11.6, linke: 8.8, bsw: 4.98, fdp: 4.3, sonstige: 4.6 };
+  var FLOWS = {};
+  FLOW_PAIRS.forEach(function (f) {
+    [[f[0], f[1]], [f[1], f[0]]].forEach(function (ab) {
+      if (ab[0] === 'nw' || ab[0] === 'sonstige') return;
+      FLOWS[ab[0]] = FLOWS[ab[0]] || {};
+      FLOWS[ab[0]][ab[1]] = (FLOWS[ab[0]][ab[1]] || 0) + f[2];
+    });
+  });
+
   // Konfrontationslinien im Wahlkampf 2025 (Hauptgegner, gegen die eine Partei sich profiliert):
   // Union ↔ AfD (Migration, „Brandmauer“), Union ↔ SPD (Kanzlerduell Merz–Scholz), Union ↔ Grüne,
   // Grüne ↔ AfD, SPD/Grüne ↔ FDP (Ampel-Bruch), Linke ↔ Union/AfD, BSW ↔ Grüne (Ukraine-Politik) und ↔ Linke.
@@ -524,6 +553,9 @@
     POSTAL: POSTAL,
     NONVOTER_POTENTIAL: NONVOTER_POTENTIAL,
     RIVALS: RIVALS,
+    FLOWS: FLOWS,
+    FLOW_PAIRS: FLOW_PAIRS,
+    RESULT_2025: RESULT_2025,
     STATE_TOPIC_SOURCES: STATE_TOPIC_SOURCES,
     CHANNELS: CHANNELS
   };

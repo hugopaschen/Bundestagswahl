@@ -452,10 +452,18 @@
   [['w:', D.FLOWS], ['e:', D.FLOWS_EAST]].forEach(([pre, rows]) => {
     if (!rows) return;
     PARTY_IDS.forEach(p => {
-      const r = rows[p] || {};
-      const sum = Object.keys(r).filter(q => q !== p).reduce((s, q) => s + r[q], 0) || 1;
+      // Austausch 2025, gewichtet mit der heutigen Größe des Wählerpools im Verhältnis zu 2025:
+      // Ist eine Partei heute kleiner als 2025, gibt es bei ihr auch weniger zu holen.
+      const r = {};
+      Object.keys(rows[p] || {}).forEach(q => {
+        if (q === p) return;
+        const now = q === D.OTHER.id ? 100 - PARTY_IDS.reduce((s, x) => s + BASE_SHARE[x], 0) : BASE_SHARE[q];
+        const then = D.RESULT_2025 && D.RESULT_2025[q];
+        r[q] = rows[p][q] * (then && now ? now / then : 1);
+      });
+      const sum = Object.keys(r).reduce((s, q) => s + r[q], 0) || 1;
       const out = {};
-      Object.keys(r).forEach(q => { if (q !== p) out[q] = r[q] / sum; });
+      Object.keys(r).forEach(q => { out[q] = r[q] / sum; });
       FLOW_ROWS[pre + p] = out;
     });
   });
@@ -555,7 +563,7 @@
       g.src[p][q] = (g.src[p][q] || 0) + steer * w[q] / W;
       if (!best || w[q] > w[best]) best = q;
     });
-    return best && w[best] / W >= 0.35 ? best : null;
+    return best && W >= 5 && w[best] / W >= 0.35 ? best : null;
   }
 
   // ---------- Mobilisierung und Wahlbeteiligung ----------
@@ -1952,12 +1960,12 @@
           // Konfrontationslinie: Oft wird das Thema zum Schlagabtausch mit einem Rivalen.
           // Wer beim Thema kompetenter ist, gewinnt eher – und holt die Stimmen direkt beim Gegner.
           const foes = (D.RIVALS[p] || []).filter(o => o !== p);
-          if (foes.length && rand(g) < 0.5) {
+          if (foes.length && rand(g) < 0.35) {
             const o = foes.slice().sort((a, b) => competenceOf(g, a)[t] - competenceOf(g, b)[t])[0];
             const won = rand(g) < Math.max(0.2, Math.min(0.8, 0.5 + (comp[t] - competenceOf(g, o)[t]) / 100));
             const w = won ? p : o;
             const l = won ? o : p;
-            const dd = between(g, 0.15, 0.35) * sizeFactor(shares[w]);
+            const dd = between(g, 0.1, 0.25) * sizeFactor(shares[w]);
             g.nat[w] += dd;
             if (!g.src) g.src = {};
             if (!g.src[w]) g.src[w] = {};
