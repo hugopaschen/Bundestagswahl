@@ -328,7 +328,9 @@
       quiz: Object.assign({}, prog.quiz || {}) };
     g.gaffe = gaffeTopic(prog);
     g.competence = fx.competence;
-    g.prog = { nat: fx.nat, east: fx.east };
+    // Auch das Programm bewegt bei kleinen Parteien weniger Punkte als bei großen.
+    const pf = Math.min(1, sizeFactor(BASE_SHARE[g.party] || 10));
+    g.prog = { nat: fx.nat * pf, east: fx.east * pf };
     g.progGroups = fx.groups;
     g.progState = programTopicStates(fx);
     g.finance = fx.finance;
@@ -432,7 +434,8 @@
     TOPIC_IDS.forEach(t => {
       e += (g.salience[t] - D.SALIENCE0[t]) * (comp[t] - MEAN_COMPETENCE[t]) / 100 * (stateId ? stateTopicFactor(stateId, t) : 1);
     });
-    return ISSUE_K * e;
+    // Themenkompetenz bringt kleinen Parteien in absoluten Punkten weniger als großen.
+    return ISSUE_K * e * Math.min(1, sizeFactor(BASE_SHARE[p] || 10));
   }
 
   function stateShares(g, stateId) {
@@ -766,6 +769,9 @@
   }
 
   function changeSalience(g, topic, delta) {
+    // Ein Thema lässt sich nicht beliebig aufblasen: Je weiter es schon über seinem üblichen
+    // Gewicht liegt, desto weniger bewegt ein weiterer Anstoß.
+    if (delta > 0) delta /= 1 + 1.5 * Math.max(0, g.salience[topic] / D.SALIENCE0[topic] - 1);
     g.salience[topic] = Math.max(0.03, g.salience[topic] + delta);
     const sum = TOPIC_IDS.reduce((s, t) => s + g.salience[t], 0);
     TOPIC_IDS.forEach(t => { g.salience[t] /= sum; });
@@ -891,11 +897,14 @@
 
   // Bundesweit dasselbe Prinzip: Kleine Parteien gewinnen mit einem TV-Spot weniger Punkte als große,
   // und jede weitere bundesweite Themen-Aktion in derselben Woche wirkt schwächer.
-  const NAT_SCALE = 1;
+  // Größe der Partei: Wirkung wächst mit dem Stimmenanteil, aber abgeschwächt (Exponent < 1).
+  const SIZE_EXP = 0.6;
+  const sizeFactor = share => Math.max(0.25, Math.min(1.2, 0.1 + 0.9 * Math.pow(Math.max(0, share) / 20, SIZE_EXP)));
+  const NAT_SCALE = 1.15;
   const NAT_WEEK_SAT = 0.8;
   function nationalFactor(g, p) {
     const share = nationalShares(g)[p];
-    const size = Math.max(0.4, Math.min(1.15, 0.3 + 0.7 * Math.sqrt(share / 20)));
+    const size = sizeFactor(share);
     const used = (g.natWeek && g.natWeek[p]) || 0;
     return NAT_SCALE * size / (1 + Math.max(0, used) / NAT_WEEK_SAT);
   }
@@ -912,7 +921,7 @@
   const REGION_WEEK_SAT = 1.0;
   function regionFactor(g, p, stateId) {
     const share = stateShares(g, stateId)[p];
-    const size = Math.max(0.4, Math.min(1.15, 0.3 + 0.7 * Math.sqrt(share / 20)));
+    const size = sizeFactor(share);
     const used = (g.regWeek && g.regWeek[stateId] && g.regWeek[stateId][p]) || 0;
     return REGION_SCALE * size / (1 + Math.max(0, used) / REGION_WEEK_SAT);
   }
@@ -1671,12 +1680,37 @@
     return ev;
   }
 
+  const eventScale = (g, p) => sizeFactor(nationalShares(g)[p]);
+
+  // Punktangaben im Ergebnistext anpassen, z. B. „(+0.6)“ oder „Reaktion der Wähler: +0.4.“
+  function scaleNumbers(text, f) {
+    const conv = (sign, a, b) => {
+      const v = Math.round(parseFloat(a + '.' + b) * f * 10) / 10;
+      return sign + v.toFixed(1);
+    };
+    return String(text)
+      .replace(/\(([+−-])(\d+)[.,](\d)\)/g, (m, sg, a, b) => '(' + conv(sg, a, b) + ')')
+      .replace(/: ([+−-])(\d+)[.,](\d)\./g, (m, sg, a, b) => ': ' + conv(sg, a, b) + '.');
+  }
+
   function resolveEvent(g, choiceIndex) {
     const ev = eventById(g.pendingEvent);
     if (!ev) return { ok: false, text: 'Kein offenes Ereignis.' };
     const choice = ev.choices[choiceIndex];
     if (!choice) return { ok: false, text: 'Ungültige Auswahl.' };
-    const text = choice.apply(g);
+    // Ereignisse wirken – wie Aktionen – im Verhältnis zur Größe der Partei: +1 Punkt ist für eine
+    // 4-%-Partei viel mehr als für eine 25-%-Partei. Die Änderung wird daher skaliert.
+    const p = g.party;
+    const natBefore = g.nat[p];
+    const regBefore = {};
+    D.STATES.forEach(st => { regBefore[st.id] = g.reg[st.id][p]; });
+    let text = choice.apply(g);
+    const f = eventScale(g, p);
+    if (f !== 1) {
+      g.nat[p] = natBefore + (g.nat[p] - natBefore) * f;
+      D.STATES.forEach(st => { g.reg[st.id][p] = regBefore[st.id] + (g.reg[st.id][p] - regBefore[st.id]) * f; });
+      text = scaleNumbers(text, f);
+    }
     g.money = Math.max(0, Math.round(g.money * 100) / 100);
     g.pendingEvent = null;
     addLog(g, 'event', ev.title + ': ' + text);
@@ -1714,6 +1748,7 @@
     g.duel.round += 1;
     const res = { ok: true, topic, delta, verdict, done: g.duel.round >= g.duel.topics.length };
     if (res.done) {
+      g.duel.points = Math.round(g.duel.points * sizeFactor(nationalShares(g)[g.party]) * 10) / 10;
       g.nat[g.party] += g.duel.points;
       addLog(g, 'duel', 'Elefantenrunde: Blitzumfrage ' + fmt(g.duel.points) + ' Punkte für euch.');
       res.total = g.duel.points;
@@ -1750,7 +1785,7 @@
       const hit = g.grudge && g.grudge[p] >= g.week - 1 ? 2 : 0; // gerade von euch angegriffen
       const threat = (gain >= 0.7 ? 1 : 0) + (gain >= 1.5 ? 1 : 0) + (gap < 3 ? 1 : 0) + hit;
       if (threat && attacks < 1 && g.week >= 2 && rand(g) < 0.1 + 0.12 * threat) {
-        const d = between(g, 0.2, 0.4) * (1 + 0.25 * (threat - 1));
+        const d = between(g, 0.2, 0.4) * (1 + 0.25 * (threat - 1)) * sizeFactor(shares[me]);
         g.nat[me] -= d;
         g.nat[p] += 0.1;
         attacks++;
