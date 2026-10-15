@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261015-034327';
+  const APP_VERSION = '20261015-035717';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -196,6 +196,7 @@
     renderMobilization();
     renderFlows();
     renderFirewall();
+    renderCandidate();
     renderGroups();
     renderChart();
     renderAgenda();
@@ -1000,6 +1001,34 @@
       (low ? ' Am meisten verliert ihr an ' + AKK[low] + ' (' + signed(net[low]) + ').' : '') + '</p>';
   }
 
+  // Spitzenkandidatur: Bekanntheit, Beliebtheit (−5 … +5) und Kanzlerfrage.
+  function renderCandidate() {
+    const box = $('cand-panel');
+    if (!box || !g.cand) return;
+    const c = g.cand;
+    const c0 = g.candHist && g.candHist.length ? g.candHist[0] : c;
+    const dl = c.like - c0.like;
+    const pos = (c.like + 5) / 10 * 100;
+    const hist = g.candHist || [];
+    const W = 160;
+    const H = 40;
+    const pts = hist.map((h, i) => (i / Math.max(1, g.maxWeeks)) * W + ',' + (H / 2 - h.like / 5 * (H / 2 - 3)).toFixed(1)).join(' ');
+    const kp = E.chancellorPoll(g);
+    const ids = Object.keys(kp).filter(p => p !== 'keine').sort((a, b) => kp[b] - kp[a]);
+    const max = Math.max(...ids.map(p => kp[p]));
+    box.innerHTML = '<div class="cand-card"><p class="cand-name">' + esc(g.candidate) + '<small>Spitzenkandidatur ' + esc(E.party(g.party).short) + '</small></p>' +
+      '<div class="cand-stat"><span class="mob-label">Bekanntheit</span><div class="cand-bar"><i style="width:' + c.known + '%"></i></div><b>' + Math.round(c.known) + ' %</b></div>' +
+      '<div class="cand-stat"><span class="mob-label">Beliebtheit</span><div class="cand-scale"><i class="cand-zero"></i><i class="cand-mark ' + (c.like >= 0 ? 'pos' : 'neg') + '" style="left:' + pos + '%"></i></div>' +
+        '<b>' + (c.like >= 0 ? '+' : '−') + num1(Math.abs(c.like)) + '</b></div>' +
+      '<p class="muted small">Skala von −5 bis +5 wie im Politbarometer · seit Wahlkampfstart <span class="' + (dl >= 0 ? 'pos' : 'neg') + '">' + signed(dl) + '</span>' +
+        ' · Wirkung auf euer Ergebnis: ' + signed(E.candBonus(g)) + ' Pkt.</p>' +
+      (hist.length > 1 ? '<svg class="cand-spark" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"><line x1="0" x2="' + W + '" y1="' + H / 2 + '" y2="' + H / 2 + '"></line><polyline points="' + pts + '"></polyline></svg>' : '') +
+      '</div><div class="cand-race"><span class="mob-label">Wen hätten Sie lieber als Bundeskanzler/in?</span>' +
+      ids.map(p => '<div class="bg-row' + (p === g.party ? ' me' : '') + '"><span class="bg-name">' + (p === g.party ? esc(g.candidate) : 'Kandidatur ' + short(p)) + '</span>' +
+        '<span class="bg-track"><i style="background:' + col(p) + ';left:0;width:' + (kp[p] / max * 100) + '%"></i></span><span class="bg-val">' + pct(kp[p]) + '</span></div>').join('') +
+      '<p class="muted small">Keine/weiß nicht: ' + pct(kp.keine) + '</p></div>';
+  }
+
   // Wer hält die Brandmauer zur AfD noch?
   function renderFirewall() {
     const box = $('firewall');
@@ -1310,7 +1339,63 @@
     renderWkResult();
     renderCoalition();
     renderOutcome();
+    renderRetro();
     if (animate) electionReveal(ids); else finishElectionReveal();
+  }
+
+  // Rückblick: Umfrageverlauf, beste und teuerste Entscheidungen, Woche für Woche – und zum Teilen.
+  function renderRetro() {
+    const card = $('retro-card');
+    const r = g.result;
+    if (!r.outcome || !g.journal) { card.hidden = true; return; }
+    card.hidden = false;
+    const me = g.party;
+    const hist = g.history.map(h => h.shares[me]);
+    const final = r.shares[me];
+    const vals = hist.concat([final]);
+    const W = 520;
+    const H = 150;
+    const lo = Math.max(0, Math.floor(Math.min(...vals) - 2));
+    const hi = Math.ceil(Math.max(...vals) + 2);
+    const x = i => 30 + (W - 50) * i / (g.maxWeeks + 1);
+    const y = v => 10 + (H - 34) * (1 - (v - lo) / Math.max(1, hi - lo));
+    let svg = '<svg class="retro-chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Euer Umfrageverlauf bis zur Wahl">';
+    for (let v = Math.ceil(lo); v <= hi; v += Math.max(1, Math.round((hi - lo) / 4))) svg += '<line class="rg" x1="30" x2="' + (W - 20) + '" y1="' + y(v) + '" y2="' + y(v) + '"></line><text class="rt" x="24" y="' + (y(v) + 4) + '" text-anchor="end">' + v + '</text>';
+    svg += '<polyline points="' + hist.map((v, i) => x(i) + ',' + y(v)).join(' ') + '" style="stroke:' + col(me) + '"></polyline>';
+    hist.forEach((v, i) => { svg += '<circle cx="' + x(i) + '" cy="' + y(v) + '" r="3" style="fill:' + col(me) + '"></circle><text class="rt" x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="middle">' + (i === 0 ? 'Start' : 'W' + i) + '</text>'; });
+    svg += '<line class="rfin" x1="' + x(hist.length - 1) + '" y1="' + y(hist[hist.length - 1]) + '" x2="' + x(g.maxWeeks + 1) + '" y2="' + y(final) + '"></line>' +
+      '<circle cx="' + x(g.maxWeeks + 1) + '" cy="' + y(final) + '" r="6" style="fill:' + col(me) + '"></circle><text class="rt strong" x="' + x(g.maxWeeks + 1) + '" y="' + (H - 6) + '" text-anchor="middle">Wahl</text>' +
+      '<text class="rt strong" x="' + (x(g.maxWeeks + 1) - 10) + '" y="' + (y(final) - 10) + '" text-anchor="end">' + num1(final) + ' %</text></svg>';
+    const items = g.journal.filter(j => Math.abs(j.d) >= 0.05);
+    const best = items.slice().sort((a, b) => b.d - a.d).filter(j => j.d > 0).slice(0, 4);
+    const worst = items.slice().sort((a, b) => a.d - b.d).filter(j => j.d < 0).slice(0, 3);
+    const li = j => '<li><span class="retro-w">W' + j.w + '</span> ' + esc(j.x) + ' <b class="' + (j.d >= 0 ? 'pos' : 'neg') + '">' + signed(j.d) + '</b></li>';
+    const weeks = [];
+    for (let w = 1; w <= g.maxWeeks; w++) {
+      const js = g.journal.filter(j => j.w === w);
+      const ev = js.find(j => j.k === 'e' || j.k === 'd');
+      const prev = g.history[w - 1] ? g.history[w - 1].shares[me] : null;
+      const now = g.history[w] ? g.history[w].shares[me] : final;
+      weeks.push('<tr><td>Woche ' + w + '</td><td>' + js.filter(j => j.k === 'a').length + ' Aktionen</td><td>' + (ev ? esc(ev.x) : '–') + '</td><td class="' + (prev !== null && now >= prev ? 'pos' : 'neg') + '">' +
+        (prev !== null ? signed(now - prev) : '') + '</td></tr>');
+    }
+    const c = g.cand;
+    $('retro').innerHTML = '<div class="retro-grid"><div>' + svg + '<p class="muted small">Eure veröffentlichten Umfragewerte Woche für Woche – und das Ergebnis am Wahlabend.</p>' +
+      (c ? '<p class="small">🎤 ' + esc(g.candidate) + ': Bekanntheit ' + Math.round(c.known) + ' %, Beliebtheit ' + (c.like >= 0 ? '+' : '−') + num1(Math.abs(c.like)) + '</p>' : '') + '</div>' +
+      '<div><h4>👍 Das hat am meisten gebracht</h4><ul class="retro-list">' + (best.map(li).join('') || '<li>–</li>') + '</ul>' +
+      '<h4>👎 Das hat geschadet</h4><ul class="retro-list">' + (worst.map(li).join('') || '<li>Nichts Nennenswertes – sauberer Wahlkampf!</li>') + '</ul></div></div>' +
+      '<details class="retro-weeks"><summary>Woche für Woche</summary><table>' + weeks.join('') + '</table></details>' +
+      '<p class="muted small">Wirkung = sofortige Veränderung eures Stimmenanteils; im Wahlkampf verblassen Effekte mit der Zeit wieder.</p>' +
+      '<button type="button" class="btn" id="btn-share">📋 Ergebnis zum Teilen kopieren</button> <span id="share-ok" class="muted small"></span>';
+    $('btn-share').addEventListener('click', () => {
+      const o = r.outcome;
+      const p = E.party(me);
+      const text = 'Wahlkampf! – Bundestagswahl-Spiel\n' + p.name + ' mit ' + g.candidate + ': ' + pct(final) + ' (' + signed(o.delta) + ')\n' +
+        o.rating + ' – ' + o.score + ' Punkte\n' + (o.goal ? '✅ Wahlziel erreicht: ' : '❌ Wahlziel verfehlt: ') + p.goalText +
+        (r.government ? '\nRegierung: ' + r.government.map(short).join(', ') : '');
+      const done = () => { $('share-ok').textContent = 'Kopiert!'; };
+      try { navigator.clipboard.writeText(text).then(done, () => { window.prompt('Zum Kopieren:', text); }); } catch (e) { window.prompt('Zum Kopieren:', text); }
+    });
   }
 
   // Erststimmen am Wahlabend: Karte der Wahlkreissieger, Direktmandate, knappste Duelle, Grundmandate.
@@ -1356,7 +1441,7 @@
     const at = (t, fn) => electionTimers.push(setTimeout(fn, t));
     const votes = $('votes-card');
     votes.classList.add('el-revealing');
-    ['seat-card', 'wk-card', 'coalition-card', 'outcome-card'].forEach(id => $(id).classList.add('el-pending'));
+    ['seat-card', 'wk-card', 'coalition-card', 'outcome-card', 'retro-card'].forEach(id => $(id).classList.add('el-pending'));
     $('btn-el-skip').hidden = false;
     const sus = $('el-suspense');
     sus.textContent = '18:00 Uhr – die Wahllokale haben geschlossen. Die Stimmen werden ausgezählt …';
@@ -1442,11 +1527,11 @@
     document.querySelectorAll('#screen-election .result-bars .col, #screen-election .result-labels > div, #screen-election .hc-seg, #screen-election .sl-item')
       .forEach(el => el.classList.add('shown'));
     ['votes-card', 'seat-card', 'wk-card'].forEach(id => $(id).classList.remove('el-revealing'));
-    ['seat-card', 'wk-card', 'coalition-card', 'outcome-card'].forEach(id => $(id).classList.remove('el-pending'));
+    ['seat-card', 'wk-card', 'coalition-card', 'outcome-card', 'retro-card'].forEach(id => $(id).classList.remove('el-pending'));
     document.querySelectorAll('#wk-card path.wk.pending').forEach(p => p.classList.remove('pending'));
     $('btn-el-skip').hidden = true;
     if (scroll) {
-      const target = g.result.awaitingChoice ? $('coalition-card') : $('outcome-card');
+      const target = g.result.awaitingChoice || (g.result.neg && !g.result.neg.done) ? $('coalition-card') : $('outcome-card');
       if (target && !target.hidden) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }
@@ -1520,11 +1605,43 @@
       '<span class="pill" style="--pc:' + col(p) + ';--pon:' + onCol(p) + '">' + short(p) + (seats ? ' ' + seats[p] : '') + '</span>').join('') + '</span>';
   }
 
+  // Koalitionsverhandlungen: drei Streitthemen, dann die Ressorts; das Klima muss halten.
+  function renderNegotiation(box) {
+    const r = g.result;
+    const n = r.neg;
+    const partners = n.members.filter(p => p !== g.party);
+    const moodCls = n.mood >= 50 ? 'good' : n.mood >= E.NEG_MIN ? 'mid' : 'bad';
+    let html = '<p><strong>' + (n.lead === g.party ? 'Koalitionsverhandlungen' : esc(E.party(n.lead).name) + ' lädt euch zu Koalitionsverhandlungen ein') + '</strong></p>' +
+      '<p>' + pills(n.members, r.seats) + '</p>' +
+      '<div class="neg-mood"><span class="mob-label">Verhandlungsklima</span><div class="neg-bar ' + moodCls + '"><i style="width:' + n.mood + '%"></i><b class="neg-min" style="left:' + E.NEG_MIN + '%" title="Darunter platzen die Gespräche"></b></div><span class="neg-val">' + Math.round(n.mood) + '</span></div>' +
+      '<p class="muted small">Fällt das Klima am Ende unter ' + E.NEG_MIN + ', platzen die Gespräche. Durchgesetzte Positionen und wichtige Ressorts bringen Punkte.</p>';
+    if (n.log.length) html += '<ul class="neg-log">' + n.log.map(l => '<li>' + esc(l) + '</li>').join('') + '</ul>';
+    const steps = n.topics.length + 1;
+    html += '<p class="neg-step">Runde ' + (n.step + 1) + ' von ' + steps + '</p>';
+    if (n.step < n.topics.length) {
+      const x = n.topics[n.step];
+      const t = E.topicById(x.t);
+      html += '<div class="neg-topic"><h4>' + t.icon + ' ' + esc(t.name) + '</h4>' +
+        '<p><b>Ihr wollt:</b> ' + esc(D.PROGRAM[x.t][x.mine].label) + '</p>' +
+        '<p><b>' + esc(E.party(x.q).short) + ' will:</b> ' + esc(D.PROGRAM[x.t][x.theirs].label) + '</p></div>';
+      html += '<div class="neg-choices">' + [['hart', '💪 Hart bleiben', 'Eure Position kommt in den Vertrag – das Klima leidet'],
+        ['kompromiss', '🤝 Kompromiss', 'Beide geben etwas nach'], ['nachgeben', '🙏 Nachgeben', 'Besseres Klima, aber eure Basis murrt']]
+        .map(c => '<button type="button" class="btn coalition-option neg-btn" data-c="' + c[0] + '"><b>' + c[1] + '</b><span class="hint">' + c[2] + '</span></button>').join('') + '</div>';
+    } else {
+      html += '<div class="neg-topic"><h4>🏛️ Ressortverteilung</h4><p>Welche Ministerien fordert ihr von ' + esc(partners.map(p => E.party(p).short).join(' und ')) + '?</p></div>' +
+        '<div class="neg-choices">' + E.MINISTRIES.map(m => '<button type="button" class="btn coalition-option neg-btn" data-c="' + m.id + '"><b>' + esc(m.name) + '</b><span class="hint">' + esc(m.hint) + '</span></button>').join('') + '</div>';
+    }
+    box.innerHTML = html;
+    box.querySelectorAll('.neg-btn').forEach(b => b.addEventListener('click', () => { E.negotiate(g, b.dataset.c); save(); renderElection(false); }));
+  }
+
   function renderCoalition() {
     const r = g.result;
     const box = $('coalition');
+    if (r.neg && !r.neg.done) { renderNegotiation(box); return; }
     if (r.awaitingChoice) {
-      box.innerHTML = '<p><strong>' + (r.strongest === g.party ? 'Ihr seid stärkste Kraft und habt den Auftrag zur Regierungsbildung!'
+      box.innerHTML = (r.neg && r.neg.done && !r.neg.success ? '<p class="fw-note">💥 Die Verhandlungen mit ' + esc(r.neg.members.filter(p => p !== g.party).map(p => E.party(p).short).join(' und ')) + ' sind gescheitert. Versucht es mit anderen Partnern.</p>' : '') +
+        '<p><strong>' + (r.strongest === g.party ? 'Ihr seid stärkste Kraft und habt den Auftrag zur Regierungsbildung!'
         : esc(E.party(r.strongest).name) + ' findet keine Partner – ihr habt den Auftrag zur Regierungsbildung!') + '</strong> Mit wem wollt ihr koalieren?</p>';
       r.options.forEach((o, i) => {
         const b = document.createElement('button');
@@ -1545,6 +1662,9 @@
       const tol = r.coalitions.some(c => c.tolerated && c.members.join() === r.government.join());
       html = '<p>Neue Bundesregierung (' + seats + ' Sitze' + (tol ? ', Minderheitsregierung – von der AfD toleriert' : '') + '):</p><p>' + pills(r.government) + '</p>' +
         (r.firewallBroken ? '<p class="fw-note">🧱 Die Brandmauer ist gefallen: erstmals regiert die AfD im Bund mit.</p>' : '') +
+        (r.neg && r.neg.success && r.government.indexOf(g.party) !== -1 ? '<p class="small">📜 Koalitionsvertrag: ' + num1(r.neg.kept).replace(',0', '') + ' von ' + r.neg.topics.length +
+          ' Streitpunkten durchgesetzt, ' + esc((E.MINISTRIES.find(m => m.id === r.neg.ministry) || { name: '' }).name.replace(' fordern', '')) + ' (' + (r.neg.pts >= 0 ? '+' : '') + r.neg.pts + ' Punkte).</p>' : '') +
+        (r.neg && r.neg.done && !r.neg.success ? '<p class="fw-note">💥 Die Verhandlungen mit euch sind gescheitert.</p>' : '') +
         '<p class="muted small">Das Kanzleramt geht an: <strong>' + esc(E.party(r.government[0]).name) + '</strong>' +
         (r.government[0] === g.party ? ' – ' + esc(g.candidate) + ' wird Regierungschef:in!' : '') + '</p>';
     } else {
@@ -1564,6 +1684,9 @@
 
   // Wahlabend: Mit der AfD gäbe es eine Mehrheit – Brandmauer einreißen?
   function appendFirewallBreak(box) {
+    const r0 = g.result;
+    if (r0.government && r0.government.indexOf(g.party) !== -1) return; // ihr regiert schon
+    if (r0.neg && !r0.neg.done) return;
     const opts = E.firewallOptions(g);
     if (!opts.length) return;
     const div = document.createElement('div');
@@ -2410,6 +2533,7 @@
     { tab: 'actions', sel: '#national-actions', title: 'Geld und Briefwahl', text: '<p>Einmal pro Woche ein <b>Spendendinner</b> für die Kasse. Ab Woche ' + (E.POSTAL_START - 1) + ' eine <b>Briefwahl-Kampagne</b>: Ab Woche ' + E.POSTAL_START + ' wählen viele per Brief – diese Stimmen sind sicher.</p>' },
     { tab: 'actions', sel: '#rival-party', up: '.act-block', title: 'Zielgruppen-Werbung und Angriffe', text: '<p>Darüber: Online-Anzeigen für genau eine Wählergruppe. Hier: eine Vergleichskampagne gegen eine andere Partei – riskant, und die Angegriffenen schlagen eher zurück.</p>' },
     { tab: 'polls', sel: '#poll-bars', title: 'Die Sonntagsfrage', text: '<p>Einmal pro Woche eine neue Umfrage. Die helle Fläche zeigt die Fehlerspanne: Wo ihr wirklich steht, zeigt erst der Wahlabend.</p>' },
+    { tab: 'polls', sel: '#cand-panel', title: 'Eure Spitzenkandidatur', text: '<p><b>Bekanntheit</b> wächst mit jedem Auftritt, <b>Beliebtheit</b> mit gelungenen Terminen, guter Vorbereitung und einem starken TV-Duell. Patzer, Skandale und Negativkampagnen kosten Ansehen.</p><p>Eine beliebte Kandidatur zieht Stimmen – und entscheidet die <b>Kanzlerfrage</b>.</p>' },
     { tab: 'polls', sel: '#mobilization', title: 'Wahlbeteiligung und Mobilisierung', text: '<p>Nur wer wählen geht, zählt. Haustürwahlkampf, Infostände und Kundgebungen bringen eure Anhänger an die Urne – kurz vor der Wahl wirkt das am meisten.</p>' },
     { tab: 'polls', sel: '#flows', title: 'Wählerwanderung', text: '<p>Von wem ihr Stimmen holt und an wen ihr verliert. Habt ihr bei einem Thema Kompetenz aufgebaut und sprecht damit eine Zielgruppe an, holt ihr die Stimmen gezielt bei der Partei, die das Thema sonst besetzt.</p>' },
     { tab: 'polls', sel: '#firewall', title: 'Die Brandmauer', text: '<p>Welche Partei die Abgrenzung zur AfD noch hält. Wer sie einreißt, gewinnt AfD-nahe Wähler, verliert aber in der Mitte – und verändert, wer mit wem regieren kann.</p>' },

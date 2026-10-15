@@ -1894,3 +1894,58 @@ path.wk.pending { opacity: 0; }
 .wk-res-pills { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 6px 0 10px; }
 .wk-gm-hit { padding: 8px 10px; border-radius: 8px; background: #fff6d6; color: #1d1d1f; }
 .wk-close { margin: 4px 0 0; padding-left: 18px; font-size: .88rem; }
+
+/* Spitzenkandidatur */
+.cand-panel { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(0, 1.4fr); gap: 16px 28px; margin: 8px 0 20px; align-items: start; }
+@media (max-width: 640px) { .cand-panel { grid-template-columns: 1fr; } }
+.cand-card { padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.cand-name { margin: 0 0 10px; font-size: 1.15rem; font-weight: 900; }
+.cand-name small { display: block; font-size: .75rem; font-weight: 600; color: var(--muted); }
+.cand-stat { display: grid; grid-template-columns: 82px 1fr 46px; align-items: center; gap: 8px; margin: 6px 0; }
+.cand-stat b { text-align: right; font-variant-numeric: tabular-nums; }
+.cand-bar { height: 10px; border-radius: 5px; background: var(--border); overflow: hidden; }
+.cand-bar i { display: block; height: 100%; background: var(--accent); }
+.cand-scale { position: relative; height: 10px; border-radius: 5px; background: linear-gradient(90deg, #e8b4ad, var(--border) 50%, #b5d8bd); }
+.cand-zero { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 2px; background: var(--muted); }
+.cand-mark { position: absolute; top: -4px; width: 12px; height: 18px; margin-left: -6px; border-radius: 4px; background: var(--text); }
+.cand-spark { width: 100%; height: 40px; margin-top: 4px; }
+.cand-spark line { stroke: var(--border); stroke-dasharray: 3 3; }
+.cand-spark polyline { fill: none; stroke: var(--accent); stroke-width: 2; }
+.cand-race .bg-row.me .bg-name { font-weight: 900; }
+.cand-race .bg-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Koalitionsverhandlungen */
+.neg-mood { display: grid; grid-template-columns: auto 1fr 36px; align-items: center; gap: 10px; margin: 6px 0; }
+.neg-bar { position: relative; height: 12px; border-radius: 6px; background: var(--border); overflow: visible; }
+.neg-bar i { display: block; height: 100%; border-radius: 6px; transition: width .4s; }
+.neg-bar.good i { background: #2e8b57; } .neg-bar.mid i { background: #e0a100; } .neg-bar.bad i { background: #c0392b; }
+.neg-min { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--text); }
+.neg-val { font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; }
+.neg-log { margin: 8px 0; padding-left: 18px; font-size: .88rem; }
+.neg-step { margin: 12px 0 4px; font-size: .78rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.neg-topic { padding: 10px 12px; border-radius: 10px; background: var(--surface-2, #f1efe9); }
+.neg-topic h4 { margin: 0 0 6px; }
+.neg-topic p { margin: 4px 0; font-size: .9rem; }
+.neg-choices { display: grid; gap: 8px; margin-top: 10px; }
+.neg-btn { text-align: left; }
+.neg-btn b { display: block; }
+
+/* Rückblick */
+.retro { grid-column: 1 / -1; }
+.retro-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 860px) { .retro-grid { grid-template-columns: 1fr; } }
+.retro-chart { width: 100%; height: auto; }
+.retro-chart polyline { fill: none; stroke-width: 3; }
+.retro-chart .rg { stroke: var(--border); }
+.retro-chart .rfin { stroke: var(--muted); stroke-dasharray: 4 4; stroke-width: 2; }
+.retro-chart .rt { font-size: 11px; fill: var(--muted); }
+.retro-chart .rt.strong { font-weight: 800; fill: var(--text); }
+.retro-list { margin: 4px 0 12px; padding-left: 0; list-style: none; font-size: .9rem; }
+.retro-list li { display: flex; gap: 8px; align-items: baseline; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.retro-list li b { margin-left: auto; font-variant-numeric: tabular-nums; }
+.retro-w { font-size: .75rem; font-weight: 800; color: var(--muted); min-width: 24px; }
+.retro-weeks { margin: 10px 0; }
+.retro-weeks table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.retro-weeks td { padding: 5px 6px; border-bottom: 1px solid var(--border); }
+.retro-weeks td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.bg-val { white-space: nowrap; }

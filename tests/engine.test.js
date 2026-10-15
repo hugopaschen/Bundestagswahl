@@ -53,6 +53,9 @@ test('Eine komplette Partie endet mit Wahlergebnis und Bewertung', () => {
       assert.ok(E.endWeek(g).ok);
     }
     if (g.result.awaitingChoice) E.chooseCoalition(g, 0);
+    while (g.result.neg && !g.result.neg.done) E.negotiate(g, g.result.neg.step < g.result.neg.topics.length ? 'kompromiss' : 'fach');
+    if (g.result.awaitingChoice) E.chooseCoalition(g, 0);
+    while (g.result.neg && !g.result.neg.done) E.negotiate(g, g.result.neg.step < g.result.neg.topics.length ? 'kompromiss' : 'fach');
     assert.strictEqual(g.phase, 'done');
     assert.strictEqual(sum(g.result.seats), D.SEATS);
     assert.ok(Math.abs(sum(g.result.shares) - 100) < 0.5);
@@ -691,4 +694,32 @@ test('Alte Spielstände ohne Kleinparteien: Wahlkreise bleiben berechenbar', () 
   const proj = E.wkProjection(h, true);
   assert.ok(proj.every(x => Number.isFinite(x.margin)));
   assert.ok(new Set(proj.map(x => x.lead)).size > 2);
+});
+
+test('Koalitionsverhandlungen: Klima entscheidet, Erfolg bringt Punkte, Scheitern öffnet andere Optionen', () => {
+  const make = () => {
+    const g = E.newGame('union', 'T', 4);
+    g.week = g.maxWeeks; g.duelDone = true;
+    while (g.pendingEvent) E.resolveEvent(g, 0);
+    g.nat.union += 8; // Union klar stärkste Kraft
+    E.endWeek(g);
+    return g;
+  };
+  const g = make();
+  assert.ok(g.result.awaitingChoice);
+  const i = g.result.options.findIndex(o => o.members.length > 1 && !o.tolerated);
+  E.chooseCoalition(g, i);
+  const n = g.result.neg;
+  assert.ok(n && n.topics.length >= 1 && n.topics.length <= 3);
+  while (!n.done) E.negotiate(g, n.step < n.topics.length ? 'nachgeben' : 'fach');
+  assert.ok(n.success);
+  assert.strictEqual(g.phase, 'done');
+  assert.ok(g.result.government.indexOf('union') === 0);
+  // Hart bleiben bei allem und das Finanzministerium fordern: die Gespräche können platzen.
+  const h = make();
+  E.chooseCoalition(h, h.result.options.findIndex(o => o.members.length > 1 && !o.tolerated));
+  h.result.neg.mood = 40;
+  while (!h.result.neg.done) E.negotiate(h, h.result.neg.step < h.result.neg.topics.length ? 'hart' : 'finanzen');
+  assert.strictEqual(h.result.neg.success, false);
+  assert.ok(h.result.awaitingChoice || h.phase === 'done');
 });

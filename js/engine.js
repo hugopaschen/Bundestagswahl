@@ -429,6 +429,11 @@
     g.minor = {};
     MINOR_IDS.forEach(m => { g.minor[m] = { trend: 0, nat: 0, reg: {} }; });
     g.shown = {};
+    g.cand = Object.assign({}, candStart(partyId));
+    g.aiLike = {};
+    PARTY_IDS.forEach(p => { g.aiLike[p] = candStart(p).like; });
+    g.candHist = [{ w: 0, like: g.cand.like, known: g.cand.known }];
+    g.journal = [];
     D.STATES.forEach(st => { g.mobReg[st.id] = {}; PARTY_IDS.forEach(p => { g.mobReg[st.id][p] = 0; }); });
     ALL_IDS.forEach(p => { g.pollErr[p] = 0; });
     GROUP_IDS.forEach(k => { g.grp[k] = {}; PARTY_IDS.forEach(p => { g.grp[k][p] = 0; }); });
@@ -507,7 +512,7 @@
     PARTY_IDS.forEach(p => {
       const prog = p === g.party && g.prog ? g.prog.nat + (st.east ? g.prog.east : 0) + programStateEffect(g.progGroups, stateId) +
         ((g.progState && g.progState[stateId]) || 0) : 0;
-      bonus[p] = g.nat[p] + g.reg[stateId][p] + prog + issueEffect(g, p, stateId) + groupEffect(g, p);
+      bonus[p] = g.nat[p] + g.reg[stateId][p] + prog + issueEffect(g, p, stateId) + groupEffect(g, p) + (p === g.party ? candBonus(g) : 0);
     });
     PARTY_IDS.forEach(p => {
       const b = bonus[p];
@@ -1219,6 +1224,7 @@
     const steerGroup = focus || (grpT ? grpT.id : null);
     const shareBefore = steerTopic ? nationalShares(g)[p] : 0;
     const regBefore = st ? g.reg[st.id][p] : 0;
+    const pBefore = nationalShares(g)[p];
     let text;
 
     switch (actionId) {
@@ -1425,6 +1431,10 @@
       const dc = citizenCompetence(g, localTopic, target.cq.right || 0, target.cq.wrong || 0);
       if (dc) text += ' Kompetenz ' + topicById(localTopic).name + ' ' + (dc > 0 ? '+' : '−') + Math.abs(dc) + '.';
     }
+    const dShare = nationalShares(g)[p] - pBefore;
+    candAfterAction(g, actionId, dShare, qm);
+    journal(g, 'a', action.name + (st && action.scope === 'region' ? ' in ' + st.name : '') + (topicById(topic) && action.scope !== 'region' ? ' zu ' + topicById(topic).name : '') +
+      (localTopic ? ' zu ' + topicById(localTopic).name : '') + (wkT ? ' (WK ' + wkT.name + ')' : ''), dShare);
     addLog(g, 'action', text);
     return { ok: true, text };
   }
@@ -1974,6 +1984,7 @@
     // Ereignisse wirken – wie Aktionen – im Verhältnis zur Größe der Partei: +1 Punkt ist für eine
     // 4-%-Partei viel mehr als für eine 25-%-Partei. Die Änderung wird daher skaliert.
     const p = g.party;
+    const shareBefore = nationalShares(g)[p];
     const natBefore = g.nat[p];
     const regBefore = {};
     D.STATES.forEach(st => { regBefore[st.id] = g.reg[st.id][p]; });
@@ -1985,6 +1996,9 @@
       text = scaleNumbers(text, f);
     }
     g.money = Math.max(0, Math.round(g.money * 100) / 100);
+    const dEv = nationalShares(g)[p] - shareBefore;
+    candAdjust(g, Math.max(-0.3, Math.min(0.2, 0.3 * dEv)), 0);
+    journal(g, 'e', ev.title + ': ' + choice.label, dEv);
     g.pendingEvent = null;
     addLog(g, 'event', ev.title + ': ' + text);
     return { ok: true, text };
@@ -2023,6 +2037,8 @@
     if (res.done) {
       g.duel.points = Math.round(g.duel.points * sizeFactor(nationalShares(g)[g.party]) * 10) / 10;
       g.nat[g.party] += g.duel.points;
+      candAdjust(g, Math.max(-0.5, Math.min(0.5, 0.15 * g.duel.points)), 0.04);
+      journal(g, 'd', 'Elefantenrunde im Fernsehen', g.duel.points);
       addLog(g, 'duel', 'Elefantenrunde: Blitzumfrage ' + fmt(g.duel.points) + ' Punkte für euch.');
       res.total = g.duel.points;
       g.duel = null;
@@ -2185,6 +2201,7 @@
     changeSalience(g, 'demokratie', 0.012 * steps);
     changeSalience(g, 'migration', 0.006 * steps);
     if (p === g.party) {
+      candAdjust(g, -0.3 * steps, 0); // die Kandidatur verliert an Ansehen in der Mitte
       g.money = Math.max(0, g.money - 0.3 * steps * (1 - acc)); // Spender und Verbände gehen auf Distanz
       if (!g.fwProtest) { g.fwProtest = true; schedule(g, 'fw_protest', 1, 2); }
     }
@@ -2248,6 +2265,53 @@
   }
 
   // ---------- Wochenwechsel ----------
+
+  // ---------- Spitzenkandidatur: Bekanntheit, Beliebtheit, Kanzlerfrage ----------
+  const candStart = p => (D.CAND_START && D.CAND_START[p]) || { known: 70, like: 0 };
+  const KNOWN_GAIN = { kundgebung: 0.04, talkshow: 0.06, presse: 0.03, buerger: 0.03, betrieb: 0.02, regional: 0.02 };
+
+  // Wie sehr die Kandidatur gerade zieht (Punkte), im Verhältnis zur Größe der Partei.
+  function candBonus(g) {
+    if (!g.cand) return 0;
+    const c0 = candStart(g.party);
+    const raw = 0.3 * (g.cand.like - c0.like) + 0.015 * (g.cand.known - c0.known);
+    return Math.max(-1.5, Math.min(1.5, raw * sizeFactor(BASE_SHARE[g.party] || 10)));
+  }
+
+  function candAdjust(g, dLike, dKnownShare) {
+    if (!g.cand) return;
+    g.cand.like = Math.max(-5, Math.min(5, g.cand.like + dLike));
+    if (dKnownShare) g.cand.known = Math.min(99, g.cand.known + (100 - g.cand.known) * dKnownShare);
+  }
+
+  // Nach einem Auftritt: bekannter – und beliebter, wenn er gelingt.
+  function candAfterAction(g, actionId, dShare, qm) {
+    if (CANDIDATE_ACTIONS.indexOf(actionId) !== -1) {
+      candAdjust(g, Math.max(-0.2, Math.min(0.1, 0.05 * (qm - 1) / 0.3 + 0.2 * dShare)), KNOWN_GAIN[actionId] || 0.02);
+    }
+    if (actionId === 'angriff') candAdjust(g, -0.08, 0); // Negativkampagnen kratzen am eigenen Image
+  }
+
+  // „Wen hätten Sie lieber als Bundeskanzler/in?“ – Kandidaturen mit Kanzleranspruch (und eure).
+  function chancellorPoll(g) {
+    const ids = (D.CHANCELLOR_RACE || []).slice();
+    if (ids.indexOf(g.party) === -1) ids.push(g.party);
+    const sh = pollShares(g);
+    const like = p => (p === g.party ? g.cand.like : (g.aiLike && g.aiLike[p] !== undefined ? g.aiLike[p] : candStart(p).like));
+    const score = {};
+    let sum = 0;
+    ids.forEach(p => { score[p] = Math.exp(0.6 * like(p) + 0.07 * sh[p]); sum += score[p]; });
+    const out = {};
+    ids.forEach(p => { out[p] = Math.round(score[p] / sum * 72 * 10) / 10; });
+    out.keine = Math.round((100 - ids.reduce((s, p) => s + out[p], 0)) * 10) / 10;
+    return out;
+  }
+
+  // Tagebuch des Wahlkampfs für den Rückblick am Wahlabend.
+  function journal(g, kind, text, d) {
+    if (!g.journal) g.journal = [];
+    g.journal.push({ w: g.week, k: kind, x: text, d: Math.round(d * 100) / 100 + 0 });
+  }
 
   // ---------- Kleinparteien ----------
   function furoreDown(g, d) {
@@ -2476,6 +2540,12 @@
     });
     if (g.src) Object.keys(g.src).forEach(p => Object.keys(g.src[p]).forEach(q => { g.src[p][q] *= BONUS_DECAY; }));
     if (g.wk) Object.keys(g.wk).forEach(nr => Object.keys(g.wk[nr]).forEach(p => { g.wk[nr][p] *= BONUS_DECAY; }));
+    if (g.cand) {
+      const c0 = candStart(g.party);
+      g.cand.like = c0.like + (g.cand.like - c0.like) * 0.92; // Eindrücke verblassen
+      PARTY_IDS.forEach(q => { if (q !== g.party) g.aiLike[q] = Math.max(-5, Math.min(5, g.aiLike[q] + between(g, -0.12, 0.12))); });
+      g.candHist.push({ w: g.week, like: Math.round(g.cand.like * 100) / 100 + 0, known: Math.round(g.cand.known) }); // + 0 vermeidet −0
+    }
     if (g.minor) MINOR_IDS.forEach(m => { const mi = g.minor[m]; mi.nat *= BONUS_DECAY; Object.keys(mi.reg).forEach(k => { mi.reg[k] *= BONUS_DECAY; }); });
     g.otherSwing = (g.otherSwing || 0) * 0.92;
     if (g.sat) Object.keys(g.sat).forEach(c => Object.keys(g.sat[c]).forEach(k => { g.sat[c][k] *= BONUS_DECAY; })); // langsame Rückkehr zum Normalwert
@@ -2625,6 +2695,10 @@
     // Ist die Spielerpartei Wahlsiegerin mit Optionen, wählt sie selbst die Koalition.
     if (gov.formateur === g.party && gov.options.length) {
       result.awaitingChoice = true;
+    } else if (gov.options.length && gov.options[0].members.indexOf(g.party) !== -1 && gov.options[0].members.length > 1 && !gov.options[0].tolerated) {
+      // Der Wahlsieger lädt euch zu Koalitionsverhandlungen ein.
+      g.result = result;
+      startNegotiation(g, gov.options[0].members, gov.formateur);
     } else {
       result.government = gov.options.length ? gov.options[0].members : null;
       finalizeOutcome(g, result);
@@ -2637,10 +2711,104 @@
     if (!r || !r.awaitingChoice) return { ok: false };
     const opt = r.options[index];
     if (!opt) return { ok: false };
-    r.government = opt.members;
     r.awaitingChoice = false;
+    // Mit Partnern wird verhandelt; Alleinregierung oder tolerierte Minderheitsregierung gleich.
+    if (opt.members.length > 1 && !opt.tolerated) { startNegotiation(g, opt.members, g.party); return { ok: true, negotiation: true }; }
+    r.government = opt.members;
     finalizeOutcome(g, r);
     return { ok: true };
+  }
+
+  // ---------- Koalitionsverhandlungen ----------
+  // Drei Streitthemen (wo euer Programm am weitesten von den Partnern entfernt ist), dann die Ressorts.
+  // Das Verhandlungsklima muss am Ende mindestens 30 betragen, sonst platzen die Gespräche.
+  const NEG_MIN = 30;
+  const MINISTRIES = [
+    { id: 'finanzen', name: 'Finanzministerium fordern', hint: 'Das wichtigste Ressort – kostet viel Klima', mood: -10, pts: 8 },
+    { id: 'klassisch', name: 'Außen- oder Innenministerium', hint: 'Prestige, aber machbar', mood: -5, pts: 5 },
+    { id: 'fach', name: 'Fachministerien genügen', hint: 'Gute Stimmung, wenig Einfluss', mood: 4, pts: 2 }
+  ];
+
+  function negotiationTopics(g, members) {
+    const partners = members.filter(q => q !== g.party && party(q) && party(q).lean);
+    const mine = t => (g.program && D.PROGRAM[t][g.program.positions[t]] ? D.PROGRAM[t][g.program.positions[t]].lean : party(g.party).lean[t]);
+    const list = [];
+    TOPIC_IDS.forEach(t => {
+      let best = null;
+      partners.forEach(q => {
+        const diff = Math.abs(mine(t) - party(q).lean[t]);
+        if (diff > 0 && (!best || diff > best.diff)) best = { q, diff };
+      });
+      if (best) list.push({ t, q: best.q, diff: best.diff, w: best.diff * g.salience[t] });
+    });
+    return list.sort((a, b) => b.w - a.w).slice(0, 3).map(x => ({
+      t: x.t, q: x.q, diff: x.diff,
+      mine: g.program ? g.program.positions[x.t] : D.PROGRAM[x.t].findIndex(o => o.lean === party(g.party).lean[x.t]),
+      theirs: Math.max(0, D.PROGRAM[x.t].findIndex(o => o.lean === party(x.q).lean[x.t]))
+    }));
+  }
+
+  function startNegotiation(g, members, lead) {
+    const r = g.result;
+    const topics = negotiationTopics(g, members);
+    const avgDiff = topics.length ? topics.reduce((s, x) => s + x.diff, 0) / topics.length : 0;
+    const mood = Math.max(35, Math.min(75, 58 + (lead === g.party ? 8 : 0) - 6 * avgDiff + Math.round(between(g, -4, 4))));
+    r.neg = { members: members.slice(), lead, topics, step: 0, mood, kept: 0, given: 0, ministry: null, log: [], done: false };
+    return r.neg;
+  }
+
+  function negotiate(g, choice) {
+    const r = g.result;
+    const n = r && r.neg;
+    if (!n || n.done) return { ok: false };
+    if (n.step < n.topics.length) {
+      const x = n.topics[n.step];
+      const nameT = topicById(x.t).name;
+      if (choice === 'hart') { n.mood -= 10 + 4 * x.diff; n.kept += 1; n.log.push(nameT + ': Ihr setzt euch durch – „' + D.PROGRAM[x.t][x.mine].label + '“.'); }
+      else if (choice === 'kompromiss') { n.mood -= 3; n.kept += 0.5; n.log.push(nameT + ': Kompromiss – beide Seiten geben etwas nach.'); }
+      else if (choice === 'nachgeben') { n.mood += 6; n.given += 1; n.log.push(nameT + ': Ihr gebt nach – „' + D.PROGRAM[x.t][x.theirs].label + '“ kommt in den Vertrag.'); }
+      else return { ok: false };
+    } else {
+      const m = MINISTRIES.find(z => z.id === choice);
+      if (!m) return { ok: false };
+      n.mood += m.mood;
+      n.ministry = m.id;
+      n.log.push('Ressorts: ' + m.name + '.');
+    }
+    n.mood = Math.max(0, Math.min(100, n.mood));
+    n.step += 1;
+    if (n.step > n.topics.length) finishNegotiation(g);
+    return { ok: true };
+  }
+
+  function finishNegotiation(g) {
+    const r = g.result;
+    const n = r.neg;
+    n.done = true;
+    if (n.mood >= NEG_MIN) {
+      n.success = true;
+      const m = MINISTRIES.find(z => z.id === n.ministry) || { pts: 0 };
+      n.pts = Math.round(n.kept * 6 + m.pts - n.given * 2);
+      const ordered = n.members.slice().sort((a, b) => (a === n.lead ? -1 : b === n.lead ? 1 : r.seats[b] - r.seats[a]));
+      r.government = ordered;
+      finalizeOutcome(g, r);
+      return;
+    }
+    n.success = false;
+    const key = n.members.slice().sort().join();
+    r.failedTalks = (r.failedTalks || []).concat([key]);
+    const left = r.coalitions.filter(c => c.viable && r.failedTalks.indexOf(c.members.slice().sort().join()) === -1);
+    if (n.lead === g.party) {
+      r.options = (r.options || []).filter(o => r.failedTalks.indexOf(o.members.slice().sort().join()) === -1);
+      if (r.options.length) { r.awaitingChoice = true; return; }
+      r.government = null;
+    } else {
+      // Der Wahlsieger verhandelt mit anderen Partnern weiter – ohne euch.
+      const other = left.filter(c => c.members.indexOf(n.lead) !== -1 && c.members.indexOf(g.party) === -1)
+        .sort((a, b) => a.members.length - b.members.length || a.seats - b.seats)[0];
+      r.government = other ? other.members : null;
+    }
+    finalizeOutcome(g, r);
   }
 
   // Wahlziel der Partei: Mindestanteil, stärkste Kraft, eigene absolute Mehrheit
@@ -2673,7 +2841,9 @@
     const bonus = { kanzler: 50, regierung: 30, opposition: 10, raus: 0 }[status];
     // Wer am Wahlabend die Brandmauer einreißt, regiert – aber gegen den Protest von Millionen.
     const fwPenalty = r.firewallBroken ? 25 : 0;
-    const score = Math.max(0, Math.round(50 + (share - start) * 10 + bonus + (goal ? 25 : 0) - fwPenalty));
+    // Erfolgreiche Koalitionsverhandlungen: durchgesetzte Positionen und Ressorts zählen.
+    const negPts = r.neg && r.neg.success && r.government && r.government.indexOf(p) !== -1 ? r.neg.pts : 0;
+    const score = Math.max(0, Math.round(50 + (share - start) * 10 + bonus + (goal ? 25 : 0) - fwPenalty + negPts));
     r.outcome = { status, goal, delta: share - start, score, rating: rating(score), firewall: !!r.firewallBroken };
     g.phase = 'done';
   }
@@ -2717,6 +2887,8 @@
     if (g.otherSwing === undefined) g.otherSwing = 0;
     if (!g.minor) { g.minor = {}; MINOR_IDS.forEach(m => { g.minor[m] = { trend: 0, nat: 0, reg: {} }; }); }
     if (!g.shown) g.shown = {};
+    if (!g.cand) { g.cand = Object.assign({}, candStart(g.party)); g.aiLike = {}; PARTY_IDS.forEach(p => { g.aiLike[p] = candStart(p).like; }); g.candHist = [{ w: 0, like: g.cand.like, known: g.cand.known }]; }
+    if (!g.journal) g.journal = [];
     MINOR_IDS.forEach(m => { if (!(m in g.pollErr)) g.pollErr[m] = 0; });
     // Spielstände von vor den Kleinparteien: Umfrage mit den neuen Parteien neu erheben.
     if (g.poll && MINOR_IDS.some(m => !(m in g.poll.nat))) takePoll(g);
@@ -2751,11 +2923,11 @@
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     publishedShares, publishedStateShares, groupShares, pollShares, pollStateShares, pollGroupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
-    POLL_RANGE, GROUP_IDS, MINOR_IDS, CONTEST_IDS, isShown, shownIds, mergeShares, WK_LIST, WK_BY_STATE, wkByNr, wkShares, wkProjection, directCounts, GRUNDMANDATE, FW_LEVELS, fwLevel, openFirewall, closeFirewall, firewallOptions, breakFirewall, flowSummary, steerVotes, stateFlows, regionFactor, nationalFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
+    POLL_RANGE, GROUP_IDS, candBonus, chancellorPoll, MINOR_IDS, CONTEST_IDS, isShown, shownIds, mergeShares, WK_LIST, WK_BY_STATE, wkByNr, wkShares, wkProjection, directCounts, GRUNDMANDATE, FW_LEVELS, fwLevel, openFirewall, closeFirewall, firewallOptions, breakFirewall, flowSummary, steerVotes, stateFlows, regionFactor, nationalFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent,
     startDuel, duelAnswer,
-    endWeek, sainteLague, findCoalitions, coalitionViable, chooseCoalition,
+    endWeek, sainteLague, findCoalitions, coalitionViable, chooseCoalition, negotiate, MINISTRIES, NEG_MIN,
     serialize, deserialize
   };
 

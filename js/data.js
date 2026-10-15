@@ -518,6 +518,16 @@
     ai: { union: 0.015, fdp: 0.01, bsw: 0.015, spd: 0.0005, gruene: 0.0003, linke: 0.0003 }
   };
 
+  // Spitzenkandidaturen zu Beginn: Bekanntheit (%) und Beliebtheit auf der Politbarometer-Skala −5 … +5.
+  // Grob angelehnt an die Bewertungen der Spitzenkandidaten im ZDF-Politbarometer vor der Wahl 2025
+  // (AfD-Kandidatin deutlich negativ, kleine Parteien weniger bekannt) – Werte geschätzt, Personen fiktiv.
+  var CAND_START = {
+    union: { known: 85, like: 0.3 }, afd: { known: 80, like: -2.3 }, spd: { known: 82, like: 0.2 },
+    gruene: { known: 80, like: 0.1 }, linke: { known: 55, like: 0.4 }, bsw: { known: 70, like: -0.6 },
+    fdp: { known: 70, like: -0.4 }
+  };
+  var CHANCELLOR_RACE = ['union', 'spd', 'gruene', 'afd']; // Parteien mit Kanzlerkandidatur
+
   // Kleinparteien, die in den Umfragen unter „Sonstige“ laufen. Ab 3,5 % in der Sonntagsfrage werden
   // sie eigenständig ausgewiesen und machen sichtbar Wahlkampf. Startwerte: Zweitstimmen 2025 je Land
   // (Bundeswahlleiterin, kerg2.csv: FW 1,5 %, Tierschutzpartei 1,0 %, Volt 0,7 %), hochgerechnet auf den
@@ -593,6 +603,8 @@
     NONVOTER_POTENTIAL: NONVOTER_POTENTIAL,
     RIVALS: RIVALS,
     MINORS: MINORS,
+    CAND_START: CAND_START,
+    CHANCELLOR_RACE: CHANCELLOR_RACE,
     MINOR_SHOW: MINOR_SHOW,
     MINOR_HIDE: MINOR_HIDE,
     FIREWALL: FIREWALL,
