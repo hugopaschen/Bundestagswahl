@@ -1969,3 +1969,4 @@ path.wk.pending { opacity: 0; }
 .calc-party.on { background: var(--pc); color: var(--pon); border-color: var(--pc); }
 .calc-party.on .calc-ico { background: var(--pon); color: var(--pc); }
 .calc-party.on .calc-n { border-left-color: currentColor; }
+.share-text { display: block; width: 100%; min-height: 110px; margin-top: 8px; font: inherit; font-size: .85rem; }

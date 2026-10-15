@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261015-042914';
+  const APP_VERSION = '20261015-063708';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -33,6 +33,15 @@
   const pollOrder = () => MAIN_ORDER.concat(g ? MINOR_ORDER.filter(m => E.isShown(g, m)) : []).concat([D.OTHER.id]);
   const merged = sh => (g ? E.mergeShares(g, sh) : sh);
   const short = p => (p === D.OTHER.id ? D.OTHER.short : E.party(p).short);
+  // Bestätigung ohne Browser-Dialog: Der erste Klick fragt auf dem Knopf nach, der zweite führt aus.
+  function confirmOnButton(btn, question) {
+    if (btn.dataset.armed === '1') { btn.dataset.armed = ''; clearTimeout(btn._armT); if (btn._armHtml !== undefined) btn.innerHTML = btn._armHtml; return true; }
+    btn._armHtml = btn.innerHTML;
+    btn.dataset.armed = '1';
+    btn.textContent = question;
+    btn._armT = setTimeout(() => { btn.dataset.armed = ''; btn.innerHTML = btn._armHtml; }, 5000);
+    return false;
+  }
 
   const QUESTIONS = {
     wirtschaft: 'Die Wirtschaft schwächelt. Wie wollen Sie Arbeitsplätze sichern?',
@@ -183,6 +192,7 @@
     $('stat-poll').innerHTML = pct(shares[me]) + '<span class="poll-err"> ± ' + E.POLL_RANGE + '</span> <span class="small ' + (diff >= 0 ? 'pos' : 'neg') + '">' + signed(diff) + '</span>';
     $('week-bar').style.width = ((g.week - 1) / g.maxWeeks * 100) + '%';
     $('btn-end-week').textContent = g.week >= g.maxWeeks ? 'Zur Wahl! 🗳️' : 'Woche beenden';
+    $('btn-end-week').dataset.armed = '';
     $('btn-end-week').disabled = !!(g.pendingEvent || g.duel || (g.week === E.DUEL_WEEK && !g.duelDone));
 
     renderMap();
@@ -1447,7 +1457,14 @@
         o.rating + ' – ' + o.score + ' Punkte\n' + (o.goal ? '✅ Wahlziel erreicht: ' : '❌ Wahlziel verfehlt: ') + p.goalText +
         (r.government ? '\nRegierung: ' + r.government.map(short).join(', ') : '');
       const done = () => { $('share-ok').textContent = 'Kopiert!'; };
-      try { navigator.clipboard.writeText(text).then(done, () => { window.prompt('Zum Kopieren:', text); }); } catch (e) { window.prompt('Zum Kopieren:', text); }
+      // Ohne Zugriff auf die Zwischenablage: Text zum Markieren anzeigen.
+      const fallback = () => {
+        let ta = $('share-text');
+        if (!ta) { ta = document.createElement('textarea'); ta.id = 'share-text'; ta.className = 'share-text'; ta.readOnly = true; $('btn-share').after(ta); }
+        ta.value = text; ta.hidden = false; ta.focus(); ta.select();
+        $('share-ok').textContent = 'Text markiert – jetzt kopieren.';
+      };
+      try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
     });
   }
 
@@ -1754,7 +1771,7 @@
       b.className = 'btn coalition-option fw-option';
       b.innerHTML = pills(o.members, g.result.seats) + '<span class="hint">' + o.seats + ' Sitze · Koalition mit der AfD</span>';
       b.addEventListener('click', () => {
-        if (!window.confirm('Wirklich die Brandmauer einreißen und mit der AfD regieren?')) return;
+        if (!confirmOnButton(b, 'Wirklich? Nochmal tippen: Brandmauer einreißen und mit der AfD regieren')) return;
         E.breakFirewall(g, i); save(); renderElection(false);
       });
       div.appendChild(b);
@@ -2692,7 +2709,7 @@
 
   $('btn-end-week').addEventListener('click', () => {
     const left = g.ap + (g.team || 0);
-    if (left > 0 && !window.confirm('Ihr habt noch ' + g.ap + ' Termin(e) und ' + (g.team || 0) + ' Team-Einsatz/-Einsätze übrig. Woche trotzdem beenden?')) return;
+    if (left > 0 && !confirmOnButton($('btn-end-week'), 'Noch ' + left + ' Aktion' + (left > 1 ? 'en' : '') + ' übrig – trotzdem beenden?')) return;
     const before = E.pollShares(g)[g.party];
     const res = E.endWeek(g);
     if (!res.ok) { if (res.text) toast(res.text); return; }
