@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261015-005453';
+  const APP_VERSION = '20261015-010202';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -1161,40 +1161,49 @@
     // Sitze
     $('seat-total').textContent = '(' + D.SEATS + ' Sitze, Mehrheit ab ' + E.MAJORITY + ')';
     $('hemicycle').innerHTML = hemicycle(r.seats);
-    $('seat-legend').innerHTML = SPECTRUM.filter(p => r.seats[p] > 0)
-      .map(p => '<span><i style="background:' + col(p) + '"></i>' + short(p) + ' ' + r.seats[p] + '</span>').join('');
+    $('seat-legend').innerHTML = seatLegend(r.seats);
 
     renderCoalition();
     renderOutcome();
   }
 
+  // Sitzverteilung als Halbkreis mit einem Segment je Partei (von links nach rechts im politischen Spektrum).
   function hemicycle(seats) {
-    const total = SPECTRUM.reduce((s, p) => s + (seats[p] || 0), 0);
-    const rows = 12;
-    const r0 = 0.38;
-    const radii = [];
-    for (let i = 0; i < rows; i++) radii.push(r0 + (1 - r0) * i / (rows - 1));
-    const sumR = radii.reduce((a, b) => a + b, 0);
-    const counts = radii.map(rad => Math.round(total * rad / sumR));
-    counts[rows - 1] += total - counts.reduce((a, b) => a + b, 0);
-    const pts = [];
-    radii.forEach((rad, i) => {
-      const n = counts[i];
-      for (let j = 0; j < n; j++) {
-        const a = n === 1 ? Math.PI / 2 : Math.PI * (1 - j / (n - 1));
-        pts.push({ a, x: Math.cos(a) * rad, y: -Math.sin(a) * rad });
-      }
+    const ids = SPECTRUM.filter(p => seats[p] > 0);
+    const total = ids.reduce((s, p) => s + seats[p], 0);
+    const R = 1;
+    const r0 = 0.34;
+    const pt = (rad, a) => (rad * Math.cos(a)).toFixed(4) + ' ' + (-rad * Math.sin(a)).toFixed(4);
+    let svg = '<svg viewBox="-1.02 -1.02 2.04 1.04" role="img" aria-label="Sitzverteilung im Bundestag: ' +
+      ids.map(p => short(p) + ' ' + seats[p]).join(', ') + '">';
+    let acc = 0;
+    ids.forEach(p => {
+      const a0 = Math.PI * (1 - acc / total);
+      acc += seats[p];
+      const a1 = Math.PI * (1 - acc / total);
+      const large = a0 - a1 > Math.PI ? 1 : 0;
+      svg += '<path class="hc-seg" d="M ' + pt(r0, a0) + ' L ' + pt(R, a0) + ' A ' + R + ' ' + R + ' 0 ' + large + ' 1 ' + pt(R, a1) +
+        ' L ' + pt(r0, a1) + ' A ' + r0 + ' ' + r0 + ' 0 ' + large + ' 0 ' + pt(r0, a0) + ' Z" style="fill:' + col(p) + '"><title>' +
+        esc(E.party(p).name) + ': ' + seats[p] + ' Sitze</title></path>';
     });
-    pts.sort((p, q) => q.a - p.a);
-    const owners = [];
-    SPECTRUM.forEach(p => { for (let i = 0; i < (seats[p] || 0); i++) owners.push(p); });
-    let svg = '<svg viewBox="-1.05 -1.05 2.1 1.12" role="img" aria-label="Sitzverteilung im Bundestag">';
-    pts.forEach((pt, i) => {
-      svg += '<circle cx="' + pt.x.toFixed(4) + '" cy="' + pt.y.toFixed(4) + '" r="0.0165" style="fill:' + col(owners[i]) + '"></circle>';
-    });
-    svg += '<text x="0" y="-0.05" text-anchor="middle" font-size="0.13" font-weight="800" style="fill:var(--text)">' + total + '</text>';
-    svg += '<text x="0" y="0.05" text-anchor="middle" font-size="0.06" style="fill:var(--muted)">Sitze</text></svg>';
+    // Mehrheitsmarke
+    const am = Math.PI * (1 - E.MAJORITY / total);
+    svg += '<line class="hc-major" x1="' + (r0 * Math.cos(am)).toFixed(4) + '" y1="' + (-r0 * Math.sin(am)).toFixed(4) +
+      '" x2="' + (1.0 * Math.cos(am)).toFixed(4) + '" y2="' + (-1.0 * Math.sin(am)).toFixed(4) + '"><title>Mehrheit: ' + E.MAJORITY + ' Sitze</title></line>';
+    svg += '<rect class="hc-chip" x="-0.2" y="-0.17" width="0.4" height="0.11" rx="0.02"></rect>';
+    svg += '<text class="hc-chip-text" x="0" y="-0.095" text-anchor="middle">' + total + ' Sitze</text></svg>';
     return svg;
+  }
+
+  // Legende unter dem Halbkreis: Partei, Sitze und Veränderung zur Bundestagswahl 2025.
+  function seatLegend(seats) {
+    const prev = D.SEATS_2025 || {};
+    return SPECTRUM.filter(p => seats[p] > 0 || prev[p] > 0).map(p => {
+      const d = (seats[p] || 0) - (prev[p] || 0);
+      return '<div class="sl-item' + (p === g.party ? ' me' : '') + '"><span class="sl-name">' + short(p) + '</span>' +
+        '<span class="sl-seats" style="background:' + col(p) + ';color:' + onCol(p) + '">' + (seats[p] || 0) + '</span>' +
+        '<span class="sl-diff">' + (d > 0 ? '+' : d < 0 ? '−' : '±') + Math.abs(d) + '</span></div>';
+    }).join('');
   }
 
   function pills(members, seats) {

@@ -482,6 +482,8 @@
   ];
   // Zweitstimmenergebnis 2025 (Bundeswahlleiterin, amtlich): Bezugsgröße für die Wanderungsdaten.
   var RESULT_2025 = { union: 28.5, afd: 20.8, spd: 16.4, gruene: 11.6, linke: 8.8, bsw: 4.98, fdp: 4.3, sonstige: 4.6 };
+  // Sitzverteilung im 21. Bundestag nach der Wahl 2025 (Bundeswahlleiterin; ohne den SSW-Sitz).
+  var SEATS_2025 = { union: 208, afd: 152, spd: 120, gruene: 85, linke: 64, bsw: 0, fdp: 0 };
   var FLOWS = {};
   FLOW_PAIRS.forEach(function (f) {
     [[f[0], f[1]], [f[1], f[0]]].forEach(function (ab) {
@@ -556,6 +558,7 @@
     FLOWS: FLOWS,
     FLOW_PAIRS: FLOW_PAIRS,
     RESULT_2025: RESULT_2025,
+    SEATS_2025: SEATS_2025,
     STATE_TOPIC_SOURCES: STATE_TOPIC_SOURCES,
     CHANNELS: CHANNELS
   };
