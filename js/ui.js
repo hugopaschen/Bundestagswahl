@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261015-035717';
+  const APP_VERSION = '20261015-042914';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -1299,6 +1299,7 @@
   // ---------- Wahlabend ----------
 
   function showElection() {
+    calcSel = [];
     $('toast').hidden = true;
     show('election');
     const screen = $('screen-election');
@@ -1340,7 +1341,59 @@
     renderCoalition();
     renderOutcome();
     renderRetro();
+    renderCalc(false);
     if (animate) electionReveal(ids); else finishElectionReveal();
+  }
+
+  // Koalitionsrechner: Parteien antippen, der Halbkreis füllt sich von links nach rechts.
+  let calcSel = [];
+  const CALC_R0 = 0.44; // größere Mitte für die Sitzanzeige
+  function renderCalc(animateLast) {
+    const box = $('calc');
+    const r = g.result;
+    if (!box || !r || !r.seats) return;
+    const total = D.SEATS;
+    const maj = E.MAJORITY;
+    calcSel = calcSel.filter(p => r.seats[p] > 0);
+    const sum = calcSel.reduce((x, p) => x + r.seats[p], 0);
+    const am = Math.PI * (1 - maj / total);
+    let svg = '<svg viewBox="-1.02 -1.12 2.04 1.14" role="img" aria-label="Koalitionsrechner: ' + sum + ' von ' + total + ' Sitzen">' +
+      '<path class="calc-bg" d="' + segPath(Math.PI, 0.00001, CALC_R0) + '"></path>';
+    let acc = 0;
+    calcSel.forEach((p, i) => {
+      const a0 = Math.PI * (1 - acc / total);
+      acc += r.seats[p];
+      const a1 = Math.PI * (1 - acc / total);
+      svg += '<path class="calc-seg" data-i="' + i + '" data-a0="' + a0 + '" data-a1="' + a1 + '" data-r0="' + CALC_R0 + '" d="' + segPath(a0, a1, CALC_R0) + '" style="fill:' + col(p) + '"></path>';
+    });
+    svg += '<line class="calc-major" x1="' + (CALC_R0 * Math.cos(am)).toFixed(4) + '" y1="' + (-CALC_R0 * Math.sin(am)).toFixed(4) +
+      '" x2="' + (1.08 * Math.cos(am)).toFixed(4) + '" y2="' + (-1.08 * Math.sin(am)).toFixed(4) + '"></line>' +
+      '<rect class="calc-chip" x="-0.26" y="-0.27" width="0.52" height="0.12" rx="0.025"></rect>' +
+      '<text class="calc-chip-text" x="0" y="-0.188" text-anchor="middle">' + sum + '/' + total + ' Sitze</text>' +
+      '<text class="calc-sub" x="0" y="-0.08" text-anchor="middle">Mehrheit</text><text class="calc-sub" x="0" y="-0.015" text-anchor="middle">ab ' + maj + ' Sitzen</text></svg>';
+    let status;
+    if (!calcSel.length) status = 'Bitte Partei auswählen';
+    else if (sum >= maj) {
+      const ok = E.coalitionViable(calcSel, g);
+      status = (ok ? '✅ Mehrheit! ' : '⚠️ Rechnerisch eine Mehrheit – politisch ausgeschlossen. ') + (sum - maj + 1) + ' Sitz' + (sum - maj + 1 === 1 ? '' : 'e') + ' über der Mehrheit.';
+    } else status = 'Es fehlen noch ' + (maj - sum) + ' Sitz' + (maj - sum === 1 ? '' : 'e') + ' zur Mehrheit.';
+    const ids = SPECTRUM.filter(p => r.seats[p] > 0);
+    box.innerHTML = svg + '<p class="calc-status ' + (sum >= maj ? (E.coalitionViable(calcSel, g) ? 'ok' : 'warn') : '') + '">' + status + '</p>' +
+      '<div class="calc-chips">' + ids.map(p => {
+        const on = calcSel.indexOf(p) !== -1;
+        return '<button type="button" class="calc-party' + (on ? ' on' : '') + '" data-p="' + p + '" aria-pressed="' + on + '" style="--pc:' + col(p) + ';--pon:' + onCol(p) + '">' +
+          '<span class="calc-ico">' + (on ? '−' : '+') + '</span>' + short(p) + '<span class="calc-n">' + r.seats[p] + '</span></button>';
+      }).join('') + '</div>';
+    box.querySelectorAll('.calc-party').forEach(b => b.addEventListener('click', () => {
+      const p = b.dataset.p;
+      const i = calcSel.indexOf(p);
+      if (i === -1) { calcSel.push(p); renderCalc(true); } else { calcSel.splice(i, 1); renderCalc(false); }
+    }));
+    if (animateLast && calcSel.length) {
+      const seg = box.querySelector('.calc-seg[data-i="' + (calcSel.length - 1) + '"]');
+      const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (seg) sweepSegment(seg, reduce ? 60 : Math.max(350, 1400 * r.seats[calcSel[calcSel.length - 1]] / total));
+    }
   }
 
   // Rückblick: Umfrageverlauf, beste und teuerste Entscheidungen, Woche für Woche – und zum Teilen.
@@ -1441,7 +1494,7 @@
     const at = (t, fn) => electionTimers.push(setTimeout(fn, t));
     const votes = $('votes-card');
     votes.classList.add('el-revealing');
-    ['seat-card', 'wk-card', 'coalition-card', 'outcome-card', 'retro-card'].forEach(id => $(id).classList.add('el-pending'));
+    ['seat-card', 'wk-card', 'coalition-card', 'outcome-card', 'calc-card', 'retro-card'].forEach(id => $(id).classList.add('el-pending'));
     $('btn-el-skip').hidden = false;
     const sus = $('el-suspense');
     sus.textContent = '18:00 Uhr – die Wahllokale haben geschlossen. Die Stimmen werden ausgezählt …';
@@ -1527,7 +1580,7 @@
     document.querySelectorAll('#screen-election .result-bars .col, #screen-election .result-labels > div, #screen-election .hc-seg, #screen-election .sl-item')
       .forEach(el => el.classList.add('shown'));
     ['votes-card', 'seat-card', 'wk-card'].forEach(id => $(id).classList.remove('el-revealing'));
-    ['seat-card', 'wk-card', 'coalition-card', 'outcome-card', 'retro-card'].forEach(id => $(id).classList.remove('el-pending'));
+    ['seat-card', 'wk-card', 'coalition-card', 'outcome-card', 'calc-card', 'retro-card'].forEach(id => $(id).classList.remove('el-pending'));
     document.querySelectorAll('#wk-card path.wk.pending').forEach(p => p.classList.remove('pending'));
     $('btn-el-skip').hidden = true;
     if (scroll) {
@@ -1539,9 +1592,9 @@
 
   // Ringsegment des Halbkreises zwischen den Winkeln a0 > a1 (links = π, rechts = 0).
   const HC_R0 = 0.34;
-  function segPath(a0, a1) {
+  function segPath(a0, a1, inner) {
     const R = 1;
-    const r0 = HC_R0;
+    const r0 = inner || HC_R0;
     const pt = (rad, a) => (rad * Math.cos(a)).toFixed(4) + ' ' + (-rad * Math.sin(a)).toFixed(4);
     const large = a0 - a1 > Math.PI ? 1 : 0;
     return 'M ' + pt(r0, a0) + ' L ' + pt(R, a0) + ' A ' + R + ' ' + R + ' 0 ' + large + ' 1 ' + pt(R, a1) +
@@ -1553,13 +1606,14 @@
   function sweepSegment(seg, dur) {
     const a0 = Number(seg.dataset.a0);
     const a1 = Number(seg.dataset.a1);
-    seg.setAttribute('d', segPath(a0, a0 - 0.0001));
+    const inner = Number(seg.dataset.r0) || HC_R0;
+    seg.setAttribute('d', segPath(a0, a0 - 0.0001, inner));
     seg.classList.add('shown');
     const t0 = performance.now();
     const frame = now => {
       const k = Math.min(1, (now - t0) / dur);
       const e = 1 - Math.pow(1 - k, 2);
-      seg.setAttribute('d', segPath(a0, a0 - (a0 - a1) * Math.max(0.0001, e)));
+      seg.setAttribute('d', segPath(a0, a0 - (a0 - a1) * Math.max(0.0001, e), inner));
       if (k < 1) sweepFrames.push(requestAnimationFrame(frame));
     };
     sweepFrames.push(requestAnimationFrame(frame));

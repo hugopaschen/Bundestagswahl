@@ -1949,3 +1949,23 @@ path.wk.pending { opacity: 0; }
 .retro-weeks td { padding: 5px 6px; border-bottom: 1px solid var(--border); }
 .retro-weeks td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
 .bg-val { white-space: nowrap; }
+
+/* Koalitionsrechner */
+.calc-body { max-width: 620px; margin: 0 auto; text-align: center; }
+.calc-body svg { width: 100%; height: auto; display: block; }
+.calc-bg { fill: #5a6070; }
+.calc-seg { stroke: #ffffff; stroke-width: 0.008; }
+.calc-major { stroke: #ffffff; stroke-width: 0.014; filter: drop-shadow(0 0 0.01px rgba(0,0,0,.6)); }
+.calc-chip { fill: var(--text, #1d1d1f); }
+.calc-chip-text { fill: var(--surface, #fff); font-size: 0.062px; font-weight: 800; }
+.calc-sub { fill: var(--muted, #6b6b75); font-size: 0.05px; font-weight: 700; }
+.calc-status { margin: 10px 0; font-weight: 700; color: var(--muted); }
+.calc-status.ok { color: #1e7d3c; } .calc-status.warn { color: #c0392b; }
+.calc-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.calc-party { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px 6px 8px; border: 1.5px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); font: inherit; font-weight: 700; cursor: pointer; }
+.calc-party:hover { border-color: var(--pc); }
+.calc-ico { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--pc); color: var(--pon); font-size: .85rem; line-height: 1; }
+.calc-n { padding-left: 6px; border-left: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+.calc-party.on { background: var(--pc); color: var(--pon); border-color: var(--pc); }
+.calc-party.on .calc-ico { background: var(--pon); color: var(--pc); }
+.calc-party.on .calc-n { border-left-color: currentColor; }
