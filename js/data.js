@@ -117,8 +117,8 @@
     },
     {
       id: 'fdp', team: 4, members: 64781, ballot: 'FDP', fullName: 'Freie Demokratische Partei', flyerLogo: 'FDP', short: 'FDP', name: 'FDP',
-      budget: 6, goal: 5,
-      goalText: 'Wieder in den Bundestag einziehen (5 %)',
+      budget: 6, goal: 5, goalEnter: true,
+      goalText: 'Wieder in den Bundestag einziehen (5 % oder drei Direktmandate)',
       desc: 'Die Liberalen kämpfen um den Wiedereinzug. Stark bei Wirtschaft und Digitalisierung.',
       competence: { wirtschaft: 45, migration: 30, soziales: 20, klima: 25, sicherheit: 30, bildung: 50, digitales: 60, wohnen: 40, verteidigung: 35, gesundheit: 30, verkehr: 40, europa: 35, familie: 35, land: 35, demokratie: 45, finanzen: 45 },
       // Traditionelle Parteilinie je Thema: -1 = links/progressiv, 0 = Mitte, 1 = konservativ/marktliberal
@@ -586,7 +586,7 @@
     RESULT_2025: RESULT_2025,
     SEATS_2025: SEATS_2025,
     STATE_TOPIC_SOURCES: STATE_TOPIC_SOURCES,
-    CHANNELS: CHANNELS
+    CHANNELS: Object.assign(CHANNELS, { erststimme: CHANNELS.haustuer })
   };
 
   if (typeof module !== 'undefined' && module.exports) {

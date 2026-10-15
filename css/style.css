@@ -318,8 +318,8 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
 .hc-seg { stroke: var(--surface, #fff); stroke-width: 0.012; stroke-linejoin: round; transform-origin: 0 0; }
 .el-revealing .hc-seg { opacity: 0; }
 .el-revealing .hc-seg.shown { opacity: 1; }
-.el-revealing .sl-item { opacity: 0; transform: translateY(6px); transition: opacity .4s, transform .4s; }
-.el-revealing .sl-item.shown { opacity: 1; transform: none; }
+#seat-card.el-revealing .sl-item { opacity: 0; transform: translateY(6px); transition: opacity .4s, transform .4s; }
+#seat-card.el-revealing .sl-item.shown { opacity: 1; transform: none; }
 .el-revealing .hc-chip, .el-revealing .hc-chip-text, .el-revealing .hc-major { opacity: 0; }
 .el-revealing .rval, .el-revealing .result-labels > div { opacity: 0; transition: opacity .4s; }
 .el-revealing .col.shown .rval, .el-revealing .result-labels > div.shown { opacity: 1; }
@@ -1852,3 +1852,42 @@ h2 .flyer-hint { margin: 0; }
 .tour-nav { display: flex; gap: 8px; }
 .tour-btns .link-btn { color: #6b6b75; }
 body.touring { overflow: hidden; }
+
+/* Wahlkreise */
+.map-mode { display: inline-flex; gap: 4px; margin: 2px 0 8px; padding: 3px; border-radius: 10px; background: var(--surface-2, #f1efe9); }
+.map-mode button { border: 0; background: none; font: inherit; font-weight: 700; font-size: .88rem; padding: 7px 12px; border-radius: 8px; cursor: pointer; color: var(--text); }
+.map-mode button[aria-pressed="true"] { background: var(--fl-accent, #333); color: var(--fl-accent-ink, #fff); }
+path.wk { stroke: #ffffff; stroke-width: 0.6; vector-effect: non-scaling-stroke; stroke-linejoin: round; cursor: pointer; transition: opacity .35s; }
+path.wk:hover { opacity: .8; }
+path.wk.close { fill-opacity: .55; }
+path.wk.orphan { fill-opacity: .35; }
+path.wk.other { opacity: .25; }
+path.wk.selected { stroke: var(--text, #1d1d1f); stroke-width: 2.5; }
+path.wk.pending { opacity: 0; }
+.wk-legend { margin-top: 8px; }
+.wk-zoom { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.small-btn { padding: 6px 12px; font-size: .85rem; }
+.wk-direct, .wk-gm { margin: 8px 0 0; font-size: .88rem; line-height: 1.9; }
+.wk-gm { padding: 8px 10px; border-radius: 8px; background: var(--surface-2, #f1efe9); line-height: 1.4; }
+.wk-panel h4 { margin: 14px 0 6px; }
+.wk-detail { padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface, #fff); }
+.wk-detail h3 { margin: 0 0 4px; }
+.wk-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 66px; gap: 8px; align-items: center; margin: 5px 0; font-size: .88rem; }
+.wk-row.me b { text-decoration: underline; }
+.wk-cand small { display: block; color: var(--muted); font-size: .75rem; }
+.wk-bar { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+.wk-bar i { display: block; height: 100%; }
+.wk-val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+.wk-list { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow-y: auto; }
+.wk-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; width: 100%; padding: 7px 6px; border: 0; border-bottom: 1px solid var(--border); background: none; font: inherit; font-size: .85rem; text-align: left; cursor: pointer; color: var(--text); }
+.wk-item.on, .wk-item:hover { background: var(--surface-2, #f1efe9); }
+.wk-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wk-me { color: var(--muted); font-variant-numeric: tabular-nums; }
+.wk-focus select { max-width: 100%; }
+.wk-result { grid-column: 1 / -1; }
+.wk-result-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 860px) { .wk-result-grid { grid-template-columns: 1fr; } }
+.wk-map svg { max-width: 420px; }
+.wk-res-pills { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 6px 0 10px; }
+.wk-gm-hit { padding: 8px 10px; border-radius: 8px; background: #fff6d6; color: #1d1d1f; }
+.wk-close { margin: 4px 0 0; padding-left: 18px; font-size: .88rem; }

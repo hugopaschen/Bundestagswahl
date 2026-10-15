@@ -15,7 +15,10 @@
   const SC = (typeof module !== 'undefined' && module.exports) ? require('./scenarios.js') : (root.BTW_SCENARIOS || {});
   // Fragen von Bürgerinnen und Bürgern zum Thema einer Vor-Ort-Aktion (js/citizenq.js)
   const CQ = (typeof module !== 'undefined' && module.exports) ? require('./citizenq.js') : (root.BTW_CITIZENQ || {});
+  // Wahlkreise 2025: Grenzen und Erststimmen (js/wahlkreise.js, aus Daten der Bundeswahlleiterin)
+  const WKD = (typeof module !== 'undefined' && module.exports) ? require('./wahlkreise.js') : (root.BTW_WK || null);
   const CQ_ACTIONS = ['buerger', 'infostand', 'betrieb', 'haustuer', 'regional'];
+  const SC_ALIAS = {}; // Aktionen ohne eigene Szenarien könnten hier verwandte nutzen
   const CQ_COMP = 2;      // Kompetenzpunkte je richtiger/falscher Antwort
   const CQ_COMP_MAX = 12; // höchstens so viel Veränderung je Thema über den ganzen Wahlkampf
 
@@ -934,6 +937,8 @@
       desc: 'Offene Fragerunde ohne Drehbuch. Gelingt sie, wirkt sie stark – kritische Fragen können aber schiefgehen.' },
     { id: 'infostand', name: 'Infostand', icon: '⛺', scope: 'region',
       desc: 'Billig, kleine Wirkung – aber gut, um Anhänger und Nichtwähler an die Urne zu bringen.' },
+    { id: 'erststimme', name: 'Erststimmen-Kampagne', icon: '✖️', scope: 'region',
+      desc: 'Wahlkampf für eure Direktkandidatur in einem Wahlkreis: „Beide Stimmen für uns“. Wirkt nur im gewählten Wahlkreis.' },
     { id: 'regional', name: 'Interview im Regionalmedium', icon: '📻', scope: 'region',
       desc: 'Lokalzeitung und Landesradio: kostenlos, wirkt im Land – besonders mit einem Landesthema.' },
     { id: 'briefwahl', name: 'Briefwahl-Kampagne', icon: '✉️', scope: 'none',
@@ -974,6 +979,7 @@
       case 'kundgebung': return 0.4;
       case 'plakate': return Math.round((0.2 + 0.12 * (stateById(stateId) || { voters: 3 }).voters) * 10) / 10;
       case 'haustuer': return 0.1;
+      case 'erststimme': return 0.15;
       // Sendezeit wird zum Wahltag hin knapp und teuer.
       case 'tvspot': return Math.round((2.5 + 0.25 * ((g && g.week) || 1) - 0.25) * 100) / 100;
       case 'social': return 0.6;
@@ -1056,7 +1062,7 @@
 
   // Drei Szenarien zur Vorbereitung einer Aktion, bevorzugt solche, die der Spieler noch nicht kennt.
   function pickScenarios(g, actionId, n) {
-    const list = SC[actionId] || [];
+    const list = SC[actionId] || SC[SC_ALIAS[actionId]] || [];
     n = Math.min(n || 3, list.length);
     if (!g.seenScen) g.seenScen = {};
     const seen = g.seenScen[actionId] || [];
@@ -1132,6 +1138,9 @@
     if (action.scope === 'topic' && !topicById(topic)) return { ok: false, text: 'Bitte zuerst ein Thema wählen.' };
     if (actionId === 'spenden' && !spendenAvailable(g)) return { ok: false, text: 'Diese Woche gab es schon ein Spendendinner.' };
     if (actionId === 'briefwahl' && g.week < POSTAL_START - 1) return { ok: false, text: 'Die Briefwahlunterlagen werden erst ab Woche ' + (POSTAL_START - 1) + ' verschickt.' };
+    const wkT = action.scope === 'region' && target.wk ? WK_BY_NR[target.wk] : null;
+    if (wkT && st && wkT.land !== st.id) return { ok: false, text: 'Dieser Wahlkreis liegt nicht in ' + st.name + '.' };
+    if (actionId === 'erststimme' && !wkT) return { ok: false, text: 'Bitte zuerst einen Wahlkreis wählen.' };
     const grpT = action.scope === 'group' ? D.GROUPS.find(k => k.id === target.group) : null;
     if (action.scope === 'group' && !grpT) return { ok: false, text: 'Bitte zuerst eine Zielgruppe wählen.' };
     if (action.scope === 'rival' && (!party(target.rival) || target.rival === g.party)) return { ok: false, text: 'Bitte zuerst eine gegnerische Partei wählen.' };
@@ -1164,9 +1173,10 @@
     const about = (localTopic ? ' zum Thema ' + topicById(localTopic).name : '') +
       (focus ? ' für ' + D.GROUPS.find(k => k.id === focus).name : '');
     // Für die Wählerwanderung: Thema und Zielgruppe der Aktion.
-    const steerTopic = localTopic || ((action.scope === 'topic' || actionId === 'online') && topicById(topic) ? topic : null);
+    const steerTopic = actionId === 'erststimme' ? null : localTopic || ((action.scope === 'topic' || actionId === 'online') && topicById(topic) ? topic : null);
     const steerGroup = focus || (grpT ? grpT.id : null);
     const shareBefore = steerTopic ? nationalShares(g)[p] : 0;
+    const regBefore = st ? g.reg[st.id][p] : 0;
     let text;
 
     switch (actionId) {
@@ -1278,6 +1288,15 @@
         text = 'Infostände' + about + ' in den Fußgängerzonen von ' + st.name + ': Flyer, Kugelschreiber, viele Gespräche (' + fmt(d) + ' Pkt. im Land).';
         break;
       }
+      case 'erststimme': {
+        const w = wear(g, 'erststimme:' + wkT.nr);
+        const size = Math.min(1.3, sizeFactor(stateShares(g, st.id)[p]) + 0.3);
+        const d = 3.5 * w * qm * TEAM_EFFECT * size * between(g, 0.85, 1.15);
+        addWk(g, wkT.nr, p, d);
+        mobilize(g, p, 0.004, st.id);
+        text = 'Erststimmen-Kampagne im Wahlkreis ' + wkT.name + ': „Beide Stimmen für uns“ (' + fmt(d) + ' Punkte bei den Erststimmen).';
+        break;
+      }
       case 'regional': {
         const d = 0.9 * wear(g, 'regional:' + st.id + ':' + (localTopic || '_')) * r * eff * (localTopic ? 1 : 0.8) * between(g, 0.8, 1.2);
         g.reg[st.id][p] += d;
@@ -1345,6 +1364,16 @@
       }
     }
     if (thief) text += ' ' + party(thief).name + ' macht euch das Thema streitig.';
+    // Wahlkreis-Fokus: Ein Teil der Wirkung im Land fließt gezielt in die Erststimme dort.
+    if (wkT && actionId !== 'erststimme' && st) {
+      const gain = g.reg[st.id][p] - regBefore;
+      if (gain > 0) {
+        g.reg[st.id][p] -= 0.3 * gain;
+        const d = 0.3 * gain * Math.min(16, (WK_BY_STATE[st.id] || []).length) * 0.5;
+        addWk(g, wkT.nr, p, d);
+        text += ' Schwerpunkt Wahlkreis ' + wkT.name + ' (' + fmt(d) + ' bei den Erststimmen).';
+      }
+    }
     if (steerTopic) {
       const from = steerVotes(g, p, steerTopic, steerGroup, nationalShares(g)[p] - shareBefore);
       if (from) text += ' Ihr holt dabei vor allem Wähler ' + partyGen(from) + '.';
@@ -1694,6 +1723,27 @@
 
   // Spätfolgen – werden nie zufällig gezogen, sondern nur durch frühere Entscheidungen ausgelöst.
   EVENTS.push(
+    // ---- Leihstimmen ----
+    {
+      id: 'leih_klein', title: 'Leihstimmen vom großen Partner?',
+      text: g => 'Ihr kämpft um die 5-%-Hürde. Eure Strategen schlagen eine Kampagne bei den Anhängern ' + partyGen(LEIH[g.party]) + ' vor: „Erststimme für euren Kandidaten, Zweitstimme für uns.“',
+      cond: g => LEIH[g.party] && g.week >= 4 && nationalShares(g)[g.party] < 7.5,
+      choices: [
+        { label: 'Zweitstimmen-Kampagne starten', hint: 'Stimmen vom Partner – der reagiert verärgert', noScale: true,
+          apply: g => { const q = LEIH[g.party]; const d = 0.6 * sizeFactor(nationalShares(g)[g.party]) + 0.2; g.nat[g.party] += d; addSrc(g, g.party, q, d); g.grudge = g.grudge || {}; g.grudge[q] = g.week; return 'Die Kampagne wirkt (' + fmt(d) + ') – bei ' + party(q).short + ' ist man verstimmt.'; } },
+        { label: 'Aus eigener Kraft', hint: 'Kein Risiko', apply: () => 'Ihr setzt auf eure eigenen Wähler.' }
+      ]
+    },
+    {
+      id: 'leih_gross', title: 'Euer Wunschpartner bittet um Leihstimmen',
+      text: g => party(LEIH_GROSS[g.party]).name + ' droht an der 5-%-Hürde zu scheitern – und mit ihr eure Mehrheit. Sollt ihr zum Stimmensplitting aufrufen: Erststimme für euch, Zweitstimme für den Partner?',
+      cond: g => LEIH_GROSS[g.party] && g.week >= 4 && (s => s > 3 && s < 6)(nationalShares(g)[LEIH_GROSS[g.party]]),
+      choices: [
+        { label: 'Zum Stimmensplitting aufrufen', hint: 'Partner gewinnt, ihr gebt ab', noScale: true,
+          apply: g => { const q = LEIH_GROSS[g.party]; const d = 0.7; g.nat[q] += d; addSrc(g, q, g.party, d); return party(q).short + ' bekommt Leihstimmen von euren Anhängern (' + fmt(d) + ' für den Partner).'; } },
+        { label: 'Jede Stimme für uns', hint: 'Der Partner bleibt auf sich gestellt', apply: () => 'Ihr kämpft um jede eigene Stimme.' }
+      ]
+    },
     // ---- Brandmauer ----
     {
       id: 'fw_antrag', title: 'Eine Mehrheit nur mit der AfD',
@@ -1935,6 +1985,100 @@
     return res;
   }
 
+  // ---------- Wahlkreise und Erststimmen ----------
+  // Jeder der 299 Wahlkreise startet mit seinem Erststimmenergebnis 2025. Die Erststimme folgt der
+  // Entwicklung im Land (Hochburgen schwanken stärker), dazu kommt der Wahlkampf im Wahlkreis (g.wk).
+  const WK_LIST = (WKD && WKD.list) || [];
+  const WK_BY_NR = {};
+  WK_LIST.forEach(w => { WK_BY_NR[w.nr] = w; });
+  const WK_BY_STATE = {};
+  WK_LIST.forEach(w => { (WK_BY_STATE[w.land] = WK_BY_STATE[w.land] || []).push(w); });
+  const wkByNr = nr => WK_BY_NR[nr];
+  const GRUNDMANDATE = 3; // Grundmandatsklausel: so viele Wahlkreissiege ersetzen die 5-%-Hürde
+
+  function wkBonus(g, nr, p) {
+    return (g.wk && g.wk[nr] && g.wk[nr][p]) || 0;
+  }
+
+  // Erststimmen im Wahlkreis aus den Stimmenanteilen des Landes (S).
+  function wkSharesFrom(g, w, S) {
+    const L = (WKD && WKD.land2025[w.land]) || {};
+    const raw = {};
+    let known = 0;
+    PARTY_IDS.forEach(p => {
+      known += w.e[p] || 0;
+      // Partei ohne Direktkandidatur 2025: Erststimme etwa 60 % ihrer Zweitstimme.
+      const base = w.e[p] > 0 ? w.e[p] : 0.6 * (w.z[p] || 0);
+      const ratio = Math.max(0.4, Math.min(1.8, base / Math.max(1, L[p] || 1)));
+      raw[p] = Math.max(0.1, base + (S[p] - (L[p] || 0)) * ratio + wkBonus(g, w.nr, p));
+    });
+    raw[D.OTHER.id] = Math.max(0.5, 100 - known);
+    return normalize(raw);
+  }
+
+  function wkStanding(sh) {
+    const order = PARTY_IDS.slice().sort((a, b) => sh[b] - sh[a]);
+    return { shares: sh, lead: order[0], second: order[1], margin: sh[order[0]] - sh[order[1]] };
+  }
+
+  // Projektion aller Wahlkreise: published = so, wie es die Umfragen zeigen.
+  function wkProjection(g, published) {
+    const cache = {};
+    return WK_LIST.map(w => {
+      const S = cache[w.land] || (cache[w.land] = published ? pollStateShares(g, w.land) : stateShares(g, w.land));
+      return Object.assign({ nr: w.nr }, wkStanding(wkSharesFrom(g, w, S)));
+    });
+  }
+
+  function wkShares(g, nr, published) {
+    const w = WK_BY_NR[nr];
+    if (!w) return null;
+    return wkStanding(wkSharesFrom(g, w, published ? pollStateShares(g, w.land) : stateShares(g, w.land)));
+  }
+
+  function directCounts(proj) {
+    const out = {};
+    PARTY_IDS.forEach(p => { out[p] = 0; });
+    proj.forEach(x => { out[x.lead] = (out[x.lead] || 0) + 1; });
+    return out;
+  }
+
+  function addWk(g, nr, p, amount) {
+    if (!g.wk) g.wk = {};
+    if (!g.wk[nr]) g.wk[nr] = {};
+    g.wk[nr][p] = (g.wk[nr][p] || 0) + amount;
+  }
+
+  // Wahlabend: Wahlkreissieger, Grundmandate und Zweitstimmendeckung.
+  function electWk(g) {
+    const cache = {};
+    return WK_LIST.map(w => {
+      const S = cache[w.land] || (cache[w.land] = electionStateShares(g, w.land));
+      const sh = wkSharesFrom(g, w, S);
+      PARTY_IDS.forEach(p => { sh[p] = Math.max(0.1, sh[p] + between(g, -1, 1)); });
+      const st = wkStanding(sh);
+      return { nr: w.nr, win: st.lead, second: st.second, pct: Math.round(sh[st.lead] * 10) / 10, margin: Math.round(st.margin * 10) / 10, seated: true };
+    });
+  }
+
+  // Ein Wahlkreissieger erhält seinen Sitz nur, wenn die Zweitstimmen seiner Partei im Land genug
+  // Sitze ergeben (Wahlrecht seit 2023). Die Sitze einer Partei werden dafür auf die Länder verteilt.
+  function applyCoverage(g, wks, seats) {
+    PARTY_IDS.forEach(p => {
+      const mine = wks.filter(x => x.win === p);
+      if (!mine.length) return;
+      if (!(seats[p] > 0)) { mine.forEach(x => { x.seated = false; }); return; }
+      const votes = {};
+      D.STATES.forEach(st => { votes[st.id] = electionStateShares(g, st.id)[p] * st.voters; });
+      const per = sainteLague(votes, seats[p]);
+      D.STATES.forEach(st => {
+        const here = mine.filter(x => WK_BY_NR[x.nr].land === st.id).sort((a, b) => b.pct - a.pct);
+        here.forEach((x, i) => { x.seated = i < (per[st.id] || 0); });
+      });
+    });
+    return wks;
+  }
+
   // ---------- Brandmauer ----------
   // Jede Partei kann die Brandmauer zur AfD in Stufen einreißen. Die Folgen kommen aus Umfragedaten
   // (D.FIREWALL): Anhänger, die eine Zusammenarbeit ablehnen, wenden sich ab; AfD-nahe Wähler kommen
@@ -1945,6 +2089,9 @@
     { name: 'Tolerierung durch die AfD nicht ausgeschlossen', short: 'Tolerierung' },
     { name: 'Offen für eine Koalition mit der AfD', short: 'Koalition' }
   ];
+  // Wunschpartner für Leihstimmen: kleine Partei → großer Partner und umgekehrt.
+  const LEIH = { fdp: 'union', gruene: 'spd', linke: 'spd', bsw: 'spd' };
+  const LEIH_GROSS = { union: 'fdp', spd: 'gruene' };
   const fwLevel = (g, p) => (g && g.firewall && g.firewall[p]) || 0;
   const FW = () => D.FIREWALL || { acceptance: {}, groups: {}, mobilize: {}, ai: {} };
 
@@ -2187,6 +2334,21 @@
         : 'Die Kleinparteien verlieren an Zuspruch – ihre Wähler wandern zu den Großen.' });
     }
 
+    // Die Konkurrenz kämpft auch um knappe Wahlkreise.
+    if (WK_LIST.length) {
+      const proj = wkProjection(g, false);
+      PARTY_IDS.forEach(p => {
+        if (p === me) return;
+        const close = proj.filter(x => (x.lead === p || x.second === p) && x.margin < 4);
+        if (!close.length || rand(g) >= 0.6) return;
+        const x = pick(g, close);
+        addWk(g, x.nr, p, between(g, 0.4, 1.1));
+        if ((x.lead === me || x.second === me) && rand(g) < 0.5) {
+          news.push({ prio: 1, text: party(p).name + ' kämpft um den Wahlkreis ' + WK_BY_NR[x.nr].name + ' – dort ist es knapp.' });
+        }
+      });
+    }
+
     aiFirewall(g, me, shares, news);
 
     // Höchstens drei Meldungen pro Woche: Angriffe zuerst.
@@ -2207,6 +2369,7 @@
       D.STATES.forEach(s => { g.mobReg[s.id][p] *= MOB_DECAY; });
     });
     if (g.src) Object.keys(g.src).forEach(p => Object.keys(g.src[p]).forEach(q => { g.src[p][q] *= BONUS_DECAY; }));
+    if (g.wk) Object.keys(g.wk).forEach(nr => Object.keys(g.wk[nr]).forEach(p => { g.wk[nr][p] *= BONUS_DECAY; }));
     g.otherSwing = (g.otherSwing || 0) * 0.92;
     if (g.sat) Object.keys(g.sat).forEach(c => Object.keys(g.sat[c]).forEach(k => { g.sat[c][k] *= BONUS_DECAY; })); // langsame Rückkehr zum Normalwert
     TOPIC_IDS.forEach(t => {
@@ -2316,10 +2479,18 @@
     const final = {};
     ALL_IDS.forEach(p => { final[p] = Math.round(raw[p] / sum * 1000) / 10; });
 
+    // Erststimmen: Wahlkreissieger; mit drei Direktmandaten zählt eine Partei auch unter 5 %.
+    const wks = WK_LIST.length ? electWk(g) : [];
+    const direct = directCounts(wks.map(x => ({ lead: x.win })));
     const inParliament = {};
-    PARTY_IDS.forEach(p => { if (final[p] >= THRESHOLD) inParliament[p] = final[p]; });
+    const grundmandat = [];
+    PARTY_IDS.forEach(p => {
+      if (final[p] >= THRESHOLD) inParliament[p] = final[p];
+      else if (direct[p] >= GRUNDMANDATE) { inParliament[p] = final[p]; grundmandat.push(p); }
+    });
     const seats = sainteLague(inParliament, D.SEATS);
     PARTY_IDS.forEach(p => { if (!(p in seats)) seats[p] = 0; });
+    if (wks.length) applyCoverage(g, wks, seats);
 
     const coalitions = findCoalitions(seats, g);
     const gov = formGovernment(seats, coalitions);
@@ -2337,6 +2508,9 @@
       states,
       strongest: leader(final),
       lastPoll: g.history.length ? g.history[g.history.length - 1].shares : null,
+      wk: wks,
+      direct,
+      grundmandat,
       turnout: Math.round(turnout(g) * 10) / 10
     };
 
@@ -2365,6 +2539,8 @@
   // oder eine Sitzmehrheit gemeinsam mit Wunschpartnern (alle müssen im Bundestag sitzen).
   function goalReached(p, r) {
     const P = party(p);
+    // „Wieder in den Bundestag“: Der Einzug zählt – auch über die Grundmandatsklausel.
+    if (P.goalEnter) return r.seats[p] > 0;
     if (r.shares[p] < (P.goal || 0)) return false;
     if (P.mustLead && r.strongest !== p) return false;
     if (P.goalMajority && r.seats[p] < MAJORITY) return false;
@@ -2380,7 +2556,7 @@
     const share = r.shares[p];
     const start = g.startShares[p];
     let status;
-    if (share < THRESHOLD) status = 'raus';
+    if (!(r.seats[p] > 0)) status = 'raus';
     else if (r.government && r.government[0] === p) status = 'kanzler';
     else if (r.government && r.government.indexOf(p) !== -1) status = 'regierung';
     else status = 'opposition';
@@ -2462,7 +2638,7 @@
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     publishedShares, publishedStateShares, groupShares, pollShares, pollStateShares, pollGroupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
-    POLL_RANGE, GROUP_IDS, FW_LEVELS, fwLevel, openFirewall, closeFirewall, firewallOptions, breakFirewall, flowSummary, steerVotes, stateFlows, regionFactor, nationalFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
+    POLL_RANGE, GROUP_IDS, WK_LIST, WK_BY_STATE, wkByNr, wkShares, wkProjection, directCounts, GRUNDMANDATE, FW_LEVELS, fwLevel, openFirewall, closeFirewall, firewallOptions, breakFirewall, flowSummary, steerVotes, stateFlows, regionFactor, nationalFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent,
     startDuel, duelAnswer,

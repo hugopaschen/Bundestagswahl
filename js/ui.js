@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261015-021733';
+  const APP_VERSION = '20261015-025840';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -59,6 +59,9 @@
   let pendingLocal = null; // ausgewählte Vor-Ort-Aktion (wird nach Wahl der Zielgruppe durchgeführt)
   let localStep = 1;       // aktueller Schritt vor Ort: 1 Thema, 2 Aktion, 3 Zielgruppe
   let localGroup = '';     // Zielgruppe der Vor-Ort-Aktion ('' = alle)
+  let mapMode = 'land';    // Karte: 'land' = Bundesländer, 'wk' = Wahlkreise
+  let selWk = null;        // ausgewählter Wahlkreis (Nummer)
+  let wkZoom = true;       // Wahlkreiskarte auf das gewählte Land gezoomt
   let selRival = null;   // Ziel eines Gegenangriffs
 
   // ---------- Speichern ----------
@@ -223,6 +226,7 @@
   }
 
   document.querySelectorAll('#game-nav .game-tab').forEach(b => b.addEventListener('click', () => showGameTab(b.dataset.tab)));
+  document.querySelectorAll('#map-mode button').forEach(b => b.addEventListener('click', () => { mapMode = b.dataset.mode; renderGame(); }));
   $('btn-group-back').addEventListener('click', () => showGameTab('polls'));
   // Wählergruppen im Land ein- und ausklappbar; der Zustand wird gemerkt.
   (function () {
@@ -237,8 +241,107 @@
   // Gebräuchliche Kürzel auf der Karte (intern bleiben die ISO-Kürzel)
   const LABEL_TEXT = { ST: 'SA', SN: 'S', NW: 'NRW' };
 
+  // ---------- Wahlkreise ----------
+  const WKG = (typeof window !== 'undefined' && window.BTW_WK) || null;
+  const wkInState = () => (selWk && E.wkByNr(selWk) && E.wkByNr(selWk).land === selState ? selWk : null);
+
+  // Erfundene Namen für Direktkandidaturen (fest je Wahlkreis und Partei).
+  const FIRST = ['Anna', 'Jonas', 'Leonie', 'Mehmet', 'Sabine', 'Thomas', 'Katharina', 'Lukas', 'Fatma', 'Michael', 'Julia', 'Stefan', 'Lena', 'Andreas', 'Miriam', 'Felix', 'Petra', 'David', 'Svenja', 'Jan', 'Aylin', 'Martin', 'Claudia', 'Tobias', 'Nadine', 'Christian', 'Elif', 'Markus', 'Hannah', 'Sebastian'];
+  const LAST = ['Becker', 'Schulz', 'Wagner', 'Hoffmann', 'Koch', 'Richter', 'Klein', 'Wolf', 'Schröder', 'Neumann', 'Schwarz', 'Braun', 'Zimmermann', 'Krüger', 'Hartmann', 'Lange', 'Werner', 'Krause', 'Lehmann', 'Kaya', 'Schmitt', 'Meier', 'Vogel', 'Friedrich', 'Keller', 'Günther', 'Frank', 'Berger', 'Winkler', 'Roth', 'Yilmaz', 'Lorenz', 'Peters', 'Engel', 'Seidel'];
+  function candName(nr, p) {
+    let h = nr * 131 + p.split('').reduce((a, c) => a * 31 + c.charCodeAt(0), 7);
+    h = Math.abs(h) % 100003;
+    return FIRST[h % FIRST.length] + ' ' + LAST[Math.floor(h / FIRST.length) % LAST.length];
+  }
+
+  function wkBoxOf(list) {
+    const b = [Infinity, Infinity, -Infinity, -Infinity];
+    list.forEach(w => { b[0] = Math.min(b[0], w.box[0]); b[1] = Math.min(b[1], w.box[1]); b[2] = Math.max(b[2], w.box[2]); b[3] = Math.max(b[3], w.box[3]); });
+    const pad = Math.max(b[2] - b[0], b[3] - b[1]) * 0.06;
+    return [b[0] - pad, b[1] - pad, b[2] - b[0] + 2 * pad, b[3] - b[1] + 2 * pad];
+  }
+
+  // Wahlkreiskarte: Farbe = wer laut Umfrage vorn liegt, blass = knapp (unter 3 Punkten).
+  function wkMapSvg(rows, opts) {
+    const byNr = {};
+    rows.forEach(x => { byNr[x.nr] = x; });
+    const vb = opts.zoom ? wkBoxOf(E.WK_BY_STATE[opts.zoom] || E.WK_LIST) : [0, 0, WKG.w, WKG.h];
+    let paths = '';
+    let top = '';
+    E.WK_LIST.forEach(w => {
+      const x = byNr[w.nr];
+      if (!x) return;
+      const lead = x.win || x.lead;
+      const cls = 'wk' + (x.margin < 3 ? ' close' : '') + (x.seated === false ? ' orphan' : '') + (w.nr === opts.sel ? ' selected' : '') +
+        (opts.zoom && w.land !== opts.zoom ? ' other' : '') + (opts.hidden && opts.hidden(w) ? ' pending' : '');
+      const p = '<path class="' + cls + '" data-wk="' + w.nr + '" data-land="' + w.land + '" d="' + w.d + '" style="fill:' + col(lead) + '"><title>' +
+        esc('WK ' + w.nr + ' ' + w.name + ': ' + E.party(lead).short + ' vorn (+' + num1(x.margin) + ')' + (x.seated === false ? ' – ohne Sitz' : '')) + '</title></path>';
+      if (w.nr === opts.sel) top = p; else paths += p;
+    });
+    return '<svg viewBox="' + vb.map(v => Math.round(v)).join(' ') + '" role="group" aria-label="Karte der Wahlkreise">' + paths + top + '</svg>';
+  }
+
+  function renderWkMap() {
+    const map = $('map');
+    const proj = E.wkProjection(g, true);
+    map.innerHTML = wkMapSvg(proj, { zoom: wkZoom ? selState : null, sel: selWk });
+    map.querySelectorAll('path.wk').forEach(pth => pth.addEventListener('click', () => {
+      selWk = Number(pth.dataset.wk);
+      selState = pth.dataset.land;
+      renderGame();
+    }));
+    const direct = E.directCounts(proj);
+    const me = g.party;
+    const lg = $('wk-legend');
+    lg.hidden = false;
+    lg.innerHTML = '<div class="wk-zoom"><button type="button" class="btn small-btn" id="btn-wk-zoom">' +
+      (wkZoom ? '🔍 Ganz Deutschland' : '🔍 ' + esc(E.stateById(selState).name) + ' heranzoomen') + '</button>' +
+      '<span class="muted small">Blass = knapp (unter 3 Punkten Abstand)</span></div>' +
+      '<p class="wk-direct"><b>Direktmandate laut Umfrage:</b> ' + POLL_ORDER.filter(p => p !== D.OTHER.id && direct[p] > 0)
+        .map(p => '<span class="pill" style="--pc:' + col(p) + ';--pon:' + onCol(p) + '">' + short(p) + ' ' + direct[p] + '</span>').join(' ') + '</p>' +
+      (E.pollShares(g)[me] < 7 ? '<p class="wk-gm">Grundmandatsklausel: Mit <b>' + E.GRUNDMANDATE + ' Direktmandaten</b> zieht ihr auch unter 5 % ein – laut Umfrage gewinnt ihr <b>' + (direct[me] || 0) + ' von ' + E.GRUNDMANDATE + '</b>.</p>' : '');
+    $('btn-wk-zoom').addEventListener('click', () => { wkZoom = !wkZoom; renderGame(); });
+  }
+
+  // Seitenleiste in der Wahlkreis-Ansicht: gewählter Wahlkreis und alle Wahlkreise des Landes.
+  function renderWkPanel() {
+    const box = $('wk-panel');
+    const st = E.stateById(selState);
+    const list = (E.WK_BY_STATE[st.id] || []).map(w => Object.assign({ w }, E.wkShares(g, w.nr, true)));
+    const me = g.party;
+    let html = '';
+    const cur = wkInState() && list.find(x => x.w.nr === selWk);
+    if (cur) {
+      const order = POLL_ORDER.filter(p => p !== D.OTHER.id).sort((a, b) => cur.shares[b] - cur.shares[a]).slice(0, 4);
+      const max = cur.shares[order[0]];
+      html += '<div class="wk-detail"><p class="eyebrow">Wahlkreis ' + cur.w.nr + '</p><h3>' + esc(cur.w.name) + '</h3>' +
+        '<p class="muted small">Erststimmen laut Umfrage (2025: ' + esc(E.party(cur.w.win === 'sonstige' ? 'union' : cur.w.win).short) + ' vorn' + (cur.w.seated ? '' : ', aber ohne Sitz') + ')</p>' +
+        order.map(p => '<div class="wk-row' + (p === me ? ' me' : '') + '"><span class="wk-cand"><b>' + esc(candName(cur.w.nr, p)) + '</b><small>' + short(p) + '</small></span>' +
+          '<span class="wk-bar"><i style="width:' + Math.max(2, cur.shares[p] / max * 100) + '%;background:' + col(p) + '"></i></span><span class="wk-val">' + pct(cur.shares[p]) + '</span></div>').join('') +
+        '<p class="small">' + (cur.lead === me ? '✅ Ihr liegt vorn – mit ' + num1(cur.margin) + ' Punkten Vorsprung.' :
+          '➡️ Euch fehlen ' + num1(cur.shares[cur.lead] - cur.shares[me]) + ' Punkte auf ' + short(cur.lead) + '.') +
+        ' Wählt diesen Wahlkreis vor Ort als <b>Schwerpunkt</b> oder startet eine <b>Erststimmen-Kampagne</b>.</p></div>';
+    }
+    list.sort((a, b) => (Math.abs(a.shares[a.lead] - a.shares[me]) - Math.abs(b.shares[b.lead] - b.shares[me])));
+    html += '<h4>Wahlkreise in ' + esc(st.name) + ' <span class="muted small">(für euch am knappsten zuerst)</span></h4><ul class="wk-list">' +
+      list.map(x => '<li><button type="button" class="wk-item' + (x.w.nr === selWk ? ' on' : '') + '" data-wk="' + x.w.nr + '">' +
+        '<span class="wk-name">' + x.w.nr + ' · ' + esc(x.w.name) + '</span>' +
+        '<span class="pill" style="--pc:' + col(x.lead) + ';--pon:' + onCol(x.lead) + '">' + short(x.lead) + ' +' + num1(x.margin) + '</span>' +
+        '<span class="wk-me">ihr ' + pct(x.shares[me]) + '</span></button></li>').join('') + '</ul>';
+    box.innerHTML = html;
+    box.querySelectorAll('.wk-item').forEach(b => b.addEventListener('click', () => { selWk = Number(b.dataset.wk); renderGame(); }));
+  }
+
   function renderMap() {
     const map = $('map');
+    const wkMode = mapMode === 'wk' && WKG;
+    document.querySelectorAll('#map-mode button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === (wkMode ? 'wk' : 'land'))));
+    $('map-hint').textContent = wkMode ? 'Die 299 Wahlkreise: Farbe = wer bei den Erststimmen vorn liegt (laut Umfrage). Tippt einen Wahlkreis an.' :
+      'Farbe = führende Partei · Zahl = euer Umfragewert im Land in Prozent. Tippe ein Land an.';
+    $('state-detail').hidden = !!wkMode;
+    $('wk-panel').hidden = !wkMode;
+    $('wk-legend').hidden = !wkMode;
+    if (wkMode) { renderWkMap(); renderWkPanel(); return; }
     if (!GEO) { map.textContent = 'Karte nicht verfügbar.'; return; }
     let shapes = '';
     let labels = '';
@@ -445,7 +548,7 @@
   }
 
   function actionTarget(a) {
-    if (a.scope === 'region') return { state: selState, topic: localTopic || null, group: localGroup || null };
+    if (a.scope === 'region') return { state: selState, topic: localTopic || null, group: localGroup || null, wk: wkInState() };
     if (a.scope === 'group') return { group: selGroup, topic: selTopic };
     if (a.scope === 'rival') return { rival: selRival, topic: selTopic };
     return { state: selState, topic: selTopic };
@@ -610,8 +713,22 @@
         const sat = E.groupSat(g, k.id, g.party, localTopic || null, st.id, a.id) < 0.8;
         return chip(k.id, k.icon, k.short, v, sat ? '<span class="tg-sat">schon umworben</span>' : '');
       }).join('') + '</div></div>').join('');
+    // Wahlkreis-Schwerpunkt (bei der Erststimmen-Kampagne Pflicht).
+    const wks = (E.WK_BY_STATE[st.id] || []).map(w => Object.assign({ w }, E.wkShares(g, w.nr, true)));
+    const me = g.party;
+    wks.sort((x, y) => Math.abs(x.shares[x.lead] - x.shares[me]) - Math.abs(y.shares[y.lead] - y.shares[me]));
+    const needWk = a.id === 'erststimme';
+    if (needWk && !wkInState() && wks.length) selWk = wks[0].w.nr;
+    if (wks.length) {
+      html += '<label class="local-topic-row wk-focus"><span>✖️ Wahlkreis-Schwerpunkt' + (needWk ? '' : ' (optional)') + '</span><select id="wk-focus">' +
+        (needWk ? '' : '<option value="">Kein Schwerpunkt – ganzes Land</option>') +
+        wks.map(x => '<option value="' + x.w.nr + '"' + (x.w.nr === wkInState() ? ' selected' : '') + '>' + x.w.nr + ' · ' + esc(x.w.name) + ' – ' +
+          (x.lead === me ? 'ihr vorn +' + num1(x.margin) : short(x.lead) + ' vorn, euch fehlen ' + num1(x.shares[x.lead] - x.shares[me])) + '</option>').join('') +
+        '</select></label><p class="muted small">' + (needWk ? 'Die Kampagne wirkt nur im gewählten Wahlkreis.' :
+          'Mit Schwerpunkt fließt ein Teil der Wirkung gezielt in die Erststimme dieses Wahlkreises – im übrigen Land wirkt die Aktion etwas schwächer.') + '</p>';
+    }
     const cost = E.actionCost(a.id, selState, g);
-    const ok = E.canAct(g, a.id) && g.money + 1e-9 >= cost;
+    const ok = E.canAct(g, a.id) && g.money + 1e-9 >= cost && (!needWk || wkInState());
     const who = localGroup ? D.GROUPS.find(k => k.id === localGroup).name : 'alle Gruppen';
     html += '<div class="tg-go"><button type="button" class="btn primary" id="btn-local-go"' + (ok ? '' : ' disabled') + '>▶ ' + esc(a.name) +
       (localTopic ? ' zu ' + esc(E.topicById(localTopic).name) : '') + ' für ' + esc(who) + ' in ' + esc(st.name) + ' (' + (cost ? money(cost) : 'kostenlos') + ')</button>' +
@@ -619,6 +736,7 @@
     box.innerHTML = html;
     box.hidden = false;
     box.querySelectorAll('.tg-chip').forEach(c => c.addEventListener('click', () => { localGroup = c.dataset.g; renderGame(); }));
+    if ($('wk-focus')) $('wk-focus').addEventListener('change', e => { selWk = e.target.value ? Number(e.target.value) : null; renderGame(); });
     $('btn-local-cancel').addEventListener('click', () => { pendingLocal = null; localStep = 2; renderGame(); });
     $('btn-local-go').addEventListener('click', () => {
       runAction(a, actionTarget(a), res => {
@@ -750,7 +868,7 @@
 
   const LOCAL_GROUPS = [
     { title: '🎤 Auftritte', desc: '🎤 Termine eurer Spitzenkandidatur – große Bühne, starke Wirkung im Land.', ids: ['kundgebung', 'buerger', 'betrieb'] },
-    { title: '🚪 Basisarbeit &amp; Mobilisierung', desc: '👥 Einsätze eures Teams – nah an den Menschen, bringt Anhänger und Nichtwähler an die Urne.', ids: ['haustuer', 'infostand', 'plakate'] },
+    { title: '🚪 Basisarbeit &amp; Mobilisierung', desc: '👥 Einsätze eures Teams – nah an den Menschen, bringt Anhänger und Nichtwähler an die Urne.', ids: ['haustuer', 'infostand', 'plakate', 'erststimme'] },
     { title: '📻 Medien im Land', desc: '🎤 Termin eurer Spitzenkandidatur – Lokalzeitung und Landesradio, am besten mit einem Landesthema.', ids: ['regional'] }
   ];
 
@@ -1177,9 +1295,39 @@
     $('hemicycle').innerHTML = hemicycle(r.seats);
     $('seat-legend').innerHTML = seatLegend(r.seats);
 
+    renderWkResult();
     renderCoalition();
     renderOutcome();
     if (animate) electionReveal(ids); else finishElectionReveal();
+  }
+
+  // Erststimmen am Wahlabend: Karte der Wahlkreissieger, Direktmandate, knappste Duelle, Grundmandate.
+  function renderWkResult() {
+    const r = g.result;
+    const card = $('wk-card');
+    if (!r.wk || !r.wk.length || !WKG) { card.hidden = true; return; }
+    card.hidden = false;
+    const map = $('wk-result-map');
+    map.innerHTML = wkMapSvg(r.wk, {});
+    const me = g.party;
+    const won = {};
+    const seated = {};
+    r.wk.forEach(x => { won[x.win] = (won[x.win] || 0) + 1; if (x.seated) seated[x.win] = (seated[x.win] || 0) + 1; });
+    const orphans = r.wk.filter(x => !x.seated);
+    const close = r.wk.slice().sort((a, b) => a.margin - b.margin).slice(0, 5);
+    const mine = won[me] || 0;
+    let html = '<h3>Direktmandate</h3><div class="wk-res-pills">' + POLL_ORDER.filter(p => p !== D.OTHER.id && won[p] > 0).map(p =>
+      '<span class="sl-item' + (p === me ? ' me' : '') + '"><span class="sl-name">' + short(p) + '</span><span class="sl-seats" style="background:' + col(p) + ';color:' + onCol(p) + '">' + won[p] + '</span>' +
+      '<span class="sl-diff">' + (seated[p] || 0) + ' mit Sitz</span></span>').join('') + '</div>';
+    html += '<p>' + (mine ? '✖️ Eure Direktkandidaturen gewinnen <b>' + mine + ' Wahlkreis' + (mine > 1 ? 'e' : '') + '</b>' + ((seated[me] || 0) < mine ? ' – ' + (mine - (seated[me] || 0)) + ' davon ohne Sitz.' : '.') :
+      '✖️ Eure Direktkandidaturen gewinnen keinen Wahlkreis.') + '</p>';
+    (r.grundmandat || []).forEach(p => {
+      html += '<p class="wk-gm-hit">🎉 <b>Grundmandatsklausel:</b> ' + esc(E.party(p).name) + ' zieht mit ' + won[p] + ' Direktmandaten trotz ' + pct(r.shares[p]) + ' in den Bundestag ein.</p>';
+    });
+    if (orphans.length) html += '<p class="small"><b>' + orphans.length + ' Wahlkreissieger ohne Sitz:</b> Die Zweitstimmen ihrer Partei reichen nicht für alle gewonnenen Wahlkreise (Zweitstimmendeckung). Auf der Karte blass.</p>';
+    html += '<h4>Die knappsten Duelle</h4><ul class="wk-close">' + close.map(x => '<li><b>' + esc(E.wkByNr(x.nr).name) + ':</b> ' +
+      esc(candName(x.nr, x.win)) + ' (' + short(x.win) + ') vor ' + short(x.second) + ' – ' + (x.margin < 0.05 ? 'weniger als 0,1' : num1(x.margin)) + ' Punkte</li>').join('') + '</ul>';
+    $('wk-result-info').innerHTML = html;
   }
 
   // Wahlabend mit Spannung: erst die Zweitstimmen Partei für Partei (die eigene zuletzt),
@@ -1196,7 +1344,7 @@
     const at = (t, fn) => electionTimers.push(setTimeout(fn, t));
     const votes = $('votes-card');
     votes.classList.add('el-revealing');
-    ['seat-card', 'coalition-card', 'outcome-card'].forEach(id => $(id).classList.add('el-pending'));
+    ['seat-card', 'wk-card', 'coalition-card', 'outcome-card'].forEach(id => $(id).classList.add('el-pending'));
     $('btn-el-skip').hidden = false;
     const sus = $('el-suspense');
     sus.textContent = '18:00 Uhr – die Wahllokale haben geschlossen. Die Stimmen werden ausgezählt …';
@@ -1250,6 +1398,25 @@
       });
       t += dur + (reduce ? 20 : 350);
     });
+    // Erststimmen: Die Wahlkreise färben sich Land für Land.
+    if (!$('wk-card').hidden && r.wk && r.wk.length) {
+      t += reduce ? 100 : 900;
+      at(t, () => {
+        const card = $('wk-card');
+        card.classList.remove('el-pending');
+        card.classList.add('el-revealing');
+        card.querySelectorAll('path.wk').forEach(p => p.classList.add('pending'));
+        card.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+      });
+      t += reduce ? 100 : 700;
+      D.STATES.slice().sort((a, b) => (GEO && GEO.states[a.id] ? GEO.states[a.id].cy : 0) - (GEO && GEO.states[b.id] ? GEO.states[b.id].cy : 0)).forEach(st => {
+        at(t, () => $('wk-card').querySelectorAll('path.wk[data-land="' + st.id + '"]').forEach(p => p.classList.remove('pending')));
+        t += reduce ? 30 : 320;
+      });
+      t += reduce ? 100 : 600;
+      at(t, () => { $('wk-card').classList.remove('el-revealing'); });
+      t += reduce ? 100 : 1600;
+    }
     at(t, () => finishElectionReveal(true));
   }
 
@@ -1262,8 +1429,9 @@
     document.querySelectorAll('#screen-election .rbar').forEach(b => { b.style.height = b.dataset.h + '%'; });
     document.querySelectorAll('#screen-election .result-bars .col, #screen-election .result-labels > div, #screen-election .hc-seg, #screen-election .sl-item')
       .forEach(el => el.classList.add('shown'));
-    ['votes-card', 'seat-card'].forEach(id => $(id).classList.remove('el-revealing'));
-    ['seat-card', 'coalition-card', 'outcome-card'].forEach(id => $(id).classList.remove('el-pending'));
+    ['votes-card', 'seat-card', 'wk-card'].forEach(id => $(id).classList.remove('el-revealing'));
+    ['seat-card', 'wk-card', 'coalition-card', 'outcome-card'].forEach(id => $(id).classList.remove('el-pending'));
+    document.querySelectorAll('#wk-card path.wk.pending').forEach(p => p.classList.remove('pending'));
     $('btn-el-skip').hidden = true;
     if (scroll) {
       const target = g.result.awaitingChoice ? $('coalition-card') : $('outcome-card');
@@ -2222,6 +2390,7 @@
     { sel: '#screen-game .topbar .stats', title: 'Eure Lage auf einen Blick', text: '<p><b>Woche</b> und <b>Wahlkampfkasse</b>. <b>🎤 Termine</b>: ' + g.apMax + ' Auftritte eurer Spitzenkandidatur pro Woche (Kundgebung, Bürgerdialog, Talkshow …). <b>👥 Team</b>: Einsätze eurer Mitglieder (Haustür, Infostand, Plakate, Social Media …) – große Parteien haben mehr Leute.</p><p><b>Umfrage</b>: euer Wert in der Sonntagsfrage, mit ± ' + E.POLL_RANGE + ' Punkten Fehlerspanne.</p>' },
     { sel: '#game-nav', title: 'Fünf Bereiche', text: '<p>Hier wechselt ihr zwischen <b>Deutschland</b> (Wahlkampf vor Ort), <b>Aktionen</b> (bundesweit), <b>Umfragen</b>, eurem <b>Wahlprogramm</b> und den <b>Nachrichten</b>.</p>' },
     { tab: 'map', sel: '#map', title: 'Die Deutschlandkarte', text: '<p>Die Farbe zeigt, wer im Land vorn liegt, die Zahl euren Umfragewert dort. Tippt ein Land an, um dort Wahlkampf zu machen.</p>' },
+    { tab: 'map', sel: '#map-mode', title: 'Wahlkreise und Erststimmen', text: '<p>Schaltet um auf die <b>299 Wahlkreise</b>: Wer liegt bei den Erststimmen vorn? Mit <b>drei Direktmandaten</b> zieht eine Partei auch unter 5 % in den Bundestag ein (Grundmandatsklausel).</p><p>Vor Ort könnt ihr einen Wahlkreis als <b>Schwerpunkt</b> wählen oder eine <b>Erststimmen-Kampagne</b> starten.</p>' },
     { tab: 'map', sel: '#state-detail', title: 'Das Land im Detail', text: '<p>Umfrage im Land, Wahlberechtigte und erwartete Wahlbeteiligung. Große Länder bringen mehr Stimmen, knappe Länder lohnen sich besonders.</p>' },
     { tab: 'map', sel: '#screen-game .local-block', title: 'Wahlkampf vor Ort', text: '<p>In drei Schritten: erst ein <b>Thema</b> (🎯 = Kernthema, das die Menschen im Land bewegt), dann die <b>Aktion</b>, dann die <b>Zielgruppe</b>.</p><p>Vor jeder Aktion stellt euch das Team Fragen zur Vorbereitung – gute Antworten machen die Aktion wirksamer. Bei Bürgerdialog, Infostand & Co. stellen euch Bürger Fachfragen: Richtige Antworten stärken eure Kompetenz im Thema.</p><p>Wer dieselbe Gruppe immer wieder mit demselben Thema umwirbt, erreicht sie schlechter – Abwechslung lohnt sich.</p>' },
     { tab: 'map', sel: '#sg-block', title: 'Wählergruppen im Land', text: '<p>Wer in diesem Land wählt – nach Alter, Bildung, Wohnort, Geschlecht, Konfession und Beruf – und wie ihr bei jeder Gruppe dasteht. Passt der Kanal zu den Gruppen im Land, wirkt eure Aktion besser.</p>' },

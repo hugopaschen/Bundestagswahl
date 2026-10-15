@@ -202,7 +202,30 @@ test('Wahlziele: stärkste Kraft, absolute Mehrheit, Prozentziel und Koalitionsm
   assert.strictEqual(E.goalReached('linke', r), false);         // 280 Sitze reichen nicht
   assert.strictEqual(E.goalReached('linke', Object.assign({}, r, { seats: Object.assign({}, seats, { linke: 110 }) })), true);
   assert.strictEqual(E.goalReached('fdp', r), false);
-  assert.strictEqual(E.goalReached('fdp', Object.assign({}, r, { shares: Object.assign({}, shares, { fdp: 5 }) })), true);
+  // FDP: Der Wiedereinzug zählt – über 5 % oder über die Grundmandatsklausel.
+  assert.strictEqual(E.goalReached('fdp', Object.assign({}, r, { seats: Object.assign({}, seats, { fdp: 32 }) })), true);
+});
+
+test('Erststimmen: Grundmandatsklausel und Zweitstimmendeckung am Wahlabend', () => {
+  assert.strictEqual(E.WK_LIST.length, 299);
+  const g = E.newGame('linke', 'T', 5);
+  // Die Linke gewinnt drei Wahlkreise deutlich, liegt aber bundesweit unter 5 %.
+  D.STATES.forEach(st => { g.reg[st.id].linke -= 9; });
+  E.WK_LIST.filter(w => w.land === 'BE').slice(0, 3).forEach(w => { g.wk = g.wk || {}; g.wk[w.nr] = { linke: 60 }; });
+  g.week = g.maxWeeks;
+  while (g.pendingEvent) E.resolveEvent(g, 0);
+  g.duelDone = true;
+  E.endWeek(g);
+  const r = g.result;
+  assert.ok(r.shares.linke < 5, 'Linke unter 5 %: ' + r.shares.linke);
+  assert.ok(r.direct.linke >= 3);
+  assert.ok(r.grundmandat.indexOf('linke') !== -1);
+  assert.ok(r.seats.linke > 0);
+  assert.strictEqual(r.wk.length, 299);
+  // Wer seinen Wahlkreis gewinnt, ohne dass die Zweitstimmen reichen, bleibt ohne Sitz.
+  const won = {};
+  r.wk.filter(x => x.seated).forEach(x => { won[x.win] = (won[x.win] || 0) + 1; });
+  Object.keys(won).forEach(p => assert.ok(won[p] <= r.seats[p]));
 });
 
 test('Fachkonferenz: richtige Antworten verändern die Kompetenz im Kernthema', () => {

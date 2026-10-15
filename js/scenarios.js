@@ -611,6 +611,208 @@
         ]
       }
     ],
+    "erststimme": [
+      {
+        "s": "Eure Direktkandidatin ist im Wahlkreis kaum bekannt. Das Team überlegt, wie sie in drei Wochen ein Gesicht bekommt.",
+        "o": [
+          {
+            "t": "Jeden Samstag mit ihr auf die Wochenmärkte der größeren Orte im Wahlkreis gehen.",
+            "q": 1,
+            "f": "Viele Gespräche, Fotos in der Lokalzeitung – nach drei Wochen kennt man sie."
+          },
+          {
+            "t": "Ihr Gesicht auf möglichst viele Großplakate drucken und sonst wenig machen.",
+            "q": 0,
+            "f": "Man erkennt sie jetzt, aber niemand weiß, wofür sie steht."
+          },
+          {
+            "t": "Abwarten – die Zweitstimme ist ohnehin wichtiger als die Kandidatin.",
+            "q": -1,
+            "f": "Im Wahlkreis bleibt sie eine Unbekannte, die Erststimmen gehen an andere."
+          }
+        ]
+      },
+      {
+        "s": "Der Kandidat einer anderen Partei liegt laut Lokalzeitung nur knapp vor eurem. Euer Team will nachlegen.",
+        "o": [
+          {
+            "t": "Einen Faktencheck zu seinen Aussagen über das Krankenhaus im Ort veröffentlichen.",
+            "q": 1,
+            "f": "Sachlich und gut belegt – die Lokalpresse greift es auf, ihr holt auf."
+          },
+          {
+            "t": "Ein Flugblatt mit einem wenig schmeichelhaften Foto von ihm verteilen.",
+            "q": -1,
+            "f": "Das wirkt kleinlich und unfair – Mitleid bringt ihm sogar Stimmen."
+          },
+          {
+            "t": "Einfach mehr Flyer verteilen als bisher und auf das Beste hoffen.",
+            "q": 0,
+            "f": "Etwas mehr Präsenz, aber kein Grund, euch die Erststimme zu geben."
+          }
+        ]
+      },
+      {
+        "s": "Im Wahlkreis wird seit Jahren über eine fehlende Ortsumgehung gestritten. Eure Kandidatin soll sich festlegen.",
+        "o": [
+          {
+            "t": "Mit den Anwohnern sprechen und eine klare, umsetzbare Position vorstellen.",
+            "q": 1,
+            "f": "Die Bürgerinitiative lobt die Gesprächsbereitschaft – das spricht sich herum."
+          },
+          {
+            "t": "Eine schnelle Umgehung versprechen, obwohl der Bund gar nicht zuständig ist.",
+            "q": -1,
+            "f": "Die Lokalzeitung deckt auf, dass das Versprechen nicht haltbar ist."
+          },
+          {
+            "t": "Sich nicht festlegen und auf die Zuständigkeit des Landes verweisen.",
+            "q": 0,
+            "f": "Korrekt, aber blass – im Ort hätte man sich mehr erhofft."
+          }
+        ]
+      },
+      {
+        "s": "Ein Unterstützer will Erststimmen-Flyer in alle Briefkästen werfen – auch dort, wo „Bitte keine Werbung“ steht.",
+        "o": [
+          {
+            "t": "Die Aufkleber respektieren und dort lieber persönlich klingeln.",
+            "q": 1,
+            "f": "Die Leute schätzen das. Einige nehmen den Flyer gerne an der Tür."
+          },
+          {
+            "t": "Überall einwerfen – Wahlwerbung ist doch etwas anderes als Reklame.",
+            "q": -1,
+            "f": "Beschwerden landen bei der Lokalzeitung: „Kandidat ignoriert Wunsch der Bürger.“"
+          },
+          {
+            "t": "Nur in Mehrfamilienhäusern einwerfen, dort fällt es weniger auf.",
+            "q": 0,
+            "f": "Kaum Ärger, aber auch kaum Wirkung bei den Menschen, die ihr erreichen wollt."
+          }
+        ]
+      },
+      {
+        "s": "Die Lokalzeitung lädt alle Direktkandidaten zu einem Podium in die Stadthalle ein. Euer Kandidat ist nervös.",
+        "o": [
+          {
+            "t": "Mit dem Team die drei wichtigsten Themen im Wahlkreis vorbereiten und üben.",
+            "q": 1,
+            "f": "Er antwortet konkret und ortskundig – im Saal gibt es spürbar Applaus."
+          },
+          {
+            "t": "Absagen – ein schlechter Auftritt wäre schlimmer als gar keiner.",
+            "q": -1,
+            "f": "Der leere Stuhl auf dem Podium wird zum Foto des Abends."
+          },
+          {
+            "t": "Hingehen und spontan antworten, ohne große Vorbereitung.",
+            "q": 0,
+            "f": "Solide, aber ohne Glanzpunkt. Niemand ändert danach seine Meinung."
+          }
+        ]
+      },
+      {
+        "s": "Ein bekannter Sportverein im Wahlkreis bietet an, dass euer Kandidat beim Heimspiel eine Ehrenrunde dreht.",
+        "o": [
+          {
+            "t": "Lieber beim Vereinsfest helfen und mit den Ehrenamtlichen ins Gespräch kommen.",
+            "q": 1,
+            "f": "Die Leute erleben ihn nahbar – im Verein wird über ihn gesprochen."
+          },
+          {
+            "t": "Annehmen und mit Parteifahne durchs Stadion laufen.",
+            "q": -1,
+            "f": "Pfiffe von den Rängen – Politik im Stadion kommt schlecht an."
+          },
+          {
+            "t": "Annehmen, aber nur kurz winken und wieder verschwinden.",
+            "q": 0,
+            "f": "Ein Foto für die sozialen Netzwerke, mehr bleibt nicht hängen."
+          }
+        ]
+      },
+      {
+        "s": "Anhänger einer Partei, die im Wahlkreis chancenlos ist, könnten euch die Erststimme geben. Wie sprecht ihr sie an?",
+        "o": [
+          {
+            "t": "Offen sagen: Mit der Erststimme entscheidet ihr, wer den Wahlkreis vertritt.",
+            "q": 1,
+            "f": "Eine ehrliche Bitte – einige wechseln bei der Erststimme zu euch."
+          },
+          {
+            "t": "Behaupten, ihre Partei habe zur Wahl eures Kandidaten aufgerufen.",
+            "q": -1,
+            "f": "Die andere Partei widerspricht öffentlich – das wird ein Glaubwürdigkeitsproblem."
+          },
+          {
+            "t": "Gar nicht – wer wählen will, weiß selbst, was er tut.",
+            "q": 0,
+            "f": "Ihr lasst Stimmen liegen, die ihr leicht hättet gewinnen können."
+          }
+        ]
+      },
+      {
+        "s": "In einem Dorf des Wahlkreises schließt die letzte Bankfiliale. Die Menschen sind wütend.",
+        "o": [
+          {
+            "t": "Vor Ort zuhören und eine Lösung wie einen mobilen Bankbus unterstützen.",
+            "q": 1,
+            "f": "Konkret und machbar – im Dorf merkt man sich, wer gekommen ist."
+          },
+          {
+            "t": "Eine Pressemitteilung schicken, in der ihr die Bank scharf kritisiert.",
+            "q": 0,
+            "f": "Klingt engagiert, aber im Dorf hat euch niemand gesehen."
+          },
+          {
+            "t": "Erklären, dass das eben die Digitalisierung sei.",
+            "q": -1,
+            "f": "Das kommt herablassend an – im Dorf ist die Stimmung gegen euch."
+          }
+        ]
+      },
+      {
+        "s": "Euer Team will ein kurzes Vorstellungsvideo eurer Direktkandidatin für soziale Netzwerke drehen.",
+        "o": [
+          {
+            "t": "An Orten im Wahlkreis drehen, die jeder kennt, und echte Anliegen zeigen.",
+            "q": 1,
+            "f": "Die Menschen erkennen ihre Heimat – das Video wird oft geteilt."
+          },
+          {
+            "t": "Ein aufwendiges Video im Studio mit Werbetexten aus der Parteizentrale.",
+            "q": 0,
+            "f": "Professionell, aber austauschbar – es könnte aus jedem Wahlkreis stammen."
+          },
+          {
+            "t": "Ein lustiges Tanzvideo, um jüngere Leute zu erreichen.",
+            "q": -1,
+            "f": "Viel Spott in den Kommentaren, kaum jemand nimmt sie danach ernst."
+          }
+        ]
+      },
+      {
+        "s": "Kurz vor der Wahl fehlen euch im Wahlkreis noch Helfer für die letzten Haustür-Runden.",
+        "o": [
+          {
+            "t": "Alle Mitglieder im Wahlkreis anrufen und um zwei Stunden am Samstag bitten.",
+            "q": 1,
+            "f": "Viele kommen – die letzten Straßenzüge werden noch geschafft."
+          },
+          {
+            "t": "Helfer aus der Landeshauptstadt holen, die niemand im Ort kennt.",
+            "q": 0,
+            "f": "Mehr Leute auf der Straße, aber die Gespräche bleiben oberflächlich."
+          },
+          {
+            "t": "Die letzten Runden ausfallen lassen und auf Plakate setzen.",
+            "q": -1,
+            "f": "Gerade in den knappen Straßen fehlt euch am Ende die persönliche Ansprache."
+          }
+        ]
+      }
+    ],
     "haustuer": [
       {
         "s": "Ein Ehrenamtlicher schlägt vor, nach jeder Runde Namen, Adressen und die geäußerte Wahlabsicht der Gesprächspartner in die private Messenger-Gruppe des Teams zu stellen.",

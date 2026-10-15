@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de" data-version="20261015-021733">
+<html lang="de" data-version="20261015-025840">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Montserrat:wght@700;800;900&family=Oswald:wght@600;700&family=Public+Sans:wght@500;700;800;900&family=Inter:wght@800&family=Open+Sans:wght@400;700;800&family=Caveat:wght@600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,700;1,400&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20261015-021733">
+  <link rel="stylesheet" href="css/style.css?v=20261015-025840">
 </head>
 <body>
   <!-- Startseite: Eröffnungsbild, ein eigener Bildschirm -->
@@ -262,11 +262,19 @@
     <div class="layout tabbed">
       <section class="card map-card" data-tab="map">
         <h2>Deutschland</h2>
-        <p class="muted small">Farbe = führende Partei · Zahl = euer Umfragewert im Land in Prozent. Tippe ein Land an.</p>
+        <div class="map-mode" id="map-mode" role="group" aria-label="Kartenansicht">
+          <button type="button" data-mode="land">🗺️ Bundesländer</button>
+          <button type="button" data-mode="wk">✖️ Wahlkreise</button>
+        </div>
+        <p class="muted small" id="map-hint">Farbe = führende Partei · Zahl = euer Umfragewert im Land in Prozent. Tippe ein Land an.</p>
         <div class="map-wrap">
-          <div id="map" class="map"></div>
+          <div>
+            <div id="map" class="map"></div>
+            <div id="wk-legend" class="wk-legend" hidden></div>
+          </div>
           <div class="map-side">
             <div id="state-detail" class="state-detail"></div>
+            <div id="wk-panel" class="wk-panel" hidden></div>
           </div>
         </div>
         <div class="local-block">
@@ -390,6 +398,13 @@
         <div id="seat-legend" class="seat-legend"></div>
         <p class="muted small seat-note">Zahl unter den Sitzen: Veränderung zur Bundestagswahl 2025. Weiß gestrichelt: Mehrheitsgrenze.</p>
       </section>
+      <section class="card wk-result" id="wk-card">
+        <h2>Erststimmen &amp; Wahlkreise</h2>
+        <div class="wk-result-grid">
+          <div id="wk-result-map" class="map wk-map"></div>
+          <div id="wk-result-info" class="wk-result-info"></div>
+        </div>
+      </section>
       <section class="card" id="coalition-card">
         <h2>Regierungsbildung</h2>
         <div id="coalition"></div>
@@ -431,12 +446,13 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="js/data.js?v=20261015-021733"></script>
-  <script src="js/germany.js?v=20261015-021733"></script>
-  <script src="js/questions.js?v=20261015-021733"></script>
-  <script src="js/scenarios.js?v=20261015-021733"></script>
-  <script src="js/citizenq.js?v=20261015-021733"></script>
-  <script src="js/engine.js?v=20261015-021733"></script>
-  <script src="js/ui.js?v=20261015-021733"></script>
+  <script src="js/data.js?v=20261015-025840"></script>
+  <script src="js/wahlkreise.js?v=20261015-025840"></script>
+  <script src="js/germany.js?v=20261015-025840"></script>
+  <script src="js/questions.js?v=20261015-025840"></script>
+  <script src="js/scenarios.js?v=20261015-025840"></script>
+  <script src="js/citizenq.js?v=20261015-025840"></script>
+  <script src="js/engine.js?v=20261015-025840"></script>
+  <script src="js/ui.js?v=20261015-025840"></script>
 </body>
 </html>
