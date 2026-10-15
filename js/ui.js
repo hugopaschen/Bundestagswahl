@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261015-013659';
+  const APP_VERSION = '20261015-014047';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -1193,19 +1193,24 @@
       const l = votes.querySelector('.result-labels [data-p="' + p + '"]');
       if (l) l.classList.add('shown');
     };
-    // Erst die Sonstigen, dann die übrigen Parteien von klein nach groß, zum Schluss die eigene.
-    const order = [D.OTHER.id].concat(ids.filter(p => p !== me && p !== D.OTHER.id).sort((a, b) => r.shares[a] - r.shares[b]));
+    // Von links nach rechts (wie die Balken stehen); vor der eigenen Partei eine kurze Kunstpause.
     let t = 900;
-    order.forEach(p => { at(t, () => showBar(p)); t += step; });
-    t += reduce ? 100 : 700;
-    at(t, () => { sus.textContent = '… und ' + E.party(me).name + '?'; });
-    t += reduce ? 100 : 1600;
-    at(t, () => {
-      showBar(me);
-      const v = r.shares[me];
-      sus.textContent = E.party(me).short + ': ' + pct(v) + (v < 5 ? ' – unter der 5-%-Hürde.' : r.strongest === me ? ' – stärkste Kraft!' : '.');
+    ids.forEach(p => {
+      if (p === me) {
+        at(t, () => { sus.textContent = '… und ' + E.party(me).name + '?'; });
+        t += reduce ? 100 : 1500;
+        at(t, () => {
+          showBar(me);
+          const v = r.shares[me];
+          sus.textContent = E.party(me).short + ': ' + pct(v) + (v < 5 ? ' – unter der 5-%-Hürde.' : r.strongest === me ? ' – stärkste Kraft!' : '.');
+        });
+        t += reduce ? 100 : 1500;
+      } else {
+        at(t, () => showBar(p));
+        t += step;
+      }
     });
-    t += reduce ? 200 : 2200;
+    t += reduce ? 200 : 1400;
     // Sitzverteilung
     at(t, () => {
       const card = $('seat-card');
