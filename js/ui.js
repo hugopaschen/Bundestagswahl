@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261015-013258';
+  const APP_VERSION = '20261015-013659';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -1214,16 +1214,19 @@
       card.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
     });
     t += reduce ? 100 : 700;
+    // Die Parteien füllen den Halbkreis von links nach rechts, jede so lange, wie sie Sitze hat.
     const segs = SPECTRUM.filter(p => r.seats[p] > 0);
+    const totalSeats = segs.reduce((x, p) => x + r.seats[p], 0);
     segs.forEach(p => {
+      const dur = reduce ? 60 : Math.max(450, 4200 * r.seats[p] / totalSeats);
       at(t, () => {
         const card = $('seat-card');
         const seg = card.querySelector('.hc-seg[data-p="' + p + '"]');
-        if (seg) seg.classList.add('shown');
+        if (seg) sweepSegment(seg, dur);
         const it = card.querySelector('.sl-item[data-p="' + p + '"]');
         if (it) it.classList.add('shown');
       });
-      t += reduce ? 80 : 900;
+      t += dur + (reduce ? 20 : 350);
     });
     at(t, () => finishElectionReveal(true));
   }
@@ -1231,6 +1234,9 @@
   function finishElectionReveal(scroll) {
     electionTimers.forEach(clearTimeout);
     electionTimers = [];
+    sweepFrames.forEach(cancelAnimationFrame);
+    sweepFrames = [];
+    document.querySelectorAll('#screen-election .hc-seg').forEach(seg => seg.setAttribute('d', segPath(Number(seg.dataset.a0), Number(seg.dataset.a1))));
     document.querySelectorAll('#screen-election .rbar').forEach(b => { b.style.height = b.dataset.h + '%'; });
     document.querySelectorAll('#screen-election .result-bars .col, #screen-election .result-labels > div, #screen-election .hc-seg, #screen-election .sl-item')
       .forEach(el => el.classList.add('shown'));
@@ -1244,13 +1250,39 @@
   }
   $('btn-el-skip').addEventListener('click', () => { finishElectionReveal(true); $('el-suspense').textContent = ''; });
 
+  // Ringsegment des Halbkreises zwischen den Winkeln a0 > a1 (links = π, rechts = 0).
+  const HC_R0 = 0.34;
+  function segPath(a0, a1) {
+    const R = 1;
+    const r0 = HC_R0;
+    const pt = (rad, a) => (rad * Math.cos(a)).toFixed(4) + ' ' + (-rad * Math.sin(a)).toFixed(4);
+    const large = a0 - a1 > Math.PI ? 1 : 0;
+    return 'M ' + pt(r0, a0) + ' L ' + pt(R, a0) + ' A ' + R + ' ' + R + ' 0 ' + large + ' 1 ' + pt(R, a1) +
+      ' L ' + pt(r0, a1) + ' A ' + r0 + ' ' + r0 + ' 0 ' + large + ' 0 ' + pt(r0, a0) + ' Z';
+  }
+
+  // Ein Segment füllt sich von links nach rechts (Winkel wächst von a0 bis a1).
+  let sweepFrames = [];
+  function sweepSegment(seg, dur) {
+    const a0 = Number(seg.dataset.a0);
+    const a1 = Number(seg.dataset.a1);
+    seg.setAttribute('d', segPath(a0, a0 - 0.0001));
+    seg.classList.add('shown');
+    const t0 = performance.now();
+    const frame = now => {
+      const k = Math.min(1, (now - t0) / dur);
+      const e = 1 - Math.pow(1 - k, 2);
+      seg.setAttribute('d', segPath(a0, a0 - (a0 - a1) * Math.max(0.0001, e)));
+      if (k < 1) sweepFrames.push(requestAnimationFrame(frame));
+    };
+    sweepFrames.push(requestAnimationFrame(frame));
+  }
+
   // Sitzverteilung als Halbkreis mit einem Segment je Partei (von links nach rechts im politischen Spektrum).
   function hemicycle(seats) {
     const ids = SPECTRUM.filter(p => seats[p] > 0);
     const total = ids.reduce((s, p) => s + seats[p], 0);
-    const R = 1;
-    const r0 = 0.34;
-    const pt = (rad, a) => (rad * Math.cos(a)).toFixed(4) + ' ' + (-rad * Math.sin(a)).toFixed(4);
+    const r0 = HC_R0;
     let svg = '<svg viewBox="-1.02 -1.02 2.04 1.04" role="img" aria-label="Sitzverteilung im Bundestag: ' +
       ids.map(p => short(p) + ' ' + seats[p]).join(', ') + '">';
     let acc = 0;
@@ -1258,9 +1290,7 @@
       const a0 = Math.PI * (1 - acc / total);
       acc += seats[p];
       const a1 = Math.PI * (1 - acc / total);
-      const large = a0 - a1 > Math.PI ? 1 : 0;
-      svg += '<path class="hc-seg" data-p="' + p + '" d="M ' + pt(r0, a0) + ' L ' + pt(R, a0) + ' A ' + R + ' ' + R + ' 0 ' + large + ' 1 ' + pt(R, a1) +
-        ' L ' + pt(r0, a1) + ' A ' + r0 + ' ' + r0 + ' 0 ' + large + ' 0 ' + pt(r0, a0) + ' Z" style="fill:' + col(p) + '"><title>' +
+      svg += '<path class="hc-seg" data-p="' + p + '" data-a0="' + a0 + '" data-a1="' + a1 + '" d="' + segPath(a0, a1) + '" style="fill:' + col(p) + '"><title>' +
         esc(E.party(p).name) + ': ' + seats[p] + ' Sitze</title></path>';
     });
     // Mehrheitsmarke
