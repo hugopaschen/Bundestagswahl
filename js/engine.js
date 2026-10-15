@@ -2056,7 +2056,8 @@
       // Partei ohne Direktkandidatur 2025: Erststimme etwa 60 % ihrer Zweitstimme.
       const base = w.e[p] > 0 ? w.e[p] : 0.6 * (w.z[p] || 0);
       const ratio = Math.max(0.4, Math.min(1.8, base / Math.max(1, L[p] || 1)));
-      raw[p] = Math.max(0.05, base + (S[p] - (L[p] || 0)) * ratio + wkBonus(g, w.nr, p));
+      const now = Number.isFinite(S[p]) ? S[p] : (L[p] || 0); // fehlt der Wert (alter Spielstand), keine Verschiebung
+      raw[p] = Math.max(0.05, base + (now - (L[p] || 0)) * ratio + wkBonus(g, w.nr, p));
     });
     raw[D.OTHER.id] = Math.max(0.5, 100 - known);
     return normalize(raw);
@@ -2716,6 +2717,9 @@
     if (g.otherSwing === undefined) g.otherSwing = 0;
     if (!g.minor) { g.minor = {}; MINOR_IDS.forEach(m => { g.minor[m] = { trend: 0, nat: 0, reg: {} }; }); }
     if (!g.shown) g.shown = {};
+    MINOR_IDS.forEach(m => { if (!(m in g.pollErr)) g.pollErr[m] = 0; });
+    // Spielstände von vor den Kleinparteien: Umfrage mit den neuen Parteien neu erheben.
+    if (g.poll && MINOR_IDS.some(m => !(m in g.poll.nat))) takePoll(g);
     if (!g.postal) g.postal = { frac: {}, sum: {} };
     if (!g.postalPush) g.postalPush = {};
     if (!g.mobPerm) g.mobPerm = {};

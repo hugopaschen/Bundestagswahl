@@ -681,3 +681,14 @@ test('Kleinparteien: ab 3,5 % eigenständig in der Umfrage, Freie Wähler könne
   const by = E.WK_LIST.filter(w => w.land === 'BY').map(w => E.wkShares(g, w.nr, false));
   assert.ok(by.some(x => x.lead === 'fw'), 'FW gewinnt in Bayern mindestens einen Wahlkreis');
 });
+
+test('Alte Spielstände ohne Kleinparteien: Wahlkreise bleiben berechenbar', () => {
+  const g = E.newGame('union', 'T', 9);
+  const old = JSON.parse(E.serialize(g));
+  delete old.minor; delete old.shown;
+  E.MINOR_IDS.forEach(m => { delete old.pollErr[m]; delete old.poll.nat[m]; Object.values(old.poll.states).forEach(st => { delete st[m]; }); });
+  const h = E.deserialize(JSON.stringify(old));
+  const proj = E.wkProjection(h, true);
+  assert.ok(proj.every(x => Number.isFinite(x.margin)));
+  assert.ok(new Set(proj.map(x => x.lead)).size > 2);
+});
