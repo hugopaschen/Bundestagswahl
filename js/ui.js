@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261015-020529';
+  const APP_VERSION = '20261015-021733';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -1999,6 +1999,11 @@
   };
 
   function showKickoff(game) {
+    // Einführung vorauswählen, solange sie noch nie gesehen wurde.
+    let seen = false;
+    try { seen = !!localStorage.getItem(TOUR_KEY); } catch (e) { /* optional */ }
+    $('tour-yes').checked = !seen;
+    $('tour-no').checked = seen;
     const p = E.party(game.party);
     const k = KICKOFF[game.party] || { title: 'Auf in den Wahlkampf!', place: 'Wahlkampfauftakt', speech: '' };
     const screen = $('screen-kickoff');
@@ -2201,7 +2206,124 @@
   $('btn-reveal-skip').addEventListener('click', () => { if (g) finishReveal(g, E.pollShares(g)); });
   $('btn-reveal-go').addEventListener('click', () => { if (g) showKickoff(g); });
 
-  $('btn-kickoff-go').addEventListener('click', () => { if (g) startGame(g); });
+  $('btn-kickoff-go').addEventListener('click', () => {
+    if (!g) return;
+    const want = $('tour-yes').checked;
+    try { localStorage.setItem(TOUR_KEY, '1'); } catch (e) { /* optional */ }
+    startGame(g);
+    if (want) startTour();
+  });
+
+  // ---------- Einführung ----------
+  // Schritt für Schritt durch den ersten Wahlkampftag: Bereich hervorheben, kurz erklären.
+  const TOUR_KEY = 'btw-tour-seen';
+  const tourSteps = () => [
+    { title: 'Willkommen im Wahlkampf!', text: '<p>Ihr habt <b>' + g.maxWeeks + ' Wochen</b> bis zur Bundestagswahl. Euer Ziel: <b>' + esc(E.party(g.party).goalText) + '</b>.</p><p>Diese Einführung zeigt euch alle Bereiche. Ihr könnt sie jederzeit beenden und später über <b>❓ Einführung</b> wieder starten.</p>' },
+    { sel: '#screen-game .topbar .stats', title: 'Eure Lage auf einen Blick', text: '<p><b>Woche</b> und <b>Wahlkampfkasse</b>. <b>🎤 Termine</b>: ' + g.apMax + ' Auftritte eurer Spitzenkandidatur pro Woche (Kundgebung, Bürgerdialog, Talkshow …). <b>👥 Team</b>: Einsätze eurer Mitglieder (Haustür, Infostand, Plakate, Social Media …) – große Parteien haben mehr Leute.</p><p><b>Umfrage</b>: euer Wert in der Sonntagsfrage, mit ± ' + E.POLL_RANGE + ' Punkten Fehlerspanne.</p>' },
+    { sel: '#game-nav', title: 'Fünf Bereiche', text: '<p>Hier wechselt ihr zwischen <b>Deutschland</b> (Wahlkampf vor Ort), <b>Aktionen</b> (bundesweit), <b>Umfragen</b>, eurem <b>Wahlprogramm</b> und den <b>Nachrichten</b>.</p>' },
+    { tab: 'map', sel: '#map', title: 'Die Deutschlandkarte', text: '<p>Die Farbe zeigt, wer im Land vorn liegt, die Zahl euren Umfragewert dort. Tippt ein Land an, um dort Wahlkampf zu machen.</p>' },
+    { tab: 'map', sel: '#state-detail', title: 'Das Land im Detail', text: '<p>Umfrage im Land, Wahlberechtigte und erwartete Wahlbeteiligung. Große Länder bringen mehr Stimmen, knappe Länder lohnen sich besonders.</p>' },
+    { tab: 'map', sel: '#screen-game .local-block', title: 'Wahlkampf vor Ort', text: '<p>In drei Schritten: erst ein <b>Thema</b> (🎯 = Kernthema, das die Menschen im Land bewegt), dann die <b>Aktion</b>, dann die <b>Zielgruppe</b>.</p><p>Vor jeder Aktion stellt euch das Team Fragen zur Vorbereitung – gute Antworten machen die Aktion wirksamer. Bei Bürgerdialog, Infostand & Co. stellen euch Bürger Fachfragen: Richtige Antworten stärken eure Kompetenz im Thema.</p><p>Wer dieselbe Gruppe immer wieder mit demselben Thema umwirbt, erreicht sie schlechter – Abwechslung lohnt sich.</p>' },
+    { tab: 'map', sel: '#sg-block', title: 'Wählergruppen im Land', text: '<p>Wer in diesem Land wählt – nach Alter, Bildung, Wohnort, Geschlecht, Konfession und Beruf – und wie ihr bei jeder Gruppe dasteht. Passt der Kanal zu den Gruppen im Land, wirkt eure Aktion besser.</p>' },
+    { tab: 'actions', sel: '#topic-list', title: 'Themen bundesweit setzen', text: '<p>Wählt ein Thema und macht es mit TV-Spots, Social Media, Pressekonferenzen oder Talkshows groß. Zu euren <b>Kernthemen</b> wirkt das 25 % stärker.</p><p>Wird ein Thema wichtiger, profitieren die Parteien, die dort als kompetent gelten.</p>' },
+    { tab: 'actions', sel: '#national-actions', title: 'Geld und Briefwahl', text: '<p>Einmal pro Woche ein <b>Spendendinner</b> für die Kasse. Ab Woche ' + (E.POSTAL_START - 1) + ' eine <b>Briefwahl-Kampagne</b>: Ab Woche ' + E.POSTAL_START + ' wählen viele per Brief – diese Stimmen sind sicher.</p>' },
+    { tab: 'actions', sel: '#rival-party', up: '.act-block', title: 'Zielgruppen-Werbung und Angriffe', text: '<p>Darüber: Online-Anzeigen für genau eine Wählergruppe. Hier: eine Vergleichskampagne gegen eine andere Partei – riskant, und die Angegriffenen schlagen eher zurück.</p>' },
+    { tab: 'polls', sel: '#poll-bars', title: 'Die Sonntagsfrage', text: '<p>Einmal pro Woche eine neue Umfrage. Die helle Fläche zeigt die Fehlerspanne: Wo ihr wirklich steht, zeigt erst der Wahlabend.</p>' },
+    { tab: 'polls', sel: '#mobilization', title: 'Wahlbeteiligung und Mobilisierung', text: '<p>Nur wer wählen geht, zählt. Haustürwahlkampf, Infostände und Kundgebungen bringen eure Anhänger an die Urne – kurz vor der Wahl wirkt das am meisten.</p>' },
+    { tab: 'polls', sel: '#flows', title: 'Wählerwanderung', text: '<p>Von wem ihr Stimmen holt und an wen ihr verliert. Habt ihr bei einem Thema Kompetenz aufgebaut und sprecht damit eine Zielgruppe an, holt ihr die Stimmen gezielt bei der Partei, die das Thema sonst besetzt.</p>' },
+    { tab: 'polls', sel: '#firewall', title: 'Die Brandmauer', text: '<p>Welche Partei die Abgrenzung zur AfD noch hält. Wer sie einreißt, gewinnt AfD-nahe Wähler, verliert aber in der Mitte – und verändert, wer mit wem regieren kann.</p>' },
+    { tab: 'polls', sel: '#groups', title: 'Wählergruppen bundesweit', text: '<p>Euer Wert in jeder Gruppe und ihre Lieblingsthemen. Tippt eine Gruppe an, um ihre eigene Umfrage samt Verlauf zu sehen.</p>' },
+    { tab: 'program', sel: '#program-view', title: 'Euer Wahlprogramm', text: '<p>Euer Flyer vom Programmparteitag: Kernthemen und Positionen. Die Kompetenz aus der Fachkonferenz begleitet euch durch den Wahlkampf.</p>' },
+    { tab: 'news', sel: '#screen-game .news-card', title: 'Nachrichten', text: '<p>Was ihr getan habt, was die Konkurrenz plant und welche Eilmeldungen kamen. Die anderen Parteien reagieren auf euch – mit Gegenkampagnen und indem sie eure Themen besetzen.</p>' },
+    { tab: 'map', sel: '#btn-end-week', title: 'Woche beenden', text: '<p>Habt ihr eure Termine und Einsätze genutzt, beendet ihr die Woche. Dann gibt es eine neue Umfrage – und manchmal eine <b>Eilmeldung</b>, auf die ihr reagieren müsst.</p><p>In Woche ' + E.DUEL_WEEK + ' wartet die <b>Elefantenrunde</b> im Fernsehen.</p>' },
+    { title: 'Viel Erfolg!', text: '<p>Das war’s. Fangt am besten mit einem Land an, in dem es knapp ist, oder setzt eines eurer Kernthemen. Die Einführung findet ihr jederzeit unter <b>❓ Einführung</b>.</p>' }
+  ];
+  let tourIdx = -1;
+  let tourList = [];
+  function startTour() {
+    if (!g || g.phase !== 'campaign') return;
+    closeModal();
+    tourList = tourSteps();
+    tourIdx = 0;
+    $('tour').hidden = false;
+    document.body.classList.add('touring');
+    showTourStep();
+  }
+  function endTour() {
+    tourIdx = -1;
+    $('tour').hidden = true;
+    document.body.classList.remove('touring');
+    showGameTab('map');
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    checkPending();
+  }
+  function tourTarget(st) {
+    if (!st.sel) return null;
+    let el = document.querySelector(st.sel);
+    if (el && st.up) el = el.closest(st.up) || el;
+    return el && el.getClientRects().length ? el : null;
+  }
+  function showTourStep() {
+    const st = tourList[tourIdx];
+    if (!st) { endTour(); return; }
+    if (st.tab) showGameTab(st.tab);
+    $('tour-count').textContent = 'Einführung · ' + (tourIdx + 1) + ' von ' + tourList.length;
+    $('tour-title').textContent = st.title;
+    $('tour-text').innerHTML = st.text;
+    $('tour-prev').disabled = tourIdx === 0;
+    $('tour-next').textContent = tourIdx === tourList.length - 1 ? 'Los geht’s!' : 'Weiter →';
+    const el = tourTarget(st);
+    if (el) el.scrollIntoView({ block: 'center', behavior: 'instant' });
+    placeTour();
+    $('tour-next').focus();
+  }
+  function placeTour() {
+    if (tourIdx < 0) return;
+    const st = tourList[tourIdx];
+    const el = tourTarget(st);
+    const spot = $('tour-spot');
+    const box = $('tour-box');
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    box.classList.remove('center');
+    if (!el) {
+      spot.hidden = true;
+      box.classList.add('center');
+      box.style.left = box.style.top = '';
+      return;
+    }
+    spot.hidden = false;
+    const r = el.getBoundingClientRect();
+    const pad = 6;
+    const top = Math.max(4, r.top - pad);
+    const bottom = Math.min(vh - 4, r.bottom + pad);
+    spot.style.left = Math.max(4, r.left - pad) + 'px';
+    spot.style.top = top + 'px';
+    spot.style.width = Math.min(vw - 8, r.width + 2 * pad) + 'px';
+    spot.style.height = Math.max(20, bottom - top) + 'px';
+    // Erklärung unter oder über dem Bereich; auf schmalen Bildschirmen unten am Rand.
+    const bw = Math.min(420, vw - 24);
+    box.style.width = bw + 'px';
+    const bh = box.offsetHeight;
+    let bt;
+    if (vh - bottom > bh + 16) bt = bottom + 10;
+    else if (top > bh + 16) bt = top - bh - 10;
+    else bt = vh - bh - 12;
+    box.style.top = Math.max(8, bt) + 'px';
+    box.style.left = Math.max(12, Math.min(vw - bw - 12, r.left + r.width / 2 - bw / 2)) + 'px';
+  }
+  $('tour-next').addEventListener('click', () => { tourIdx += 1; if (tourIdx >= tourList.length) endTour(); else showTourStep(); });
+  $('tour-prev').addEventListener('click', () => { if (tourIdx > 0) { tourIdx -= 1; showTourStep(); } });
+  $('tour-skip').addEventListener('click', endTour);
+  $('btn-tour').addEventListener('click', startTour);
+  window.addEventListener('resize', placeTour);
+  window.addEventListener('scroll', placeTour, { passive: true });
+  document.addEventListener('keydown', e => {
+    if (tourIdx < 0) return;
+    if (e.key === 'Escape') endTour();
+    else if (e.key === 'ArrowRight') $('tour-next').click();
+    else if (e.key === 'ArrowLeft') $('tour-prev').click();
+  });
 
   const resume = () => {
     const saved = loadSave();
