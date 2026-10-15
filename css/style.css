@@ -1772,3 +1772,17 @@ h2 .flyer-hint { margin: 0; }
 .apool.cand { color: var(--accent); }
 .apool.team { color: var(--text-2); }
 .result-flows { margin: 14px auto 0; text-align: left; }
+
+/* Wahlabend im Parteidesign */
+#screen-election.party-site { background: var(--fl-paper); padding: 0 0 56px; min-height: 100vh; }
+#screen-election .election-grid { position: relative; margin-top: -36px; }
+#screen-election .card { background: #ffffff; box-shadow: 0 14px 40px rgba(0, 0, 0, .12); }
+#screen-election .outcome h2 { font-family: var(--fl-head-font); color: var(--fl-accent); }
+#screen-election .outcome .eyebrow { color: var(--fl-accent); }
+#screen-election .outcome .btn.primary { background: var(--fl-accent); color: var(--fl-accent-ink); border-color: var(--fl-accent); font-family: var(--fl-head-font); }
+#el-candidate { margin-top: 14px; }
+.party-site[data-party="fdp"].election .ko-hero { border-bottom: 8px solid #00a7e7; }
+.party-site[data-party="bsw"].election .ko-hero { border-bottom: 6px solid #f39200; }
+.party-site[data-party="union"].election .ko-title { display: inline-block; background: #2d3c4b; color: #fff; padding: .05em .25em; max-width: none; }
+.party-site[data-party="spd"].election .ko-title, .party-site[data-party="linke"].election .ko-title { text-transform: uppercase; }
+.party-site[data-party="gruene"].election .ko-title { color: var(--fl-hl); }

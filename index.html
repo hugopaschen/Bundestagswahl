@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de" data-version="20261014-235231">
+<html lang="de" data-version="20261015-005453">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Montserrat:wght@700;800;900&family=Oswald:wght@600;700&family=Public+Sans:wght@500;700;800;900&family=Inter:wght@800&family=Open+Sans:wght@400;700;800&family=Caveat:wght@600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,700;1,400&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20261014-235231">
+  <link rel="stylesheet" href="css/style.css?v=20261015-005453">
 </head>
 <body>
   <!-- Startseite: Eröffnungsbild, ein eigener Bildschirm -->
@@ -358,11 +358,13 @@
   </main>
 
   <!-- Wahlabend -->
-  <main id="screen-election" class="screen" hidden>
-    <header class="hero compact">
-      <p class="eyebrow">Wahlabend · 18:00 Uhr</p>
-      <h1>Das amtliche Endergebnis</h1>
+  <main id="screen-election" class="screen kickoff election" hidden>
+    <header class="ko-hero">
+      <p class="ko-kicker">Wahlabend · 18:00 Uhr</p>
+      <h1 class="ko-title">Das amtliche Endergebnis</h1>
+      <p class="ko-candidate" id="el-candidate"></p>
     </header>
+    <div class="ko-body">
     <div class="election-grid">
       <section class="card">
         <h2>Zweitstimmen</h2>
@@ -384,6 +386,7 @@
         <button type="button" class="btn primary big" id="btn-restart">Neuer Wahlkampf</button>
       </section>
     </div>
+    </div>
   </main>
 
   <!-- Dialog für Ereignisse und TV-Duell -->
@@ -398,12 +401,12 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="js/data.js?v=20261014-235231"></script>
-  <script src="js/germany.js?v=20261014-235231"></script>
-  <script src="js/questions.js?v=20261014-235231"></script>
-  <script src="js/scenarios.js?v=20261014-235231"></script>
-  <script src="js/citizenq.js?v=20261014-235231"></script>
-  <script src="js/engine.js?v=20261014-235231"></script>
-  <script src="js/ui.js?v=20261014-235231"></script>
+  <script src="js/data.js?v=20261015-005453"></script>
+  <script src="js/germany.js?v=20261015-005453"></script>
+  <script src="js/questions.js?v=20261015-005453"></script>
+  <script src="js/scenarios.js?v=20261015-005453"></script>
+  <script src="js/citizenq.js?v=20261015-005453"></script>
+  <script src="js/engine.js?v=20261015-005453"></script>
+  <script src="js/ui.js?v=20261015-005453"></script>
 </body>
 </html>
