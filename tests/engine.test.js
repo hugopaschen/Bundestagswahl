@@ -6,7 +6,8 @@ const E = require('../js/engine.js');
 const sum = obj => Object.values(obj).reduce((a, b) => a + b, 0);
 
 test('Startwerte entsprechen der Sonntagsfrage (Infratest dimap)', () => {
-  const s = E.newGame('spd', 'Test', 1).startShares;
+  const g0 = E.newGame('spd', 'Test', 1);
+  const s = E.mergeShares(g0, g0.startShares); // Kleinparteien stecken in „Sonstige“
   assert.ok(Math.abs(sum(s) - 100) < 1e-9);
   const expected = { union: 20, afd: 27, spd: 13, gruene: 16, linke: 11, fdp: 4, bsw: 3, sonstige: 6 };
   Object.keys(expected).forEach(p => assert.ok(Math.abs(s[p] - expected[p]) < 0.15, p + ': ' + s[p]));
@@ -660,4 +661,23 @@ test('Brandmauer: Öffnung kostet in der Mitte, holt bei der AfD, Gegner mobilis
   prog.firewall = 1;
   const h = E.newGame('fdp', 'T', 4, prog);
   assert.strictEqual(E.fwLevel(h, 'fdp'), 1);
+});
+
+test('Kleinparteien: ab 3,5 % eigenständig in der Umfrage, Freie Wähler können Wahlkreise gewinnen', () => {
+  const g = E.newGame('spd', 'T', 7);
+  assert.deepStrictEqual(E.shownIds(g).filter(p => E.MINOR_IDS.includes(p)), []);
+  const s0 = g.startShares;
+  assert.ok(s0.fw > 1 && s0.fw < 3, 'FW Start ' + s0.fw);
+  // Die Freien Wähler legen kräftig zu – in Bayern besonders.
+  g.minor.fw.trend = 2.6;
+  g.week = 2;
+  E.endWeek(g);
+  if (g.pendingEvent) E.resolveEvent(g, 0);
+  assert.ok(g.poll.nat.fw >= 3.5 ? E.isShown(g, 'fw') : !E.isShown(g, 'fw'));
+  g.shown.fw = true;
+  assert.ok(E.shownIds(g).includes('fw'));
+  const merged = E.mergeShares(g, g.poll.nat);
+  assert.ok('fw' in merged && !('volt' in merged));
+  const by = E.WK_LIST.filter(w => w.land === 'BY').map(w => E.wkShares(g, w.nr, false));
+  assert.ok(by.some(x => x.lead === 'fw'), 'FW gewinnt in Bayern mindestens einen Wahlkreis');
 });

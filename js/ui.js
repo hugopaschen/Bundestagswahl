@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261015-025840';
+  const APP_VERSION = '20261015-033456';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -25,8 +25,13 @@
   const signed = x => (x >= 0 ? '+' : '−') + num1(Math.abs(x));
   const money = x => num1(x) + ' Mio. €';
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const ALL_IDS = D.PARTIES.map(p => p.id).concat([D.OTHER.id]);
-  const SPECTRUM = ['linke', 'gruene', 'spd', 'bsw', 'fdp', 'union', 'afd'];
+  const SPECTRUM = ['linke', 'tierschutz', 'gruene', 'volt', 'spd', 'bsw', 'fdp', 'fw', 'union', 'afd'];
+  // Reihenfolge der Parteien in Umfragen: die großen sieben, dann ausgewiesene Kleinparteien, dann Sonstige.
+  const MAIN_ORDER = ['union', 'afd', 'spd', 'gruene', 'linke', 'bsw', 'fdp'];
+  const MINOR_ORDER = (D.MINORS || []).map(m => m.id);
+  const CONTEST_ORDER = MAIN_ORDER.concat(MINOR_ORDER); // für Wahlkreise: alle, die gewinnen können
+  const pollOrder = () => MAIN_ORDER.concat(g ? MINOR_ORDER.filter(m => E.isShown(g, m)) : []).concat([D.OTHER.id]);
+  const merged = sh => (g ? E.mergeShares(g, sh) : sh);
   const short = p => (p === D.OTHER.id ? D.OTHER.short : E.party(p).short);
 
   const QUESTIONS = {
@@ -297,7 +302,7 @@
     lg.innerHTML = '<div class="wk-zoom"><button type="button" class="btn small-btn" id="btn-wk-zoom">' +
       (wkZoom ? '🔍 Ganz Deutschland' : '🔍 ' + esc(E.stateById(selState).name) + ' heranzoomen') + '</button>' +
       '<span class="muted small">Blass = knapp (unter 3 Punkten Abstand)</span></div>' +
-      '<p class="wk-direct"><b>Direktmandate laut Umfrage:</b> ' + POLL_ORDER.filter(p => p !== D.OTHER.id && direct[p] > 0)
+      '<p class="wk-direct"><b>Direktmandate laut Umfrage:</b> ' + CONTEST_ORDER.filter(p => direct[p] > 0)
         .map(p => '<span class="pill" style="--pc:' + col(p) + ';--pon:' + onCol(p) + '">' + short(p) + ' ' + direct[p] + '</span>').join(' ') + '</p>' +
       (E.pollShares(g)[me] < 7 ? '<p class="wk-gm">Grundmandatsklausel: Mit <b>' + E.GRUNDMANDATE + ' Direktmandaten</b> zieht ihr auch unter 5 % ein – laut Umfrage gewinnt ihr <b>' + (direct[me] || 0) + ' von ' + E.GRUNDMANDATE + '</b>.</p>' : '');
     $('btn-wk-zoom').addEventListener('click', () => { wkZoom = !wkZoom; renderGame(); });
@@ -312,7 +317,7 @@
     let html = '';
     const cur = wkInState() && list.find(x => x.w.nr === selWk);
     if (cur) {
-      const order = POLL_ORDER.filter(p => p !== D.OTHER.id).sort((a, b) => cur.shares[b] - cur.shares[a]).slice(0, 4);
+      const order = CONTEST_ORDER.slice().sort((a, b) => cur.shares[b] - cur.shares[a]).slice(0, 4);
       const max = cur.shares[order[0]];
       html += '<div class="wk-detail"><p class="eyebrow">Wahlkreis ' + cur.w.nr + '</p><h3>' + esc(cur.w.name) + '</h3>' +
         '<p class="muted small">Erststimmen laut Umfrage (2025: ' + esc(E.party(cur.w.win === 'sonstige' ? 'union' : cur.w.win).short) + ' vorn' + (cur.w.seated ? '' : ', aber ohne Sitz') + ')</p>' +
@@ -376,7 +381,7 @@
 
   // Säulendiagramm wie bei Hochrechnungen im Fernsehen: feste Reihenfolge, Wert unter dem Parteinamen.
   const CHART_TOP = 50;
-  const CHART_ORDER = ['union', 'afd', 'spd', 'gruene', 'linke', 'bsw', 'fdp', D.OTHER.id]; // wie auf der Seite „Umfragen“
+  let CHART_ORDER = MAIN_ORDER.concat([D.OTHER.id]); // wie auf der Seite „Umfragen“ (inkl. ausgewiesener Kleinparteien)
 
   // Das Diagramm wird nur einmal aufgebaut und danach nur noch verändert: So wachsen und schrumpfen
   // die Säulen beim Wechsel des Bundeslands sichtbar (CSS-Übergang), die Zahlen zählen mit.
@@ -392,11 +397,12 @@
 
   function renderStateDetail() {
     const st = E.stateById(selState);
-    const s = E.pollStateShares(g, st.id);
+    const s = merged(E.pollStateShares(g, st.id));
     // Feste Skala für alle Länder (0–50 %), damit die 5-%-Linie beim Wechsel nicht springt; höhere Werte werden gekappt.
     const top = CHART_TOP;
     const box = $('state-detail');
-    if (!box.querySelector('.col-chart')) buildStateChart(box);
+    const order = pollOrder();
+    if (!box.querySelector('.col-chart') || order.join() !== CHART_ORDER.join()) { CHART_ORDER = order; buildStateChart(box); }
     box.querySelector('.cc-title').innerHTML = esc(st.name) + ' <span class="muted small">· ' + num1(st.voters) + ' Mio. Wahlberechtigte · erwartete Wahlbeteiligung ' + pct(E.turnout(g, st.id)) +
       (D.TURNOUT && D.TURNOUT[st.id] ? ' (2025: ' + pct(D.TURNOUT[st.id]) + ')' : '') + '</span>';
     box.querySelector('.col-chart').setAttribute('aria-label', 'Umfrage in ' + st.name + ': ' + CHART_ORDER.map(p => short(p) + ' ' + pct(s[p])).join(', '));
@@ -762,7 +768,7 @@
     $('online-action').appendChild(actionButton(online, 'für ' + k.name + (tp ? ' · Thema ' + tp.name + (fav ? ' – Lieblingsthema der Gruppe 👍' : '') : ' · ohne Thema (oben wählbar)')));
 
     const rs = $('rival-party');
-    const rivals = POLL_ORDER.filter(p => p !== D.OTHER.id && p !== g.party);
+    const rivals = MAIN_ORDER.filter(p => p !== g.party);
     if (!selRival || rivals.indexOf(selRival) === -1) selRival = rivals[0];
     const sh = E.nationalShares(g);
     rs.innerHTML = rivals.map(p => '<option value="' + p + '"' + (p === selRival ? ' selected' : '') + '>' + esc(E.party(p).name) + '</option>').join('');
@@ -915,7 +921,6 @@
   }
 
   // Sonntagsfrage als Säulendiagramm: Wert über der Säule, Partei und Veränderung seit Wahlkampfstart darunter.
-  const POLL_ORDER = ['union', 'afd', 'spd', 'gruene', 'linke', 'bsw', 'fdp', D.OTHER.id];
 
   function renderPollBars(shares) {
     $('poll-bars').innerHTML = pollColumnsHtml(shares, g.startShares);
@@ -923,6 +928,9 @@
 
   // Säulendiagramm der Sonntagsfrage (auch für einzelne Wählergruppen).
   function pollColumnsHtml(shares, base) {
+    shares = merged(shares);
+    if (base) base = merged(base);
+    const POLL_ORDER = pollOrder();
     const R = E.POLL_RANGE;
     const top = Math.max(35, Math.ceil((Math.max.apply(null, POLL_ORDER.map(p => shares[p])) + R + 4) / 5) * 5);
     let cols = '';
@@ -948,7 +956,7 @@
     if (!box) return;
     const t = E.turnout(g);
     const base = (D.TURNOUT && D.TURNOUT.DE) || 82.5;
-    const ids = POLL_ORDER.filter(p => p !== D.OTHER.id);
+    const ids = MAIN_ORDER.slice();
     const vals = ids.map(p => ({ p, v: (E.mobFactor(g, p) - 1) * 100 }));
     const max = Math.max(4, ...vals.map(x => Math.abs(x.v)));
     box.innerHTML = '<div class="mob-turnout"><span class="mob-label">Erwartete Wahlbeteiligung</span><span class="mob-big">' + pct(t) + '</span>' +
@@ -965,7 +973,8 @@
 
   // Wählerwanderung: netto gewonnene (+) bzw. abgegebene (−) Punkte je Partei seit Wahlkampfbeginn.
   function flowBarsHtml(net, me) {
-    const ids = POLL_ORDER.filter(p => p !== me).concat(['nw']).filter(q => q in net);
+    net = merged(net);
+    const ids = pollOrder().filter(p => p !== me).concat(['nw']).filter(q => q in net);
     const max = Math.max(1, ...ids.map(q => Math.abs(net[q])));
     return ids.map(q => {
       const v = net[q];
@@ -995,7 +1004,7 @@
   function renderFirewall() {
     const box = $('firewall');
     if (!box) return;
-    const ids = POLL_ORDER.filter(p => p !== D.OTHER.id && p !== 'afd');
+    const ids = MAIN_ORDER.filter(p => p !== 'afd');
     box.innerHTML = ids.map(p => {
       const lv = E.fwLevel(g, p);
       return '<div class="fw-row' + (p === g.party ? ' me' : '') + '"><span class="fw-party"><i style="background:' + col(p) + '"></i>' + short(p) + '</span>' +
@@ -1099,8 +1108,8 @@
     const T = 8;
     const B = 20;
     if (!series.length) { $(boxId).innerHTML = ''; return; }
-    const hist = series.map(sh => ({ shares: sh }));
-    const ids = D.PARTIES.map(p => p.id).concat([D.OTHER.id]);
+    const hist = series.map(sh => ({ shares: merged(sh) }));
+    const ids = pollOrder();
     let maxV = 0;
     hist.forEach(h => ids.forEach(p => { maxV = Math.max(maxV, h.shares[p]); }));
     const yMax = Math.ceil((maxV + 2) / 10) * 10;
@@ -1275,17 +1284,20 @@
     const r = g.result;
     const me = g.party;
 
-    // Balken
-    const ids = ALL_IDS.slice().sort((a, b) => (a === D.OTHER.id) - (b === D.OTHER.id) || r.shares[b] - r.shares[a]);
-    const max = Math.max.apply(null, ids.map(p => r.shares[p])) * 1.15;
+    // Balken: Kleinparteien erscheinen, wenn sie ausgewiesen wurden, über 3 % liegen oder Sitze haben.
+    const showM = m => r.shares[m] >= 3 || r.seats[m] > 0;
+    const rs = E.mergeShares(g, r.shares, showM);
+    const ss = E.mergeShares(g, g.startShares, showM);
+    const ids = Object.keys(rs).sort((a, b) => (a === D.OTHER.id) - (b === D.OTHER.id) || rs[b] - rs[a]);
+    const max = Math.max.apply(null, ids.map(p => rs[p])) * 1.15;
     let bars = '<div class="rhurdle" style="bottom:' + (5 / max * 100) + '%"></div>';
     ids.forEach(p => {
-      bars += '<div class="col"><span class="rval">' + num1(r.shares[p]) + '</span>' +
-        '<div class="rbar" data-h="' + (r.shares[p] / max * 100) + '" style="background:' + col(p) + '"></div></div>';
+      bars += '<div class="col"><span class="rval">' + num1(rs[p]) + '</span>' +
+        '<div class="rbar" data-h="' + (rs[p] / max * 100) + '" style="background:' + col(p) + '"></div></div>';
     });
     $('result-bars').innerHTML = bars;
     $('result-labels').innerHTML = ids.map(p => {
-      const d = r.shares[p] - g.startShares[p];
+      const d = rs[p] - (ss[p] || 0);
       return '<div class="' + (p === me ? 'me' : '') + '" data-p="' + p + '">' + short(p) +
         '<span class="rdiff ' + (d >= 0 ? 'pos' : 'neg') + '">' + signed(d) + '</span></div>';
     }).join('');
@@ -1316,7 +1328,7 @@
     const orphans = r.wk.filter(x => !x.seated);
     const close = r.wk.slice().sort((a, b) => a.margin - b.margin).slice(0, 5);
     const mine = won[me] || 0;
-    let html = '<h3>Direktmandate</h3><div class="wk-res-pills">' + POLL_ORDER.filter(p => p !== D.OTHER.id && won[p] > 0).map(p =>
+    let html = '<h3>Direktmandate</h3><div class="wk-res-pills">' + CONTEST_ORDER.filter(p => won[p] > 0).map(p =>
       '<span class="sl-item' + (p === me ? ' me' : '') + '"><span class="sl-name">' + short(p) + '</span><span class="sl-seats" style="background:' + col(p) + ';color:' + onCol(p) + '">' + won[p] + '</span>' +
       '<span class="sl-diff">' + (seated[p] || 0) + ' mit Sitz</span></span>').join('') + '</div>';
     html += '<p>' + (mine ? '✖️ Eure Direktkandidaturen gewinnen <b>' + mine + ' Wahlkreis' + (mine > 1 ? 'e' : '') + '</b>' + ((seated[me] || 0) < mine ? ' – ' + (mine - (seated[me] || 0)) + ' davon ohne Sitz.' : '.') :
@@ -2331,7 +2343,7 @@
     revealTimers.forEach(clearTimeout);
     revealTimers = [];
     // Erst „Andere“, dann die übrigen Parteien von klein nach groß, zum Schluss die eigene.
-    const others = POLL_ORDER.filter(p => p !== me && p !== D.OTHER.id).sort((a, b) => shares[a] - shares[b]);
+    const others = pollOrder().filter(p => p !== me && p !== D.OTHER.id).sort((a, b) => shares[a] - shares[b]);
     const order = [D.OTHER.id].concat(others);
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const step = reduce ? 80 : 750;
@@ -2358,13 +2370,13 @@
     const me = game.party;
     const now = shares[me];
     const d = now - game.startShares[me];
-    const rank = POLL_ORDER.filter(p => p !== D.OTHER.id).sort((a, b) => shares[b] - shares[a]).indexOf(me) + 1;
+    const rank = MAIN_ORDER.slice().sort((a, b) => shares[b] - shares[a]).indexOf(me) + 1;
     const mood = d >= 1.5 ? 'Der Parteitag war ein voller Erfolg!' : d >= 0.3 ? 'Rückenwind vom Parteitag.' : d > -0.3 ? 'Das Programm hat die Stimmung kaum bewegt.' : 'Der Parteitag kam nicht gut an.';
     $('reveal-suspense').textContent = '';
     const v = $('reveal-verdict');
     v.innerHTML = '<span class="rv-big">' + pct(now) + '<small> ± ' + E.POLL_RANGE + '</small></span>' +
       '<span class="rv-delta ' + (d >= 0 ? 'pos' : 'neg') + '">' + signed(d) + ' Punkte seit vor dem Parteitag</span>' +
-      '<span class="rv-mood">' + mood + ' Platz ' + rank + ' von ' + (POLL_ORDER.length - 1) + '.</span>';
+      '<span class="rv-mood">' + mood + ' Platz ' + rank + ' von ' + MAIN_ORDER.length + '.</span>';
     v.hidden = false;
     $('btn-reveal-skip').hidden = true;
     $('btn-reveal-go').hidden = false;

@@ -42,9 +42,28 @@
   const MAJORITY = Math.floor(D.SEATS / 2) + 1;
 
   const PARTY_IDS = D.PARTIES.map(p => p.id);
-  const ALL_IDS = PARTY_IDS.concat([D.OTHER.id]);
+  // Kleinparteien laufen in den Umfragen unter „Sonstige“, bis sie 3,5 % erreichen.
+  const MINORS = D.MINORS || [];
+  const MINOR_IDS = MINORS.map(m => m.id);
+  const CONTEST_IDS = PARTY_IDS.concat(MINOR_IDS); // alle, die Wahlkreise und Sitze gewinnen können
+  const ALL_IDS = CONTEST_IDS.concat([D.OTHER.id]);
   const TOPIC_IDS = D.TOPICS.map(t => t.id);
   const TOTAL_VOTERS = D.STATES.reduce((s, st) => s + st.voters, 0);
+  // Startwert jeder Kleinpartei im Land: ihr Anteil an den Sonstigen 2025, übertragen auf die heutigen Sonstigen.
+  const MINOR_BASE = {};
+  D.STATES.forEach(st => {
+    const L = (WKD && WKD.land2025 && WKD.land2025[st.id]) || {};
+    const nowOther = 100 - PARTY_IDS.reduce((s, p) => s + st.result[p], 0);
+    const then = Math.max(1, 100 - PARTY_IDS.reduce((s, p) => s + (L[p] || 0), 0));
+    const b = {};
+    let sum = 0;
+    MINOR_IDS.forEach(m => { b[m] = Math.max(0.05, nowOther * (L[m] || 0) / then); sum += b[m]; });
+    const cap = 0.85 * Math.max(0, nowOther);
+    if (sum > cap) MINOR_IDS.forEach(m => { b[m] *= cap / sum; });
+    MINOR_BASE[st.id] = b;
+  });
+  const MINOR_NAT = {};
+  MINOR_IDS.forEach(m => { MINOR_NAT[m] = D.STATES.reduce((s, st) => s + MINOR_BASE[st.id][m] * st.voters, 0) / TOTAL_VOTERS; });
 
   const POLL_RANGE = 3;        // Fehlerspanne der veröffentlichten Umfragen (± Prozentpunkte)
   const MOB_DECAY = 0.8;       // Mobilisierung lässt pro Woche nach – späte Mobilisierung zählt am meisten
@@ -145,9 +164,9 @@
   Object.assign(POS_PREF_NAT, prefOf(() => 1));
   D.GROUPS.forEach(k => { POS_PREF[k.id] = prefOf(p => FACTOR[k.id][p]); });
 
-  const party = id => D.PARTIES.find(p => p.id === id);
+  const party = id => D.PARTIES.find(p => p.id === id) || MINORS.find(m => m.id === id);
   // Genitiv für Texte: „Wähler der Grünen“, „Wähler des BSW“.
-  const GEN = { union: 'der Union', afd: 'der AfD', spd: 'der SPD', gruene: 'der Grünen', linke: 'der Linken', bsw: 'des BSW', fdp: 'der FDP', sonstige: 'der Kleinparteien', nw: 'aus dem Nichtwählerlager' };
+  const GEN = { union: 'der Union', afd: 'der AfD', spd: 'der SPD', gruene: 'der Grünen', linke: 'der Linken', bsw: 'des BSW', fdp: 'der FDP', fw: 'der Freien Wähler', volt: 'von Volt', tierschutz: 'der Tierschutzpartei', sonstige: 'der Kleinparteien', nw: 'aus dem Nichtwählerlager' };
   const partyGen = id => GEN[id] || ('von ' + ((party(id) && party(id).short) || id));
   const stateById = id => D.STATES.find(s => s.id === id);
   const topicById = id => D.TOPICS.find(t => t.id === id);
@@ -407,6 +426,9 @@
       rng: (seed === undefined ? Math.floor(Math.random() * 2 ** 31) : seed) | 0
     };
     PARTY_IDS.forEach(p => { g.nat[p] = 0; g.compAdj[p] = {}; g.mob[p] = 0; });
+    g.minor = {};
+    MINOR_IDS.forEach(m => { g.minor[m] = { trend: 0, nat: 0, reg: {} }; });
+    g.shown = {};
     D.STATES.forEach(st => { g.mobReg[st.id] = {}; PARTY_IDS.forEach(p => { g.mobReg[st.id][p] = 0; }); });
     ALL_IDS.forEach(p => { g.pollErr[p] = 0; });
     GROUP_IDS.forEach(k => { g.grp[k] = {}; PARTY_IDS.forEach(p => { g.grp[k][p] = 0; }); });
@@ -423,6 +445,7 @@
     GROUP_IDS.forEach(k => { g.grpStart[k] = groupShares(g, k)[partyId]; });
     rollPollErr(g);
     takePoll(g);
+    updateMinorVisibility(g, true);
     // Der Verlauf beginnt mit der ersten Umfrage nach dem Parteitag – dieselben Werte wie die Sonntagsfrage.
     g.history[0] = { week: 0, shares: g.poll.nat, real: nationalShares(g), groups: g.poll.groups };
     const now = g.poll.nat[partyId];
@@ -520,7 +543,21 @@
       other -= st.result[p];
       raw[p] = Math.max(0.2, st.result[p] + bonus[p] - lose[p]) * mobFactor(g, p, stateId);
     });
-    raw[D.OTHER.id] = Math.max(0.5, other + (g.otherSwing || 0) - lose[D.OTHER.id]);
+    // Kleinparteien: Startwert, eigener Trend (in Hochburgen stärker), Wahlkampf. Was die großen
+    // Parteien den „Sonstigen“ abnehmen, verlieren Kleinparteien und Rest anteilig.
+    let small = 0;
+    MINOR_IDS.forEach(m => {
+      const base = MINOR_BASE[stateId][m];
+      other -= base;
+      const mi = (g.minor && g.minor[m]) || {};
+      const home = base / Math.max(0.2, MINOR_NAT[m]);
+      raw[m] = Math.max(0.05, base + (mi.trend || 0) * Math.min(3, home) + (mi.nat || 0) + ((mi.reg && mi.reg[stateId]) || 0));
+      small += raw[m];
+    });
+    const rest = Math.max(0.3, other + (g.otherSwing || 0));
+    const k = Math.max(0.2, 1 - lose[D.OTHER.id] / Math.max(0.5, small + rest));
+    MINOR_IDS.forEach(m => { raw[m] *= k; });
+    raw[D.OTHER.id] = Math.max(0.3, rest * k);
     const sum = ALL_IDS.reduce((s, p) => s + raw[p], 0);
     const out = {};
     ALL_IDS.forEach(p => { out[p] = raw[p] / sum * 100; });
@@ -604,7 +641,7 @@
     }
     const base = (D.TURNOUT && D.TURNOUT[stateId]) || (D.TURNOUT && D.TURNOUT.DE) || 82.5;
     const sh = stateShares(g, stateId);
-    let avg = sh[D.OTHER.id] / 100;
+    let avg = (sh[D.OTHER.id] + MINOR_IDS.reduce((s, m) => s + (sh[m] || 0), 0)) / 100;
     PARTY_IDS.forEach(p => { avg += sh[p] / 100 * mobFactor(g, p, stateId); });
     return Math.min(95, base * avg);
   }
@@ -843,7 +880,12 @@
       const pg = p === g.party && g.progGroups ? g.progGroups[groupId] - programStateEffect(g.progGroups, stateId) : 0;
       raw[p] = Math.max(0.3, pub[p] * (factor[p] || 1) + pg + (g.grp[groupId][p] - groupEffect(g, p)) + ISSUE_K * topic);
     });
+    // Ausgewiesene Kleinparteien erscheinen mit ihrem Anteil, die übrigen stecken in „Sonstige“.
     raw[D.OTHER.id] = pub[D.OTHER.id];
+    MINOR_IDS.forEach(m => {
+      if (isShown(g, m)) raw[m] = pub[m];
+      else { raw[m] = 0; raw[D.OTHER.id] += pub[m]; }
+    });
     return normalize(raw);
   }
 
@@ -1852,13 +1894,17 @@
 
   EVENTS.push({
     id: 'kleinpartei', title: 'Kleinpartei sorgt für Furore',
-    text: 'Eine junge Kleinpartei füllt mit einer frechen Kampagne die Timelines. In den Umfragen legen die Sonstigen kräftig zu – auch auf eure Kosten.',
-    before: g => { g.otherSwing = Math.min(4, (g.otherSwing || 0) + 1.2); },
+    text: g => { const m = party(g.furore); return (m ? m.name : 'Eine Kleinpartei') + (m && m.plural ? ' füllen' : ' füllt') + ' mit einer frechen Kampagne die Timelines und ' + (m && m.plural ? 'legen' : 'legt') + ' in den Umfragen kräftig zu – auch auf eure Kosten.'; },
+    before: g => {
+      g.furore = MINOR_IDS.length ? pick(g, MINOR_IDS) : null;
+      if (g.furore && g.minor) g.minor[g.furore].trend = Math.min(3.5, g.minor[g.furore].trend + 1.3);
+      else g.otherSwing = Math.min(4, (g.otherSwing || 0) + 1.2);
+    },
     choices: [
       { label: 'Ihre Ideen aufgreifen', hint: 'Holt Wähler zurück, wirkt eher bei Jungen',
-        apply: g => { g.otherSwing -= 0.8; const d = addGroups(g, g.party, 0.4, 'social'); return 'Ihr nehmt der Kleinpartei den Wind aus den Segeln (' + fmt(d) + ').'; } },
+        apply: g => { furoreDown(g, 0.8); const d = addGroups(g, g.party, 0.4, 'social'); return 'Ihr nehmt der Kleinpartei den Wind aus den Segeln (' + fmt(d) + ').'; } },
       { label: 'Vor verschenkten Stimmen warnen', hint: 'Riskant',
-        apply: g => { if (rand(g) < 0.55) { g.otherSwing -= 1.2; g.nat[g.party] += 0.4; return '„Jede Stimme zählt“ – die Botschaft kommt an (+0.4).'; } g.nat[g.party] -= 0.4; return 'Das wirkt arrogant (−0.4).'; } },
+        apply: g => { if (rand(g) < 0.55) { furoreDown(g, 1.2); g.nat[g.party] += 0.4; return '„Jede Stimme zählt“ – die Botschaft kommt an (+0.4).'; } g.nat[g.party] -= 0.4; return 'Das wirkt arrogant (−0.4).'; } },
       { label: 'Ignorieren', hint: 'Kein Risiko', apply: () => 'Ihr lasst die Kleinpartei links liegen.' }
     ]
   });
@@ -2005,19 +2051,19 @@
     const L = (WKD && WKD.land2025[w.land]) || {};
     const raw = {};
     let known = 0;
-    PARTY_IDS.forEach(p => {
+    CONTEST_IDS.forEach(p => {
       known += w.e[p] || 0;
       // Partei ohne Direktkandidatur 2025: Erststimme etwa 60 % ihrer Zweitstimme.
       const base = w.e[p] > 0 ? w.e[p] : 0.6 * (w.z[p] || 0);
       const ratio = Math.max(0.4, Math.min(1.8, base / Math.max(1, L[p] || 1)));
-      raw[p] = Math.max(0.1, base + (S[p] - (L[p] || 0)) * ratio + wkBonus(g, w.nr, p));
+      raw[p] = Math.max(0.05, base + (S[p] - (L[p] || 0)) * ratio + wkBonus(g, w.nr, p));
     });
     raw[D.OTHER.id] = Math.max(0.5, 100 - known);
     return normalize(raw);
   }
 
   function wkStanding(sh) {
-    const order = PARTY_IDS.slice().sort((a, b) => sh[b] - sh[a]);
+    const order = CONTEST_IDS.slice().sort((a, b) => sh[b] - sh[a]);
     return { shares: sh, lead: order[0], second: order[1], margin: sh[order[0]] - sh[order[1]] };
   }
 
@@ -2038,7 +2084,7 @@
 
   function directCounts(proj) {
     const out = {};
-    PARTY_IDS.forEach(p => { out[p] = 0; });
+    CONTEST_IDS.forEach(p => { out[p] = 0; });
     proj.forEach(x => { out[x.lead] = (out[x.lead] || 0) + 1; });
     return out;
   }
@@ -2055,7 +2101,7 @@
     return WK_LIST.map(w => {
       const S = cache[w.land] || (cache[w.land] = electionStateShares(g, w.land));
       const sh = wkSharesFrom(g, w, S);
-      PARTY_IDS.forEach(p => { sh[p] = Math.max(0.1, sh[p] + between(g, -1, 1)); });
+      CONTEST_IDS.forEach(p => { sh[p] = Math.max(0.05, sh[p] + between(g, -1, 1)); });
       const st = wkStanding(sh);
       return { nr: w.nr, win: st.lead, second: st.second, pct: Math.round(sh[st.lead] * 10) / 10, margin: Math.round(st.margin * 10) / 10, seated: true };
     });
@@ -2064,7 +2110,7 @@
   // Ein Wahlkreissieger erhält seinen Sitz nur, wenn die Zweitstimmen seiner Partei im Land genug
   // Sitze ergeben (Wahlrecht seit 2023). Die Sitze einer Partei werden dafür auf die Länder verteilt.
   function applyCoverage(g, wks, seats) {
-    PARTY_IDS.forEach(p => {
+    CONTEST_IDS.forEach(p => {
       const mine = wks.filter(x => x.win === p);
       if (!mine.length) return;
       if (!(seats[p] > 0)) { mine.forEach(x => { x.seated = false; }); return; }
@@ -2202,6 +2248,68 @@
 
   // ---------- Wochenwechsel ----------
 
+  // ---------- Kleinparteien ----------
+  function furoreDown(g, d) {
+    if (g.furore && g.minor && g.minor[g.furore]) g.minor[g.furore].trend -= d;
+    else g.otherSwing -= d;
+  }
+  const isShown = (g, m) => !!(g && g.shown && g.shown[m]);
+
+  // Jede Woche: eigener Trend (Zufall, Protestwahl), und wer ausgewiesen wird, macht sichtbar Wahlkampf.
+  function minorTurn(g, shares, protest, news) {
+    if (!g.minor) return;
+    MINORS.forEach(m => {
+      const mi = g.minor[m.id];
+      mi.trend = Math.max(-1.2, Math.min(3.5, mi.trend + between(g, -0.34, 0.4) + 0.25 * protest));
+      if (!isShown(g, m.id)) return;
+      const t = pick(g, m.topics);
+      changeSalience(g, t, 0.004);
+      mi.nat += between(g, 0.05, 0.25) * sizeFactor(shares[m.id]);
+      if (m.home) mi.reg[m.home] = (mi.reg[m.home] || 0) + between(g, 0.2, 0.6);
+      // Kampf um Wahlkreise, in denen die Partei vorn oder knapp dahinter liegt.
+      if (WK_LIST.length) {
+        const hot = WK_LIST.filter(w => (!m.home || w.land === m.home)).map(w => Object.assign({ nr: w.nr }, wkShares(g, w.nr, false)))
+          .filter(x => x.shares[m.id] > 0 && (x.lead === m.id || x.shares[x.lead] - x.shares[m.id] < 6));
+        if (hot.length) {
+          const x = pick(g, hot);
+          addWk(g, x.nr, m.id, between(g, 0.5, 1.4));
+          if (rand(g) < 0.35) news.push({ prio: 1, text: m.name + (m.plural ? ' kämpfen' : ' kämpft') + ' um den Wahlkreis ' + WK_BY_NR[x.nr].name + '.' });
+        }
+      }
+      if (rand(g) < 0.3) news.push({ prio: 1, text: m.name + (m.plural ? ' setzen' : ' setzt') + ' im Wahlkampf auf das Thema ' + topicById(t).name + '.' });
+    });
+  }
+
+  // Nach jeder Umfrage: Ab 3,5 % wird eine Kleinpartei eigenständig ausgewiesen, unter 2,5 % nicht mehr.
+  function updateMinorVisibility(g, quiet) {
+    if (!g.shown) g.shown = {};
+    const nat = g.poll ? g.poll.nat : publishedShares(g);
+    MINORS.forEach(m => {
+      const v = nat[m.id] || 0;
+      if (!g.shown[m.id] && v >= (D.MINOR_SHOW || 3.5)) {
+        g.shown[m.id] = true;
+        if (!quiet) addLog(g, 'ai', 'Neu in der Sonntagsfrage: ' + m.name + (m.plural ? ' werden' : ' wird') + ' mit ' + v.toFixed(1).replace('.', ',') + ' % erstmals eigenständig ausgewiesen.');
+      } else if (g.shown[m.id] && v < (D.MINOR_HIDE || 2.5)) {
+        g.shown[m.id] = false;
+        if (!quiet) addLog(g, 'ai', m.name + (m.plural ? ' rutschen' : ' rutscht') + ' in den Umfragen wieder unter „Sonstige“ (' + v.toFixed(1).replace('.', ',') + ' %).');
+      }
+    });
+  }
+
+  // Für die Anzeige: Kleinparteien, die nicht ausgewiesen werden, stecken in „Sonstige“.
+  function shownIds(g) {
+    return PARTY_IDS.concat(MINOR_IDS.filter(m => isShown(g, m)));
+  }
+  function mergeShares(g, sh, extra) {
+    const out = Object.assign({}, sh);
+    MINOR_IDS.forEach(m => {
+      if (!(m in out) || isShown(g, m) || (extra && extra(m))) return;
+      out[D.OTHER.id] = (out[D.OTHER.id] || 0) + (out[m] || 0);
+      delete out[m];
+    });
+    return out;
+  }
+
   // Die Konkurrenz macht echten Wahlkampf: Sie setzt ihre Themen, kämpft in knappen Ländern
   // und reagiert auf euch – mit Gegenkampagnen und indem sie eure Kernthemen besetzt.
   function aiTurn(g) {
@@ -2326,13 +2434,10 @@
     // Auch die sonstigen Parteien gewinnen und verlieren: Verlieren die großen Parteien gemeinsam,
     // profitieren Kleinparteien von der Protest- und Frustwahl.
     const bigLoss = ['union', 'spd'].reduce((sum, p) => sum + (prev[p] - shares[p]), 0);
-    const swing = between(g, -0.45, 0.5) + Math.max(-0.3, Math.min(0.4, 0.25 * bigLoss));
-    g.otherSwing = Math.max(-3, Math.min(4, (g.otherSwing || 0) + swing));
-    if (Math.abs(swing) >= 0.55) {
-      news.push({ prio: 1, text: swing > 0
-        ? 'Kleinparteien im Aufwind: Freie Wähler, Volt und Co. legen in den Umfragen zu.'
-        : 'Die Kleinparteien verlieren an Zuspruch – ihre Wähler wandern zu den Großen.' });
-    }
+    const protest = Math.max(-0.3, Math.min(0.4, 0.25 * bigLoss));
+    const swing = between(g, -0.3, 0.3) + 0.5 * protest;
+    g.otherSwing = Math.max(-2, Math.min(3, (g.otherSwing || 0) + swing));
+    minorTurn(g, shares, protest, news);
 
     // Die Konkurrenz kämpft auch um knappe Wahlkreise.
     if (WK_LIST.length) {
@@ -2370,6 +2475,7 @@
     });
     if (g.src) Object.keys(g.src).forEach(p => Object.keys(g.src[p]).forEach(q => { g.src[p][q] *= BONUS_DECAY; }));
     if (g.wk) Object.keys(g.wk).forEach(nr => Object.keys(g.wk[nr]).forEach(p => { g.wk[nr][p] *= BONUS_DECAY; }));
+    if (g.minor) MINOR_IDS.forEach(m => { const mi = g.minor[m]; mi.nat *= BONUS_DECAY; Object.keys(mi.reg).forEach(k => { mi.reg[k] *= BONUS_DECAY; }); });
     g.otherSwing = (g.otherSwing || 0) * 0.92;
     if (g.sat) Object.keys(g.sat).forEach(c => Object.keys(g.sat[c]).forEach(k => { g.sat[c][k] *= BONUS_DECAY; })); // langsame Rückkehr zum Normalwert
     TOPIC_IDS.forEach(t => {
@@ -2380,6 +2486,7 @@
 
     rollPollErr(g);
     takePoll(g);
+    updateMinorVisibility(g, false);
     g.history.push({ week: g.week, shares: g.poll.nat, real: nationalShares(g), groups: g.poll.groups });
 
     if (g.week >= g.maxWeeks) {
@@ -2484,12 +2591,12 @@
     const direct = directCounts(wks.map(x => ({ lead: x.win })));
     const inParliament = {};
     const grundmandat = [];
-    PARTY_IDS.forEach(p => {
+    CONTEST_IDS.forEach(p => {
       if (final[p] >= THRESHOLD) inParliament[p] = final[p];
       else if (direct[p] >= GRUNDMANDATE) { inParliament[p] = final[p]; grundmandat.push(p); }
     });
     const seats = sainteLague(inParliament, D.SEATS);
-    PARTY_IDS.forEach(p => { if (!(p in seats)) seats[p] = 0; });
+    CONTEST_IDS.forEach(p => { if (!(p in seats)) seats[p] = 0; });
     if (wks.length) applyCoverage(g, wks, seats);
 
     const coalitions = findCoalitions(seats, g);
@@ -2607,6 +2714,8 @@
     if (!g.delayed) g.delayed = [];
     if (!g.pollErr) { g.pollErr = {}; ALL_IDS.forEach(p => { g.pollErr[p] = 0; }); }
     if (g.otherSwing === undefined) g.otherSwing = 0;
+    if (!g.minor) { g.minor = {}; MINOR_IDS.forEach(m => { g.minor[m] = { trend: 0, nat: 0, reg: {} }; }); }
+    if (!g.shown) g.shown = {};
     if (!g.postal) g.postal = { frac: {}, sum: {} };
     if (!g.postalPush) g.postalPush = {};
     if (!g.mobPerm) g.mobPerm = {};
@@ -2638,7 +2747,7 @@
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     publishedShares, publishedStateShares, groupShares, pollShares, pollStateShares, pollGroupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
-    POLL_RANGE, GROUP_IDS, WK_LIST, WK_BY_STATE, wkByNr, wkShares, wkProjection, directCounts, GRUNDMANDATE, FW_LEVELS, fwLevel, openFirewall, closeFirewall, firewallOptions, breakFirewall, flowSummary, steerVotes, stateFlows, regionFactor, nationalFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
+    POLL_RANGE, GROUP_IDS, MINOR_IDS, CONTEST_IDS, isShown, shownIds, mergeShares, WK_LIST, WK_BY_STATE, wkByNr, wkShares, wkProjection, directCounts, GRUNDMANDATE, FW_LEVELS, fwLevel, openFirewall, closeFirewall, firewallOptions, breakFirewall, flowSummary, steerVotes, stateFlows, regionFactor, nationalFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent,
     startDuel, duelAnswer,

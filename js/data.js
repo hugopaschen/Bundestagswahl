@@ -518,6 +518,18 @@
     ai: { union: 0.015, fdp: 0.01, bsw: 0.015, spd: 0.0005, gruene: 0.0003, linke: 0.0003 }
   };
 
+  // Kleinparteien, die in den Umfragen unter „Sonstige“ laufen. Ab 3,5 % in der Sonntagsfrage werden
+  // sie eigenständig ausgewiesen und machen sichtbar Wahlkampf. Startwerte: Zweitstimmen 2025 je Land
+  // (Bundeswahlleiterin, kerg2.csv: FW 1,5 %, Tierschutzpartei 1,0 %, Volt 0,7 %), hochgerechnet auf den
+  // heutigen Anteil der Sonstigen. Themenprofil: grobe Einschätzung (für die Themenwahl der KI).
+  var MINORS = [
+    { id: 'fw', name: 'Freie Wähler', short: 'FW', plural: true, topics: ['land', 'wirtschaft', 'bildung'], home: 'BY' },
+    { id: 'volt', name: 'Volt', short: 'Volt', topics: ['europa', 'digitales', 'klima'] },
+    { id: 'tierschutz', name: 'Tierschutzpartei', short: 'Tierschutz', topics: ['klima', 'land', 'gesundheit'] }
+  ];
+  var MINOR_SHOW = 3.5; // ab diesem Umfragewert eigenständig ausgewiesen
+  var MINOR_HIDE = 2.5; // darunter wieder unter „Sonstige“
+
   // Konfrontationslinien im Wahlkampf 2025 (Hauptgegner, gegen die eine Partei sich profiliert):
   // Union ↔ AfD (Migration, „Brandmauer“), Union ↔ SPD (Kanzlerduell Merz–Scholz), Union ↔ Grüne,
   // Grüne ↔ AfD, SPD/Grüne ↔ FDP (Ampel-Bruch), Linke ↔ Union/AfD, BSW ↔ Grüne (Ukraine-Politik) und ↔ Linke.
@@ -580,6 +592,9 @@
     POSTAL: POSTAL,
     NONVOTER_POTENTIAL: NONVOTER_POTENTIAL,
     RIVALS: RIVALS,
+    MINORS: MINORS,
+    MINOR_SHOW: MINOR_SHOW,
+    MINOR_HIDE: MINOR_HIDE,
     FIREWALL: FIREWALL,
     FLOWS: FLOWS,
     FLOW_PAIRS: FLOW_PAIRS,

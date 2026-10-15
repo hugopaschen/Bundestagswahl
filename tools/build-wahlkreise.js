@@ -12,8 +12,9 @@ const unzip = name => execSync('unzip -p "' + ZIP + '" "' + name + '"', { maxBuf
 
 const LAND = { '01': 'SH', '02': 'HH', '03': 'NI', '04': 'HB', '05': 'NW', '06': 'HE', '07': 'RP', '08': 'BW',
   '09': 'BY', '10': 'SL', '11': 'BE', '12': 'BB', '13': 'MV', '14': 'SN', '15': 'ST', '16': 'TH' };
-const PARTY = { CDU: 'union', CSU: 'union', AfD: 'afd', SPD: 'spd', 'GRÜNE': 'gruene', 'Die Linke': 'linke', BSW: 'bsw', FDP: 'fdp' };
-const IDS = ['union', 'afd', 'spd', 'gruene', 'linke', 'bsw', 'fdp'];
+const PARTY = { CDU: 'union', CSU: 'union', AfD: 'afd', SPD: 'spd', 'GRÜNE': 'gruene', 'Die Linke': 'linke', BSW: 'bsw', FDP: 'fdp',
+  'FREIE WÄHLER': 'fw', Volt: 'volt', Tierschutzpartei: 'tierschutz' };
+const IDS = ['union', 'afd', 'spd', 'gruene', 'linke', 'bsw', 'fdp', 'fw', 'volt', 'tierschutz'];
 
 // ---------- Shapefile (Polygone) und DBF lesen ----------
 function readShp(buf) {
@@ -186,7 +187,7 @@ Object.keys(land).forEach(id => IDS.forEach(p => { land[id][p] = r1(land[id][p] 
 const js = '/*\n * Wahlkreise der Bundestagswahl 2025 – erzeugt von tools/build-wahlkreise.js, nicht von Hand ändern.\n' +
   ' * Quelle: © Die Bundeswahlleiterin, Wiesbaden 2025, Datenlizenz Deutschland – Namensnennung – 2.0:\n' +
   ' * Ergebnisse nach Wahlkreisen (kerg2.csv, endgültig) und Wahlkreisgeometrie (generalisiert, WGS84).\n' +
-  ' * e = Erststimmen 2025 in %, z = Zweitstimmen 2025 in %, win = Erststimmen-Sieger 2025,\n' +
+  ' * e = Erststimmen 2025 in %, z = Zweitstimmen 2025 in % (auch Freie Wähler, Volt, Tierschutzpartei),\n * win = Erststimmen-Sieger 2025,\n' +
   ' * seated = Sieger hat ein Mandat erhalten (false: wegen fehlender Zweitstimmendeckung ohne Sitz).\n' +
   ' * Karte: Längengrade mit cos 51,2° gestaucht, vereinfacht, auf ' + W * 10 + ' × ' + H * 10 + ' Einheiten skaliert (ganze Zahlen).\n */\n' +
   '(function (root) {\n  var WK = ' + JSON.stringify({ w: W * 10, h: H * 10, land2025: land, list: out }) + ';\n' +
