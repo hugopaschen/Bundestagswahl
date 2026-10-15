@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261015-014047';
+  const APP_VERSION = '20261015-014418';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -1175,7 +1175,8 @@
     electionTimers.forEach(clearTimeout);
     electionTimers = [];
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const step = reduce ? 80 : 850;
+    // Ein Balken fährt in 1,4 s aus (CSS); der nächste startet erst danach.
+    const step = reduce ? 80 : 1700;
     const at = (t, fn) => electionTimers.push(setTimeout(fn, t));
     const votes = $('votes-card');
     votes.classList.add('el-revealing');
@@ -1204,7 +1205,7 @@
           const v = r.shares[me];
           sus.textContent = E.party(me).short + ': ' + pct(v) + (v < 5 ? ' – unter der 5-%-Hürde.' : r.strongest === me ? ' – stärkste Kraft!' : '.');
         });
-        t += reduce ? 100 : 1500;
+        t += reduce ? 100 : 2200;
       } else {
         at(t, () => showBar(p));
         t += step;
