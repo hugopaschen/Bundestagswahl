@@ -338,6 +338,11 @@
     g.progState = programTopicStates(fx);
     g.finance = fx.finance;
     g.program.core.forEach(t => changeSalience(g, t, 0.02));
+    // Koalitionsaussage zur AfD (Programmparteitag).
+    const fwp = Math.max(0, Math.min(3, Number(prog.firewall) || 0));
+    g.program.firewall = fwp;
+    if (g.party === 'afd') { if (fwp > 0) g.fwOffer = { union: true, fdp: true, bsw: true }; }
+    else if (fwp > 0) openFirewall(g, g.party, fwp);
   }
 
   function competenceOf(g, p) {
@@ -482,16 +487,17 @@
       const b = bonus[p];
       const t = {};
       taken[p] = t;
-      if (!b) return;
+      if (!b && !(g.src && g.src[p])) return;
       let rest = b;
+      // Gezielt abgeworbene Stimmen kommen immer von der getroffenen Partei; der Rest des
+      // Bonus (auch ein negativer) verteilt sich über die Wanderungstabelle.
       const src = g.src && g.src[p];
-      if (b > 0 && src) {
-        const T = Object.keys(src).reduce((s, q) => s + Math.max(0, src[q]), 0);
-        if (T > 0) {
-          const k = T > b ? b / T : 1;
-          Object.keys(src).forEach(q => { if (src[q] > 0) t[q] = (t[q] || 0) + src[q] * k; });
-          rest -= T * k;
-        }
+      if (src) {
+        Object.keys(src).forEach(q => {
+          if (!(src[q] > 0)) return;
+          t[q] = (t[q] || 0) + src[q];
+          rest -= src[q];
+        });
       }
       const row = flowRow(p, st.east);
       if (row) Object.keys(row).forEach(q => { t[q] = (t[q] || 0) + rest * row[q]; });
@@ -1688,6 +1694,58 @@
 
   // Spätfolgen – werden nie zufällig gezogen, sondern nur durch frühere Entscheidungen ausgelöst.
   EVENTS.push(
+    // ---- Brandmauer ----
+    {
+      id: 'fw_antrag', title: 'Eine Mehrheit nur mit der AfD',
+      text: 'Euer Antrag für eine härtere Migrationspolitik steht im Bundestag zur Abstimmung. Eine Mehrheit gibt es nur mit den Stimmen der AfD. Die anderen Fraktionen warnen: „Wer das tut, reißt die Brandmauer ein.“',
+      cond: g => g.party !== 'afd' && g.week >= 2 && fwLevel(g, g.party) < 1,
+      choices: [
+        { label: 'Abstimmen lassen – richtig bleibt richtig', hint: 'Brandmauer bröckelt: AfD-nahe Wähler kommen, die Mitte zweifelt', noScale: true,
+          apply: g => 'Der Antrag geht mit den Stimmen der AfD durch. ' + openFirewall(g, g.party, 1) },
+        { label: 'Mit der AfD eine Mehrheit organisieren', hint: 'Tolerierung nicht mehr ausgeschlossen: starke Folgen', noScale: true,
+          apply: g => 'Ihr verhandelt offen mit der AfD. ' + openFirewall(g, g.party, 2) },
+        { label: 'Antrag zurückziehen', hint: 'Kleiner Verlust, Brandmauer hält',
+          apply: g => { g.nat[g.party] -= 0.2; return 'Ihr zieht den Antrag zurück. Manche sprechen von Führungsschwäche (−0.2).'; } }
+      ]
+    },
+    {
+      id: 'fw_koalitionsfrage', title: 'Die Koalitionsfrage',
+      text: 'Nach euren Abstimmungen mit der AfD gibt es in jeder Talkshow nur eine Frage: Schließt ihr eine Koalition mit der AfD aus?',
+      cond: g => g.party !== 'afd' && g.week >= 3 && fwLevel(g, g.party) >= 1 && fwLevel(g, g.party) < 3,
+      choices: [
+        { label: 'Klar ausschließen – die Brandmauer steht', hint: 'Zurück zur Brandmauer, kostet etwas Glaubwürdigkeit', noScale: true,
+          apply: g => closeFirewall(g, g.party) },
+        { label: 'Nichts ausschließen', hint: 'Tolerierung möglich', noScale: true,
+          apply: g => openFirewall(g, g.party, 2) || 'Ihr bleibt bei eurer Linie: Nichts wird ausgeschlossen.' },
+        { label: 'Koalition offen anbieten', hint: 'Koalition mit der AfD möglich – die heftigsten Folgen', noScale: true,
+          apply: g => openFirewall(g, g.party, 3) }
+      ]
+    },
+    {
+      id: 'fw_angebot', title: 'Ein Angebot an die Konkurrenz?',
+      text: 'Eure Umfragewerte sind stark, doch ohne Partner bleibt ihr in der Opposition. Sollt ihr anderen Parteien öffentlich eine Zusammenarbeit anbieten?',
+      cond: g => g.party === 'afd' && g.week >= 2,
+      choices: [
+        { label: 'Der Union die Hand reichen', hint: 'Druck auf die Union, gegen euch wird mobilisiert',
+          apply: g => { g.fwOffer = Object.assign({}, g.fwOffer, { union: true }); g.nat.afd += 0.2; ['spd', 'gruene', 'linke'].forEach(q => { g.mobPerm[q] = (g.mobPerm[q] || 0) + 0.004; }); return 'Das Angebot beherrscht die Schlagzeilen – die Union gerät unter Druck (+0.2).'; } },
+        { label: 'FDP und BSW umwerben', hint: 'Druck auf die Kleinen',
+          apply: g => { g.fwOffer = Object.assign({}, g.fwOffer, { fdp: true, bsw: true }); g.nat.afd += 0.1; return 'FDP und BSW müssen sich erklären (+0.1).'; } },
+        { label: 'Auf eigene Stärke setzen', hint: 'Kein Risiko', apply: () => 'Ihr setzt auf die eigene Mehrheit.' }
+      ]
+    },
+    {
+      id: 'fw_protest', followUp: true, title: 'Hunderttausende gegen die Zusammenarbeit mit der AfD',
+      text: 'In vielen Städten gehen Menschen gegen eure Öffnung zur AfD auf die Straße. Kirchen, Gewerkschaften und Wirtschaftsverbände äußern sich kritisch, Mitglieder treten aus.',
+      cond: g => g.party !== 'afd' && fwLevel(g, g.party) > 0,
+      choices: [
+        { label: 'Kurs halten', hint: 'Verlust in der Mitte',
+          apply: g => { g.nat[g.party] -= 0.4; return 'Ihr bleibt bei eurer Linie. Die Proteste gehen weiter (−0.4).'; } },
+        { label: 'Fehler eingestehen, Brandmauer wieder hochziehen', hint: 'Zurück zur Brandmauer', noScale: true,
+          apply: g => closeFirewall(g, g.party) },
+        { label: 'Zum Dialog einladen', hint: 'Kleiner Verlust',
+          apply: g => { g.nat[g.party] -= 0.2; return 'Ein Gesprächsangebot an die Demonstrierenden – die Lage beruhigt sich etwas (−0.2).'; } }
+      ]
+    },
     {
       id: 'spendenaffaere2', followUp: true, title: 'Spendenaffäre!',
       text: 'Recherchen enthüllen: Der Unternehmer, dessen 2,5 Mio. € ihr angenommen habt, erwartete Gegenleistungen bei einem Bauprojekt. Die Opposition spricht von gekaufter Politik.',
@@ -1779,7 +1837,7 @@
     if (i === -1) return null;
     const ev = eventById(g.delayed[i].event);
     g.delayed.splice(i, 1);
-    if (!ev) return null;
+    if (!ev || (ev.cond && !ev.cond(g))) return null;
     g.usedEvents.push(ev.id);
     if (ev.before) ev.before(g);
     g.pendingEvent = ev.id;
@@ -1824,7 +1882,7 @@
     const regBefore = {};
     D.STATES.forEach(st => { regBefore[st.id] = g.reg[st.id][p]; });
     let text = choice.apply(g);
-    const f = eventScale(g, p);
+    const f = choice.noScale ? 1 : eventScale(g, p);
     if (f !== 1) {
       g.nat[p] = natBefore + (g.nat[p] - natBefore) * f;
       D.STATES.forEach(st => { g.reg[st.id][p] = regBefore[st.id] + (g.reg[st.id][p] - regBefore[st.id]) * f; });
@@ -1875,6 +1933,124 @@
       g.duelDone = true;
     }
     return res;
+  }
+
+  // ---------- Brandmauer ----------
+  // Jede Partei kann die Brandmauer zur AfD in Stufen einreißen. Die Folgen kommen aus Umfragedaten
+  // (D.FIREWALL): Anhänger, die eine Zusammenarbeit ablehnen, wenden sich ab; AfD-nahe Wähler kommen
+  // dazu; Wählergruppen reagieren unterschiedlich; die Parteien, die die Mauer halten, mobilisieren.
+  const FW_LEVELS = [
+    { name: 'Brandmauer steht', short: 'hält' },
+    { name: 'Zufallsmehrheiten mit der AfD in Kauf nehmen', short: 'bröckelt' },
+    { name: 'Tolerierung durch die AfD nicht ausgeschlossen', short: 'Tolerierung' },
+    { name: 'Offen für eine Koalition mit der AfD', short: 'Koalition' }
+  ];
+  const fwLevel = (g, p) => (g && g.firewall && g.firewall[p]) || 0;
+  const FW = () => D.FIREWALL || { acceptance: {}, groups: {}, mobilize: {}, ai: {} };
+
+  function addSrc(g, p, q, amount) {
+    if (!g.src) g.src = {};
+    if (!g.src[p]) g.src[p] = {};
+    g.src[p][q] = (g.src[p][q] || 0) + amount;
+  }
+
+  function openFirewall(g, p, level) {
+    const old = fwLevel(g, p);
+    if (p === 'afd' || !party(p) || level <= old) return '';
+    level = Math.min(3, level);
+    const steps = level - old;
+    if (!g.firewall) g.firewall = {};
+    g.firewall[p] = level;
+    const fw = FW();
+    const shares = nationalShares(g);
+    const f = sizeFactor(shares[p]);
+    // Je Stufe: AfD-nahe Wähler kommen dazu, Anhänger, die das ablehnen, wenden sich ab. Je weiter
+    // die Öffnung, desto schwerer wiegt die Ablehnung (eine Koalition stößt viel mehr ab als Zufallsmehrheiten).
+    const accs = (fw.acceptance && fw.acceptance[p]) || [0.3, 0.2, 0.1];
+    const W = [1.2, 1.6, 2.4];
+    let pull = 0;
+    let loss = 0;
+    let acc = 0;
+    for (let l = old + 1; l <= level; l++) {
+      acc = accs[l - 1];
+      pull += 0.5 * f * (0.4 + acc);
+      loss += W[l - 1] * f * (1 - acc);
+    }
+    g.nat[p] += pull - loss;
+    addSrc(g, p, 'afd', pull);
+    GROUP_IDS.forEach(k => { g.grp[k][p] += steps * f * ((fw.groups && fw.groups[k]) || 0) * 0.25; });
+    // Im Osten ist die Zustimmung deutlich höher als im Westen.
+    D.STATES.forEach(st => { g.reg[st.id][p] += steps * f * (fw.east || 0) * (st.east ? 3 : -0.6); });
+    if (fw.youngLinke && p !== 'linke' && fwLevel(g, 'linke') === 0 && g.grp.jung) g.grp.jung.linke += fw.youngLinke * steps;
+    // Wer die Brandmauer hält, mobilisiert dagegen.
+    PARTY_IDS.forEach(q => {
+      if (q === p || q === 'afd' || fwLevel(g, q) > 0) return;
+      g.mobPerm[q] = (g.mobPerm[q] || 0) + 0.015 * steps * ((fw.mobilize && fw.mobilize[q]) || 0.5);
+    });
+    g.nat.afd += 0.08 * steps; // Normalisierung: Die AfD gewinnt an Ansehen als möglicher Partner.
+    changeSalience(g, 'demokratie', 0.012 * steps);
+    changeSalience(g, 'migration', 0.006 * steps);
+    if (p === g.party) {
+      g.money = Math.max(0, g.money - 0.3 * steps * (1 - acc)); // Spender und Verbände gehen auf Distanz
+      if (!g.fwProtest) { g.fwProtest = true; schedule(g, 'fw_protest', 1, 2); }
+    }
+    return FW_LEVELS[level].name + ': Wähler aus dem AfD-Lager kommen dazu (' + fmt(pull) + '), aus der Mitte wenden sich viele ab (' + fmt(-loss) + ').';
+  }
+
+  function closeFirewall(g, p) {
+    if (!fwLevel(g, p)) return '';
+    g.firewall[p] = 0;
+    const d = 0.3 * sizeFactor(nationalShares(g)[p]);
+    g.nat[p] -= d;
+    return 'Die Brandmauer steht wieder – aber die Kehrtwende kostet Glaubwürdigkeit (' + fmt(-d) + ').';
+  }
+
+  // KI-Parteien öffnen unter Druck: wenn die AfD sie überholt und Migration die Debatte bestimmt.
+  function aiFirewall(g, me, shares, news) {
+    const fw = FW();
+    PARTY_IDS.forEach(p => {
+      if (p === me || p === 'afd') return;
+      const lv = fwLevel(g, p);
+      if (lv >= 3) return;
+      const pressure = 1 + Math.max(0, (shares.afd - shares[p]) / 10) + 20 * Math.max(0, g.salience.migration - D.SALIENCE0.migration);
+      const offer = g.fwOffer && g.fwOffer[p] ? 2.5 : 1;
+      if (g.week >= 2 && rand(g) < ((fw.ai && fw.ai[p]) || 0) * pressure * offer) {
+        openFirewall(g, p, lv + 1);
+        news.push({ prio: 2, text: 'Brandmauer: ' + party(p).name + ' – ' + FW_LEVELS[lv + 1].name + '. Proteste in vielen Städten.' });
+      }
+    });
+  }
+
+  // Wahlabend: Koalitionen mit der AfD, die mit eurer Partei eine Mehrheit hätten.
+  function firewallOptions(g) {
+    const r = g.result;
+    const p = g.party;
+    if (!r || p === 'afd' || !(r.seats[p] > 0) || !(r.seats.afd > 0) || fwLevel(g, p) >= 3) return [];
+    const out = [];
+    const two = r.seats[p] + r.seats.afd;
+    if (two >= MAJORITY) out.push({ members: ['afd', p], seats: two });
+    else {
+      PARTY_IDS.forEach(q => {
+        if (q === p || q === 'afd' || !(r.seats[q] > 0) || fwLevel(g, q) < 3) return;
+        const t = two + r.seats[q];
+        if (t >= MAJORITY) out.push({ members: ['afd', p, q], seats: t });
+      });
+    }
+    out.forEach(o => o.members.sort((a, b) => r.seats[b] - r.seats[a]));
+    return out;
+  }
+
+  function breakFirewall(g, index) {
+    const r = g.result;
+    const opt = firewallOptions(g)[index];
+    if (!opt) return { ok: false };
+    openFirewall(g, g.party, 3);
+    r.coalitions = findCoalitions(r.seats, g);
+    r.government = opt.members;
+    r.awaitingChoice = false;
+    r.firewallBroken = true;
+    finalizeOutcome(g, r);
+    return { ok: true };
   }
 
   // ---------- Wochenwechsel ----------
@@ -2011,6 +2187,8 @@
         : 'Die Kleinparteien verlieren an Zuspruch – ihre Wähler wandern zu den Großen.' });
     }
 
+    aiFirewall(g, me, shares, news);
+
     // Höchstens drei Meldungen pro Woche: Angriffe zuerst.
     news.sort((a, b) => b.prio - a.prio).slice(0, 3).forEach(n => addLog(g, 'ai', n.text));
   }
@@ -2076,13 +2254,17 @@
     return out;
   }
 
-  function coalitionViable(members) {
-    if (members.length > 1 && members.indexOf('afd') !== -1) return false; // Brandmauer
+  function coalitionViable(members, g) {
     if (members.indexOf('union') !== -1 && members.indexOf('linke') !== -1) return false; // Unvereinbarkeitsbeschluss
+    const others = members.filter(m => m !== 'afd');
+    // Brandmauer: Mit der AfD nur, wenn alle Partner offen für eine Koalition sind.
+    if (members.length > 1 && members.indexOf('afd') !== -1 && !others.every(m => fwLevel(g, m) >= 3)) return false;
+    // Wer die Brandmauer hält, regiert nicht mit Parteien, die Tolerierung oder Koalition mit der AfD anbieten.
+    if (others.some(m => fwLevel(g, m) >= 2) && others.some(m => fwLevel(g, m) === 0)) return false;
     return true;
   }
 
-  function findCoalitions(seats) {
+  function findCoalitions(seats, g) {
     const ids = Object.keys(seats).filter(p => seats[p] > 0);
     const subsets = [];
     const n = ids.length;
@@ -2094,7 +2276,20 @@
       const minimal = members.every(m => total - seats[m] < MAJORITY);
       if (!minimal) continue;
       members.sort((a, b) => seats[b] - seats[a]);
-      subsets.push({ members, seats: total, viable: coalitionViable(members) });
+      subsets.push({ members, seats: total, viable: coalitionViable(members, g) });
+    }
+    // Minderheitsregierung, von der AfD toleriert: nur mit Parteien, die das nicht ausschließen.
+    if (g && seats.afd > 0) {
+      for (let mask = 1; mask < (1 << n); mask++) {
+        const members = ids.filter((_, i) => mask & (1 << i));
+        if (members.length > 2 || members.indexOf('afd') !== -1) continue;
+        const total = members.reduce((s, p) => s + seats[p], 0);
+        if (total >= MAJORITY || total + seats.afd < MAJORITY) continue;
+        if (!members.every(m => fwLevel(g, m) >= 2) || !coalitionViable(members, g)) continue;
+        if (!members.every(m => total - seats[m] + seats.afd < MAJORITY)) continue;
+        members.sort((a, b) => seats[b] - seats[a]);
+        subsets.push({ members, seats: total, viable: true, tolerated: true });
+      }
     }
     subsets.sort((a, b) => a.members.length - b.members.length || b.seats - a.seats);
     return subsets;
@@ -2103,8 +2298,10 @@
   function formGovernment(seats, coalitions) {
     const order = Object.keys(seats).filter(p => seats[p] > 0).sort((a, b) => seats[b] - seats[a]);
     for (const formateur of order) {
+      // Bevorzugt: echte Mehrheiten ohne AfD, dann Koalitionen mit der AfD, zuletzt Tolerierung.
+      const rank = c => (c.tolerated ? 2 : 0) + (formateur !== 'afd' && c.members.indexOf('afd') !== -1 ? 1 : 0);
       const options = coalitions.filter(c => c.viable && c.members.indexOf(formateur) !== -1)
-        .sort((a, b) => a.members.length - b.members.length || a.seats - b.seats);
+        .sort((a, b) => rank(a) - rank(b) || a.members.length - b.members.length || a.seats - b.seats);
       if (options.length) return { formateur, options };
     }
     return { formateur: order[0], options: [] };
@@ -2124,7 +2321,7 @@
     const seats = sainteLague(inParliament, D.SEATS);
     PARTY_IDS.forEach(p => { if (!(p in seats)) seats[p] = 0; });
 
-    const coalitions = findCoalitions(seats);
+    const coalitions = findCoalitions(seats, g);
     const gov = formGovernment(seats, coalitions);
 
     const states = {};
@@ -2190,8 +2387,10 @@
 
     const goal = goalReached(p, r);
     const bonus = { kanzler: 50, regierung: 30, opposition: 10, raus: 0 }[status];
-    const score = Math.max(0, Math.round(50 + (share - start) * 10 + bonus + (goal ? 25 : 0)));
-    r.outcome = { status, goal, delta: share - start, score, rating: rating(score) };
+    // Wer am Wahlabend die Brandmauer einreißt, regiert – aber gegen den Protest von Millionen.
+    const fwPenalty = r.firewallBroken ? 25 : 0;
+    const score = Math.max(0, Math.round(50 + (share - start) * 10 + bonus + (goal ? 25 : 0) - fwPenalty));
+    r.outcome = { status, goal, delta: share - start, score, rating: rating(score), firewall: !!r.firewallBroken };
     g.phase = 'done';
   }
 
@@ -2263,7 +2462,7 @@
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     publishedShares, publishedStateShares, groupShares, pollShares, pollStateShares, pollGroupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
-    POLL_RANGE, GROUP_IDS, flowSummary, steerVotes, stateFlows, regionFactor, nationalFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
+    POLL_RANGE, GROUP_IDS, FW_LEVELS, fwLevel, openFirewall, closeFirewall, firewallOptions, breakFirewall, flowSummary, steerVotes, stateFlows, regionFactor, nationalFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent,
     startDuel, duelAnswer,

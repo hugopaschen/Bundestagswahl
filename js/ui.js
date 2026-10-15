@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261015-014418';
+  const APP_VERSION = '20261015-020529';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -187,6 +187,7 @@
     renderPollBars(shares);
     renderMobilization();
     renderFlows();
+    renderFirewall();
     renderGroups();
     renderChart();
     renderAgenda();
@@ -872,6 +873,21 @@
       (low ? ' Am meisten verliert ihr an ' + AKK[low] + ' (' + signed(net[low]) + ').' : '') + '</p>';
   }
 
+  // Wer hält die Brandmauer zur AfD noch?
+  function renderFirewall() {
+    const box = $('firewall');
+    if (!box) return;
+    const ids = POLL_ORDER.filter(p => p !== D.OTHER.id && p !== 'afd');
+    box.innerHTML = ids.map(p => {
+      const lv = E.fwLevel(g, p);
+      return '<div class="fw-row' + (p === g.party ? ' me' : '') + '"><span class="fw-party"><i style="background:' + col(p) + '"></i>' + short(p) + '</span>' +
+        '<span class="fw-meter" aria-hidden="true">' + [0, 1, 2].map(i => '<b class="' + (i < 3 - lv ? 'on' : '') + '"></b>').join('') + '</span>' +
+        '<span class="fw-level l' + lv + '">' + esc(E.FW_LEVELS[lv].name) + '</span></div>';
+    }).join('') + (g.party === 'afd'
+      ? '<p class="muted small">Ihr braucht Partner: Öffnet sich eine Partei für eine Koalition, wird ein Bündnis mit euch rechnerisch möglich.</p>'
+      : '<p class="muted small">Steine = wie fest die Brandmauer noch steht. Wer sie einreißt, gewinnt AfD-nahe Wähler, verliert aber in der Mitte – und Parteien, die die Mauer halten, regieren nicht mehr mit ihm.</p>');
+  }
+
   // Wählergruppen: euer Umfragewert je Gruppe, Veränderung seit Start und die Lieblingsthemen.
   function renderGroups() {
     const box = $('groups');
@@ -1328,21 +1344,27 @@
     const r = g.result;
     const box = $('coalition');
     if (r.awaitingChoice) {
-      box.innerHTML = '<p><strong>Ihr seid stärkste Kraft und habt den Auftrag zur Regierungsbildung!</strong> Mit wem wollt ihr koalieren?</p>';
+      box.innerHTML = '<p><strong>' + (r.strongest === g.party ? 'Ihr seid stärkste Kraft und habt den Auftrag zur Regierungsbildung!'
+        : esc(E.party(r.strongest).name) + ' findet keine Partner – ihr habt den Auftrag zur Regierungsbildung!') + '</strong> Mit wem wollt ihr koalieren?</p>';
       r.options.forEach((o, i) => {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'btn coalition-option choice';
-        b.innerHTML = pills(o.members, r.seats) + '<span class="hint">' + o.seats + ' Sitze · Mehrheit +' + (o.seats - E.MAJORITY + 1) + '</span>';
+        b.innerHTML = pills(o.members, r.seats) + '<span class="hint">' + (o.tolerated
+          ? o.seats + ' Sitze · Minderheitsregierung, von der AfD toleriert'
+          : o.seats + ' Sitze · Mehrheit +' + (o.seats - E.MAJORITY + 1)) + '</span>';
         b.addEventListener('click', () => { E.chooseCoalition(g, i); save(); renderElection(false); });
         box.appendChild(b);
       });
+      appendFirewallBreak(box);
       return;
     }
     let html;
     if (r.government) {
       const seats = r.government.reduce((s, p) => s + r.seats[p], 0);
-      html = '<p>Neue Bundesregierung (' + seats + ' Sitze):</p><p>' + pills(r.government) + '</p>' +
+      const tol = r.coalitions.some(c => c.tolerated && c.members.join() === r.government.join());
+      html = '<p>Neue Bundesregierung (' + seats + ' Sitze' + (tol ? ', Minderheitsregierung – von der AfD toleriert' : '') + '):</p><p>' + pills(r.government) + '</p>' +
+        (r.firewallBroken ? '<p class="fw-note">🧱 Die Brandmauer ist gefallen: erstmals regiert die AfD im Bund mit.</p>' : '') +
         '<p class="muted small">Das Kanzleramt geht an: <strong>' + esc(E.party(r.government[0]).name) + '</strong>' +
         (r.government[0] === g.party ? ' – ' + esc(g.candidate) + ' wird Regierungschef:in!' : '') + '</p>';
     } else {
@@ -1353,9 +1375,34 @@
       html += '<h3>Rechnerische Mehrheiten</h3><ul class="coal-list">' + list.map(c =>
         '<li class="' + (c.viable ? '' : 'nope') + '">' + pills(c.members) + '<span class="small">' + c.seats + ' Sitze' +
         (c.viable ? '' : ' · ausgeschlossen') + '</span></li>').join('') + '</ul>' +
-        '<p class="muted small">Ausgeschlossen: Koalitionen mit der AfD (Brandmauer) sowie CDU/CSU mit der Linken.</p>';
+        '<p class="muted small">Ausgeschlossen: Koalitionen mit der AfD, solange ein Partner die Brandmauer hält; CDU/CSU mit der Linken; ' +
+        'Parteien, die die Brandmauer halten, regieren nicht mit Parteien, die eine Tolerierung oder Koalition mit der AfD anbieten.</p>';
     }
     box.innerHTML = html;
+    appendFirewallBreak(box);
+  }
+
+  // Wahlabend: Mit der AfD gäbe es eine Mehrheit – Brandmauer einreißen?
+  function appendFirewallBreak(box) {
+    const opts = E.firewallOptions(g);
+    if (!opts.length) return;
+    const div = document.createElement('div');
+    div.className = 'fw-break';
+    div.innerHTML = '<h3>🧱 Brandmauer einreißen?</h3><p class="small">Mit der AfD hättet ihr eine Mehrheit im Bundestag. Ihr würdet regieren – ' +
+      'aber gegen den Protest von Millionen, mit Austritten, Demonstrationen und Kritik von Kirchen, Gewerkschaften und Verbänden. ' +
+      'Das kostet euch 25 Punkte in der Bilanz.</p>';
+    opts.forEach((o, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn coalition-option fw-option';
+      b.innerHTML = pills(o.members, g.result.seats) + '<span class="hint">' + o.seats + ' Sitze · Koalition mit der AfD</span>';
+      b.addEventListener('click', () => {
+        if (!window.confirm('Wirklich die Brandmauer einreißen und mit der AfD regieren?')) return;
+        E.breakFirewall(g, i); save(); renderElection(false);
+      });
+      div.appendChild(b);
+    });
+    box.appendChild(div);
   }
 
   function renderOutcome() {
@@ -1378,6 +1425,7 @@
       (r.lastPoll ? '<p class="muted small">Letzte Umfrage: ' + pct(r.lastPoll[g.party]) + ' ± ' + E.POLL_RANGE + ' – das echte Ergebnis lag ' +
         (Math.abs(r.shares[g.party] - r.lastPoll[g.party]) < 0.3 ? 'fast genau darauf.' : signed(r.shares[g.party] - r.lastPoll[g.party]) + ' Punkte daneben.') + '</p>' : '') +
       '<p>' + esc(statusText) + '</p>' +
+      (o.firewall ? '<p class="fw-note">🧱 Ihr habt die Brandmauer eingerissen. Proteste im ganzen Land (−25 Punkte).</p>' : '') +
       '<p>' + (o.goal ? '✅ Wahlziel erreicht: ' : '❌ Wahlziel verfehlt: ') + esc(p.goalText) + '</p>' +
       '<div class="mob-bars flows result-flows"><span class="mob-label">Wählerwanderung seit Wahlkampfstart (Prozentpunkte)</span>' + flowBarsHtml(E.flowSummary(g, g.party), g.party) + '</div>';
     card.hidden = false;
@@ -1572,7 +1620,40 @@
     renderProgramSummary();
   }
 
+  // Koalitionsaussage zur AfD beim Programmparteitag.
+  const FW_CHOICES = [
+    { icon: '🧱', desc: 'Keine Zusammenarbeit mit der AfD – keine gemeinsamen Mehrheiten, keine Tolerierung, keine Koalition.' },
+    { icon: '🗳️', desc: 'Keine Koalition – aber eure Anträge bringt ihr ein, auch wenn sie nur mit AfD-Stimmen eine Mehrheit finden.' },
+    { icon: '🤝', desc: 'Eine Minderheitsregierung, die von der AfD toleriert wird, schließt ihr nicht aus.' },
+    { icon: '⚠️', desc: 'Ihr seid offen für eine Koalition mit der AfD.' }
+  ];
+  const FW_CHOICES_AFD = [
+    { icon: '💪', name: 'Auf eigene Stärke setzen', desc: 'Ihr kämpft für eine eigene Mehrheit und umwerbt niemanden.' },
+    { icon: '🤝', name: 'Offen um Partner werben', desc: 'Ihr bietet Union, FDP und BSW eine Zusammenarbeit an. Das erhöht den Druck, sich zu öffnen – und mobilisiert eure Gegner.' }
+  ];
+  function renderFirewallChoice() {
+    const box = $('fw-choice');
+    if (!box || !draft) return;
+    const afd = chosenParty === 'afd';
+    const list = afd ? FW_CHOICES_AFD : FW_CHOICES;
+    const cur = Math.min(list.length - 1, draft.firewall || 0);
+    const taboo = ['spd', 'gruene', 'linke'].indexOf(chosenParty) !== -1;
+    box.innerHTML = '<h3>' + (afd ? 'Unsere Haltung zu Koalitionen' : 'Koalitionsaussage: Wie haltet ihr es mit der AfD?') + '</h3>' +
+      '<p class="flyer-hint">' + (afd
+        ? 'Ohne Partner bleibt ihr in der Opposition – es sei denn, ihr holt die absolute Mehrheit.'
+        : 'Wer die Brandmauer öffnet, gewinnt AfD-nahe Wähler, verliert aber in der Mitte. Parteien, die die Brandmauer halten, mobilisieren dagegen und regieren ab einer Tolerierung nicht mehr mit euch. Im Wahlkampf könnt ihr eure Haltung noch ändern.' +
+          (taboo ? ' <strong>Für eure Anhänger wäre jede Öffnung ein Tabubruch – die Verluste wären massiv.</strong>' : '')) + '</p>' +
+      '<div class="fw-grid">' + list.map((c, i) => '<button type="button" class="core-card fw-card' + (i === cur ? ' picked' : '') + '" data-fw="' + i + '" aria-pressed="' + (i === cur) + '">' +
+        '<span class="fw-icon" aria-hidden="true">' + c.icon + '</span><b>' + esc(c.name || E.FW_LEVELS[i].name) + '</b><span class="fw-desc">' + esc(c.desc) + '</span></button>').join('') + '</div>';
+    box.querySelectorAll('.fw-card').forEach(b => b.addEventListener('click', () => {
+      draft.firewall = Number(b.dataset.fw);
+      renderFirewallChoice();
+      renderProgramSummary();
+    }));
+  }
+
   function renderProgram() {
+    renderFirewallChoice();
     const p = E.party(chosenParty);
     $('program-party').textContent = (p.name.length > 30 ? p.short : p.name) + ' · Programmparteitag';
     $('slogan').value = draft.slogan;
@@ -1781,6 +1862,9 @@
     html += '</div><ul class="fp-list">' + topicsByCompetence(partyId).filter(t => core.indexOf(t.id) === -1).map(t =>
       '<li><span class="fp-check">✔</span><span><span class="fp-topic">' + t.icon + ' ' + esc(t.name) + '</span>' +
       '<span class="fp-label">' + esc(D.PROGRAM[t.id][prog.positions[t.id]].label) + '</span></span></li>').join('') + '</ul>';
+    if (prog.firewall > 0) {
+      html += '<p class="fp-fw">' + (partyId === 'afd' ? '🤝 Offen für Koalitionen mit Union, FDP und BSW' : '⚠️ Koalitionsaussage: ' + esc(E.FW_LEVELS[prog.firewall].name)) + '</p>';
+    }
     if (finance) {
       html += '<span class="fp-stamp ' + finance + '">' +
         { solid: 'Solide finanziert', ok: 'Durchgerechnet', over: 'Nicht gegenfinanziert' }[finance] + '</span>';

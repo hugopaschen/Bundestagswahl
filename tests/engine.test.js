@@ -606,3 +606,35 @@ test('Abwerbung: Kompetenz bei einem fremden Thema holt Stimmen bei dessen Besit
   E.steerVotes(h, 'fdp', 'klima', 'jung', 1);
   assert.ok(!h.src || !h.src.fdp || !(h.src.fdp.gruene > 0));
 });
+
+test('Brandmauer: Stufen verändern Koalitionsmöglichkeiten', () => {
+  const g = E.newGame('union', 'T', 4);
+  assert.strictEqual(E.coalitionViable(['union', 'afd'], g), false);
+  E.openFirewall(g, 'union', 1);
+  assert.strictEqual(E.coalitionViable(['union', 'spd'], g), true); // Zufallsmehrheiten: Partner bleiben
+  E.openFirewall(g, 'union', 2);
+  assert.strictEqual(E.coalitionViable(['union', 'spd'], g), false); // SPD hält die Mauer
+  const tol = E.findCoalitions({ union: 200, afd: 150, spd: 130, gruene: 90, linke: 60 }, g).filter(c => c.tolerated);
+  assert.ok(tol.some(c => c.members.join() === 'union'));
+  E.openFirewall(g, 'union', 3);
+  assert.strictEqual(E.coalitionViable(['union', 'afd'], g), true);
+  E.closeFirewall(g, 'union');
+  assert.strictEqual(E.fwLevel(g, 'union'), 0);
+  assert.strictEqual(E.coalitionViable(['union', 'afd'], g), false);
+});
+
+test('Brandmauer: Öffnung kostet in der Mitte, holt bei der AfD, Gegner mobilisieren', () => {
+  const g = E.newGame('spd', 'T', 4);
+  const s0 = E.nationalShares(g);
+  E.openFirewall(g, 'union', 2);
+  const s1 = E.nationalShares(g);
+  assert.ok(s1.union < s0.union);
+  assert.ok(s1.spd > s0.spd && s1.gruene > s0.gruene);
+  assert.ok(g.src.union.afd > 0);
+  assert.ok(g.mobPerm.linke > 0);
+  // Programmparteitag: Koalitionsaussage wirkt ab der ersten Umfrage.
+  const prog = E.defaultProgram('fdp');
+  prog.firewall = 1;
+  const h = E.newGame('fdp', 'T', 4, prog);
+  assert.strictEqual(E.fwLevel(h, 'fdp'), 1);
+});

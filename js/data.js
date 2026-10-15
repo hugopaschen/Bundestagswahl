@@ -493,6 +493,31 @@
     });
   });
 
+  // Brandmauer: Wie die Anhänger einer Partei eine Zusammenarbeit mit der AfD bewerten – je Stufe
+  // [eigene Anträge auch mit AfD-Stimmen, gemeinsame Anträge/Tolerierung, Koalition], Anteil „akzeptabel“.
+  // Quelle: ARD-DeutschlandTrend Februar 2025 (infratest dimap, 3.–5.2.2025, nach Parteianhängern; zitiert
+  // nach Statista 761033): alle 44/38/28, Union 61/39/19, SPD 11/7/2, Grüne 8/7/1, AfD 83/95/94.
+  // Linke laut Vorschau 12/12/11 (Zuordnung unsicher) – hier wie Grüne angesetzt (geschätzt). FDP und BSW
+  // wurden nicht ausgewiesen; beide stimmten am 29.1.2025 für den Unionsantrag – geschätzt nahe der Union.
+  // Folgen des 29.1.2025: Union in den Umfragen danach −2 bis +1 (Forsa, YouGov, infratest, FGW) – also
+  // kaum Schaden durch Zufallsmehrheiten; Großdemos (Berlin ~160.000, München >250.000 laut Polizei),
+  // Eintrittswelle bei Linken (+17.000) und Grünen (Rekord); Linke bei 18–24-Jährigen bei 25 %.
+  // Ost/West: Forsa 2026 – Koalitionen mit der AfD im Osten 53 % dafür, im Westen 37 %.
+  // Gruppeneffekte (Punkte je Stufe): Männer offener als Frauen (INSA, ohne Zahlen), Kritik der Kirchen
+  // (EKD/Katholisches Büro, 28.1.2025) – Stärke geschätzt.
+  var FIREWALL = {
+    acceptance: {
+      union: [0.61, 0.39, 0.19], spd: [0.11, 0.07, 0.02], gruene: [0.08, 0.07, 0.01],
+      linke: [0.08, 0.07, 0.02], fdp: [0.55, 0.35, 0.18], bsw: [0.5, 0.35, 0.2]
+    },
+    east: 0.16, // Ost-West-Unterschied in der Zustimmung (53 % vs. 37 %)
+    groups: { maenner: 2, frauen: -2, kath: -1.5, evang: -1.5 },
+    mobilize: { linke: 1.5, gruene: 1.2, spd: 0.8, union: 0.4, fdp: 0.3, bsw: 0.3 },
+    youngLinke: 0.6, // Gegenmobilisierung der Jungen zur Linken (Punkte in der Gruppe je Stufe)
+    // Neigung der KI-Parteien, unter Druck einen Schritt zu gehen (je Woche, vor Druckfaktor) – geschätzt.
+    ai: { union: 0.015, fdp: 0.01, bsw: 0.015, spd: 0.0005, gruene: 0.0003, linke: 0.0003 }
+  };
+
   // Konfrontationslinien im Wahlkampf 2025 (Hauptgegner, gegen die eine Partei sich profiliert):
   // Union ↔ AfD (Migration, „Brandmauer“), Union ↔ SPD (Kanzlerduell Merz–Scholz), Union ↔ Grüne,
   // Grüne ↔ AfD, SPD/Grüne ↔ FDP (Ampel-Bruch), Linke ↔ Union/AfD, BSW ↔ Grüne (Ukraine-Politik) und ↔ Linke.
@@ -555,6 +580,7 @@
     POSTAL: POSTAL,
     NONVOTER_POTENTIAL: NONVOTER_POTENTIAL,
     RIVALS: RIVALS,
+    FIREWALL: FIREWALL,
     FLOWS: FLOWS,
     FLOW_PAIRS: FLOW_PAIRS,
     RESULT_2025: RESULT_2025,

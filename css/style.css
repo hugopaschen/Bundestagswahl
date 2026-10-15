@@ -1807,3 +1807,26 @@ h2 .flyer-hint { margin: 0; }
 .party-site[data-party="union"].election .ko-title { display: inline-block; background: #2d3c4b; color: #fff; padding: .05em .25em; max-width: none; }
 .party-site[data-party="spd"].election .ko-title, .party-site[data-party="linke"].election .ko-title { text-transform: uppercase; }
 .party-site[data-party="gruene"].election .ko-title { color: var(--fl-hl); }
+
+/* Brandmauer */
+.fw-choice { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--border); }
+.fw-choice h3 { margin: 0 0 6px; font-family: var(--fl-head-font, inherit); color: var(--fl-accent); }
+.fw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-top: 12px; }
+.fw-card { min-height: 0; gap: 6px; padding: 14px 16px; }
+.fw-card b { font-size: .98rem; }
+.fw-icon { font-size: 1.4rem; }
+.fw-desc { font-size: .84rem; opacity: .85; }
+.fp-fw { margin: 10px 0 0; font-weight: 700; font-size: .9rem; }
+.fw-status { display: flex; flex-direction: column; gap: 4px; margin: 8px 0 20px; max-width: 640px; }
+.fw-row { display: grid; grid-template-columns: 90px 64px 1fr; align-items: center; gap: 10px; font-size: .9rem; }
+.fw-row.me .fw-party { font-weight: 900; }
+.fw-party { display: inline-flex; align-items: center; gap: 6px; }
+.fw-party i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.fw-meter { display: inline-flex; gap: 3px; }
+.fw-meter b { width: 16px; height: 10px; border-radius: 2px; background: var(--border); }
+.fw-meter b.on { background: #8a5a3c; }
+.fw-level.l1 { color: #a86b00; } .fw-level.l2 { color: #c0392b; } .fw-level.l3 { color: #c0392b; font-weight: 800; }
+.fw-break { margin-top: 18px; padding: 14px 16px; border: 2px dashed #c0392b; border-radius: 12px; }
+.fw-break h3 { margin: 0 0 6px; color: #c0392b; }
+.fw-option { border-color: #c0392b; }
+.fw-note { color: #c0392b; font-weight: 700; }
