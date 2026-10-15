@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261015-010202';
+  const APP_VERSION = '20261015-013258';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -1152,11 +1152,9 @@
     $('result-bars').innerHTML = bars;
     $('result-labels').innerHTML = ids.map(p => {
       const d = r.shares[p] - g.startShares[p];
-      return '<div class="' + (p === me ? 'me' : '') + '">' + short(p) +
+      return '<div class="' + (p === me ? 'me' : '') + '" data-p="' + p + '">' + short(p) +
         '<span class="rdiff ' + (d >= 0 ? 'pos' : 'neg') + '">' + signed(d) + '</span></div>';
     }).join('');
-    const grow = () => document.querySelectorAll('.rbar').forEach(b => { b.style.height = b.dataset.h + '%'; });
-    if (animate) requestAnimationFrame(() => requestAnimationFrame(grow)); else grow();
 
     // Sitze
     $('seat-total').textContent = '(' + D.SEATS + ' Sitze, Mehrheit ab ' + E.MAJORITY + ')';
@@ -1165,7 +1163,86 @@
 
     renderCoalition();
     renderOutcome();
+    if (animate) electionReveal(ids); else finishElectionReveal();
   }
+
+  // Wahlabend mit Spannung: erst die Zweitstimmen Partei für Partei (die eigene zuletzt),
+  // dann die Sitzverteilung Segment für Segment, zum Schluss Regierungsbildung und Bilanz.
+  let electionTimers = [];
+  function electionReveal(ids) {
+    const r = g.result;
+    const me = g.party;
+    electionTimers.forEach(clearTimeout);
+    electionTimers = [];
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const step = reduce ? 80 : 850;
+    const at = (t, fn) => electionTimers.push(setTimeout(fn, t));
+    const votes = $('votes-card');
+    votes.classList.add('el-revealing');
+    ['seat-card', 'coalition-card', 'outcome-card'].forEach(id => $(id).classList.add('el-pending'));
+    $('btn-el-skip').hidden = false;
+    const sus = $('el-suspense');
+    sus.textContent = '18:00 Uhr – die Wahllokale haben geschlossen. Die Stimmen werden ausgezählt …';
+    const cols = {};
+    votes.querySelectorAll('.result-bars .col').forEach((c, i) => { cols[ids[i]] = c; });
+    const showBar = p => {
+      const c = cols[p];
+      if (!c) return;
+      c.classList.add('shown');
+      c.querySelector('.rbar').style.height = c.querySelector('.rbar').dataset.h + '%';
+      const l = votes.querySelector('.result-labels [data-p="' + p + '"]');
+      if (l) l.classList.add('shown');
+    };
+    // Erst die Sonstigen, dann die übrigen Parteien von klein nach groß, zum Schluss die eigene.
+    const order = [D.OTHER.id].concat(ids.filter(p => p !== me && p !== D.OTHER.id).sort((a, b) => r.shares[a] - r.shares[b]));
+    let t = 900;
+    order.forEach(p => { at(t, () => showBar(p)); t += step; });
+    t += reduce ? 100 : 700;
+    at(t, () => { sus.textContent = '… und ' + E.party(me).name + '?'; });
+    t += reduce ? 100 : 1600;
+    at(t, () => {
+      showBar(me);
+      const v = r.shares[me];
+      sus.textContent = E.party(me).short + ': ' + pct(v) + (v < 5 ? ' – unter der 5-%-Hürde.' : r.strongest === me ? ' – stärkste Kraft!' : '.');
+    });
+    t += reduce ? 200 : 2200;
+    // Sitzverteilung
+    at(t, () => {
+      const card = $('seat-card');
+      card.classList.remove('el-pending');
+      card.classList.add('el-revealing');
+      card.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+    });
+    t += reduce ? 100 : 700;
+    const segs = SPECTRUM.filter(p => r.seats[p] > 0);
+    segs.forEach(p => {
+      at(t, () => {
+        const card = $('seat-card');
+        const seg = card.querySelector('.hc-seg[data-p="' + p + '"]');
+        if (seg) seg.classList.add('shown');
+        const it = card.querySelector('.sl-item[data-p="' + p + '"]');
+        if (it) it.classList.add('shown');
+      });
+      t += reduce ? 80 : 900;
+    });
+    at(t, () => finishElectionReveal(true));
+  }
+
+  function finishElectionReveal(scroll) {
+    electionTimers.forEach(clearTimeout);
+    electionTimers = [];
+    document.querySelectorAll('#screen-election .rbar').forEach(b => { b.style.height = b.dataset.h + '%'; });
+    document.querySelectorAll('#screen-election .result-bars .col, #screen-election .result-labels > div, #screen-election .hc-seg, #screen-election .sl-item')
+      .forEach(el => el.classList.add('shown'));
+    ['votes-card', 'seat-card'].forEach(id => $(id).classList.remove('el-revealing'));
+    ['seat-card', 'coalition-card', 'outcome-card'].forEach(id => $(id).classList.remove('el-pending'));
+    $('btn-el-skip').hidden = true;
+    if (scroll) {
+      const target = g.result.awaitingChoice ? $('coalition-card') : $('outcome-card');
+      if (target && !target.hidden) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+  $('btn-el-skip').addEventListener('click', () => { finishElectionReveal(true); $('el-suspense').textContent = ''; });
 
   // Sitzverteilung als Halbkreis mit einem Segment je Partei (von links nach rechts im politischen Spektrum).
   function hemicycle(seats) {
@@ -1182,7 +1259,7 @@
       acc += seats[p];
       const a1 = Math.PI * (1 - acc / total);
       const large = a0 - a1 > Math.PI ? 1 : 0;
-      svg += '<path class="hc-seg" d="M ' + pt(r0, a0) + ' L ' + pt(R, a0) + ' A ' + R + ' ' + R + ' 0 ' + large + ' 1 ' + pt(R, a1) +
+      svg += '<path class="hc-seg" data-p="' + p + '" d="M ' + pt(r0, a0) + ' L ' + pt(R, a0) + ' A ' + R + ' ' + R + ' 0 ' + large + ' 1 ' + pt(R, a1) +
         ' L ' + pt(r0, a1) + ' A ' + r0 + ' ' + r0 + ' 0 ' + large + ' 0 ' + pt(r0, a0) + ' Z" style="fill:' + col(p) + '"><title>' +
         esc(E.party(p).name) + ': ' + seats[p] + ' Sitze</title></path>';
     });
@@ -1200,7 +1277,7 @@
     const prev = D.SEATS_2025 || {};
     return SPECTRUM.filter(p => seats[p] > 0 || prev[p] > 0).map(p => {
       const d = (seats[p] || 0) - (prev[p] || 0);
-      return '<div class="sl-item' + (p === g.party ? ' me' : '') + '"><span class="sl-name">' + short(p) + '</span>' +
+      return '<div class="sl-item' + (p === g.party ? ' me' : '') + '" data-p="' + p + '"><span class="sl-name">' + short(p) + '</span>' +
         '<span class="sl-seats" style="background:' + col(p) + ';color:' + onCol(p) + '">' + (seats[p] || 0) + '</span>' +
         '<span class="sl-diff">' + (d > 0 ? '+' : d < 0 ? '−' : '±') + Math.abs(d) + '</span></div>';
     }).join('');

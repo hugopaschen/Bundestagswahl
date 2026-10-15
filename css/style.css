@@ -315,7 +315,19 @@ h3 { font-size: .9rem; margin-top: 1.2rem; color: var(--text-2); }
 .result-labels .me { color: var(--accent); }
 .hemicycle svg { width: 100%; height: auto; display: block; }
 .hemicycle { max-width: 560px; margin: 8px auto 0; }
-.hc-seg { stroke: var(--surface, #fff); stroke-width: 0.012; stroke-linejoin: round; transform-origin: 0 0; animation: hc-grow .9s cubic-bezier(.22, .8, .25, 1) both; }
+.hc-seg { stroke: var(--surface, #fff); stroke-width: 0.012; stroke-linejoin: round; transform-origin: 0 0; }
+.el-revealing .hc-seg { opacity: 0; }
+.el-revealing .hc-seg.shown { animation: hc-grow .8s cubic-bezier(.22, .8, .25, 1) both; }
+.el-revealing .sl-item { opacity: 0; transform: translateY(6px); transition: opacity .4s, transform .4s; }
+.el-revealing .sl-item.shown { opacity: 1; transform: none; }
+.el-revealing .hc-chip, .el-revealing .hc-chip-text, .el-revealing .hc-major { opacity: 0; }
+.el-revealing .rval, .el-revealing .result-labels > div { opacity: 0; transition: opacity .4s; }
+.el-revealing .col.shown .rval, .el-revealing .result-labels > div.shown { opacity: 1; }
+.el-revealing .result-labels > div.me.shown { animation: rv-pop .6s ease; }
+.el-pending { display: none !important; }
+.el-controls { display: flex; justify-content: center; margin-top: 6px; }
+#el-suspense { min-height: 1.6em; margin: 14px 0 6px; }
+#el-suspense:empty { display: none; }
 @keyframes hc-grow { from { transform: scale(.3); opacity: 0; } to { transform: none; opacity: 1; } }
 .hc-major { stroke: #ffffff; stroke-width: 0.01; stroke-dasharray: 0.035 0.025; opacity: .95; }
 .hc-chip { fill: var(--text, #1d1d1f); }
