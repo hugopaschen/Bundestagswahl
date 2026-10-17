@@ -220,15 +220,35 @@
     let html = '<h2>📜 Gesetzgebung</h2>';
     const active = t.laws.filter(l => ['kabinett', 'kabinett_wait', 'veto', 'bundestag', 'bundesrat', 'vermittlung'].indexOf(l.stage) !== -1);
     html += '<p class="muted small">Ein Gesetz geht durch das Kabinett, den Bundestag (Mehrheit der abgegebenen Stimmen) und – wenn es zustimmungspflichtig ist – den Bundesrat (35 von 69 Stimmen; ein Land stimmt nur zu, wenn alle Regierungsparteien dort einverstanden sind). Jede Stufe dauert ein Quartal.</p>';
+    html += renderSq();
     html += '<h3>In Arbeit</h3>' + (active.length ? active.map(lawCard).join('') : '<p class="muted">Gerade liegt nichts an.</p>');
     if (T.isGov(t.role)) html += renderDraft();
     else html += '<p class="muted small">' + (t.role === 'opposition' ? 'Als Opposition stimmt ihr im Bundestag mit ab und könnt Gesetze in Karlsruhe prüfen lassen (Normenkontrollklage).' : 'Ohne Sitze im Bundestag schaut ihr zu – aber auf der Straße und in den Ländern könnt ihr Druck machen.') + '</p>';
     const done = t.laws.filter(l => active.indexOf(l) === -1).slice().reverse();
     if (done.length) html += '<h3>Abgeschlossen</h3>' + done.map(lawCard).join('');
     $('t-gesetze').innerHTML = html;
+    const more = $('t-gesetze').querySelector('.t-sq-more');
+    if (more) more.addEventListener('click', () => { sqAll = !sqAll; renderLaws(); });
     bindDraft();
   }
 
+  // Status quo: Rückhalt der geltenden Regelung je Thema, Angreifer und Verteidiger.
+  let sqAll = false;
+  function renderSq() {
+    const t = term();
+    const rows = D.TOPICS.map(tp => ({ tp, sq: t.sq[tp.id], f: T.sqForces(g, tp.id) })).sort((a, b) => a.sq - b.sq);
+    let html = '<h3>⚖️ Status quo unter Druck</h3><p class="muted small">Was heute gilt, hat Rückhalt. Die Ränder greifen ihn an, die Mitte verteidigt ihn. Unter 40 gewinnen die Angreifer an Zustimmung, unter 15 kippt die Lage und die Regierung muss reagieren. Ein starker Status quo macht Gesetze, die ihn ändern, schwerer – ein schwacher leichter.</p><div class="t-sq">';
+    (sqAll ? rows : rows.slice(0, 6)).forEach(r => {
+      const cls = r.sq < 15 ? 'bad' : r.sq < 40 ? 'mid' : 'good';
+      const mine = T.leanOf(g, g.party, r.tp.id) === D.PROGRAM[r.tp.id][t.policy[r.tp.id]].lean;
+      html += '<div class="t-sq-row"><div class="t-sq-head"><b>' + r.tp.icon + ' ' + esc(r.tp.name) + '</b><span class="small muted">' + esc(D.PROGRAM[r.tp.id][t.policy[r.tp.id]].label) + '</span></div>' +
+        '<div class="t-sq-bar">' + bar(r.sq, 100, cls) + '<span class="num">' + Math.round(r.sq) + '</span></div>' +
+        '<div class="small">🛡️ ' + (r.f.def.slice(0, 4).map(x => pill(x.p)).join(' ') || '–') + ' &nbsp; ⚔️ ' + (r.f.att.slice(0, 4).map(x => pill(x.p)).join(' ') || '–') +
+        ' <span class="muted">· ihr ' + (mine ? 'verteidigt' : 'greift an') + '</span></div></div>';
+    });
+    html += '</div><button type="button" class="btn t-sq-more">' + (sqAll ? 'Weniger zeigen' : 'Alle 16 Themen zeigen') + '</button>';
+    return html;
+  }
   function leanName(l) { return l < 0 ? 'links/progressiv' : l > 0 ? 'konservativ/marktliberal' : 'Mitte'; }
   function renderDraft() {
     const t = term();
@@ -453,7 +473,7 @@
     for (let v = 0; v <= yMax; v += 10) svg += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '"></line>';
     svg += '</g><g class="axis">';
     for (let v = 0; v <= yMax; v += 10) svg += '<text x="' + (L - 5) + '" y="' + (y(v) + 3) + '" text-anchor="end">' + v + '</text>';
-    for (let i = 0; i <= n; i += 4) svg += '<text x="' + x(i) + '" y="' + (H - 5) + '" text-anchor="middle">' + (t.year0 + i / 4) + '</text>';
+    for (let i = 0; i <= n; i++) { const c = T.absCal(t.abs0 + i - 1); if (c.qn === 1 || i === 0) svg += '<text x="' + x(i) + '" y="' + (H - 5) + '" text-anchor="middle">' + (i === 0 ? 'Wahl' : c.year) + '</text>'; }
     svg += '</g>';
     ids.slice().sort((a, b) => (a === g.party) - (b === g.party)).forEach(p => {
       const pts = hist.map((h, i) => x(i) + ',' + y(h.nat[p] || 0)).join(' ');
@@ -516,6 +536,14 @@
       const b = T.budgetCalc(term(), d.plan);
       U.openModal(eyebrow + ' · 🏦 Haushalt', 'Haushaltsentwurf ' + d.year, '<p>Das Finanzministerium (' + esc(short(term().cabinet.finanzen ? term().cabinet.finanzen.party : term().chanc)) + ') legt den Entwurf vor: Neuverschuldung ' + mrd(b.deficit) + ', erlaubt ' + mrd(b.limit) + '.</p>',
         [{ label: 'Mittragen', hint: 'Gutes Klima', onClick: () => choose(0) }, { label: 'Nachbesserungen fordern', hint: '+5 % für einen eurer Schwerpunkte, das Klima leidet', onClick: () => choose(1) }]);
+    } else if (it.type === 'sq') {
+      const tp = E.topicById(it.topic);
+      const f = T.sqForces(g, it.topic);
+      U.openModal(eyebrow + ' · ⚖️ Status quo', 'Druck beim Thema ' + tp.name, '<p>Der Rückhalt für die geltende Regelung („' + esc(D.PROGRAM[it.topic][term().policy[it.topic]].label) + '“) ist eingebrochen. ' +
+        esc(f.att.slice(0, 2).map(x => pname(x.p)).join(' und ')) + ' machen massiv Druck – auf der Straße, in den Medien und in den Ländern.</p>',
+        [{ label: 'Nachgeben: „' + D.PROGRAM[it.topic][it.opt].label + '“', hint: 'Ein Gesetzentwurf geht ins Kabinett', onClick: () => choose(0) },
+          { label: 'Dagegenhalten', hint: 'Der Status quo wird gestärkt, aber das kostet Zustimmung', onClick: () => choose(1) },
+          { label: 'Expertenkommission einsetzen', hint: 'Zeit gewinnen (1 Mrd. €)', onClick: () => choose(2) }]);
     } else if (it.type === 'break') {
       U.openModal(eyebrow + ' · 💥 Koalitionsbruch', short(it.leaver) + ' verlässt die Regierung', '<p>Die Koalition ist am Ende. Wie geht es weiter?</p>',
         it.options.map((o, i) => ({ label: o.label, hint: o.hint, onClick: () => choose(i) })));

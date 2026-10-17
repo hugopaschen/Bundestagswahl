@@ -12,7 +12,8 @@
   const QUARTERS = 16;
   const FIRST_YEAR = 2029;   // die Wahl im Spiel ist die Bundestagswahl 2029
   const NAT_DECAY = 0.88;    // Umfrage-Effekte verblassen pro Quartal
-  const ACT_K = 0.6;         // Stärke der eigenen Aktionen auf die Umfragen
+  const ACT_K = 0.6;
+  const SQ0 = 60;            // Rückhalt des Status quo zu Beginn (0–100)         // Stärke der eigenen Aktionen auf die Umfragen
   const SEATS = D.SEATS;
   const MAJ = E.MAJORITY;
   const PIDS = A.PARTY_IDS;
@@ -36,10 +37,15 @@
   const copy = o => JSON.parse(JSON.stringify(o));
 
   // ---------- Kalender ----------
-  // Quartal 0 ist das 2. Quartal des Wahljahres (Wahl im Februar/März).
+  // Absolute Quartalszählung (Jahr × 4 + Quartal − 1). Quartal 0 der Legislatur ist das Quartal nach der
+  // Wahl; nach einer regulären Wahl im Februar/März also das 2. Quartal des Wahljahres.
+  const absCal = idx => ({ year: Math.floor(idx / 4), qn: idx % 4 + 1, abs: idx });
   function cal(t, q) {
-    const idx = 1 + Math.min(QUARTERS - 1, q === undefined ? t.q : q);
-    return { year: t.year0 + Math.floor(idx / 4), qn: idx % 4 + 1 };
+    return absCal(t.abs0 + Math.min(QUARTERS - 1, q === undefined ? t.q : q));
+  }
+  function ltwDueAbs(idx) {
+    const c = absCal(idx);
+    return Object.keys(TD.LTW).filter(l => dueIn(TD.LTW[l], c));
   }
   function quarterLabel(t, q) { const c = cal(t, q); return c.qn + '. Quartal ' + c.year; }
   function dueIn(spec, c) {
@@ -62,7 +68,7 @@
       if (dueIn(TD.BUNDESVERSAMMLUNG, c)) out.push({ q, label: quarterLabel(t, q), kind: 'bv', text: 'Bundesversammlung' });
       if (c.qn === 3 && q < QUARTERS - 1) out.push({ q, label: quarterLabel(t, q), kind: 'haushalt', text: 'Haushaltsentwurf ' + (c.year + 1) });
     }
-    out.push({ q: QUARTERS, label: quarterLabel(t, QUARTERS - 1), kind: 'btw', text: 'Bundestagswahl ' + (t.year0 + 4) });
+    out.push({ q: QUARTERS, label: quarterLabel(t, QUARTERS - 1), kind: 'btw', text: 'Bundestagswahl ' + cal(t, QUARTERS - 1).year });
     return out;
   }
 
@@ -299,6 +305,7 @@
     const P0 = party(g.party);
     const t = g.term = {
       n: ((g.career && g.career.terms) ? g.career.terms.length : 0) + 1,
+      abs0: world && world.abs0 ? world.abs0 : (g.year || FIRST_YEAR) * 4 + 1,
       year0: g.year || FIRST_YEAR,
       q: 0,
       seats: Object.assign({}, r.seats),
@@ -311,7 +318,8 @@
         { plan: {}, draft: null, status: 'ok', extra: 0, def: 0, oneoff: 0, reform: 0, notlage: false, history: [], vote: null },
       laws: [], lawSeq: 0, voteChoice: {},
       laender: world && world.laender ? copy(world.laender) : copy(TD.LAENDER),
-      ltwBoost: {}, ltwLog: [], landPrev: {},
+      ltwBoost: {}, ltwLog: [], landPrev: world && world.landPrev ? copy(world.landPrev) : {}, sq: world && world.sq ? copy(world.sq) : {},
+      doneAbs: world && world.doneAbs ? world.doneAbs : null,
       party: { members: P0.members, cash: Math.max(0.5, Math.round((g.money || 0) * 100) / 100 + P0.budget * 0.3), unity: 62, lv: {},
         leader: { name: g.candidate, like: clamp(like, -5, 5) } },
       mood: 60, intl: world ? world.intl : 50,
@@ -326,7 +334,9 @@
       TD.AREAS.forEach(a => { if (!a.fixed) t.budget.plan[a.id] = 0; });
       t.econ.debtBn = t.econ.debt * t.econ.gdp / 100;
     }
-    D.STATES.forEach(st => { t.party.lv[st.id] = Math.round(between(g, 12, 30)); t.landPrev[st.id] = g.base[st.id][g.party] || 0; });
+    t.year0 = Math.floor((t.abs0 - 1) / 4);
+    D.STATES.forEach(st => { t.party.lv[st.id] = Math.round(between(g, 12, 30)); if (t.landPrev[st.id] === undefined) t.landPrev[st.id] = g.base[st.id][g.party] || 0; });
+    A.TOPIC_IDS.forEach(tp => { if (t.sq[tp] === undefined) t.sq[tp] = SQ0; });
 
     // Regierung
     let gov = r.government ? r.government.slice() : null;
@@ -355,6 +365,9 @@
     const govText = gov.map(sname).join('-') + (t.tolerated ? '-Minderheitsregierung' : '-Koalition');
     news(g, 'Die ' + (t.n === 1 ? '' : t.n + '. ') + 'Legislaturperiode beginnt. ' + t.chancellor.name + ' (' + sname(t.chanc) + ') wird zur Kanzlerin/zum Kanzler gewählt – ' + govText + '.', 'big');
     news(g, introText(g), 'role');
+    // Landtagswahlen, die in die Zeit des Wahlkampfs fielen, werden nachgeholt – der Bundesrat läuft weiter.
+    if (t.doneAbs !== null) for (let idx = t.doneAbs + 1; idx < t.abs0; idx++) ltwDueAbs(idx).forEach(l => landtagswahl(g, l));
+    t.doneAbs = t.abs0 - 1;
     beginQuarter(g, true);
     return { ok: true, role: t.role };
   }
@@ -371,6 +384,67 @@
 
   function roundShares(sh) { const o = {}; Object.keys(sh).forEach(p => { o[p] = r2(sh[p]); }); return o; }
 
+
+  // ---------- Status quo ----------
+  // Die geltende Regelung je Thema hat einen Rückhalt (0–100). Die Ränder greifen ihn an, die Mitte verteidigt
+  // ihn; Regierungsparteien stehen eher hinter dem, was gilt. Fällt der Rückhalt, gewinnen die Angreifer, und
+  // Gesetze, die den Status quo ändern, kommen leichter durch.
+  const FRINGE = ['afd', 'linke', 'bsw'];
+  const SQ_K = 7;
+  function sqLean(t, topic) { return D.PROGRAM[topic][t.policy[topic]].lean; }
+  function sqForces(g, topic) {
+    const t = g.term;
+    const L = sqLean(t, topic);
+    const def = [];
+    const att = [];
+    PIDS.concat(MINOR).forEach(p => {
+      const share = shareOf(g, p) / 100;
+      if (share < 0.02) return;
+      const lp = leanOf(g, p, topic);
+      const d = Math.abs(lp - L);
+      let w;
+      if (FRINGE.indexOf(p) !== -1) w = d === 0 ? 0.4 : -1.4 * d;
+      else w = d === 0 ? 1 : d === 1 ? 0.2 : -0.6;
+      if (t.gov.indexOf(p) !== -1) w = w > 0 ? w + 0.3 : w * 0.4;
+      if (w > 0) def.push({ p, f: share * w });
+      else att.push({ p, f: -share * w, dir: Math.sign(lp - L) });
+    });
+    const D0 = def.reduce((x, y) => x + y.f, 0);
+    const A0 = att.reduce((x, y) => x + y.f, 0);
+    const pull = att.reduce((x, y) => x + y.f * y.dir, 0);
+    return { def: def.sort((a, b) => b.f - a.f), att: att.sort((a, b) => b.f - a.f), D: D0, A: A0, dir: pull > 0 ? 1 : pull < 0 ? -1 : 0 };
+  }
+  function addSq(t, topic, v) { t.sq[topic] = clamp((t.sq[topic] === undefined ? SQ0 : t.sq[topic]) + v, 0, 100); }
+
+  function updateSq(g) {
+    const t = g.term;
+    A.TOPIC_IDS.forEach(topic => {
+      const f = sqForces(g, topic);
+      const sf = clamp(g.salience[topic] / D.SALIENCE0[topic], 0.5, 2.5);
+      // Die Regierung verteidigt im Alltag, was sie selbst vertritt (Verwaltung, Kommunikation).
+      const govDefends = Math.abs(leanOf(g, t.chanc, topic) - sqLean(t, topic)) === 0 ? 0.6 : 0;
+      addSq(t, topic, (f.D - f.A) * SQ_K * sf + govDefends + (55 - t.sq[topic]) * 0.08);
+      const sq = t.sq[topic];
+      if (sq < 40) {
+        const k = (40 - sq) / 40 * sf * 0.06;
+        f.att.forEach(x => addNat(g, x.p, k * (FRINGE.indexOf(x.p) !== -1 ? 1 : 0.5)));
+        f.def.forEach(x => { if (t.gov.indexOf(x.p) !== -1) addNat(g, x.p, -k * 0.6); });
+      }
+      // Kipppunkt: Der Druck wird so groß, dass die Regierung reagieren muss.
+      if (sq <= 15 && f.dir && !inPipeline(t, topic) && !t.pending.some(it => it.type === 'sq' && it.topic === topic) && t.q - ((t.sqTip || {})[topic] || -9) >= 4) {
+        t.sqTip = t.sqTip || {};
+        t.sqTip[topic] = t.q;
+        const target = optIndex(topic, clamp(sqLean(t, topic) + f.dir, -1, 1));
+        news(g, '⚠️ Der Status quo beim Thema ' + E.topicById(topic).name + ' wankt: ' + f.att.slice(0, 2).map(x => sname(x.p)).join(' und ') + ' machen massiv Druck.', 'warn');
+        if (isGov(t.role)) t.pending.push({ type: 'sq', topic, opt: target });
+        else if (rand(g) < 0.5) {
+          const law = makeLaw(g, { kind: 'topic', topic, opt: target }, t.chanc);
+          news(g, 'Die Bundesregierung gibt nach und bringt ein: „' + lawName(law) + '“.', 'info');
+        } else { addSq(t, topic, 15); news(g, 'Die Bundesregierung hält am Status quo beim Thema ' + E.topicById(topic).name + ' fest.', 'info'); }
+      }
+    });
+  }
+
   // ---------- Wirtschaft und Haushalt ----------
   function budgetCalc(t, plan) {
     const e = t.econ;
@@ -378,8 +452,8 @@
     const areas = {};
     let spend = 0;
     TD.AREAS.forEach(a => {
-      let v = a.base * s;
-      if (a.id === 'zinsen') v = a.base * s * (e.debt / TD.ECON0.debt) * (0.85 + 0.075 * e.infl);
+      let v = a.base * s * ((t.budget.drift && t.budget.drift[a.id]) || 1);
+      if (a.id === 'zinsen') v = a.base * s * ((t.budget.drift && t.budget.drift.zinsen) || 1) * (e.debt / TD.ECON0.debt) * (0.85 + 0.075 * e.infl);
       else if (!a.fixed) v *= 1 + ((plan || t.budget.plan)[a.id] || 0) / 100;
       if (a.id === 'verteidigung') v += t.budget.def;
       areas[a.id] = v;
@@ -387,12 +461,15 @@
     });
     spend += t.budget.extra + t.budget.oneoff;
     const taxRev = TD.TAXES.reduce((sum, x) => sum + x.levels[t.taxes[x.id]].rev, 0) * s;
-    const revenue = TD.REVENUE0 * s * (1 + (e.growth - e.trend) * 0.012) + taxRev;
+    const gap0 = e.gap === undefined ? TD.ECON0.gap : e.gap;
+    // Steuern reagieren auf die Konjunktur (Budgetsemielastizität ~0,5).
+    const revenue = TD.REVENUE0 * s + TD.DEBT_RULE.cyc * (gap0 - TD.ECON0.gap) * e.gdp / 100 + taxRev;
     const deficit = spend - revenue;
-    const cyc = Math.max(0, e.trend - e.growth) * TD.DEBT_RULE.cyc * e.gdp / 100;
-    const defFree = Math.max(0, areas.verteidigung - TD.DEBT_RULE.defenseFree * e.gdp / 100);
-    const limit = (TD.DEBT_RULE.structural + (t.budget.reform || 0)) * e.gdp / 100 + cyc + defFree;
-    return { areas, spend, revenue, taxRev, deficit, limit, gap: deficit - limit, cyc, defFree,
+    const cyc = -gap0 * TD.DEBT_RULE.cyc * e.gdp / 100;
+    const trans = TD.DEBT_RULE.trans * e.gdp / 100;
+    const defFree = Math.max(0, areas.verteidigung + TD.DEBT_RULE.defenseOther * s - TD.DEBT_RULE.defenseFree * e.gdp / 100);
+    const limit = (TD.DEBT_RULE.structural + (t.budget.reform || 0)) * e.gdp / 100 + cyc + trans + defFree;
+    return { areas, spend, revenue, taxRev, deficit, limit, gap: deficit - limit, cyc, trans, defFree,
       defShare: areas.verteidigung / e.gdp * 100, s };
   }
 
@@ -403,7 +480,7 @@
     // Investitionen in Verkehr, Forschung, Bildung … stützen das Wachstum; das Defizit wirkt als Impuls.
     let inv = 0;
     TD.AREAS.forEach(a => { if (!a.fixed && a.growth) inv += (b.areas[a.id] - a.base * b.s) / 10 * a.growth; });
-    const impulse = clamp(0.15 * ((b.deficit + TD.DEBT_RULE.sv) / e.gdp * 100 - 2.4), -0.3, 0.3);
+    const impulse = clamp(0.15 * ((b.deficit + TD.DEBT_RULE.sv) / e.gdp * 100 - 3.0), -0.3, 0.3);
     const status = t.budget.status === 'vorlaeufig' ? -0.1 : 0;
     const target = e.trend + e.pol.growth + inv + impulse + status;
     e.growth = clamp(e.growth + 0.35 * (target - e.growth) + between(g, -0.22, 0.22), -5, 5);
@@ -411,6 +488,7 @@
     e.unemp = clamp(e.unemp - 0.4 * (e.growth - 1.0) / 4 + e.pol.unemp / 4 + between(g, -0.04, 0.04), 2.5, 14);
     e.infl = clamp(e.infl + 0.3 * (2 + e.pol.infl + 0.2 * (e.growth - 1) - e.infl) + between(g, -0.12, 0.12), -1, 12);
     e.gdp *= 1 + (e.growth + e.infl) / 400;
+    e.gap = clamp((e.gap === undefined ? TD.ECON0.gap : e.gap) * 0.92 + (e.growth - e.trend) / 4, -6, 4);
     e.debt = e.debtBn / e.gdp * 100;
   }
 
@@ -424,6 +502,9 @@
     t.budget.history.push({ year: cal(t).year, deficit: r1(b.deficit), limit: r1(b.limit), gap: r1(b.gap), defShare: r2(b.defShare), notlage: !!t.budget.notlage });
     t.budget.oneoff = 0;
     t.budget.notlage = false;
+    // Demografie: Rentenzuschuss und Gesundheit wachsen schneller als die Wirtschaft.
+    t.budget.drift = t.budget.drift || {};
+    TD.AREAS.forEach(a => { if (a.drift) t.budget.drift[a.id] = ((t.budget.drift[a.id] || 1) * (1 + a.drift / 100)); });
     if (t.budget.next) {
       t.budget.plan = t.budget.next.plan;
       t.budget.notlage = !!t.budget.next.notlage;
@@ -588,6 +669,7 @@
       rate *= 1.3 - unity / 100;
       if (law.disc && p === g.party) rate *= 0.3;
       if (t.mood < 30) rate *= 1.6;
+      if (law.kind === 'topic') rate *= 0.6 + (t.sq[law.topic] === undefined ? SQ0 : t.sq[law.topic]) / 100; // starker Status quo = mehr Widerstand
       const no = Math.round(s * rate);
       return { yes: s - no, abst: 0, no };
     }
@@ -617,7 +699,9 @@
   function partyBackslaw(g, p, law) {
     const t = g.term;
     if (t.gov.indexOf(p) !== -1) return true;
-    return Math.abs(leanOf(g, p, lawTopic(law)) - lawLean(law)) === 0;
+    const d = Math.abs(leanOf(g, p, lawTopic(law)) - lawLean(law));
+    // Wankt der Status quo, geben Länder mit nur kleinen Bedenken nach.
+    return d === 0 || (d === 1 && law.kind === 'topic' && t.sq[law.topic] < 25);
   }
   function bundesratVote(g, law) {
     const t = g.term;
@@ -750,6 +834,7 @@
       applyEcon(t.econ, ec[String(L)], 1);
       t.budget.extra += (D.PROGRAM[law.topic][law.opt].cost - D.PROGRAM[law.topic][prevOpt].cost) * TD.LAW_COST;
       t.policy[law.topic] = law.opt;
+      t.sq[law.topic] = 55; // die neue Regelung ist der neue Status quo
       pop = D.PROGRAM[law.topic][law.opt].pop;
       A.changeSalience(g, law.topic, -0.01);
     }
@@ -1110,6 +1195,19 @@
       if (choice === 0) { setGovernment(g, item.members, item.chanc); text = 'Ihr tretet in die Regierung ein!'; }
       else { aiAfterBreak(g, item.exclude || [], true); text = 'Ihr lehnt das Angebot ab.'; }
       news(g, text, 'big');
+    } else if (item.type === 'sq') {
+      const topic = item.topic;
+      if (choice === 0) {
+        const law = makeLaw(g, { kind: 'topic', topic, opt: item.opt }, g.party);
+        text = 'Ihr gebt nach: „' + lawName(law) + '“ geht ins Kabinett.';
+      } else if (choice === 1) {
+        addSq(t, topic, 22); t.gov.forEach(p => addNat(g, p, -0.2)); t.party.unity = clamp(t.party.unity + 2, 0, 100);
+        text = 'Ihr haltet dagegen und verteidigt die geltende Regelung – das kostet Zustimmung.';
+      } else {
+        addSq(t, topic, 10); t.budget.oneoff += 1;
+        text = 'Eine Expertenkommission soll Vorschläge machen. Das verschafft Zeit.';
+      }
+      news(g, 'Status quo beim Thema ' + E.topicById(topic).name + ': ' + text, 'info');
     } else if (item.type === 'vote') {
       const v = ['ja', 'nein', 'enthaltung'][choice] || 'nein';
       if (item.budget) t.voteChoice.budget = v; else t.voteChoice[item.law] = v;
@@ -1237,6 +1335,7 @@
     { id: 'parteitag', roles: ['apo', 'opposition'], icon: '🎪', name: 'Sonderparteitag mit Neuanfang', desc: 'Neue Parteispitze wählen – frischer Wind, aber auch Risiko.' },
     { id: 'buendnis', roles: ['apo'], icon: '🤲', name: 'Bündnisse mit Verbänden', target: 'topic', desc: 'Gewerkschaften, Umweltverbände, Mittelstand – je nach Thema.' },
     // Alle
+    { id: 'sq', roles: ['kanzler', 'junior', 'opposition', 'apo'], icon: '⚖️', name: 'Status quo verteidigen oder angreifen', target: 'topic', desc: 'Steht ihr hinter der geltenden Regelung, stärkt ihr sie – sonst greift ihr sie an.' },
     { id: 'ltwk', roles: ['kanzler', 'junior', 'opposition', 'apo'], icon: '🗺️', name: 'Landtagswahlkampf unterstützen', target: 'land', desc: 'Bundesprominenz und Geld für die nächste Landtagswahl.' },
     { id: 'lvpflege', roles: ['kanzler', 'junior', 'opposition', 'apo'], icon: '🧩', name: 'Landesverband befrieden', target: 'land', desc: 'Besuch, Gespräche, Posten: Ärger in einem Landesverband dämpfen.' },
     { id: 'basis', roles: ['kanzler', 'junior', 'opposition', 'apo'], icon: '🏠', name: 'Basisarbeit', desc: 'Regionalkonferenzen und Mitgliederabende: mehr Geschlossenheit.' }
@@ -1295,9 +1394,20 @@
       case 'regerkl': case 'presse': {
         if (!target || !E.topicById(target)) return { ok: false, text: 'Bitte ein Thema wählen.' };
         A.changeSalience(g, target, 0.02 * f);
+        if (Math.abs(leanOf(g, g.party, target) - sqLean(t, target)) === 0) addSq(t, target, 3 * f);
         actNat(g.party, (id === 'regerkl' ? 0.18 : 0.14) * f * salF(target) * (comp(target) / 50));
         P.leader.like = clamp(P.leader.like + 0.08 * f, -5, 5);
         text = (id === 'regerkl' ? 'Regierungserklärung' : 'Pressekonferenz') + ' zum Thema ' + E.topicById(target).name + '.';
+        break;
+      }
+      case 'sq': {
+        if (!target || !E.topicById(target)) return { ok: false, text: 'Bitte ein Thema wählen.' };
+        const defend = Math.abs(leanOf(g, g.party, target) - sqLean(t, target)) === 0;
+        const amount = (5 + 10 * A.sizeFactor(shareOf(g, g.party)) / 1.2) * f;
+        addSq(t, target, defend ? amount : -amount);
+        actNat(g.party, (defend ? 0.04 : 0.08) * f * salF(target));
+        text = (defend ? 'Ihr verteidigt die geltende Regelung beim Thema ' : 'Ihr greift die geltende Regelung beim Thema ') + E.topicById(target).name + ' an. Rückhalt jetzt ' + Math.round(t.sq[target]) + '/100.';
+        if (defend) text = text.replace(' an. Rückhalt', '. Rückhalt');
         break;
       }
       case 'koaausschuss': t.mood = clamp(t.mood + 8 * f, 0, 100); text = 'Der Koalitionsausschuss tagt bis in die Nacht – das Klima bessert sich.'; break;
@@ -1349,6 +1459,7 @@
         actNat(g.party, 0.12 * f * salF(target) * (comp(target) / 50));
         if (g.competence) g.competence[target] = clamp(g.competence[target] + 1, 5, 95);
         A.changeSalience(g, target, 0.01);
+        if (Math.abs(leanOf(g, g.party, target) - sqLean(t, target)) > 0) addSq(t, target, -3 * f);
         text = 'Antrag zum Thema ' + E.topicById(target).name + ' – die Koalition lehnt ab, aber ihr seid sichtbar.';
         break;
       }
@@ -1425,6 +1536,7 @@
         if (!target || !E.topicById(target)) return { ok: false, text: 'Bitte ein Thema wählen.' };
         actNat(g.party, 0.16 * f * salF(target));
         A.changeSalience(g, target, 0.02 * f);
+        if (Math.abs(leanOf(g, g.party, target) - sqLean(t, target)) > 0) addSq(t, target, -4 * f);
         P.members = Math.round(P.members * (1 + 0.005 * f));
         text = 'Tausende demonstrieren mit euch – Thema: ' + E.topicById(target).name + '.';
         break;
@@ -1597,11 +1709,13 @@
     econQuarter(g);
     if (c.qn === 4) closeYear(g);
     updatePolls(g);
+    updateSq(g);
     updateParty(g);
     updateMood(g);
     if (t.over) return { ok: true, over: true };
     ltwDue(t).forEach(l => landtagswahl(g, l));
     if (dueIn(TD.EUROPAWAHL, c)) europawahl(g);
+    t.doneAbs = c.abs;
     t.q += 1;
     if (t.q >= QUARTERS) { endTerm(g, null); return { ok: true, over: true }; }
     beginQuarter(g, false);
@@ -1617,7 +1731,7 @@
     t.endQ = t.q;
     t.pending = t.pending.filter(p => p.type === 'info');
     t.summary = summary(g);
-    news(g, early ? '🗳️ ' + early + '. Der nächste Wahlkampf beginnt!' : '🗳️ Die Legislaturperiode endet. Der Wahlkampf für die Bundestagswahl ' + (t.year0 + 4) + ' beginnt!', 'big');
+    news(g, early ? '🗳️ ' + early + '. Der nächste Wahlkampf beginnt!' : '🗳️ Die Legislaturperiode endet. Der Wahlkampf für die Bundestagswahl ' + cal(t, QUARTERS - 1).year + ' beginnt!', 'big');
   }
 
   function summary(g) {
@@ -1644,18 +1758,23 @@
     D.STATES.forEach(st => { base[st.id] = A.stateShares(g, st.id); });
     const career = g.career ? copy(g.career) : { terms: [] };
     const c = cal(t, t.endQ === undefined ? t.q : t.endQ);
+    // Wahltermin: regulär im letzten Quartal der Legislatur, nach einem Bruch im Quartal danach.
+    const electionAbs = t.early ? c.abs + 1 : t.abs0 + QUARTERS - 1;
     career.terms.push(Object.assign({ n: t.n, from: t.year0, to: c.year, role: t.role, roles: Object.assign({}, t.stats.qRole), early: t.early, gov: t.gov.slice() }, t.summary));
     const P0 = party(g.party);
     const money = Math.round(P0.budget * clamp(0.6 + 0.4 * t.party.cash / P0.budget, 0.6, 1.5) * 10) / 10;
     const world = { econ: copy(t.econ), policy: copy(t.policy), taxes: copy(t.taxes), intl: t.intl, laender: copy(t.laender),
-      budget: { plan: copy(t.budget.plan), extra: t.budget.extra, def: t.budget.def, reform: t.budget.reform || 0, notlage: false } };
+      budget: { plan: copy(t.budget.plan), extra: t.budget.extra, def: t.budget.def, reform: t.budget.reform || 0, notlage: false, drift: copy(t.budget.drift || {}) },
+      landPrev: copy(t.landPrev), sq: copy(t.sq), abs0: electionAbs + 1, doneAbs: t.doneAbs };
     return {
       party: g.party,
       candidate: t.party.leader.name,
       program: g.program ? copy(g.program) : null,
       carry: { base, nameSeed: ((g.nameSeed || 1) * 31 + 7919) % 2147483647 || 1, career, firewall: Object.assign({}, g.firewall || {}),
-        year: t.early ? c.year + (c.qn >= 3 ? 1 : 0) : t.year0 + 4, shown: Object.assign({}, g.shown || {}), money, world,
-        prevSeats: Object.assign({}, t.seats), prevShares: Object.assign({}, t.start) }
+        year: Math.floor(electionAbs / 4), prevYear: t.year0, shown: Object.assign({}, g.shown || {}), money, world,
+        prevSeats: Object.assign({}, t.seats), prevShares: Object.assign({}, t.start),
+        prevWk: (() => { const o = {}; ((g.result && g.result.wk) || []).forEach(w => { o[w.nr] = w.win; }); return o; })(),
+        prevTurnout: g.result ? { DE: g.result.turnout, states: g.result.turnoutStates || {} } : null }
     };
   }
 
@@ -1663,7 +1782,7 @@
     QUARTERS, ACTIONS, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
     lawOptions, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, cal,
     lawName, lawTitle, leanOf, quorum, eventChoices, fillText, eventById, ministryById, taxById, areaById, nextCampaign, summary,
-    actionCash, govSeats, isGov, ownMinistries, endTerm, defaultVote, partyVote, mandateVote
+    actionCash, govSeats, isGov, sqForces, absCal, ownMinistries, endTerm, defaultVote, partyVote, mandateVote
   };
   if (node) module.exports = TERM; else root.BTW_TERM = TERM;
 })(this);

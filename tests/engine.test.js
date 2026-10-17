@@ -726,6 +726,17 @@ test('Koalitionsverhandlungen: Klima entscheidet, Erfolg bringt Punkte, Scheiter
 
 // ---------- Legislaturperiode ----------
 const T = require('../js/term.js');
+function electedGameFrom(party, next) {
+  const g = E.newGame(party, next.candidate, 21, undefined, next.carry);
+  g.week = g.maxWeeks; g.duelDone = true;
+  while (g.pendingEvent) E.resolveEvent(g, 0);
+  E.endWeek(g);
+  for (let z = 0; z < 6 && g.phase !== 'done'; z++) {
+    if (g.result.awaitingChoice) E.chooseCoalition(g, 0);
+    while (g.result.neg && !g.result.neg.done) E.negotiate(g, g.result.neg.step < g.result.neg.topics.length ? 'nachgeben' : 'x');
+  }
+  return g;
+}
 function electedGame(party, seed, boost) {
   const g = E.newGame(party, 'Test', seed);
   g.week = g.maxWeeks; g.duelDone = true;
@@ -791,8 +802,10 @@ test('Legislatur: Haushalt mit Schuldenbremse, Entwurf und Abstimmung', () => {
   T.startTerm(g);
   const t = g.term;
   const b = T.budgetCalc(t);
-  assert.ok(b.spend > 500 && b.revenue > 400);
-  assert.ok(b.gap > 0); // Haushaltslücke zum Start
+  // Start mit dem Haushaltsgesetz 2026: 524,5 Mrd. € Ausgaben, 97,965 Mrd. € Nettokreditaufnahme, verfassungsgemäß.
+  assert.ok(Math.abs(b.spend - 524.5) < 0.5);
+  assert.ok(Math.abs(b.deficit - 97.9) < 0.5);
+  assert.ok(Math.abs(b.gap) < 2);
   let guard = 0;
   while (!(t.budget.draft && !t.budget.draft.done) && guard++ < 6) { while (t.pending.length) T.resolvePending(g, 0); T.endQuarter(g); }
   assert.ok(t.budget.draft && T.playerDraftsBudget(g));
@@ -832,4 +845,36 @@ test('Legislatur: alle Rollen bis zum Ende, Speichern und nächster Wahlkampf', 
     const sh = E.nationalShares(g2);
     assert.ok(Math.abs(sh[p] - t.lastNat[p]) < 2.5, p + ' ' + sh[p] + ' vs ' + t.lastNat[p]);
   }
+});
+
+test('Legislatur: Bundesrat, Landtage und Status quo laufen über mehrere Legislaturen weiter', () => {
+  let g = electedGame('spd', 7);
+  const runTerm = h => { T.startTerm(h); const t = h.term; let k = 0; while (!t.over && k++ < 30) { while (t.pending.length) T.resolvePending(h, 0); T.endQuarter(h); } return t; };
+  const t1 = runTerm(g);
+  const laender1 = JSON.stringify(t1.laender);
+  const next = T.nextCampaign(g);
+  assert.strictEqual(next.carry.year, 2033);
+  const g2 = electedGameFrom('spd', next);
+  T.startTerm(g2);
+  // Der Bundesrat startet mit dem Stand vom Ende der ersten Legislatur, nicht mit 2026.
+  assert.strictEqual(JSON.stringify(g2.term.laender), laender1);
+  assert.strictEqual(g2.term.year0, 2033);
+  assert.strictEqual(T.cal(g2.term, 0).year, 2033);
+  assert.deepStrictEqual(g2.term.sq, t1.sq);
+  // Programmtexte mit Jahreszahlen folgen dem Wahljahr.
+  assert.ok(D.PROGRAM.klima[0].label.indexOf('2044') !== -1, D.PROGRAM.klima[0].label);
+  E.applyYear(E.YEAR0);
+});
+
+test('Status quo: Ränder greifen an, Mitte verteidigt, Gesetz setzt neuen Status quo', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  const t = g.term;
+  const f = T.sqForces(g, 'migration');
+  assert.ok(f.att.some(x => x.p === 'afd'));
+  assert.ok(f.def.some(x => x.p === 'spd' || x.p === 'union'));
+  while (t.pending.length) T.resolvePending(g, 0);
+  const before = t.sq.verteidigung;
+  T.performAction(g, 'sq', 'verteidigung');
+  assert.ok(t.sq.verteidigung !== before);
 });

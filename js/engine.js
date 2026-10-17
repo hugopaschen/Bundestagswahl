@@ -384,6 +384,22 @@
     return !!(g.program && g.program.core.indexOf(topic) !== -1);
   }
 
+  // Jahreszahlen in Programmtexten ({J+n} = Wahljahr + n) passen sich dem Wahljahr des Spiels an.
+  const YEAR0 = 2029;
+  let curYear = null;
+  function applyYear(year) {
+    year = year || YEAR0;
+    if (curYear === year) return;
+    curYear = year;
+    const fill = s => String(s).replace(/\{J([+-]\d+)?\}/g, (m, n) => String(year + (n ? Number(n) : 0)));
+    TOPIC_IDS.forEach(t => D.PROGRAM[t].forEach(o => {
+      if (o.labelT === undefined) { o.labelT = o.label; o.descT = o.desc; }
+      o.label = fill(o.labelT);
+      o.desc = fill(o.descT);
+    }));
+  }
+  applyYear(YEAR0);
+
   // carry (optional): Übernahme aus der vorigen Legislaturperiode – Startwerte je Land (base),
   // Namens-Saat, Laufbahn, Brandmauer-Stand und das Wahljahr.
   function newGame(partyId, candidate, seed, program, carry) {
@@ -447,8 +463,12 @@
       if (carry.money !== undefined) g.money = carry.money;
       if (carry.world) g.world = JSON.parse(JSON.stringify(carry.world));
       if (carry.prevSeats) g.prevSeats = Object.assign({}, carry.prevSeats);
+      if (carry.prevYear) g.prevYear = carry.prevYear;
+      if (carry.prevWk) g.prevWk = Object.assign({}, carry.prevWk);
+      if (carry.prevTurnout) g.prevTurnout = JSON.parse(JSON.stringify(carry.prevTurnout));
       if (carry.prevShares) g.prevShares = Object.assign({}, carry.prevShares);
     }
+    applyYear(g.year || YEAR0);
     if (!g.cand) g.cand = Object.assign({}, candStart(partyId));
     g.aiLike = {};
     PARTY_IDS.forEach(p => { g.aiLike[p] = candStart(p).like; });
@@ -464,7 +484,7 @@
     // Startpunkt ist die aktuelle Sonntagsfrage, das Programm wirkt ab der ersten Umfrage.
     g.startShares = nationalShares(g);
     g.history.push({ week: 0, shares: g.startShares, real: g.startShares });
-    addLog(g, 'start', 'Der Wahlkampf beginnt! Noch ' + MAX_WEEKS + ' Wochen bis zur Bundestagswahl.');
+    addLog(g, 'start', 'Der Wahlkampf beginnt! Noch ' + MAX_WEEKS + ' Wochen bis zur Bundestagswahl ' + (g.year || YEAR0) + '.');
     applyProgram(g, program);
     g.grpStart = {};
     GROUP_IDS.forEach(k => { g.grpStart[k] = groupShares(g, k)[partyId]; });
@@ -2735,7 +2755,8 @@
       wk: wks,
       direct,
       grundmandat,
-      turnout: Math.round(turnout(g) * 10) / 10
+      turnout: Math.round(turnout(g) * 10) / 10,
+      turnoutStates: (() => { const o = {}; D.STATES.forEach(st => { o[st.id] = Math.round(turnout(g, st.id) * 10) / 10; }); return o; })()
     };
 
     // Ist die Spielerpartei Wahlsiegerin mit Optionen, wählt sie selbst die Koalition.
@@ -2984,6 +3005,7 @@
   function serialize(g) { return JSON.stringify(g); }
   function deserialize(json) {
     const g = JSON.parse(json);
+    if (g) applyYear(g.year || YEAR0);
     if (!g || !party(g.party) || (g.version !== 1 && g.version !== 2)) throw new Error('Ungültiger Spielstand');
     if (g.version === 1) {
       // Spielstände aus der Zeit vor dem Wahlprogramm: Parteilinie übernehmen, ohne Werte zu verändern.
@@ -3051,7 +3073,7 @@
     drawEvent, resolveEvent,
     startDuel, duelAnswer,
     endWeek, sainteLague, findCoalitions, coalitionViable, chooseCoalition, negotiate, MINISTRIES, NEG_MIN, ministryById, ministryWish, draftOrder,
-    serialize, deserialize
+    serialize, deserialize, applyYear, YEAR0
   };
   // Interne Bausteine für die Legislaturperiode (js/term.js).
   engine._api = { rand, between, pick, stateShares, nationalShares, takePoll, rollPollErr, updateMinorVisibility, changeSalience,

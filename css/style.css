@@ -2070,3 +2070,9 @@ path.wk.pending { opacity: 0; }
 .t-cands .coalition-option, .t-opts .coalition-option { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
 .t-cands .coalition-option .hint, .t-opts .coalition-option .hint { display: block; }
 #modal .score { font-size: 3rem; font-weight: 900; line-height: 1; margin-top: 6px; color: var(--accent); }
+.t-sq { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; margin: 8px 0; }
+.t-sq-row { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface); display: grid; gap: 5px; }
+.t-sq-head { display: flex; flex-direction: column; }
+.t-sq-bar { display: grid; grid-template-columns: 1fr 34px; gap: 8px; align-items: center; }
+.t-sq-bar .t-meter { margin: 0; height: 8px; }
+.t-sq-bar .num { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }

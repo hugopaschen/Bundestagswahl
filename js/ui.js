@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261017-225234';
+  const APP_VERSION = '20261017-232356';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -33,6 +33,9 @@
   const pollOrder = () => MAIN_ORDER.concat(g ? MINOR_ORDER.filter(m => E.isShown(g, m)) : []).concat([D.OTHER.id]);
   const merged = sh => (g ? E.mergeShares(g, sh) : sh);
   const short = p => (p === D.OTHER.id ? D.OTHER.short : E.party(p).short);
+  // Die letzte Bundestagswahl: 2025 oder die letzte Wahl im Spiel (nach einer Legislaturperiode).
+  const prevYear = () => (g && g.prevYear) || 2025;
+  const prevTurnout = id => (g && g.prevTurnout ? (id ? g.prevTurnout.states && g.prevTurnout.states[id] : g.prevTurnout.DE) : (D.TURNOUT ? (id ? D.TURNOUT[id] : D.TURNOUT.DE) : null));
   // Bestätigung ohne Browser-Dialog: Der erste Klick fragt auf dem Knopf nach, der zweite führt aus.
   function confirmOnButton(btn, question) {
     if (btn.dataset.armed === '1') { btn.dataset.armed = ''; clearTimeout(btn._armT); if (btn._armHtml !== undefined) btn.innerHTML = btn._armHtml; return true; }
@@ -326,7 +329,7 @@
       const order = CONTEST_ORDER.slice().sort((a, b) => cur.shares[b] - cur.shares[a]).slice(0, 4);
       const max = cur.shares[order[0]];
       html += '<div class="wk-detail"><p class="eyebrow">Wahlkreis ' + cur.w.nr + '</p><h3>' + esc(cur.w.name) + '</h3>' +
-        '<p class="muted small">Erststimmen laut Umfrage (2025: ' + esc(E.party(cur.w.win === 'sonstige' ? 'union' : cur.w.win).short) + ' vorn' + (cur.w.seated ? '' : ', aber ohne Sitz') + ')</p>' +
+        '<p class="muted small">Erststimmen laut Umfrage (' + prevYear() + ': ' + esc(short((g.prevWk && g.prevWk[cur.w.nr]) || (cur.w.win === 'sonstige' ? 'union' : cur.w.win))) + ' vorn' + (cur.w.seated || g.prevWk ? '' : ', aber ohne Sitz') + ')</p>' +
         order.map(p => '<div class="wk-row' + (p === me ? ' me' : '') + '"><span class="wk-cand"><b>' + esc(candName(cur.w.nr, p)) + '</b><small>' + short(p) + '</small></span>' +
           '<span class="wk-bar"><i style="width:' + Math.max(2, cur.shares[p] / max * 100) + '%;background:' + col(p) + '"></i></span><span class="wk-val">' + pct(cur.shares[p]) + '</span></div>').join('') +
         '<p class="small">' + (cur.lead === me ? '✅ Ihr liegt vorn – mit ' + num1(cur.margin) + ' Punkten Vorsprung.' :
@@ -410,7 +413,7 @@
     const order = pollOrder();
     if (!box.querySelector('.col-chart') || order.join() !== CHART_ORDER.join()) { CHART_ORDER = order; buildStateChart(box); }
     box.querySelector('.cc-title').innerHTML = esc(st.name) + ' <span class="muted small">· ' + num1(st.voters) + ' Mio. Wahlberechtigte · erwartete Wahlbeteiligung ' + pct(E.turnout(g, st.id)) +
-      (D.TURNOUT && D.TURNOUT[st.id] ? ' (2025: ' + pct(D.TURNOUT[st.id]) + ')' : '') + '</span>';
+      (prevTurnout(st.id) ? ' (' + prevYear() + ': ' + pct(prevTurnout(st.id)) + ')' : '') + '</span>';
     box.querySelector('.col-chart').setAttribute('aria-label', 'Umfrage in ' + st.name + ': ' + CHART_ORDER.map(p => short(p) + ' ' + pct(s[p])).join(', '));
     box.querySelector('.cc-hurdle').style.bottom = (5 / top * 100) + '%';
     // Höhe im nächsten Frame setzen, damit der Übergang auch beim ersten Aufbau greift
@@ -966,7 +969,7 @@
     const vals = ids.map(p => ({ p, v: (E.mobFactor(g, p) - 1) * 100 }));
     const max = Math.max(4, ...vals.map(x => Math.abs(x.v)));
     box.innerHTML = '<div class="mob-turnout"><span class="mob-label">Erwartete Wahlbeteiligung</span><span class="mob-big">' + pct(t) + '</span>' +
-      '<span class="muted small">Bundestagswahl 2025: ' + pct(base) + '</span>' +
+      '<span class="muted small">Bundestagswahl ' + prevYear() + ': ' + pct(prevTurnout() || base) + '</span>' +
       '<span class="mob-postal">✉️ Briefwahl: ' + (E.postalCast(g) > 0 ? Math.round(E.postalCast(g) * 100) + ' % der Stimmen schon abgegeben'
         : 'beginnt in Woche ' + E.POSTAL_START) + '</span></div>' +
       '<div class="mob-bars"><span class="mob-label">Mobilisierung der Anhänger (bundesweit)</span>' + vals.map(x => {
@@ -1311,7 +1314,7 @@
     applyPartyTheme(screen, g.party);
     document.body.style.background = getComputedStyle(screen).getPropertyValue('--fl-paper').trim();
     const cand = String(g.candidate || '').trim();
-    $('el-candidate').textContent = 'Wahlparty: ' + E.party(g.party).name + (cand && cand !== DEFAULT_CANDIDATE ? ' · Spitzenkandidatur: ' + cand : '');
+    $('el-candidate').textContent = 'Bundestagswahl ' + (g.year || E.YEAR0) + ' · Wahlparty: ' + E.party(g.party).name + (cand && cand !== DEFAULT_CANDIDATE ? ' · Spitzenkandidatur: ' + cand : '');
     renderElection(true);
   }
 
@@ -1800,7 +1803,7 @@
       '<p class="eyebrow">Euer Wahlabend</p><h2>' + esc(o.rating) + '</h2>' +
       '<div class="score">' + o.score + '</div><p class="muted small">Punkte</p>' +
       '<p><strong>' + esc(p.name) + ': ' + pct(r.shares[g.party]) + '</strong> (' + signed(o.delta) + ' seit Wahlkampfstart)</p>' +
-      (r.turnout ? '<p class="muted small">Wahlbeteiligung: ' + pct(r.turnout) + (D.TURNOUT ? ' (2025: ' + pct(D.TURNOUT.DE) + ')' : '') + '</p>' : '') +
+      (r.turnout ? '<p class="muted small">Wahlbeteiligung: ' + pct(r.turnout) + (prevTurnout() ? ' (' + prevYear() + ': ' + pct(prevTurnout()) + ')' : '') + '</p>' : '') +
       (r.lastPoll ? '<p class="muted small">Letzte Umfrage: ' + pct(r.lastPoll[g.party]) + ' ± ' + E.POLL_RANGE + ' – das echte Ergebnis lag ' +
         (Math.abs(r.shares[g.party] - r.lastPoll[g.party]) < 0.3 ? 'fast genau darauf.' : signed(r.shares[g.party] - r.lastPoll[g.party]) + ' Punkte daneben.') + '</p>' : '') +
       '<p>' + esc(statusText) + '</p>' +
@@ -2743,6 +2746,7 @@
   $('btn-restart').addEventListener('click', () => {
     clearSave();
     nextCarry = null;
+    E.applyYear(E.YEAR0);
     g = null;
     chosenParty = null;
     $('btn-start').disabled = true;
@@ -2765,6 +2769,7 @@
       if (!next) return;
       nextCarry = next.carry;
       chosenParty = next.party;
+      E.applyYear(next.carry.year);
       $('candidate').value = next.candidate || '';
       updateSignature();
       enterProgram();

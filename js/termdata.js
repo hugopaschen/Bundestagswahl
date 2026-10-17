@@ -88,34 +88,38 @@
   // in Bayern (LTW 2023: 15,8 % gegenüber 4,3 % bei der BTW 2025) – geschätzt.
   var LTW_BONUS = { incumbent: 4, fw: { BY: 10, RP: 2 } };
 
-  // Wirtschaft zum Start der Legislaturperiode (geschätzt, Frühjahr 2029 nach den Projektionen der
-  // Bundesregierung 2025: Wachstum um 1 %, Arbeitslosenquote ~6 %, Inflation ~2 %, Schuldenquote ~66 %).
-  var ECON0 = { growth: 1.0, unemp: 6.1, infl: 2.1, debt: 66, gdp: 5000, trend: 1.0 };
+  // Wirtschaft zum Spielstart (geschätzt: BIP 2026 nominal ~4.600 Mrd. €, Arbeitslosenquote ~6,3 %,
+  // Inflation ~2 %, Schuldenquote ~64 %). gap = Produktionslücke in % des BIP (schwache Konjunktur).
+  var ECON0 = { growth: 1.0, unemp: 6.3, infl: 2.0, debt: 64, gdp: 4600, trend: 1.0, gap: -0.6 };
 
-  // Bundeshaushalt in Mrd. € je Jahr (geschätzt für 2029: Regierungsentwurf 2025 um ~12 % fortgeschrieben).
-  // fixed = nicht frei gestaltbar (Zinsen). Wirkung je 10 Mrd. € mehr pro Jahr (geschätzt).
+  // Bundeshaushalt nach dem Haushaltsgesetz 2026 (vom Bundestag am 28.11.2025 beschlossen; Ausgaben
+  // 524,54 Mrd. €, Nettokreditaufnahme 97,965 Mrd. €, davon schuldenregelrelevant 40,392 Mrd. €).
+  // Quelle: Bericht des Haushaltsausschusses, BT-Drucksache 21/2063; Einzelpläne gerundet, teils Stand
+  // Regierungsentwurf (in der Bereinigungssitzung nur wenig verändert). Wirkung je 10 Mrd. € mehr pro Jahr geschätzt.
+  // drift = jährlicher Anstieg über das Wirtschaftswachstum hinaus in % (Demografie, Refinanzierung zu höheren Zinsen; geschätzt).
   var AREAS = [
-    { id: 'sozial', name: 'Arbeit & Soziales (inkl. Rentenzuschuss)', icon: '🤝', base: 213, topic: 'soziales', groups: { rentner: 0.4, arbeitslos: 0.6, arbeiter: 0.2 }, growth: 0.01 },
-    { id: 'verteidigung', name: 'Verteidigung', icon: '🪖', base: 85, topic: 'verteidigung', intl: 2, growth: 0.02 },
-    { id: 'verkehr', name: 'Verkehr & Infrastruktur', icon: '🚆', base: 43, topic: 'verkehr', groups: { land: 0.2 }, growth: 0.06 },
-    { id: 'gesundheit', name: 'Gesundheit & Pflege', icon: '🏥', base: 21, topic: 'gesundheit', groups: { aelter: 0.3 }, growth: 0.01 },
-    { id: 'familie', name: 'Bildung & Familie', icon: '👨‍👩‍👧', base: 18, topic: 'familie', groups: { frauen: 0.3, jung: 0.2 }, growth: 0.04 },
-    { id: 'innen', name: 'Innere Sicherheit', icon: '🛡️', base: 16, topic: 'sicherheit', groups: { aelter: 0.2 }, growth: 0 },
-    { id: 'forschung', name: 'Forschung & Digitales', icon: '🔬', base: 16, topic: 'digitales', groups: { hoch: 0.3 }, growth: 0.07 },
-    { id: 'wirtschaft', name: 'Wirtschaft, Energie & Klima', icon: '📈', base: 16, topic: 'klima', groups: { selbst: 0.2 }, growth: 0.05 },
-    { id: 'entwicklung', name: 'Entwicklung & Auswärtiges', icon: '🌐', base: 18, topic: 'europa', intl: 2, growth: 0 },
-    { id: 'wohnen', name: 'Wohnen & Bau', icon: '🏠', base: 8, topic: 'wohnen', groups: { stadt: 0.3, jung: 0.2 }, growth: 0.04 },
-    { id: 'landwirtschaft', name: 'Landwirtschaft', icon: '🌾', base: 8, topic: 'land', groups: { land: 0.3 }, growth: 0.01 },
-    { id: 'zinsen', name: 'Zinsen', icon: '💶', base: 40, fixed: true },
-    { id: 'sonstiges', name: 'Verwaltung & Sonstiges', icon: '🗂️', base: 84, fixed: true }
+    { id: 'sozial', name: 'Arbeit & Soziales (inkl. Rentenzuschuss, Epl. 11)', icon: '🤝', base: 197.4, topic: 'soziales', groups: { rentner: 0.4, arbeitslos: 0.6, arbeiter: 0.2 }, growth: 0.01, drift: 1.5 },
+    { id: 'verteidigung', name: 'Verteidigung (Epl. 14)', icon: '🪖', base: 82.7, topic: 'verteidigung', intl: 2, growth: 0.02 },
+    { id: 'verkehr', name: 'Verkehr (Epl. 12, ohne Sondervermögen)', icon: '🚆', base: 28.2, topic: 'verkehr', groups: { land: 0.2 }, growth: 0.06 },
+    { id: 'gesundheit', name: 'Gesundheit & Pflege (Epl. 15)', icon: '🏥', base: 21.8, topic: 'gesundheit', groups: { aelter: 0.3 }, growth: 0.01, drift: 1 },
+    { id: 'familie', name: 'Bildung & Familie (Epl. 17)', icon: '👨‍👩‍👧', base: 14.7, topic: 'familie', groups: { frauen: 0.3, jung: 0.2 }, growth: 0.04 },
+    { id: 'innen', name: 'Innere Sicherheit (Epl. 06)', icon: '🛡️', base: 16.0, topic: 'sicherheit', groups: { aelter: 0.2 }, growth: 0 },
+    { id: 'forschung', name: 'Forschung & Digitales (Epl. 30, 24)', icon: '🔬', base: 22.7, topic: 'digitales', groups: { hoch: 0.3 }, growth: 0.07 },
+    { id: 'wirtschaft', name: 'Wirtschaft, Energie & Umwelt (Epl. 09, 16)', icon: '📈', base: 10.8, topic: 'klima', groups: { selbst: 0.2 }, growth: 0.05 },
+    { id: 'entwicklung', name: 'Entwicklung & Auswärtiges (Epl. 23, 05)', icon: '🌐', base: 16.0, topic: 'europa', intl: 2, growth: 0 },
+    { id: 'wohnen', name: 'Wohnen & Bau (Epl. 25)', icon: '🏠', base: 7.6, topic: 'wohnen', groups: { stadt: 0.3, jung: 0.2 }, growth: 0.04 },
+    { id: 'landwirtschaft', name: 'Landwirtschaft (Epl. 10)', icon: '🌾', base: 7.0, topic: 'land', groups: { land: 0.3 }, growth: 0.01 },
+    { id: 'zinsen', name: 'Zinsen (Bundesschuld, Epl. 32)', icon: '💶', base: 33.6, fixed: true, drift: 4 },
+    { id: 'sonstiges', name: 'Allgemeine Finanzverwaltung, Kanzleramt, Verfassungsorgane u. a.', icon: '🗂️', base: 66.0, fixed: true }
   ];
-  // Einnahmen ohne Steueränderungen (geschätzt): Steuern ~460, sonstige ~45 Mrd. € → Lücke zur
-  // Schuldenbremse von rund 30 Mrd. € („Handlungsbedarf“ der Finanzplanung, 2025 auf 172 Mrd. € bis 2029 beziffert).
-  var REVENUE0 = 505;
-  // Schuldenbremse (Art. 115 GG): 0,35 % des BIP strukturell, Konjunkturkomponente, und seit der
-  // Grundgesetzänderung vom März 2025 sind Verteidigungsausgaben über 1 % des BIP ausgenommen.
+  // Einnahmen ohne Kredite 2026: Steuern 387,21 Mrd. € plus sonstige Einnahmen (zusammen 426,6 Mrd. €).
+  var REVENUE0 = 426.6;
+  // Schuldenbremse (Art. 115 GG): 0,35 % des BIP strukturell, Konjunkturkomponente (Budgetsemielastizität ~0,5
+  // mal Produktionslücke) und finanzielle Transaktionen (~0,25 % des BIP, geschätzt). Seit März 2025 sind
+  // Verteidigung, Zivil- und Bevölkerungsschutz, Nachrichtendienste und Ukraine-Hilfe über 1 % des BIP ausgenommen;
+  // außerhalb von Epl. 14 rund 20 Mrd. € (geschätzt aus 97,965 − 40,392 Mrd. € ausgenommener Kreditaufnahme 2026).
   // Sondervermögen Infrastruktur und Klimaneutralität: 500 Mrd. € über 12 Jahre (≈ 42 Mrd. € pro Jahr, außerhalb).
-  var DEBT_RULE = { structural: 0.35, cyc: 0.5, defenseFree: 1.0, sv: 42 };
+  var DEBT_RULE = { structural: 0.35, cyc: 0.5, trans: 0.25, defenseFree: 1.0, defenseOther: 20, sv: 42 };
   var BUDGET_STEPS = [-10, -5, 0, 5, 10]; // Änderung je Bereich in Prozent
 
   // Wie die Parteien zu den Haushaltsbereichen stehen (+1 mehr Geld, −1 eher kürzen) – geschätzt nach Wahlprogrammen 2025.
