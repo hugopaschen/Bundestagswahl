@@ -130,6 +130,8 @@
     // Koalitionsvertrag
     if (T.isGov(t.role) && t.gov.length > 1) {
       const open = Object.keys(t.contract).filter(tp => t.contract[tp] !== t.policy[tp]);
+      const dm = (t.demands || []).filter(d => !d.done);
+      if (dm.length) html += '<div class="t-callout warn">📌 <b>Forderung von ' + dm.map(d => esc(short(d.p)) + '</b>: „' + esc(D.PROGRAM[d.topic][d.opt].label) + '“ bis ' + esc(T.quarterLabel(t, d.due))).join('; ') + '. Erfüllt ihr sie, steigt das Koalitionsklima (+8), sonst sinkt es (−10).</div>';
       html += '<h3>📜 Koalitionsvertrag</h3><p class="muted small">Noch offen: ' + open.length + ' von ' + Object.keys(t.contract).length + ' Vorhaben. Gesetze aus dem Vertrag tragen die Partner mit.</p><ul class="t-contract">' +
         open.slice(0, 8).map(tp => '<li>' + E.topicById(tp).icon + ' ' + esc(D.PROGRAM[tp][t.contract[tp]].label) + '</li>').join('') + '</ul>';
     }
@@ -181,9 +183,37 @@
       if (t.budget.vote && t.budget.vote.pass) opts.push({ label: '💶 Haushalt ' + t.budget.vote.year, hint: 'Hält er die Schuldenbremse ein?', v: 'budget' });
       t.laws.filter(l => l.stage === 'inkraft').slice(-8).forEach(l => opts.push({ label: T.lawTitle(l), hint: 'in Kraft seit ' + T.quarterLabel(t, l.q1), v: l.id }));
       if (!opts.length) { feedback('Es gibt nichts, wogegen ihr klagen könntet.'); return; }
+    } else if (a.target === 'contract') {
+      Object.keys(t.contract).filter(tp => t.contract[tp] !== t.policy[tp]).forEach(tp => {
+        const mine = g.program && g.program.positions[tp] === t.contract[tp];
+        opts.push({ label: E.topicById(tp).icon + ' ' + D.PROGRAM[tp][t.contract[tp]].label + (mine ? ' ⭐' : ''), hint: E.topicById(tp).name + (mine ? ' · euer Wahlprogramm' : ''), v: tp });
+      });
+      if (!opts.length) { feedback('Alle Vorhaben des Koalitionsvertrags sind umgesetzt.'); return; }
     }
-    U.openModal(T.quarterLabel(t), a.icon + ' ' + a.name, '<p>' + esc(a.desc) + '</p>', opts.map(o => ({ label: o.label, hint: o.hint, onClick: () => run(o.v) }))
+    const go = a.quiz ? (v => quiz(a, v, run)) : run;
+    U.openModal(T.quarterLabel(t), a.icon + ' ' + a.name, '<p>' + esc(a.desc) + '</p>', opts.map(o => ({ label: o.label, hint: o.hint, onClick: () => go(o.v) }))
       .concat([{ label: 'Abbrechen', onClick: U.closeModal }]));
+  }
+
+  // Bürgerdialog und Talkshow: zwei Fachfragen zum Thema, jede richtige Antwort macht den Auftritt stärker.
+  function quiz(a, topic, run) {
+    const list = (E.CITIZEN_QUESTIONS || {})[topic] || [];
+    if (!list.length) { run({ topic, right: 1, wrong: 0 }); return; }
+    const ids = E.pickCitizenQuestions(g, topic, 2);
+    let right = 0;
+    let wrong = 0;
+    const ask = i => {
+      if (i >= ids.length) { run({ topic, right, wrong }); return; }
+      const q = list[ids[i]];
+      const text = a.id === 'talkshow' ? q.q.replace(/^[^:]*fragt:|^[^:]*will wissen:/, 'Die Moderatorin hakt nach:') : q.q;
+      U.openModal(T.quarterLabel(term()) + ' · ' + a.name + ' · Frage ' + (i + 1) + ' von ' + ids.length, E.topicById(topic).icon + ' ' + E.topicById(topic).name, '<p>' + esc(text) + '</p>',
+        q.a.map((ans, k) => ({ label: ans, onClick: () => {
+          const ok = k === q.c;
+          if (ok) right += 1; else wrong += 1;
+          U.openModal(T.quarterLabel(term()) + ' · ' + a.name, ok ? '✅ Richtig' : '❌ Leider falsch', '<p>' + esc(q.e) + '</p>', [{ label: 'Weiter', primary: true, onClick: () => ask(i + 1) }]);
+        } })));
+    };
+    ask(0);
   }
 
   // ---------- Gesetzgebung ----------
@@ -453,6 +483,7 @@
     const t = term();
     let html = '<h2>📊 Sonntagsfrage</h2><div class="poll-cols">' + U.pollColumnsHtml(g.poll.nat, t.start) + '</div><p class="muted small">Veränderung zur Bundestagswahl ' + t.year0 + '. Fehlerspanne ± ' + E.POLL_RANGE + ' Punkte.</p>';
     html += fxHtml();
+    html += groupsHtml();
     html += '<h3>Verlauf seit der Wahl</h3><div class="t-chart" id="t-chart"></div>';
     $('t-umfragen').innerHTML = html;
     drawTermChart();
@@ -482,6 +513,17 @@
     html += fxBlock('Seit der Wahl', total) + '</div>';
     if (t.credLog && t.credLog.length) html += '<h4>🤝 Glaubwürdigkeit: ' + Math.round(t.cred) + '/100</h4><ul class="t-cred">' + t.credLog.slice(0, 8).map(x => '<li><b class="' + (x.v >= 0 ? 'pos' : 'neg') + '">' + (x.v >= 0 ? '+' : '−') + Math.abs(x.v) + '</b> ' + esc(x.why) + '</li>').join('') + '</ul>';
     return html;
+  }
+  // Eure Werte in den Wählergruppen: heute gegenüber der Wahl.
+  function groupsHtml() {
+    const t = term();
+    const now = g.poll.groups || {};
+    const start = t.groups0 || {};
+    const rows = D.GROUPS.filter(k => now[k.id]).map(k => ({ k, v: now[k.id][g.party] || 0, d: start[k.id] ? (now[k.id][g.party] || 0) - (start[k.id][g.party] || 0) : 0 }));
+    if (!rows.length) return '';
+    const max = Math.max(...rows.map(r => r.v), 1);
+    return '<h3>👥 Eure Wählergruppen</h3><p class="muted small">Euer Umfragewert in den Gruppen und die Veränderung seit der Wahl. Gesetze, Haushalt und Themen wirken je Gruppe unterschiedlich.</p><div class="t-groups">' +
+      rows.map(r => '<div class="t-grp"><span>' + r.k.icon + ' ' + esc(r.k.short) + '</span><span class="t-meter"><i style="width:' + r.v / max * 100 + '%;background:' + col(g.party) + '"></i></span><b>' + pct(r.v) + '</b><small class="' + (r.d >= 0 ? 'pos' : 'neg') + '">' + signed(r.d) + '</small></div>').join('') + '</div>';
   }
   function drawTermChart() {
     const t = term();
@@ -540,7 +582,9 @@
     if (it.type === 'event') {
       const ev = T.eventById(it.id);
       const cat = { intl: '🌍 Internationale Krise', inland: '🇩🇪 Innenpolitik', wirtschaft: '📈 Wirtschaft', parlament: '🏛️ Parlament', lv: '🧩 Landesverband', koalition: '🤝 Koalition', skandal: '🔥 Skandal', partei: '🎪 Partei' }[ev.cat] || '';
-      U.openModal(eyebrow + ' · ' + cat, T.fillText(g, it, ev.title), '<p>' + esc(T.fillText(g, it, ev.text)) + '</p>',
+      const resp = T.eventMinister(g, ev);
+      U.openModal(eyebrow + ' · ' + cat, T.fillText(g, it, ev.title), '<p>' + esc(T.fillText(g, it, ev.text)) + '</p>' +
+        (resp ? '<p class="small muted">Zuständig: ' + esc(resp.name) + ' (' + esc(short(resp.party)) + ', ' + esc(T.ministryById(resp.ministry).short) + ', Kompetenz ' + resp.comp + ') – Kompetenz verbessert die Erfolgsaussichten.</p>' : ''),
         T.eventChoices(g, ev).map((c, i) => ({ label: c.label, hint: (c.hint || '') + (c.chance !== undefined ? ' · Erfolgsaussicht ca. ' + Math.round(c.chance * 100) + ' %' : '') + (c.mandate ? ' · Abstimmung im Bundestag' : ''), onClick: () => choose(i) })));
     } else if (it.type === 'scandal') {
       U.openModal(eyebrow + ' · 🔥 Affäre', 'Affäre im ' + T.ministryById(it.ministry).short + '-Ministerium', '<p>' + esc(it.text) + '</p>',
@@ -564,6 +608,12 @@
       const b = T.budgetCalc(term(), d.plan);
       U.openModal(eyebrow + ' · 🏦 Haushalt', 'Haushaltsentwurf ' + d.year, '<p>Das Finanzministerium (' + esc(short(term().cabinet.finanzen ? term().cabinet.finanzen.party : term().chanc)) + ') legt den Entwurf vor: Neuverschuldung ' + mrd(b.deficit) + ', erlaubt ' + mrd(b.limit) + '.</p>',
         [{ label: 'Mittragen', hint: 'Gutes Klima', onClick: () => choose(0) }, { label: 'Nachbesserungen fordern', hint: '+5 % für einen eurer Schwerpunkte, das Klima leidet', onClick: () => choose(1) }]);
+    } else if (it.type === 'disloyal') {
+      const m = term().cabinet[it.ministry];
+      U.openModal(eyebrow + ' · 👥 Kabinett', 'Querschuss aus dem Kabinett', '<p>' + esc(m ? m.name : '') + ' (' + esc(T.ministryById(it.ministry).short) + ') kritisiert in einem Interview offen den Kurs der Regierung und der eigenen Parteiführung. Loyalität: ' + (m ? m.loyal : '?') + '/100.</p>',
+        [{ label: 'Intern zurechtweisen', hint: 'Loyalität steigt, etwas Unruhe', onClick: () => choose(0) },
+          { label: 'Ignorieren', hint: 'Führungsschwäche?', onClick: () => choose(1) },
+          { label: 'Entlassen', hint: 'Durchgreifen – ihr benennt die Nachfolge', onClick: () => choose(2) }]);
     } else if (it.type === 'sq') {
       const tp = E.topicById(it.topic);
       const f = T.sqForces(g, it.topic);

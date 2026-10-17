@@ -243,6 +243,16 @@
     }
   }
 
+  // Zuständiges Ressort und Minister für ein Thema oder eine Ereigniskategorie.
+  const CAT_MINISTRY = { intl: 'aa', wirtschaft: 'wirtschaft', inland: 'innen', parlament: 'justiz' };
+  function ministerFor(t, topicOrMin) {
+    const id = TD.TOPIC_MINISTRY[topicOrMin] || topicOrMin;
+    const m = t.cabinet && t.cabinet[id];
+    return m && m.name ? Object.assign({ ministry: id }, m) : null;
+  }
+  // Kompetenz wirkt als Faktor: 65 (typisch) → 1,0; 90 → 1,15; 40 → 0,85.
+  const compFactor = m => (m ? 1 + ((m.comp || 65) - 65) / 170 : 1);
+
   function needsNames(g) {
     const t = g.term;
     return !!t && Object.keys(t.cabinet).some(id => t.cabinet[id].party === g.party && !t.cabinet[id].name);
@@ -256,7 +266,7 @@
     const c = slot.cands[clamp(index | 0, 0, slot.cands.length - 1)];
     const name = String(customName || '').trim().slice(0, 60) || c.name;
     const k = TD.MINISTER_KINDS.find(x => x.id === c.kind);
-    t.cabinet[id] = { party: g.party, name, female: c.female, kind: c.kind, land: c.land, comp: c.comp, loyal: c.loyal, risk: c.risk };
+    t.cabinet[id] = { party: g.party, name, female: c.female, kind: c.kind, land: c.land, comp: c.comp, loyal: c.loyal, risk: c.risk, q0: t.q };
     t.party.unity = clamp(t.party.unity + (k.unity || 0), 0, 100);
     if (k.lv) t.party.lv[c.land] = clamp((t.party.lv[c.land] || 20) + k.lv, 0, 100);
     if (k.like) t.party.leader.like = clamp(t.party.leader.like + k.like, -5, 5);
@@ -388,6 +398,7 @@
     t.lastNat = A.nationalShares(g);
     t.prevShare = t.lastNat[g.party];
     t.history.push({ q: -1, nat: roundShares(g.poll.nat) });
+    t.groups0 = copy(g.poll.groups || {});
     t.econPrev = { unemp: t.econ.unemp };
     g.phase = 'term';
     const govText = gov.map(sname).join('-') + (t.tolerated ? '-Minderheitsregierung' : '-Koalition');
@@ -412,6 +423,79 @@
 
   function roundShares(sh) { const o = {}; Object.keys(sh).forEach(p => { o[p] = r2(sh[p]); }); return o; }
 
+
+
+  // ---------- Kabinett im Alltag ----------
+  // Erfahrung macht kompetenter; gute Ressortarbeit stärkt die Kompetenz der Partei im Thema;
+  // illoyale Ministerinnen und Minister fallen der eigenen Regierung in den Rücken.
+  function updateCabinet(g) {
+    const t = g.term;
+    Object.keys(t.cabinet).forEach(id => {
+      const m = t.cabinet[id];
+      if (!m.name) return;
+      if (m.q0 === undefined) m.q0 = t.q;
+      if (t.q - m.q0 < 20 && (t.q - m.q0) % 2 === 1) m.comp = Math.min(95, (m.comp || 50) + 1);
+      if (m.party !== g.party) return;
+      const topic = ministryById(id).topics[0];
+      if (g.competence && topic) g.competence[topic] = clamp(g.competence[topic] + ((m.comp || 50) - 60) / 120, 5, 95);
+      if (!m.lead && rand(g) < (100 - (m.loyal || 70)) / 100 * 0.08 && !t.pending.some(it => it.type === 'disloyal')) {
+        t.pending.push({ type: 'disloyal', ministry: id, partner: t.gov.find(p => p !== g.party) || t.chanc });
+      }
+    });
+  }
+
+  // ---------- Forderungen der Koalitionspartner ----------
+  // Partner verlangen, dass offene Vorhaben aus dem Koalitionsvertrag umgesetzt werden – mit Frist.
+  function updateDemands(g) {
+    const t = g.term;
+    t.demands = t.demands || [];
+    t.demands.filter(d => !d.done).forEach(d => {
+      if (t.gov.indexOf(d.p) === -1) { d.done = 'weg'; return; }
+      if (t.policy[d.topic] === d.opt) {
+        d.done = 'erfüllt';
+        t.mood = clamp(t.mood + 8, 0, 100);
+        news(g, '🤝 ' + sname(d.p) + ' ist zufrieden: „' + D.PROGRAM[d.topic][d.opt].label + '“ ist umgesetzt.', 'good');
+      } else if (t.q >= d.due) {
+        d.done = 'verfehlt';
+        t.mood = clamp(t.mood - 10, 0, 100);
+        addNat(g, d.p, 0.15);
+        news(g, '😠 ' + sname(d.p) + ' wirft euch Wortbruch vor: „' + D.PROGRAM[d.topic][d.opt].label + '“ ist immer noch nicht umgesetzt.', 'bad');
+      }
+    });
+    if (t.role !== 'kanzler' || t.gov.length < 2 || t.demands.some(d => !d.done) || rand(g) > 0.35) return;
+    const partners = t.gov.filter(p => p !== g.party);
+    const open = [];
+    partners.forEach(p => Object.keys(t.contract).forEach(tp => {
+      const opt = t.contract[tp];
+      if (opt === t.policy[tp] || inPipeline(t, tp)) return;
+      const d = Math.abs(leanOf(g, p, tp) - D.PROGRAM[tp][opt].lean);
+      if (d === 0) open.push({ p, topic: tp, opt, w: g.salience[tp] * (ownMinistries(t, p).indexOf(TD.TOPIC_MINISTRY[tp]) !== -1 ? 2 : 1) });
+    }));
+    if (!open.length) return;
+    const x = open.sort((a, b) => b.w - a.w)[0];
+    const dm = { p: x.p, topic: x.topic, opt: x.opt, q: t.q, due: t.q + 3 };
+    t.demands.push(dm);
+    news(g, '📌 ' + sname(x.p) + ' fordert: „' + D.PROGRAM[x.topic][x.opt].label + '“ muss bis ' + quarterLabel(t, dm.due) + ' umgesetzt werden – so steht es im Koalitionsvertrag.', 'warn');
+  }
+
+  // Haushalt und Wählergruppen: Mehr Geld für einen Bereich freut die Gruppen, die davon profitieren.
+  function budgetGroupEffects(g, oldPlan, newPlan) {
+    const t = g.term;
+    let pop = 0;
+    const lines = [];
+    TD.AREAS.forEach(a => {
+      if (a.fixed || !a.groups) return;
+      const d = ((newPlan[a.id] || 0) - (oldPlan[a.id] || 0)) / 5;
+      if (!d) return;
+      let w = 0;
+      Object.keys(a.groups).forEach(k => { const gr = D.GROUPS.find(x => x.id === k); if (gr) w += gr.weight * a.groups[k]; });
+      pop += d * w * 0.6;
+      if (Math.abs(d * w) > 0.04) lines.push(a.name.split(' (')[0] + (d > 0 ? ' +' : ' ') + (newPlan[a.id] - oldPlan[a.id]) + ' %');
+      t.gov.forEach(p => { const pr = (TD.AREA_PREF[p] || {})[a.id]; if (pr) addNat(g, p, 0.04 * pr * d); });
+    });
+    if (pop) t.gov.forEach(p => addNat(g, p, pop * (p === t.chanc ? 1 : 0.7)));
+    if (lines.length) news(g, 'Was der Haushalt für die Menschen bedeutet: ' + lines.join(', ') + '.', pop >= 0 ? 'info' : 'warn');
+  }
 
   // ---------- Status quo ----------
   // Die geltende Regelung je Thema hat einen Rückhalt (0–100). Die Ränder greifen ihn an, die Mitte verteidigt
@@ -629,6 +713,7 @@
     const pass = yes > no;
     t.budget.vote = { year: draft.year, yes, no, pass, detail, q: t.q };
     if (pass) {
+      budgetGroupEffects(g, t.budget.plan, draft.plan);
       t.budget.next = { plan: draft.plan, notlage: draft.notlage };
       t.budget.draft = null;
       if (isGov(t.role)) t.stats.budgets += 1;
@@ -872,13 +957,25 @@
       applyEcon(t.econ, ec[String(prevLean)], -1);
       applyEcon(t.econ, ec[String(L)], 1);
       t.budget.extra += (D.PROGRAM[law.topic][law.opt].cost - D.PROGRAM[law.topic][prevOpt].cost) * TD.LAW_COST;
+      // Wählergruppen: Wem die neue Regelung gefällt, der rückt näher an die Regierung (bundesweit ausgeglichen).
+      const a1 = A.positionAppeal(law.topic, law.opt);
+      const a0 = A.positionAppeal(law.topic, prevOpt);
+      const diff = {};
+      let mean = 0;
+      D.GROUPS.forEach(k => { diff[k.id] = a1[k.id] - a0[k.id]; mean += (A.W[k.id] || 0) * diff[k.id]; });
+      D.GROUPS.forEach(k => { if (!g.grp[k.id]) return; t.gov.forEach(p => { g.grp[k.id][p] = (g.grp[k.id][p] || 0) + 0.6 * (diff[k.id] - mean); }); });
       t.policy[law.topic] = law.opt;
       t.sq[law.topic] = 55; // die neue Regelung ist der neue Status quo
       pop = D.PROGRAM[law.topic][law.opt].pop;
       A.changeSalience(g, law.topic, -0.01);
     }
+    // Gut gemacht oder handwerklich schlecht? Die Kompetenz der zuständigen Ministerin/des Ministers zählt.
+    const mn = ministerFor(t, law.kind === 'tax' ? 'finanzen' : law.topic);
+    const cf = compFactor(mn);
+    if (pop > 0) pop *= cf; else pop *= 2 - cf;
+    if (mn && mn.comp < 45 && rand(g) < 0.3) { pop -= 0.15; law.log.push('Handwerkliche Mängel: ' + mn.name + ' muss nachbessern.'); news(g, 'Pannen beim Gesetz „' + lawName(law) + '“: Kritik an ' + mn.name + '.', 'warn'); }
     // Umfragen: Regierung bekommt Lob oder Kritik, Parteien mit passender Linie punkten bei Anhängern.
-    t.gov.forEach(p => addNat(g, p, 0.35 * pop * sal * (p === t.chanc ? 1 : 0.7)));
+    t.gov.forEach(p => addNat(g, p, 0.3 * pop * sal * (p === t.chanc ? 1 : 0.7)));
     PIDS.forEach(p => {
       const d = Math.abs(leanOf(g, p, topic) - L);
       if (t.gov.indexOf(p) !== -1) addNat(g, p, d === 0 ? 0.12 : d === 2 ? -0.15 : 0);
@@ -1076,6 +1173,11 @@
   function eventChoices(g, ev) {
     return isGov(g.term.role) && ev.gov ? ev.gov : ev.choices;
   }
+  function eligibleRole(g, ev) {
+    const role = g.term.role;
+    const roles = ev.roles || [];
+    return roles.indexOf(role) !== -1 || (roles.indexOf('gov') !== -1 && isGov(role)) || (roles.indexOf('opp') !== -1 && role === 'opposition');
+  }
   function eligible(g, ev) {
     const t = g.term;
     const role = t.role;
@@ -1110,17 +1212,24 @@
     for (const it of list) { x -= weight(it); if (x <= 0) { ev = it; break; } }
     return ev;
   }
-  function queueEvent(g, ev) {
+  function queueEvent(g, ev, from) {
     const t = g.term;
     t.usedEvents[ev.id] = t.q;
     const item = { type: 'event', id: ev.id };
-    if (/\{land/.test(ev.title + ev.text) || ev.cat === 'lv') item.land = eventLand(g, ev);
+    if (from && from.land) item.land = from.land;
+    if (!item.land && (/\{land/.test(ev.title + ev.text) || ev.cat === 'lv')) item.land = eventLand(g, ev);
     const partners = t.gov.filter(p => p !== g.party);
     item.partner = partners.length ? pick(g, partners) : t.chanc;
     const tops = A.TOPIC_IDS.slice().sort((a, b) => g.salience[b] - g.salience[a]).slice(0, 5);
     item.topic = pick(g, tops);
     if (ev.cat === 'intl' || ev.cat === 'inland' || ev.cat === 'wirtschaft') t.crisisQ = t.q;
     t.pending.push(item);
+  }
+  // Wer ist für ein Ereignis zuständig? (nur in der Regierung relevant)
+  function eventMinister(g, ev) {
+    const t = g.term;
+    if (!isGov(t.role)) return null;
+    return ministerFor(t, ev.ministry || CAT_MINISTRY[ev.cat] || '');
   }
   function fillText(g, item, s) {
     return String(s || '')
@@ -1180,16 +1289,19 @@
     const item = t.pending[0];
     if (!item) return { ok: false };
     let text = '';
-    cat({ scandal: 'skandal', vote: 'abstimmung', cabinet: 'kabinett', veto: 'kabinett', sq: 'statusquo' }[item.type] || 'ereignis');
+    cat({ scandal: 'skandal', vote: 'abstimmung', cabinet: 'kabinett', veto: 'kabinett', disloyal: 'kabinett', sq: 'statusquo' }[item.type] || 'ereignis');
     if (item.type === 'event') {
       const ev = eventById(item.id);
       const c = eventChoices(g, ev)[choice];
       if (!c) return { ok: false };
       let ok = true;
-      if (c.chance !== undefined) ok = rand(g) < c.chance;
+      const resp = eventMinister(g, ev);
+      if (c.chance !== undefined) ok = rand(g) < clamp(c.chance + (resp && isGov(t.role) ? (resp.comp - 60) / 200 : 0), 0.05, 0.95);
       applyFx(g, c.fx, item);
       if (ok && c.fx2) applyFx(g, c.fx2, item);
       if (!ok) applyFx(g, c.fail, item);
+      const nx = ok ? c.next : (c.failNext || c.next);
+      if (nx) (t.followUps = t.followUps || []).push({ id: nx.id, q: t.q + (nx.in || 2), land: item.land });
       text = c.chance !== undefined ? (ok ? c.okText : c.failText) || '' : '';
       if (c.mandate) {
         const v = mandateVote(g);
@@ -1249,6 +1361,13 @@
       if (choice === 0) { setGovernment(g, item.members, item.chanc); text = 'Ihr tretet in die Regierung ein!'; }
       else { aiAfterBreak(g, item.exclude || [], true); text = 'Ihr lehnt das Angebot ab.'; }
       news(g, text, 'big');
+    } else if (item.type === 'disloyal') {
+      const m = t.cabinet[item.ministry];
+      if (!m) { t.pending.shift(); return { ok: true, text: '' }; }
+      if (choice === 0) { m.loyal = Math.min(100, (m.loyal || 60) + 15); t.party.unity = clamp(t.party.unity - 1, 0, 100); text = m.name + ' wird zurechtgewiesen und gelobt Besserung.'; }
+      else if (choice === 1) { addCred(g, -1); t.party.leader.like = clamp(t.party.leader.like - 0.1, -5, 5); t.mood = clamp(t.mood - 2, 0, 100); text = 'Ihr lasst es laufen – die Presse spricht von Führungsschwäche.'; }
+      else { t.formerNames.push(m.name); t.cabinet[item.ministry] = { party: g.party, name: null, cands: candidatesFor(g, g.party) }; t.party.unity = clamp(t.party.unity - 3, 0, 100); t.party.leader.like = clamp(t.party.leader.like + 0.1, -5, 5); text = m.name + ' wird entlassen. Ihr müsst die Nachfolge benennen.'; }
+      news(g, 'Ärger im Kabinett: ' + text, 'warn');
     } else if (item.type === 'sq') {
       const topic = item.topic;
       if (choice === 0) {
@@ -1367,7 +1486,7 @@
     { id: 'presse', roles: ['junior'], icon: '🎙️', name: 'Pressekonferenz als Vizekanzler:in', target: 'topic', desc: 'Eigene Erfolge herausstellen.' },
     { id: 'koaausschuss', roles: ['kanzler', 'junior'], icon: '🤝', name: 'Koalitionsausschuss', desc: 'Streit beilegen, das Koalitionsklima verbessern.', needCoalition: true },
     { id: 'reise', roles: ['kanzler', 'junior'], icon: '✈️', name: 'Gipfel und Auslandsreise', desc: 'EU-Gipfel, G7, Staatsbesuch: Ansehen in der Welt.' },
-    { id: 'buerger', roles: ['kanzler', 'junior', 'opposition'], icon: '🗣️', name: 'Bürgerdialog', desc: 'Zuhören, erklären, Vertrauen gewinnen.' },
+    { id: 'buerger', roles: ['kanzler', 'junior', 'opposition', 'apo'], icon: '🗣️', name: 'Bürgerdialog', target: 'topic', quiz: true, desc: 'Bürgerinnen und Bürger stellen Fachfragen zu einem Thema – gute Antworten bringen Vertrauen und Kompetenz.' },
     { id: 'disziplin', roles: ['kanzler', 'junior'], icon: '📣', name: 'Fraktion auf Linie bringen', target: 'law', stage: 'bundestag', desc: 'Weniger Abweichler bei der nächsten Abstimmung.' },
     { id: 'laender', roles: ['kanzler', 'junior'], icon: '🏛️', name: 'Länder überzeugen', target: 'law', stage: 'bundesrat', desc: 'Mit Bundesgeld zögernde Länder gewinnen (2 Mrd. € je Land).' },
     { id: 'umbildung', roles: ['kanzler', 'junior'], icon: '🔄', name: 'Kabinettsumbildung', target: 'ministry', desc: 'Ein eigenes Ressort neu besetzen.' },
@@ -1382,7 +1501,8 @@
     { id: 'ua', roles: ['opposition'], icon: '🔎', name: 'Untersuchungsausschuss', target: 'topic', desc: 'Braucht ein Viertel der Abgeordneten (Art. 44 GG). Setzt die Regierung ein Jahr unter Druck.', quorum: true },
     { id: 'klage', roles: ['opposition'], icon: '⚖️', name: 'Normenkontrollklage', target: 'klage', desc: 'Ein Gesetz oder den Haushalt in Karlsruhe prüfen lassen (Viertel der Abgeordneten).', quorum: true },
     { id: 'misstrauen', roles: ['opposition'], icon: '🗡️', name: 'Konstruktives Misstrauensvotum', desc: 'Art. 67 GG: Mit einer neuen Mehrheit die Kanzlerin/den Kanzler stürzen.', confirm: true },
-    { id: 'talkshow', roles: ['opposition', 'junior', 'kanzler'], icon: '📺', name: 'Talkshow und Interviews', desc: 'Bekanntheit und Beliebtheit der Spitze.' },
+    { id: 'talkshow', roles: ['opposition', 'junior', 'kanzler'], icon: '📺', name: 'Talkshow und Interviews', target: 'topic', quiz: true, desc: 'Die Moderation hakt nach: Wer sattelfest antwortet, punktet beim Publikum.' },
+    { id: 'forderung', roles: ['junior'], icon: '📌', name: 'Vertragsvorhaben einfordern', target: 'contract', desc: 'Die Kanzlerpartei soll ein offenes Vorhaben aus dem Koalitionsvertrag umsetzen.' },
     { id: 'schatten', roles: ['opposition', 'apo'], icon: '🧭', name: 'Alternativkonzept vorlegen', target: 'topic', desc: 'Eigene Kompetenz in einem Thema aufbauen.' },
     // Außerparlamentarisch
     { id: 'protest', roles: ['apo'], icon: '✊', name: 'Demonstration organisieren', target: 'topic', desc: 'Auf der Straße sichtbar werden.' },
@@ -1471,8 +1591,35 @@
       }
       case 'koaausschuss': t.mood = clamp(t.mood + 8 * f, 0, 100); text = 'Der Koalitionsausschuss tagt bis in die Nacht – das Klima bessert sich.'; break;
       case 'reise': t.intl = clamp(t.intl + 5 * f, 0, 100); P.leader.like = clamp(P.leader.like + 0.06 * f, -5, 5); text = 'Starke Bilder auf internationalem Parkett.'; break;
-      case 'buerger': P.leader.like = clamp(P.leader.like + 0.15 * f, -5, 5); actNat(g.party, 0.08 * f); text = 'Der Bürgerdialog kommt gut an.'; break;
-      case 'talkshow': P.leader.like = clamp(P.leader.like + 0.12 * f, -5, 5); actNat(g.party, 0.06 * f); text = 'Auftritt bei Lanz und Illner.'; break;
+      case 'buerger': case 'talkshow': {
+        const tg = typeof target === 'object' && target ? target : { topic: target, right: 0, wrong: 0 };
+        const topic = E.topicById(tg.topic) ? tg.topic : null;
+        const right = tg.right || 0;
+        const wrong = tg.wrong || 0;
+        const qf = clamp(1 + 0.3 * (right - wrong), 0.4, 1.6);
+        P.leader.like = clamp(P.leader.like + (id === 'buerger' ? 0.15 : 0.12) * f * qf, -5, 5);
+        actNat(g.party, (id === 'buerger' ? 0.1 : 0.08) * f * qf * (topic ? salF(topic) : 1));
+        const dc = topic ? E.citizenCompetence(g, topic, right, wrong) : 0;
+        if (wrong > right) addCred(g, -1, 'Schwache Antworten ' + (id === 'buerger' ? 'im Bürgerdialog' : 'in der Talkshow'));
+        text = (id === 'buerger' ? 'Bürgerdialog' : 'Talkshow') + (topic ? ' zum Thema ' + E.topicById(topic).name : '') + (right + wrong ? ': ' + right + ' von ' + (right + wrong) + ' Fragen sicher beantwortet' : '') +
+          (dc ? ' (Kompetenz ' + (dc > 0 ? '+' : '') + dc + ')' : '') + '.';
+        break;
+      }
+      case 'forderung': {
+        const opt = t.contract[target];
+        if (opt === undefined || opt === t.policy[target] || inPipeline(t, target)) return { ok: false, text: 'Dieses Vorhaben ist nicht offen.' };
+        const chance = clamp((t.mood - 20) / 60, 0.1, 0.9);
+        if (rand(g) < chance) {
+          const law = makeLaw(g, { kind: 'topic', topic: target, opt }, t.chanc);
+          law.stage = 'kabinett';
+          law.contract = true;
+          law.q0 = t.q;
+          law.byPlayerDemand = true;
+          addCred(g, 1);
+          text = sname(t.chanc) + ' sagt zu: „' + lawName(law) + '“ kommt ins Kabinett.';
+        } else { t.mood = clamp(t.mood - 4, 0, 100); text = sname(t.chanc) + ' vertröstet euch – das Klima leidet.'; }
+        break;
+      }
       case 'disziplin': {
         const law = t.laws.find(l => l.id === Number(target) && l.stage === 'bundestag');
         if (!law) return { ok: false, text: 'Kein Gesetz zur Abstimmung ausgewählt.' };
@@ -1669,6 +1816,8 @@
       }
     }
     if (dueIn(TD.BUNDESVERSAMMLUNG, c)) { const ev = eventById('bundesversammlung'); t.usedEvents[ev.id] = t.q; t.pending.push({ type: 'event', id: ev.id }); }
+    // Folgen früherer Entscheidungen kommen zuerst.
+    (t.followUps || []).filter(f => f.q <= t.q && !f.done).forEach(f => { f.done = true; const fe = eventById(f.id); if (fe && eligibleRole(g, fe)) queueEvent(g, fe, f); });
     if (!first) {
       const ev = drawEvent(g);
       if (ev) queueEvent(g, ev);
@@ -1791,6 +1940,9 @@
     if (c.qn === 4) closeYear(g);
     updatePolls(g);
     updateSq(g);
+    cat('kabinett');
+    if (isGov(t.role)) updateCabinet(g);
+    updateDemands(g);
     updateParty(g);
     updateMood(g);
     if (t.over) return { ok: true, over: true };
@@ -1863,7 +2015,7 @@
     QUARTERS, ACTIONS, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
     lawOptions, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, cal,
     lawName, lawTitle, leanOf, quorum, eventChoices, fillText, eventById, ministryById, taxById, areaById, nextCampaign, summary,
-    actionCash, govSeats, isGov, sqForces, absCal, FX_NAMES, ownMinistries, endTerm, defaultVote, partyVote, mandateVote
+    actionCash, govSeats, isGov, sqForces, absCal, FX_NAMES, ministerFor, eventMinister, ownMinistries, endTerm, defaultVote, partyVote, mandateVote
   };
   if (node) module.exports = TERM; else root.BTW_TERM = TERM;
 })(this);

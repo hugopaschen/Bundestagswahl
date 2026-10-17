@@ -4,6 +4,7 @@
  * Durchschnitt der Umfrageveränderung (eigene Partei, Prozentpunkte seit der Wahl) mit den Zielwerten vergleichen.
  * Aufruf: npm run balance            (Tabelle)
  *         npm run balance -- --check (Abbruch mit Fehler, wenn ein Wert außerhalb der Toleranz liegt)
+ *         npm run balance -- --fx    (zusätzlich: woher die Umfrageveränderung kommt)
  */
 const path = require('path');
 const E = require(path.join(__dirname, '..', 'js', 'engine.js'));
@@ -78,7 +79,9 @@ function play(p, seed, active) {
     if (active) activeTurn(g);
     T.endQuarter(g);
   }
-  return { delta: t.lastNat[p] - t.share0, role: t.role, early: !!t.early };
+  const fx = {};
+  (t.pollFxHist || []).concat([{ fx: t.pollFx || {} }]).forEach(h => Object.keys(h.fx).forEach(c => { fx[c] = (fx[c] || 0) + h.fx[c]; }));
+  return { delta: t.lastNat[p] - t.share0, role: t.role, early: !!t.early, fx };
 }
 
 let bad = 0;
@@ -92,6 +95,11 @@ Object.keys(TARGETS).forEach(p => ['passiv', 'aktiv'].forEach(mode => {
   const f = x => (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(1);
   console.log(p.padEnd(7), TARGETS[p].role.padEnd(14), mode.padEnd(11), f(avg).padStart(6), '  ', f(target).padStart(5), ok ? '✓' : '✗',
     ' ', runs.map(r => f(r.delta) + (r.early ? '*' : '')).join(' '));
+  if (process.argv.indexOf('--fx') !== -1) {
+    const fx = {};
+    runs.forEach(r => Object.keys(r.fx).forEach(c => { fx[c] = (fx[c] || 0) + r.fx[c] / runs.length; }));
+    console.log('        Ursachen:', Object.keys(fx).sort((a, b) => Math.abs(fx[b]) - Math.abs(fx[a])).slice(0, 7).map(c => c + ' ' + f(fx[c])).join(', '));
+  }
 }));
 console.log('* = Legislatur vorzeitig beendet. Toleranz ± ' + TOLERANCE + ' Punkte.');
 if (process.argv.indexOf('--check') !== -1 && bad) { console.error(bad + ' Wert(e) außerhalb der Toleranz.'); process.exit(1); }

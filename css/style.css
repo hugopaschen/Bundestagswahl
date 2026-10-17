@@ -2091,3 +2091,9 @@ path.wk.pending { opacity: 0; }
 .t-cred { list-style: none; padding: 0; margin: 0; font-size: .88rem; }
 .t-cred li { padding: 4px 0; border-bottom: 1px solid var(--border); }
 .t-cred b { display: inline-block; min-width: 30px; text-align: center; color: #fff; border-radius: 4px; margin-right: 6px; }
+.t-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 18px; }
+.t-grp { display: grid; grid-template-columns: 120px 1fr 52px 40px; gap: 8px; align-items: center; font-size: .86rem; }
+.t-grp .t-meter { margin: 0; }
+.t-grp b { text-align: right; font-variant-numeric: tabular-nums; }
+.t-grp small { text-align: right; font-variant-numeric: tabular-nums; }
+.t-grp .pos { color: var(--good); } .t-grp .neg { color: var(--bad); }

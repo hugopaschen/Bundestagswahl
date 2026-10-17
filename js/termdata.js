@@ -522,6 +522,150 @@
       choices: [
         { label: 'Scharfe Generalabrechnung', hint: 'Polarisierend', fx: { own: 0.3, gov: -0.15, like: -0.1 } },
         { label: 'Konstruktive Gegenrede mit eigenem Konzept', hint: 'Seriös', fx: { own: 0.15, like: 0.2 } }
+      ] },
+
+    // ---------- Stufe 2: weitere Ereignisse, mit Zuständigkeit (ministry) und Folgeereignissen (next) ----------
+    { id: 'china_ev', cat: 'wirtschaft', ministry: 'wirtschaft', roles: ['gov'], w: 1.5, title: 'Billige E-Autos aus China', text: 'Chinesische Hersteller erobern den europäischen Markt. Die EU-Kommission schlägt Strafzölle vor, Peking droht mit Gegenmaßnahmen gegen deutsche Autobauer.',
+      choices: [
+        { label: 'EU-Zölle mittragen', hint: 'Schützt Jobs hier, riskiert das China-Geschäft', fx: { growth: -0.05, intl: 2, unemp: -0.03 }, chance: 0.6, fail: { growth: -0.15 }, okText: 'Peking reagiert verhalten.', failText: 'China verhängt Zölle auf deutsche Premiumautos.' },
+        { label: 'Gegen Zölle stimmen', hint: 'Exportinteressen zuerst', fx: { intl: -4, growth: 0.03, gov: -0.05 } },
+        { label: 'Ansiedlung chinesischer Werke fördern', hint: 'Jobs in Ostdeutschland, Kritik aus Brüssel', fx: { unemp: -0.05, intl: -3, sal: { wirtschaft: 0.01 } } }
+      ] },
+    { id: 'hostage', cat: 'intl', ministry: 'aa', roles: ['gov'], w: 1, once: true, title: 'Deutsche Geiseln in der Sahelzone', text: 'Eine Miliz hat vier deutsche Entwicklungshelfer entführt. Die Familien flehen die Bundesregierung öffentlich an, alles zu tun.',
+      choices: [
+        { label: 'Diskret verhandeln lassen', hint: 'Krisenstab im Auswärtigen Amt', fx: { budget: 0.2 }, chance: 0.6, fail: { gov: -0.2, like: -0.2 }, okText: 'Nach Wochen kommt die Nachricht: Sie sind frei.', failText: 'Die Verhandlungen stocken, die Familien gehen an die Presse.', next: { id: 'hostage_home', in: 1 } },
+        { label: 'Befreiungsaktion des KSK', hint: 'Hohes Risiko', fx: { intl: 2 }, chance: 0.45, fail: { gov: -0.6, like: -0.5, intl: -4 }, okText: 'Die Befreiung gelingt ohne Verluste.', failText: 'Die Aktion scheitert – ein Soldat wird schwer verletzt.' }
+      ] },
+    { id: 'hostage_home', cat: 'intl', ministry: 'aa', roles: ['gov'], w: 0, title: 'Die Geiseln kommen nach Hause', text: 'Das Flugzeug mit den befreiten Entwicklungshelfern landet in Berlin-Tegel. Die Kameras warten.',
+      choices: [
+        { label: 'Persönlich am Rollfeld empfangen', hint: 'Starke Bilder', fx: { like: 0.3, gov: 0.1 } },
+        { label: 'Die Familien unter sich lassen', hint: 'Respektvoll, unauffällig', fx: { like: 0.1 } }
+      ] },
+    { id: 'drones_east', cat: 'intl', ministry: 'verteidigung', roles: ['gov', 'opp'], w: 1.5, title: 'Drohnen über der NATO-Ostflanke', text: 'Russische Drohnen dringen in den Luftraum Polens und Litauens ein. Die Partner bitten um deutsche Luftverteidigung.',
+      gov: [
+        { label: 'Patriot-Staffel und Eurofighter verlegen', hint: '+2 Mrd. €/Jahr, Ansehen steigt', fx: { def: 2, intl: 6, sal: { verteidigung: 0.02 } } },
+        { label: 'Zur Deeskalation aufrufen', hint: 'Partner sind irritiert', fx: { intl: -5, own: 0.05 } }
+      ],
+      choices: [
+        { label: 'Schnelle Unterstützung verlangen', hint: 'Sicherheitspolitisches Profil', fx: { own: 0.1, comp: { verteidigung: 2 } } },
+        { label: 'Vor Eskalation warnen', hint: 'Friedenspolitisches Profil', fx: { own: 0.1 } }
+      ] },
+    { id: 'eu_hungary', cat: 'intl', ministry: 'aa', roles: ['gov'], w: 1, title: 'Blockade in Brüssel', text: 'Ein Mitgliedstaat blockiert per Veto die nächste Ukraine-Hilfe und das EU-Sanktionspaket.',
+      choices: [
+        { label: 'EU-Gelder des Landes einfrieren lassen', hint: 'Harte Linie', fx: { intl: 5, sal: { europa: 0.02 } }, chance: 0.6, fail: { intl: -2 }, okText: 'Die Blockade fällt.', failText: 'Die Blockade bleibt – Europa wirkt gelähmt.' },
+        { label: 'Kompromiss mit Zugeständnissen', hint: 'Geräuschlos', fx: { intl: 1 } }
+      ] },
+    { id: 'us_nato', cat: 'intl', ministry: 'verteidigung', roles: ['gov', 'opp'], w: 1, minQ: 6, once: true, title: 'Washington stellt die NATO infrage', text: 'Der US-Präsident erklärt, die Beistandspflicht gelte nur für Länder, die „ihre Rechnungen bezahlen“.',
+      gov: [
+        { label: 'Europäische Verteidigungsunion vorantreiben', hint: '+8 Mrd. €/Jahr Verteidigung', fx: { def: 8, intl: 6, sal: { verteidigung: 0.03, europa: 0.02 } } },
+        { label: 'In Washington um Vertrauen werben', hint: 'Bittsteller-Rolle', fx: { intl: -2, like: -0.1 } }
+      ],
+      choices: [
+        { label: 'Mehr europäische Souveränität fordern', hint: 'Zeitgeist', fx: { own: 0.15, sal: { europa: 0.02 } } },
+        { label: 'Die Regierung der Naivität bezichtigen', hint: 'Angriff', fx: { own: 0.1, gov: -0.1 } }
+      ] },
+    { id: 'famine', cat: 'intl', ministry: 'entwicklung', roles: ['gov'], w: 1, title: 'Hungersnot in Ostafrika', text: 'Nach der dritten Dürre in Folge droht Millionen Menschen der Hungertod. Die Vereinten Nationen bitten um Geld.',
+      choices: [
+        { label: 'Eine Milliarde Nothilfe', hint: 'Ansehen steigt', fx: { budget: 1, intl: 5 } },
+        { label: 'Bei den Kürzungen bleiben', hint: 'Spart Geld, Kritik von Kirchen und NGOs', fx: { intl: -5, gov: -0.05 } }
+      ] },
+    { id: 'teachers', cat: 'inland', ministry: 'familie', roles: ['gov', 'opp', 'apo'], w: 1.5, title: 'Lehrermangel: Unterricht fällt aus', text: 'Bundesweit fehlen 30.000 Lehrkräfte. In manchen Grundschulen fällt jede fünfte Stunde aus.',
+      gov: [
+        { label: 'Startchancen-Programm ausweiten', hint: '2 Mrd. € für Brennpunktschulen', fx: { budget: 2, comp: { bildung: 2 }, gov: 0.1 } },
+        { label: 'Auf die Länder verweisen', hint: 'Bildung ist Ländersache', fx: { gov: -0.1, sal: { bildung: 0.02 } } }
+      ],
+      choices: [
+        { label: 'Bildungsgipfel fordern', hint: 'Familien im Blick', fx: { own: 0.15, sal: { bildung: 0.02 } } },
+        { label: 'Eigenes Schulkonzept vorlegen', hint: 'Kompetenz', fx: { own: 0.05, comp: { bildung: 3 } } }
+      ] },
+    { id: 'drugs', cat: 'inland', ministry: 'gesundheit', roles: ['gov'], w: 1.2, title: 'Medikamente werden knapp', text: 'Fiebersäfte und Antibiotika für Kinder sind vielerorts ausverkauft. Apotheken schlagen Alarm.',
+      choices: [
+        { label: 'Produktion nach Europa zurückholen', hint: '1,5 Mrd. € Förderung', fx: { budget: 1.5, comp: { gesundheit: 2 } }, chance: 0.6, fail: { gov: -0.15 }, okText: 'Erste Werke kündigen Ausbau an.', failText: 'Die Engpässe halten an.' },
+        { label: 'Festbeträge für Kinderarznei anheben', hint: 'Schnell, aber teuer für die Kassen', fx: { gov: 0.05 } }
+      ] },
+    { id: 'pflege', cat: 'inland', ministry: 'gesundheit', roles: ['gov'], w: 1.2, minQ: 4, once: true, title: 'Pflegeversicherung vor der Pleite', text: 'Die Pflegekassen melden ein Defizit von sechs Milliarden Euro. Die Eigenanteile im Heim liegen bei über 3.000 Euro im Monat.',
+      choices: [
+        { label: 'Beiträge erhöhen', hint: 'Arbeitgeber und Beschäftigte zahlen mehr', fx: { gov: -0.25, growth: -0.03 }, next: { id: 'pflege_firms', in: 2 } },
+        { label: 'Steuerzuschuss', hint: '+4 Mrd. €', fx: { budget: 4 } },
+        { label: 'Eigenanteile deckeln', hint: '+6 Mrd. €, sehr beliebt', fx: { budget: 6, gov: 0.3, sal: { gesundheit: 0.02 } } }
+      ] },
+    { id: 'pflege_firms', cat: 'wirtschaft', ministry: 'wirtschaft', roles: ['gov'], w: 0, title: 'Wirtschaft klagt über Lohnnebenkosten', text: 'Nach der Beitragserhöhung warnen Arbeitgeberverbände: Die Sozialabgaben steigen über 42 Prozent – Gift für Arbeitsplätze.',
+      choices: [
+        { label: 'Entlastung bei der Stromsteuer zusagen', hint: 'Teuer', fx: { budget: 2, growth: 0.03 } },
+        { label: 'Hart bleiben', hint: 'Die Wirtschaft grollt', fx: { growth: -0.04, gov: -0.05 } }
+      ] },
+    { id: 'clans', cat: 'inland', ministry: 'innen', roles: ['gov', 'opp'], w: 1, title: 'Großrazzia gegen Clankriminalität', text: 'Nach einer spektakulären Razzia in drei Bundesländern debattiert das Land über Clankriminalität und Abschiebungen.',
+      gov: [
+        { label: 'Vermögensabschöpfung verschärfen', hint: 'Mehr Befugnisse für Ermittler', fx: { sal: { sicherheit: 0.03 }, gov: 0.1, mood: -2 } },
+        { label: 'Präventionsprogramme stärken', hint: 'Langfristig', fx: { budget: 0.3, comp: { sicherheit: 1 } } }
+      ],
+      choices: [
+        { label: 'Härteres Durchgreifen fordern', hint: 'Sicherheit', fx: { own: 0.15, sal: { sicherheit: 0.02 } } },
+        { label: 'Vor Pauschalurteilen warnen', hint: 'Bürgerrechte', fx: { own: 0.05, comp: { demokratie: 1 } } }
+      ] },
+    { id: 'dataleak', cat: 'inland', ministry: 'digital', roles: ['gov'], w: 1, title: 'Datenleck bei der Rentenversicherung', text: 'Die Daten von zwölf Millionen Versicherten tauchen im Darknet auf. Die IT stammt aus den Neunzigern.',
+      choices: [
+        { label: 'Modernisierungsoffensive für die Verwaltung', hint: '1 Mrd. €', fx: { budget: 1, comp: { digitales: 3 } } },
+        { label: 'Den Dienstleister haftbar machen', hint: 'Kurzfristig', fx: { like: -0.1, gov: -0.1 } }
+      ] },
+    { id: 'wolf', cat: 'inland', ministry: 'landwirtschaft', roles: ['gov', 'opp', 'apo'], land: ['NI', 'BB', 'SN', 'MV', 'ST'], w: 1, title: 'Wolfsrisse in {landName}', text: 'In {landName} hat ein Wolfsrudel binnen einer Woche über 60 Schafe gerissen. Weidetierhalter fordern den Abschuss.',
+      gov: [
+        { label: 'Schnellabschuss erlauben', hint: 'Ländlicher Raum zufrieden, Naturschützer empört', fx: { sal: { land: 0.02 }, lv: -5, mood: -2 } },
+        { label: 'Herdenschutz fördern', hint: '0,2 Mrd. €', fx: { budget: 0.2 } }
+      ],
+      choices: [
+        { label: 'Mit den Weidetierhaltern solidarisieren', hint: 'Land', fx: { own: 0.1, lv: -5 } },
+        { label: 'Artenschutz verteidigen', hint: 'Stadt', fx: { own: 0.05 } }
+      ] },
+    { id: 'farmers', cat: 'inland', ministry: 'landwirtschaft', roles: ['gov'], w: 1.2, title: 'Traktoren vor dem Brandenburger Tor', text: 'Tausende Landwirte blockieren mit Traktoren die Hauptstadt. Sie protestieren gegen Bürokratie, Dieselpreise und EU-Auflagen.',
+      choices: [
+        { label: 'Agrardiesel-Entlastung zurückbringen', hint: '0,5 Mrd. €/Jahr', fx: { budget: 0.5, gov: 0.1, sal: { land: 0.02 } } },
+        { label: 'Bürokratieabbau versprechen', hint: 'Günstig, aber vage', fx: { gov: 0.03 }, chance: 0.5, fail: { gov: -0.1 }, okText: 'Die Bauern ziehen ab.', failText: 'Die Bauern fühlen sich hingehalten.', failNext: { id: 'farmers2', in: 1 } },
+        { label: 'Hart bleiben', hint: 'Riskant', fx: { gov: -0.1 }, next: { id: 'farmers2', in: 1 } }
+      ] },
+    { id: 'farmers2', cat: 'inland', ministry: 'landwirtschaft', roles: ['gov'], w: 0, title: 'Die Bauernproteste eskalieren', text: 'Autobahnauffahrten werden blockiert, vor Ministerbüros wird Mist abgeladen. Die Stimmung auf dem Land kippt.',
+      choices: [
+        { label: 'Doch nachgeben', hint: '0,8 Mrd. €, Gesichtsverlust', fx: { budget: 0.8, like: -0.2 } },
+        { label: 'Runder Tisch Landwirtschaft', hint: 'Dialog', fx: { gov: 0.05, sal: { land: 0.01 } }, chance: 0.6, fail: { gov: -0.2 }, okText: 'Der Runde Tisch beruhigt die Lage.', failText: 'Der Bauernverband verlässt den Tisch.' }
+      ] },
+    { id: 'kita', cat: 'inland', ministry: 'familie', roles: ['gov', 'opp', 'apo'], w: 1, title: 'Kita-Notstand', text: 'Eltern gehen auf die Straße: 300.000 Kitaplätze fehlen, Einrichtungen kürzen wegen Personalmangel die Öffnungszeiten.',
+      gov: [
+        { label: 'Kita-Qualitätsgesetz aufstocken', hint: '1,5 Mrd. €', fx: { budget: 1.5, gov: 0.1, comp: { familie: 2 } } },
+        { label: 'Fachkräfteoffensive Erzieherinnen', hint: 'Wirkt langsam', fx: { budget: 0.5 } }
+      ],
+      choices: [
+        { label: 'Mit den Eltern demonstrieren', hint: 'Junge Familien', fx: { own: 0.15, sal: { familie: 0.02 } } },
+        { label: 'Eigenes Familienkonzept vorlegen', hint: 'Kompetenz', fx: { own: 0.05, comp: { familie: 3 } } }
+      ] },
+    { id: 'whistle', cat: 'parlament', roles: ['opp'], w: 1.2, title: 'Ein Whistleblower meldet sich', text: 'Eine Beamtin aus einem Bundesministerium bietet euch interne Dokumente an: Die Regierung soll Gutachten geschönt haben.',
+      choices: [
+        { label: 'Veröffentlichen', hint: 'Großer Wurf – oder Bumerang', fx: {}, chance: 0.6, fx2: { gov: -0.4, own: 0.3 }, fail: { own: -0.3, like: -0.2 }, okText: 'Die Dokumente sind echt – die Regierung gerät unter Druck.', failText: 'Die Dokumente erweisen sich als aus dem Zusammenhang gerissen.' },
+        { label: 'An den Bundesrechnungshof geben', hint: 'Seriös', fx: { like: 0.1 } }
+      ] },
+    { id: 'pact', cat: 'parlament', roles: ['opp'], w: 1, minQ: 3, title: 'Die Regierung bietet einen Pakt an', text: 'Die Kanzlerin/der Kanzler bietet euch einen überparteilichen „Deutschlandpakt“ zu Infrastruktur und Bürokratieabbau an.',
+      choices: [
+        { label: 'Einschlagen', hint: 'Staatspolitische Verantwortung – aber ihr helft der Regierung', fx: { like: 0.2, gov: 0.1, unity: -2 } },
+        { label: 'Ablehnen', hint: 'Klare Opposition', fx: { own: 0.05, unity: 2 } }
+      ] },
+    { id: 'crowdfund', cat: 'partei', roles: ['apo'], w: 1.2, title: 'Crowdfunding für den Neuanfang', text: 'Ein Mitglied startet eine Online-Spendenaktion: „Holt uns zurück in den Bundestag!“ Nach drei Tagen sind schon 200.000 Euro zusammen.',
+      choices: [
+        { label: 'Groß bewerben', hint: 'Mehr Geld, mehr Aufmerksamkeit', fx: { cash: 0.6, own: 0.05 } },
+        { label: 'Klein halten', hint: 'Kein Risiko, falls es floppt', fx: { cash: 0.2 } }
+      ] },
+    { id: 'split', cat: 'partei', roles: ['apo', 'opp'], w: 1, minQ: 4, once: true, title: 'Abspaltung droht', text: 'Eine Gruppe prominenter Mitglieder um einen früheren Bundestagsabgeordneten droht, eine eigene Partei zu gründen.',
+      choices: [
+        { label: 'Zugeständnisse machen', hint: 'Posten und Programmpunkte', fx: { unity: 5, cash: -0.2 } },
+        { label: 'Ziehen lassen', hint: 'Klarheit, aber Verluste', fx: { members: -6, unity: 3, own: -0.25 } }
+      ] },
+    { id: 'youth', cat: 'partei', roles: ['gov', 'opp', 'apo'], w: 1, title: 'Ärger mit der Parteijugend', text: 'Die Parteijugend fordert in einem Beschluss Dinge, die weit über das Wahlprogramm hinausgehen. Die Medien fragen: Wofür steht die Partei?',
+      choices: [
+        { label: 'Distanzieren', hint: 'Mitte beruhigt, Junge verärgert', fx: { unity: -3, like: 0.1 } },
+        { label: 'Als Diskussionsbeitrag würdigen', hint: 'Jugend zufrieden, Medien kritisch', fx: { unity: 2, own: -0.1 } }
+      ] },
+    { id: 'celebrity', cat: 'partei', roles: ['gov', 'opp', 'apo'], w: 0.8, title: 'Prominenz will mitmachen', text: 'Eine bekannte Fernsehmoderatorin will für euch bei der nächsten Wahl kandidieren. Altgediente Mitglieder sind skeptisch.',
+      choices: [
+        { label: 'Mit offenen Armen aufnehmen', hint: 'Aufmerksamkeit', fx: { like: 0.3, own: 0.1, unity: -2 } },
+        { label: 'Freundlich absagen', hint: 'Die Basis zuerst', fx: { unity: 2 } }
       ] }
   ];
 

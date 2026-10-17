@@ -897,3 +897,33 @@ test('Legislatur: euer Handeln bestimmt die Umfrage (aktiv schlägt passiv, Ursa
   assert.ok(a.fx.length >= 7 && a.fx.some(h => h.fx.aktion > 0));
   assert.ok(p.fx.some(h => h.fx.aktion < 0)); // ungenutzte Aktionen kosten Sichtbarkeit
 });
+
+test('Stufe 2: Minister, Forderungen, Bürgerfragen und Folgeereignisse', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  const t = g.term;
+  T.autoNames(g);
+  // Ministerkompetenz: zuständiges Ressort wird gefunden und verändert Erfolgsaussichten
+  const m = T.ministerFor(t, 'migration');
+  assert.ok(m && m.ministry === 'innen');
+  // Bürgerdialog mit zwei richtigen Antworten wirkt stärker als mit zwei falschen
+  const run = (right, wrong) => {
+    const h = E.deserialize(E.serialize(g));
+    while (h.term.pending.length) T.resolvePending(h, 0);
+    const before = h.nat.union;
+    const r = T.performAction(h, 'buerger', { topic: 'wirtschaft', right, wrong });
+    assert.ok(r.ok, r.text);
+    return h.nat.union - before;
+  };
+  assert.ok(run(2, 0) > run(0, 2));
+  // Forderungen der Partner kommen mit Frist und werden aufgelöst
+  let guard = 0;
+  while (!(t.demands && t.demands.length) && guard++ < 16 && !t.over) { while (t.pending.length) T.resolvePending(g, 0); T.endQuarter(g); }
+  assert.ok(t.demands && t.demands.length, 'keine Forderung');
+  const d = t.demands[0];
+  assert.ok(d.due > d.q);
+  // Folgeereignis: „Hart bleiben“ bei Bauernprotesten zieht eine Eskalation nach sich
+  t.pending = [{ type: 'event', id: 'farmers' }];
+  T.resolvePending(g, 2);
+  assert.ok(t.followUps.some(f => f.id === 'farmers2'));
+});
