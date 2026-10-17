@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261015-063708';
+  const APP_VERSION = '20261017-221309';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -261,14 +261,8 @@
   const WKG = (typeof window !== 'undefined' && window.BTW_WK) || null;
   const wkInState = () => (selWk && E.wkByNr(selWk) && E.wkByNr(selWk).land === selState ? selWk : null);
 
-  // Erfundene Namen für Direktkandidaturen (fest je Wahlkreis und Partei).
-  const FIRST = ['Anna', 'Jonas', 'Leonie', 'Mehmet', 'Sabine', 'Thomas', 'Katharina', 'Lukas', 'Fatma', 'Michael', 'Julia', 'Stefan', 'Lena', 'Andreas', 'Miriam', 'Felix', 'Petra', 'David', 'Svenja', 'Jan', 'Aylin', 'Martin', 'Claudia', 'Tobias', 'Nadine', 'Christian', 'Elif', 'Markus', 'Hannah', 'Sebastian'];
-  const LAST = ['Becker', 'Schulz', 'Wagner', 'Hoffmann', 'Koch', 'Richter', 'Klein', 'Wolf', 'Schröder', 'Neumann', 'Schwarz', 'Braun', 'Zimmermann', 'Krüger', 'Hartmann', 'Lange', 'Werner', 'Krause', 'Lehmann', 'Kaya', 'Schmitt', 'Meier', 'Vogel', 'Friedrich', 'Keller', 'Günther', 'Frank', 'Berger', 'Winkler', 'Roth', 'Yilmaz', 'Lorenz', 'Peters', 'Engel', 'Seidel'];
-  function candName(nr, p) {
-    let h = nr * 131 + p.split('').reduce((a, c) => a * 31 + c.charCodeAt(0), 7);
-    h = Math.abs(h) % 100003;
-    return FIRST[h % FIRST.length] + ' ' + LAST[Math.floor(h / FIRST.length) % LAST.length];
-  }
+  // Erfundene Namen für Direktkandidaturen (js/names.js, je Spiel ausgelost).
+  const candName = (nr, p) => E.wkCandidate(g, nr, p);
 
   function wkBoxOf(list) {
     const b = [Infinity, Infinity, -Infinity, -Infinity];

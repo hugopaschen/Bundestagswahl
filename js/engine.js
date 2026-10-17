@@ -17,6 +17,8 @@
   const CQ = (typeof module !== 'undefined' && module.exports) ? require('./citizenq.js') : (root.BTW_CITIZENQ || {});
   // Wahlkreise 2025: Grenzen und Erststimmen (js/wahlkreise.js, aus Daten der Bundeswahlleiterin)
   const WKD = (typeof module !== 'undefined' && module.exports) ? require('./wahlkreise.js') : (root.BTW_WK || null);
+  // Erfundene Namen für Kandidaturen und Kabinett (js/names.js)
+  const NAMES = (typeof module !== 'undefined' && module.exports) ? require('./names.js') : (root.BTW_NAMES || null);
   const CQ_ACTIONS = ['buerger', 'infostand', 'betrieb', 'haustuer', 'regional'];
   const SC_ALIAS = {}; // Aktionen ohne eigene Szenarien könnten hier verwandte nutzen
   const CQ_COMP = 2;      // Kompetenzpunkte je richtiger/falscher Antwort
@@ -429,6 +431,7 @@
     g.minor = {};
     MINOR_IDS.forEach(m => { g.minor[m] = { trend: 0, nat: 0, reg: {} }; });
     g.shown = {};
+    g.nameSeed = (g.rng >>> 0) % 2147483647 || 1;
     g.cand = Object.assign({}, candStart(partyId));
     g.aiLike = {};
     PARTY_IDS.forEach(p => { g.aiLike[p] = candStart(p).like; });
@@ -2106,6 +2109,28 @@
     return out;
   }
 
+  // Direktkandidaturen: einmal je Spiel ausgelost, jeder Nachname nur einmal.
+  const nameCache = { seed: null, gen: null, cand: null };
+  function nameGen(g) {
+    const seed = g.nameSeed || 1;
+    if (nameCache.seed !== seed) {
+      nameCache.seed = seed;
+      nameCache.gen = NAMES ? NAMES.create(seed) : null;
+      nameCache.cand = {};
+      if (nameCache.gen) WK_LIST.forEach(w => CONTEST_IDS.forEach(p => { nameCache.cand[w.nr + ':' + p] = nameCache.gen.person(p, w.land); }));
+    }
+    return nameCache;
+  }
+  function wkCandidate(g, nr, p) {
+    const c = nameGen(g).cand[nr + ':' + p];
+    return c ? c.full : '';
+  }
+  // Neue Person (z. B. für ein Ministeramt), ohne Dopplung mit allen bisherigen Namen.
+  function newPerson(g, p, land, opts) {
+    const n = nameGen(g);
+    return n.gen ? n.gen.person(p, land || 'NW', opts) : { first: 'N.', last: 'N.', full: 'N. N.', female: false };
+  }
+
   function addWk(g, nr, p, amount) {
     if (!g.wk) g.wk = {};
     if (!g.wk[nr]) g.wk[nr] = {};
@@ -2310,6 +2335,7 @@
   // Tagebuch des Wahlkampfs für den Rückblick am Wahlabend.
   function journal(g, kind, text, d) {
     if (!g.journal) g.journal = [];
+    if (!g.nameSeed) g.nameSeed = 1;
     g.journal.push({ w: g.week, k: kind, x: text, d: Math.round(d * 100) / 100 + 0 });
   }
 
@@ -2923,7 +2949,7 @@
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     publishedShares, publishedStateShares, groupShares, pollShares, pollStateShares, pollGroupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
-    POLL_RANGE, GROUP_IDS, candBonus, chancellorPoll, MINOR_IDS, CONTEST_IDS, isShown, shownIds, mergeShares, WK_LIST, WK_BY_STATE, wkByNr, wkShares, wkProjection, directCounts, GRUNDMANDATE, FW_LEVELS, fwLevel, openFirewall, closeFirewall, firewallOptions, breakFirewall, flowSummary, steerVotes, stateFlows, regionFactor, nationalFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
+    POLL_RANGE, GROUP_IDS, wkCandidate, newPerson, candBonus, chancellorPoll, MINOR_IDS, CONTEST_IDS, isShown, shownIds, mergeShares, WK_LIST, WK_BY_STATE, wkByNr, wkShares, wkProjection, directCounts, GRUNDMANDATE, FW_LEVELS, fwLevel, openFirewall, closeFirewall, firewallOptions, breakFirewall, flowSummary, steerVotes, stateFlows, regionFactor, nationalFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent,
     startDuel, duelAnswer,
