@@ -100,11 +100,36 @@
   }
   function shareOf(g, p) { return (g.term.lastNat && g.term.lastNat[p]) || 5; }
   // Umfragewirkung in Punkten, für kleine Parteien gedämpft (wie im Wahlkampf).
+  // Woher die Bewegung in euren Umfragen kommt: Jede Wirkung wird einer Ursache zugeordnet (CAT).
+  let CAT = 'sonst';
+  const cat = c => { CAT = c; };
+  function noteFx(g, c, v) {
+    const t = g.term;
+    if (!t || !v) return;
+    t.pollFx = t.pollFx || {};
+    t.pollFx[c] = (t.pollFx[c] || 0) + v;
+  }
   function addNat(g, p, v) {
     if (!v) return;
-    if (PIDS.indexOf(p) !== -1) g.nat[p] += v * A.sizeFactor(shareOf(g, p));
-    else if (g.minor && g.minor[p]) g.minor[p].nat += v * A.sizeFactor(shareOf(g, p));
+    const d = v * A.sizeFactor(shareOf(g, p));
+    if (PIDS.indexOf(p) !== -1) g.nat[p] += d;
+    else if (g.minor && g.minor[p]) g.minor[p].nat += d;
+    else return;
+    if (p === g.party) noteFx(g, CAT, d);
   }
+  const FX_NAMES = { aktion: '🎯 Eure Aktionen', gesetz: '📜 Gesetze', parlament: '🏛️ Abstimmungen im Bundestag', haushalt: '🏦 Haushalt',
+    karlsruhe: '⚖️ Karlsruhe', wahlen: '🗳️ Landtags- und Europawahlen', statusquo: '⚖️ Status quo', ereignis: '📰 Eure Reaktion auf Ereignisse',
+    skandal: '🔥 Affären', abstimmung: '🗳️ Euer Abstimmungsverhalten', kabinett: '👥 Kabinett', regierung: '🏛️ Regierungsbilanz und Wirtschaft',
+    partei: '🎪 Spitze und Geschlossenheit', glaubw: '🤝 Glaubwürdigkeit', konkurrenz: '🥊 Konkurrenz', verblassen: '⏳ Frühere Effekte verblassen', sonst: 'Sonstiges' };
+  // Glaubwürdigkeit (0–100): Wer seiner Linie treu bleibt, gewinnt Vertrauen; wer umfällt, verliert es.
+  function addCred(g, v, why) {
+    const t = g.term;
+    t.cred = clamp((t.cred === undefined ? 55 : t.cred) + v, 0, 100);
+    if (why) (t.credLog = t.credLog || []).unshift({ q: t.q, v, why });
+    if (t.credLog && t.credLog.length > 30) t.credLog.length = 30;
+  }
+  // Wie weit eine Position von eurem Wahlprogramm entfernt ist (0, 1, 2).
+  const progDist = (g, topic, lean) => Math.abs(leanOf(g, g.party, topic) - lean);
   function usesRecent(t, id) { return (t.usage[id] || []).filter(q => q >= t.q - 3).length; }
   function useFactor(t, id) { return 1 / (1 + 0.35 * usesRecent(t, id)); }
   function noteUse(t, id) { (t.usage[id] = t.usage[id] || []).push(t.q); }
@@ -350,6 +375,9 @@
     t.role = roleOf(g, gov);
     t.apMax = TD.ROLES[t.role].ap;
     t.ap = t.apMax;
+    t.cred = 55;
+    if (r.neg && r.neg.success && gov.indexOf(g.party) !== -1) addCred(g, Math.round(4 * r.neg.kept - 3 * r.neg.given), 'Koalitionsvertrag: ' + String(r.neg.kept).replace('.', ',') + ' Streitpunkte durchgesetzt, ' + r.neg.given + ' nachgegeben');
+    if (r.firewallBroken && gov.indexOf(g.party) !== -1 && g.party !== 'afd') addCred(g, -12, 'Brandmauer eingerissen');
     t.mood = r.neg && r.neg.success && gov.indexOf(g.party) !== -1 ? clamp(Math.round(r.neg.mood + 10), 35, 85) : Math.round(between(g, 55, 68));
     const picks = r.neg && r.neg.success && r.neg.ministries && r.neg.members.slice().sort().join() === gov.slice().sort().join() ? r.neg.ministries : draftMinistries(t);
     setupCabinet(g, picks);
@@ -418,6 +446,7 @@
 
   function updateSq(g) {
     const t = g.term;
+    cat('statusquo');
     A.TOPIC_IDS.forEach(topic => {
       const f = sqForces(g, topic);
       const sf = clamp(g.salience[topic] / D.SALIENCE0[topic], 0.5, 2.5);
@@ -567,6 +596,7 @@
 
   function budgetVote(g) {
     const t = g.term;
+    cat('haushalt');
     const draft = t.budget.draft;
     if (!draft) return;
     const b = budgetCalc(t, draft.plan);
@@ -610,10 +640,17 @@
         aiKlage(g, { kind: 'budget', chance, text: 'Haushalt ' + draft.year });
       }
     } else {
+      const again = t.budget.status === 'vorlaeufig';
       t.budget.status = 'vorlaeufig';
       news(g, 'Der Haushalt ' + draft.year + ' fällt im Bundestag durch (' + yes + ' Ja, ' + no + ' Nein). Vorläufige Haushaltsführung!', 'bad');
-      t.gov.forEach(p => addNat(g, p, -0.3));
-      t.mood = clamp(t.mood - 8, 0, 100);
+      t.gov.forEach(p => addNat(g, p, again ? -0.1 : -0.3));
+      t.mood = clamp(t.mood - (again ? 3 : 8), 0, 100);
+      // Neuer Anlauf: Wer den Entwurf aufstellt, muss nachbessern (die KI kommt den Partnern entgegen).
+      if (playerDraftsBudget(g)) draft.done = false;
+      else {
+        draft.plan = aiBudgetPlan(g);
+        t.gov.forEach(p => { const pr = TD.AREA_PREF[p] || {}; Object.keys(pr).forEach(a => { if (pr[a] > 0 && a in draft.plan) draft.plan[a] = clamp(draft.plan[a] + 5, -10, 10); }); });
+      }
       if (isGov(t.role)) t.stats.failed += 1;
     }
   }
@@ -753,6 +790,7 @@
 
   function processLaw(g, law) {
     const t = g.term;
+    cat('parlament');
     if (law.stage === 'kabinett') { cabinetStage(g, law); return; }
     if (law.stage === 'bundestag') {
       const v = bundestagVote(g, law);
@@ -810,6 +848,7 @@
 
   function enact(g, law) {
     const t = g.term;
+    cat('gesetz');
     law.stage = 'inkraft';
     law.q1 = t.q;
     t.stats.lawsTotal += 1;
@@ -846,6 +885,16 @@
       else if (d === 2) addNat(g, p, 0.08);
     });
     if (law.by === g.party) t.stats.lawsOwn += 1;
+    t.qLaws = (t.qLaws || 0) + 1;
+    t.lastLawQ = t.q;
+    if (isGov(t.role) && t.gov.indexOf(law.by) !== -1) {
+      const d = progDist(g, topic, L);
+      if (law.by === g.party || t.role === 'kanzler') {
+        if (d === 0) addCred(g, 3, 'Gesetz nach eurem Programm: „' + lawName(law) + '“');
+        else if (d === 2) addCred(g, -5, 'Gesetz gegen euer Programm: „' + lawName(law) + '“');
+        else addCred(g, -1, 'Kompromiss-Gesetz: „' + lawName(law) + '“');
+      } else if (d === 2) addCred(g, -2, 'Mitgetragen, obwohl es eurem Programm widerspricht: „' + lawName(law) + '“');
+    }
     // Wahlversprechen gehalten?
     if (isGov(t.role) && law.kind === 'topic' && g.program && g.program.positions[law.topic] === law.opt) {
       t.stats.promises += 1;
@@ -923,6 +972,7 @@
   }
   function processKlagen(g) {
     const t = g.term;
+    cat('karlsruhe');
     t.klagen.filter(k => k.due === t.q && !k.done).forEach(k => {
       k.done = true;
       k.success = rand(g) < k.chance;
@@ -972,6 +1022,7 @@
 
   function landtagswahl(g, land) {
     const t = g.term;
+    cat('wahlen');
     const sh = A.stateShares(g, land);
     const L = t.laender[land];
     const raw = {};
@@ -1008,6 +1059,7 @@
 
   function europawahl(g) {
     const t = g.term;
+    cat('wahlen');
     const sh = A.nationalShares(g);
     const own = r1(sh[g.party] * (1 + between(g, -0.06, 0.08)));
     const diff = own - t.share0;
@@ -1104,6 +1156,7 @@
     if (fx.comp && g.competence) Object.keys(fx.comp).forEach(k => { g.competence[k] = clamp((g.competence[k] || 40) + fx.comp[k], 5, 95); });
     if (fx.debtRule) t.budget.reform = (t.budget.reform || 0) + fx.debtRule;
     if (fx.ap) t.ap = Math.max(0, t.ap + fx.ap);
+    if (fx.fwLand) addCred(g, -5, 'Gespräche mit der AfD im Land geduldet');
   }
 
   // Bundeswehr-Mandat (Parlamentsvorbehalt): Abstimmung im Bundestag.
@@ -1127,6 +1180,7 @@
     const item = t.pending[0];
     if (!item) return { ok: false };
     let text = '';
+    cat({ scandal: 'skandal', vote: 'abstimmung', cabinet: 'kabinett', veto: 'kabinett', sq: 'statusquo' }[item.type] || 'ereignis');
     if (item.type === 'event') {
       const ev = eventById(item.id);
       const c = eventChoices(g, ev)[choice];
@@ -1170,10 +1224,10 @@
     } else if (item.type === 'cabinet') {
       const law = t.laws.find(l => l.id === item.law);
       const d = Math.abs(leanOf(g, g.party, lawTopic(law)) - lawLean(law));
-      if (choice === 0) { law.stage = 'bundestag'; law.log.push('Kabinett beschließt den Entwurf.'); if (d === 2) t.party.unity = clamp(t.party.unity - 4, 0, 100); text = 'Ihr stimmt im Kabinett zu.'; }
+      if (choice === 0) { law.stage = 'bundestag'; law.log.push('Kabinett beschließt den Entwurf.'); if (d === 2) { t.party.unity = clamp(t.party.unity - 4, 0, 100); addCred(g, -4, 'Im Kabinett einem Entwurf gegen eure Linie zugestimmt'); } else if (d === 0) addCred(g, 1); text = 'Ihr stimmt im Kabinett zu.'; }
       else if (choice === 1 && law.kind === 'topic' && optIndex(law.topic, 0) !== t.policy[law.topic] && law.opt !== optIndex(law.topic, 0)) {
         law.opt = optIndex(law.topic, 0); law.stage = 'bundestag'; t.mood = clamp(t.mood - 2, 0, 100); law.log.push('Nachverhandelt: „' + lawName(law) + '“.'); text = 'Ihr handelt einen Kompromiss heraus.';
-      } else { law.stage = 'zurueckgezogen'; law.log.push('Im Kabinett gestoppt.'); t.mood = clamp(t.mood - 8, 0, 100); if (d >= 1) t.party.unity = clamp(t.party.unity + 2, 0, 100); text = 'Ihr stoppt den Entwurf im Kabinett.'; }
+      } else { law.stage = 'zurueckgezogen'; law.log.push('Im Kabinett gestoppt.'); t.mood = clamp(t.mood - 8, 0, 100); if (d >= 1) { t.party.unity = clamp(t.party.unity + 2, 0, 100); addCred(g, 2, 'Im Kabinett Linie gehalten'); } else addCred(g, -2, 'Einen Entwurf nach eurer Linie gestoppt'); text = 'Ihr stoppt den Entwurf im Kabinett.'; }
       news(g, 'Kabinett, „' + lawName(law) + '“ (' + sname(law.by) + '): ' + text, 'info');
     } else if (item.type === 'budgetcab') {
       if (choice === 1) {
@@ -1199,9 +1253,11 @@
       const topic = item.topic;
       if (choice === 0) {
         const law = makeLaw(g, { kind: 'topic', topic, opt: item.opt }, g.party);
+        if (progDist(g, topic, D.PROGRAM[topic][item.opt].lean) > 0) addCred(g, -3, 'Dem Druck nachgegeben (' + E.topicById(topic).name + ')');
         text = 'Ihr gebt nach: „' + lawName(law) + '“ geht ins Kabinett.';
       } else if (choice === 1) {
         addSq(t, topic, 22); t.gov.forEach(p => addNat(g, p, -0.2)); t.party.unity = clamp(t.party.unity + 2, 0, 100);
+        if (progDist(g, topic, sqLean(t, topic)) === 0) addCred(g, 2, 'Status quo verteidigt (' + E.topicById(topic).name + ')');
         text = 'Ihr haltet dagegen und verteidigt die geltende Regelung – das kostet Zustimmung.';
       } else {
         addSq(t, topic, 10); t.budget.oneoff += 1;
@@ -1214,8 +1270,9 @@
       if (!item.budget) {
         const law = t.laws.find(l => l.id === item.law);
         const d = Math.abs(leanOf(g, g.party, lawTopic(law)) - lawLean(law));
-        if (v === 'ja' && d === 2) t.party.unity = clamp(t.party.unity - 3, 0, 100);
-        if (v === 'nein' && d === 0) addNat(g, g.party, -0.05);
+        if (v === 'ja' && d === 2) { t.party.unity = clamp(t.party.unity - 3, 0, 100); addCred(g, -5, 'Für ein Gesetz gegen eure Linie gestimmt: „' + lawName(law) + '“'); }
+        else if (v === 'nein' && d === 0) addCred(g, -2, 'Gegen ein Gesetz nach eurer Linie gestimmt: „' + lawName(law) + '“');
+        else if ((v === 'ja' && d === 0) || (v === 'nein' && d === 2)) addCred(g, 1);
       }
     }
     t.pending.shift();
@@ -1365,6 +1422,7 @@
 
   function performAction(g, id, target) {
     const t = g.term;
+    cat('aktion');
     const chk = canAct(g, id);
     if (!chk.ok) return chk;
     const a = ACTIONS.find(x => x.id === id);
@@ -1405,6 +1463,7 @@
         const defend = Math.abs(leanOf(g, g.party, target) - sqLean(t, target)) === 0;
         const amount = (5 + 10 * A.sizeFactor(shareOf(g, g.party)) / 1.2) * f;
         addSq(t, target, defend ? amount : -amount);
+        addCred(g, 1);
         actNat(g.party, (defend ? 0.04 : 0.08) * f * salF(target));
         text = (defend ? 'Ihr verteidigt die geltende Regelung beim Thema ' : 'Ihr greift die geltende Regelung beim Thema ') + E.topicById(target).name + ' an. Rückhalt jetzt ' + Math.round(t.sq[target]) + '/100.';
         if (defend) text = text.replace(' an. Rückhalt', '. Rückhalt');
@@ -1445,7 +1504,7 @@
         break;
       }
       case 'krisenstab': t.intl = clamp(t.intl + 3, 0, 100); P.leader.like = clamp(P.leader.like + 0.2, -5, 5); t.gov.forEach(p => actNat(p, 0.1)); text = 'Der Krisenstab zeigt Handlungsfähigkeit.'; break;
-      case 'profil': actNat(g.party, 0.3 * f); t.mood = clamp(t.mood - 6, 0, 100); text = 'Ihr setzt euch öffentlich vom Partner ab.'; break;
+      case 'profil': actNat(g.party, 0.3 * f); t.mood = clamp(t.mood - 6, 0, 100); addCred(g, 2, 'Eigenes Profil gezeigt'); text = 'Ihr setzt euch öffentlich vom Partner ab.'; break;
       case 'austritt': noteUse(t, id); breakCoalition(g, g.party); return { ok: true, text: 'Ihr verlasst die Koalition.' };
       case 'vertrauen': {
         if (target === 'unecht') { t.ap -= 1; endTerm(g, 'Neuwahl nach der Vertrauensfrage'); return { ok: true, text: 'Ihr verliert die Vertrauensfrage absichtlich – der Bundespräsident löst den Bundestag auf.' }; }
@@ -1458,6 +1517,7 @@
         if (!target || !E.topicById(target)) return { ok: false, text: 'Bitte ein Thema wählen.' };
         actNat(g.party, 0.12 * f * salF(target) * (comp(target) / 50));
         if (g.competence) g.competence[target] = clamp(g.competence[target] + 1, 5, 95);
+        if (g.program && g.program.core.indexOf(target) !== -1) addCred(g, 1);
         A.changeSalience(g, target, 0.01);
         if (Math.abs(leanOf(g, g.party, target) - sqLean(t, target)) > 0) addSq(t, target, -3 * f);
         text = 'Antrag zum Thema ' + E.topicById(target).name + ' – die Koalition lehnt ab, aber ihr seid sichtbar.';
@@ -1593,6 +1653,12 @@
     const c = cal(t);
     t.ap = t.apMax;
     t.voteChoice = {};
+    if (!first) {
+      (t.pollFxHist = t.pollFxHist || []).push({ q: t.q - 1, fx: t.pollFx || {} });
+      if (t.pollFxHist.length > 20) t.pollFxHist.shift();
+    }
+    t.pollFx = {};
+    t.qLaws = 0;
     // Haushaltssaison: Entwurf für das nächste Jahr (nicht im letzten Jahr vor der Wahl nötig, aber üblich)
     if (c.qn === 3) {
       t.budget.draft = { year: c.year + 1, plan: Object.assign({}, t.budget.plan), notlage: false, done: false };
@@ -1665,20 +1731,34 @@
   function updatePolls(g) {
     const t = g.term;
     const e = t.econ;
+    noteFx(g, 'verblassen', g.nat[g.party] ? g.nat[g.party] * (NAT_DECAY - 1) : 0);
     PIDS.forEach(p => { g.nat[p] *= NAT_DECAY; });
     D.STATES.forEach(st => { PIDS.forEach(p => { g.reg[st.id][p] *= 0.8; }); });
     MINOR.forEach(m => { g.minor[m].nat *= NAT_DECAY; g.minor[m].trend = clamp(g.minor[m].trend + between(g, -0.12, 0.14), -1, 2.5); });
     // Regierungsverschleiß und Wirtschaftslage (geschätzt)
+    cat('regierung');
     const econ = 0.25 * (e.growth - 1) - 0.6 * (e.unemp - t.econPrev.unemp) - 0.08 * Math.max(0, e.infl - 2.5);
-    t.gov.forEach(p => { addNat(g, p, (p === t.chanc ? -0.16 : -0.09) + econ * (p === t.chanc ? 1 : 0.5)); });
+    // Regierungsverschleiß: Wer liefert (Gesetze in Kraft), verschleißt weniger; Stillstand kostet extra.
+    const delivered = Math.min(2, t.qLaws || 0);
+    const idle = t.q - (t.lastLawQ === undefined ? -1 : t.lastLawQ) >= 4 ? 0.08 : 0;
+    t.gov.forEach(p => { addNat(g, p, ((p === t.chanc ? -0.16 : -0.09) * (1 - 0.4 * delivered) - idle) + econ * (p === t.chanc ? 1 : 0.5)); });
     if (t.gov.length > 1 && t.mood < 35) t.gov.forEach(p => addNat(g, p, -0.1));
     if (t.budget.status === 'vorlaeufig') t.gov.forEach(p => addNat(g, p, -0.12));
     if (t.ua) { t.gov.forEach(p => addNat(g, p, -0.1)); addNat(g, g.party, 0.04); }
     // Eigene Spitze und Geschlossenheit
+    cat('partei');
     addNat(g, g.party, 0.04 * t.party.leader.like + (t.party.unity - 55) / 400);
+    // Glaubwürdigkeit: Wer verlässlich nach seinem Programm handelt, gewinnt Vertrauen.
+    cat('glaubw');
+    if (t.cred === undefined) t.cred = 55;
+    addNat(g, g.party, (t.cred - 50) / 250);
+    t.cred += (55 - t.cred) * 0.04;
+    // Wer nicht handelt, verschwindet aus den Schlagzeilen.
+    cat('aktion');
+    if (t.apLeft) addNat(g, g.party, -0.04 * t.apLeft);
     if (t.chanc !== g.party && t.chancellor) addNat(g, t.chanc, 0.03 * (t.chancellor.like || 0));
-    PIDS.forEach(p => { if (p !== g.party) addNat(g, p, between(g, -0.15, 0.15)); });
-    addNat(g, g.party, between(g, -0.08, 0.08));
+    cat('konkurrenz');
+    PIDS.forEach(p => { if (p !== g.party) addNat(g, p, between(g, -0.12, 0.12)); });
     // Unruhige Landesverbände kosten im Land
     Object.keys(t.party.lv).forEach(l => { const u = t.party.lv[l]; if (u > 50 && g.reg[l]) g.reg[l][g.party] -= (u - 50) / 80; });
     t.intl += (50 - t.intl) * 0.05;
@@ -1696,6 +1776,7 @@
     if (!t || t.over) return { ok: false, text: 'Die Legislaturperiode ist vorbei.' };
     if (t.pending.length) return { ok: false, text: 'Erst die offenen Entscheidungen treffen.' };
     if (needsNames(g)) autoNames(g);
+    t.apLeft = t.ap;
     const c = cal(t);
     // Haushalt: Entwurf im 3., Abstimmung im 4. Quartal; bei vorläufiger Haushaltsführung neuer Anlauf.
     if (t.budget.draft && !t.budget.draft.done && c.qn === 3) { setBudgetDraft(g, aiBudgetPlan(g), false); }
@@ -1782,7 +1863,7 @@
     QUARTERS, ACTIONS, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
     lawOptions, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, cal,
     lawName, lawTitle, leanOf, quorum, eventChoices, fillText, eventById, ministryById, taxById, areaById, nextCampaign, summary,
-    actionCash, govSeats, isGov, sqForces, absCal, ownMinistries, endTerm, defaultVote, partyVote, mandateVote
+    actionCash, govSeats, isGov, sqForces, absCal, FX_NAMES, ownMinistries, endTerm, defaultVote, partyVote, mandateVote
   };
   if (node) module.exports = TERM; else root.BTW_TERM = TERM;
 })(this);

@@ -878,3 +878,22 @@ test('Status quo: Ränder greifen an, Mitte verteidigt, Gesetz setzt neuen Statu
   T.performAction(g, 'sq', 'verteidigung');
   assert.ok(t.sq.verteidigung !== before);
 });
+
+test('Legislatur: euer Handeln bestimmt die Umfrage (aktiv schlägt passiv, Ursachen werden erfasst)', () => {
+  const run = active => {
+    const g = electedGame('linke', 3);
+    T.startTerm(g);
+    const t = g.term;
+    for (let q = 0; q < 8; q++) {
+      while (t.pending.length) T.resolvePending(g, 0);
+      if (active) ['antrag', 'aktuelle', 'talkshow', 'sq'].forEach(id => T.performAction(g, id, g.program.core[q % g.program.core.length]));
+      T.endQuarter(g);
+    }
+    return { share: t.lastNat.linke, fx: t.pollFxHist, cred: t.cred };
+  };
+  const a = run(true);
+  const p = run(false);
+  assert.ok(a.share > p.share + 1, a.share + ' vs ' + p.share);
+  assert.ok(a.fx.length >= 7 && a.fx.some(h => h.fx.aktion > 0));
+  assert.ok(p.fx.some(h => h.fx.aktion < 0)); // ungenutzte Aktionen kosten Sichtbarkeit
+});

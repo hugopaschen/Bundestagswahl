@@ -101,6 +101,7 @@
       kpi('Umfrage ' + esc(short(g.party)), pct(g.poll.nat[g.party]), signed(g.poll.nat[g.party] - t.share0) + ' seit der Wahl') +
       (T.isGov(t.role) && t.gov.length > 1 ? kpi('Koalitionsklima', Math.round(t.mood) + '/100', bar(t.mood, 100, t.mood < 30 ? 'bad' : t.mood < 50 ? 'mid' : 'good')) : '') +
       kpi('Geschlossenheit', Math.round(t.party.unity) + '/100', bar(t.party.unity, 100, t.party.unity < 40 ? 'bad' : 'good')) +
+      kpi('Glaubwürdigkeit', Math.round(t.cred === undefined ? 55 : t.cred) + '/100', bar(t.cred === undefined ? 55 : t.cred, 100, t.cred < 40 ? 'bad' : t.cred < 55 ? 'mid' : 'good')) +
       kpi('Beliebtheit der Spitze', (t.party.leader.like >= 0 ? '+' : '−') + num1(Math.abs(t.party.leader.like)), esc(t.party.leader.name)) +
       (T.isGov(t.role) ? kpi('Ansehen in der Welt', Math.round(t.intl) + '/100', bar(t.intl, 100)) : '') +
       '</div>';
@@ -451,9 +452,36 @@
   function renderPolls() {
     const t = term();
     let html = '<h2>📊 Sonntagsfrage</h2><div class="poll-cols">' + U.pollColumnsHtml(g.poll.nat, t.start) + '</div><p class="muted small">Veränderung zur Bundestagswahl ' + t.year0 + '. Fehlerspanne ± ' + E.POLL_RANGE + ' Punkte.</p>';
+    html += fxHtml();
     html += '<h3>Verlauf seit der Wahl</h3><div class="t-chart" id="t-chart"></div>';
     $('t-umfragen').innerHTML = html;
     drawTermChart();
+  }
+  // Was eure Umfrage bewegt: Wirkungen nach Ursache (Prozentpunkte, vor der Wählerwanderung).
+  function fxRows(fx) {
+    return Object.keys(fx).filter(c => Math.abs(fx[c]) >= 0.05).sort((a, b) => Math.abs(fx[b]) - Math.abs(fx[a]));
+  }
+  function fxBlock(title, fx) {
+    const rows = fxRows(fx);
+    if (!rows.length) return '<h4>' + title + '</h4><p class="muted small">Noch keine Wirkungen.</p>';
+    const max = Math.max(0.3, ...rows.map(c => Math.abs(fx[c])));
+    return '<h4>' + title + '</h4><div class="t-fx">' + rows.map(c => {
+      const v = fx[c];
+      return '<div class="t-fx-row"><span>' + esc(T.FX_NAMES[c] || c) + '</span><span class="t-fx-bar"><i class="' + (v >= 0 ? 'pos' : 'neg') + '" style="width:' + Math.abs(v) / max * 50 + '%;' + (v >= 0 ? 'left:50%' : 'right:50%') + '"></i></span><b class="' + (v >= 0 ? 'pos' : 'neg') + '">' + signed(v) + '</b></div>';
+    }).join('') + '</div>';
+  }
+  function fxHtml() {
+    const t = term();
+    const hist = t.pollFxHist || [];
+    const last = hist.length ? hist[hist.length - 1] : null;
+    const total = {};
+    hist.concat([{ fx: t.pollFx || {} }]).forEach(h => Object.keys(h.fx).forEach(c => { total[c] = (total[c] || 0) + h.fx[c]; }));
+    let html = '<h3>🔍 Was eure Umfrage bewegt</h3><p class="muted small">Euer Handeln bestimmt die Umfragen: Aktionen, Gesetze, euer Abstimmungsverhalten, wie ihr auf Krisen reagiert und ob ihr eurer Linie treu bleibt. Werte in Prozentpunkten (geschätzt, vor der Wählerwanderung zwischen den Parteien).</p><div class="t-fx-wrap">';
+    html += fxBlock('Seit Beginn dieses Quartals', t.pollFx || {});
+    if (last) html += fxBlock('Im letzten Quartal (' + T.quarterLabel(t, last.q) + ')', last.fx);
+    html += fxBlock('Seit der Wahl', total) + '</div>';
+    if (t.credLog && t.credLog.length) html += '<h4>🤝 Glaubwürdigkeit: ' + Math.round(t.cred) + '/100</h4><ul class="t-cred">' + t.credLog.slice(0, 8).map(x => '<li><b class="' + (x.v >= 0 ? 'pos' : 'neg') + '">' + (x.v >= 0 ? '+' : '−') + Math.abs(x.v) + '</b> ' + esc(x.why) + '</li>').join('') + '</ul>';
+    return html;
   }
   function drawTermChart() {
     const t = term();
@@ -603,7 +631,7 @@
     if (t.pending.length) { checkPending(); return; }
     const btn = $('btn-end-quarter');
     if (t.ap > 0 && !U.confirmOnButton(btn, 'Noch ' + t.ap + ' Aktion' + (t.ap > 1 ? 'en' : '') + ' übrig – trotzdem beenden?')) return;
-    if (t.budget.draft && !t.budget.draft.done && T.playerDraftsBudget(g) && T.cal(t).qn === 3 && btn.dataset.budget !== '1') {
+    if (t.budget.draft && !t.budget.draft.done && T.playerDraftsBudget(g) && (T.cal(t).qn === 3 || t.budget.status === 'vorlaeufig') && btn.dataset.budget !== '1') {
       btn.dataset.budget = '1';
       U.toast('Euer Haushaltsentwurf fehlt – sonst übernimmt das Finanzministerium. Nochmal tippen zum Beenden.');
       tab = 'haushalt';
@@ -618,7 +646,10 @@
     save();
     budgetPlan = null;
     render();
-    if (!t.over) U.toast(T.quarterLabel(t) + ' · Neue Umfrage: ' + pct(g.poll.nat[g.party]) + ' (' + signed(g.poll.nat[g.party] - before) + ')');
+    const lastFx = (t.pollFxHist || []).slice(-1)[0];
+    const topFx = lastFx ? fxRows(lastFx.fx).filter(c => c !== 'verblassen')[0] : null;
+    if (!t.over) U.toast(T.quarterLabel(t) + ' · Neue Umfrage: ' + pct(g.poll.nat[g.party]) + ' (' + signed(g.poll.nat[g.party] - before) + ')' +
+      (topFx ? ' · größter Einfluss: ' + (T.FX_NAMES[topFx] || topFx).replace(/^\S+ /, '') + ' ' + signed(lastFx.fx[topFx]) : ''));
     checkPending();
   });
   let resizeT = null;
