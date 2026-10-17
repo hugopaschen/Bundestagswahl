@@ -19,6 +19,8 @@
   const WKD = (typeof module !== 'undefined' && module.exports) ? require('./wahlkreise.js') : (root.BTW_WK || null);
   // Erfundene Namen für Kandidaturen und Kabinett (js/names.js)
   const NAMES = (typeof module !== 'undefined' && module.exports) ? require('./names.js') : (root.BTW_NAMES || null);
+  // Inhalte der Legislaturperiode (Ministerien u. a.) – auch für die Ressortverteilung in den Koalitionsverhandlungen.
+  const TD = (typeof module !== 'undefined' && module.exports) ? require('./termdata.js') : (root.BTW_TERMDATA || { MINISTRIES: [], WISH: {} });
   const CQ_ACTIONS = ['buerger', 'infostand', 'betrieb', 'haustuer', 'regional'];
   const SC_ALIAS = {}; // Aktionen ohne eigene Szenarien könnten hier verwandte nutzen
   const CQ_COMP = 2;      // Kompetenzpunkte je richtiger/falscher Antwort
@@ -382,7 +384,9 @@
     return !!(g.program && g.program.core.indexOf(topic) !== -1);
   }
 
-  function newGame(partyId, candidate, seed, program) {
+  // carry (optional): Übernahme aus der vorigen Legislaturperiode – Startwerte je Land (base),
+  // Namens-Saat, Laufbahn, Brandmauer-Stand und das Wahljahr.
+  function newGame(partyId, candidate, seed, program, carry) {
     if (!party(partyId)) throw new Error('Unbekannte Partei: ' + partyId);
     program = program || defaultProgram(partyId);
     const errors = validateProgram(program);
@@ -432,7 +436,20 @@
     MINOR_IDS.forEach(m => { g.minor[m] = { trend: 0, nat: 0, reg: {} }; });
     g.shown = {};
     g.nameSeed = (g.rng >>> 0) % 2147483647 || 1;
-    g.cand = Object.assign({}, candStart(partyId));
+    if (carry) {
+      if (carry.base) g.base = JSON.parse(JSON.stringify(carry.base));
+      if (carry.nameSeed) g.nameSeed = carry.nameSeed;
+      if (carry.career) g.career = JSON.parse(JSON.stringify(carry.career));
+      if (carry.firewall) g.firewall = Object.assign({}, carry.firewall);
+      if (carry.year) g.year = carry.year;
+      if (carry.shown) g.shown = Object.assign({}, carry.shown);
+      if (carry.cand) g.cand = Object.assign({}, carry.cand);
+      if (carry.money !== undefined) g.money = carry.money;
+      if (carry.world) g.world = JSON.parse(JSON.stringify(carry.world));
+      if (carry.prevSeats) g.prevSeats = Object.assign({}, carry.prevSeats);
+      if (carry.prevShares) g.prevShares = Object.assign({}, carry.prevShares);
+    }
+    if (!g.cand) g.cand = Object.assign({}, candStart(partyId));
     g.aiLike = {};
     PARTY_IDS.forEach(p => { g.aiLike[p] = candStart(p).like; });
     g.candHist = [{ w: 0, like: g.cand.like, known: g.cand.known }];
@@ -543,19 +560,22 @@
     const st = stateById(stateId);
     const raw = {};
     const { bonus, taken } = stateFlows(g, stateId);
+    // Nach einer Legislaturperiode starten Folgewahlkämpfe vom aktuellen Stand der Länder (g.base).
+    const B = (g.base && g.base[stateId]) || null;
     const lose = {};
     ALL_IDS.forEach(q => { lose[q] = 0; });
     PARTY_IDS.forEach(p => { Object.keys(taken[p]).forEach(q => { if (q in lose) lose[q] += taken[p][q]; }); });
     let other = 100;
     PARTY_IDS.forEach(p => {
-      other -= st.result[p];
-      raw[p] = Math.max(0.2, st.result[p] + bonus[p] - lose[p]) * mobFactor(g, p, stateId);
+      const b0 = B ? (B[p] || 0) : st.result[p];
+      other -= b0;
+      raw[p] = Math.max(0.2, b0 + bonus[p] - lose[p]) * mobFactor(g, p, stateId);
     });
     // Kleinparteien: Startwert, eigener Trend (in Hochburgen stärker), Wahlkampf. Was die großen
     // Parteien den „Sonstigen“ abnehmen, verlieren Kleinparteien und Rest anteilig.
     let small = 0;
     MINOR_IDS.forEach(m => {
-      const base = MINOR_BASE[stateId][m];
+      const base = B ? Math.max(0.05, B[m] || 0) : MINOR_BASE[stateId][m];
       other -= base;
       const mi = (g.minor && g.minor[m]) || {};
       const home = base / Math.max(0.2, MINOR_NAT[m]);
@@ -2746,14 +2766,13 @@
   }
 
   // ---------- Koalitionsverhandlungen ----------
-  // Drei Streitthemen (wo euer Programm am weitesten von den Partnern entfernt ist), dann die Ressorts.
+  // Drei Streitthemen (wo euer Programm am weitesten von den Partnern entfernt ist), dann die
+  // Ressortverteilung: Die Partner wählen reihum Ministerien, die Zahl richtet sich nach den Sitzen.
   // Das Verhandlungsklima muss am Ende mindestens 30 betragen, sonst platzen die Gespräche.
   const NEG_MIN = 30;
-  const MINISTRIES = [
-    { id: 'finanzen', name: 'Finanzministerium fordern', hint: 'Das wichtigste Ressort – kostet viel Klima', mood: -10, pts: 8 },
-    { id: 'klassisch', name: 'Außen- oder Innenministerium', hint: 'Prestige, aber machbar', mood: -5, pts: 5 },
-    { id: 'fach', name: 'Fachministerien genügen', hint: 'Gute Stimmung, wenig Einfluss', mood: 4, pts: 2 }
-  ];
+  const MINISTRIES = TD.MINISTRIES || [];
+  const ministryById = id => MINISTRIES.find(m => m.id === id);
+  const JUNIOR_BONUS = 1.15; // Juniorpartner bekommen meist etwas mehr Ressorts, als ihre Sitze hergeben
 
   function negotiationTopics(g, members) {
     const partners = members.filter(q => q !== g.party && party(q) && party(q).lean);
@@ -2780,7 +2799,67 @@
     const avgDiff = topics.length ? topics.reduce((s, x) => s + x.diff, 0) / topics.length : 0;
     const mood = Math.max(35, Math.min(75, 58 + (lead === g.party ? 8 : 0) - 6 * avgDiff + Math.round(between(g, -4, 4))));
     r.neg = { members: members.slice(), lead, topics, step: 0, mood, kept: 0, given: 0, ministry: null, log: [], done: false };
+    if (!topics.length) startDraft(g);
     return r.neg;
+  }
+
+  // Wie gern eine Partei ein Ressort hätte: Wunschliste zuerst, dann Gewicht × Kompetenz in den Themen.
+  function ministryWish(p, id) {
+    const wish = (TD.WISH && TD.WISH[p]) || [];
+    const i = wish.indexOf(id);
+    const m = ministryById(id);
+    const P = party(p);
+    const comp = P && P.competence ? m.topics.reduce((s, t) => s + (P.competence[t] || 40), 0) / m.topics.length : 40;
+    return (i !== -1 ? 100 - 10 * i : 0) + m.weight * 4 + comp / 10;
+  }
+
+  // Reihenfolge der Auswahl: Sainte-Laguë über die 16 Ressorts (Kanzleramt geht an die führende Partei).
+  function draftOrder(members, lead, seats) {
+    const have = {};
+    const w = {};
+    members.forEach(p => { have[p] = 0; w[p] = (seats[p] || 1) * (p === lead ? 1 : JUNIOR_BONUS); });
+    const order = [];
+    for (let i = 0; i < MINISTRIES.length; i++) {
+      let best = null;
+      members.forEach(p => { if (!best || w[p] / (2 * have[p] + 1) > w[best] / (2 * have[best] + 1)) best = p; });
+      order.push(best);
+      have[best] += 1;
+    }
+    return order;
+  }
+
+  function startDraft(g) {
+    const r = g.result;
+    const n = r.neg;
+    n.draft = { order: draftOrder(n.members, n.lead, r.seats), pos: 0, picks: {} };
+    draftAuto(g);
+  }
+
+  function draftPick(g, p, id, byPlayer) {
+    const n = g.result.neg;
+    n.draft.picks[id] = p;
+    n.draft.pos += 1;
+    if (!byPlayer) return;
+    // Wer einem Partner sein Wunschressort wegnimmt, verschlechtert das Klima.
+    n.members.filter(q => q !== p).forEach(q => {
+      const i = ((TD.WISH && TD.WISH[q]) || []).indexOf(id);
+      if (i === 0) n.mood -= 6;
+      else if (i > 0 && i < 3) n.mood -= 3;
+    });
+    n.log.push(ministryById(id).short + ' geht an euch.');
+  }
+
+  // KI-Partner wählen, bis der Spieler dran ist oder alle Ressorts vergeben sind.
+  function draftAuto(g) {
+    const n = g.result.neg;
+    const d = n.draft;
+    while (d.pos < d.order.length && d.order[d.pos] !== g.party) {
+      const p = d.order[d.pos];
+      const free = MINISTRIES.filter(m => !d.picks[m.id]);
+      const best = free.sort((a, b) => ministryWish(p, b.id) - ministryWish(p, a.id))[0];
+      draftPick(g, p, best.id, false);
+    }
+    if (d.pos >= d.order.length) finishNegotiation(g);
   }
 
   function negotiate(g, choice) {
@@ -2794,27 +2873,44 @@
       else if (choice === 'kompromiss') { n.mood -= 3; n.kept += 0.5; n.log.push(nameT + ': Kompromiss – beide Seiten geben etwas nach.'); }
       else if (choice === 'nachgeben') { n.mood += 6; n.given += 1; n.log.push(nameT + ': Ihr gebt nach – „' + D.PROGRAM[x.t][x.theirs].label + '“ kommt in den Vertrag.'); }
       else return { ok: false };
-    } else {
-      const m = MINISTRIES.find(z => z.id === choice);
-      if (!m) return { ok: false };
-      n.mood += m.mood;
-      n.ministry = m.id;
-      n.log.push('Ressorts: ' + m.name + '.');
+      x.choice = choice;
+      n.mood = Math.max(0, Math.min(100, n.mood));
+      n.step += 1;
+      if (n.step === n.topics.length) startDraft(g);
+      return { ok: true };
     }
+    if (!n.draft) { startDraft(g); if (n.done) return { ok: true }; }
+    const d = n.draft;
+    if (d.order[d.pos] !== g.party) { draftAuto(g); return { ok: true }; }
+    // Unbekannte Wahl (z. B. ein vergebenes Ressort): das liebste freie Ressort der eigenen Partei.
+    let id = choice;
+    if (!ministryById(id) || d.picks[id]) {
+      id = MINISTRIES.filter(m => !d.picks[m.id]).sort((a, b) => ministryWish(g.party, b.id) - ministryWish(g.party, a.id))[0].id;
+    }
+    draftPick(g, g.party, id, true);
     n.mood = Math.max(0, Math.min(100, n.mood));
-    n.step += 1;
-    if (n.step > n.topics.length) finishNegotiation(g);
+    draftAuto(g);
     return { ok: true };
+  }
+
+  // Punkte für die Ressorts: Gewicht der eigenen Ministerien gegenüber einem gleichmäßigen Anteil.
+  function ministryPoints(n, p) {
+    const picks = (n.draft && n.draft.picks) || {};
+    const own = Object.keys(picks).filter(id => picks[id] === p);
+    const total = MINISTRIES.reduce((s, m) => s + m.weight, 0);
+    const ownW = own.reduce((s, id) => s + ministryById(id).weight, 0);
+    return Math.round((ownW - total * own.length / Math.max(1, MINISTRIES.length)) * 0.8 + (picks.finanzen === p ? 3 : 0));
   }
 
   function finishNegotiation(g) {
     const r = g.result;
     const n = r.neg;
     n.done = true;
+    n.step = n.topics.length + 1;
     if (n.mood >= NEG_MIN) {
       n.success = true;
-      const m = MINISTRIES.find(z => z.id === n.ministry) || { pts: 0 };
-      n.pts = Math.round(n.kept * 6 + m.pts - n.given * 2);
+      n.pts = Math.round(n.kept * 6 - n.given * 2 + ministryPoints(n, g.party));
+      n.ministries = Object.assign({}, n.draft ? n.draft.picks : {});
       const ordered = n.members.slice().sort((a, b) => (a === n.lead ? -1 : b === n.lead ? 1 : r.seats[b] - r.seats[a]));
       r.government = ordered;
       finalizeOutcome(g, r);
@@ -2926,8 +3022,9 @@
     if (!g.mobReg) { g.mobReg = {}; D.STATES.forEach(st => { g.mobReg[st.id] = {}; PARTY_IDS.forEach(p => { g.mobReg[st.id][p] = 0; }); }); }
     if (g.team === undefined) { g.teamMax = teamMaxFor(g.week, g.party); g.team = g.teamMax; }
     if (g.spendCount === undefined) { g.spendCount = 0; g.spendWeek = 0; }
-    if (!g.progGroups && g.program) g.progGroups = programGroupEffects(g.party, g.program);
-    if (!g.progState && g.program) g.progState = programTopicStates(programEffects(g.party, g.program));
+    // In der Legislaturperiode wirkt das Wahlprogramm nicht mehr als Wahlkampf-Bonus.
+    if (!g.progGroups && g.program && g.phase !== 'term') g.progGroups = programGroupEffects(g.party, g.program);
+    if (!g.progState && g.program && g.phase !== 'term') g.progState = programTopicStates(programEffects(g.party, g.program));
     // Spielstände ohne Gruppenverlauf: aktuellen Stand nachtragen, damit die Gruppen-Umfragen funktionieren.
     if (g.history && g.history.length && !g.history[g.history.length - 1].groups) g.history[g.history.length - 1].groups = allGroupShares(g);
     if (g.sat && Object.keys(g.sat).some(key => key.indexOf('|') === -1)) g.sat = {}; // altes Format
@@ -2953,9 +3050,13 @@
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent,
     startDuel, duelAnswer,
-    endWeek, sainteLague, findCoalitions, coalitionViable, chooseCoalition, negotiate, MINISTRIES, NEG_MIN,
+    endWeek, sainteLague, findCoalitions, coalitionViable, chooseCoalition, negotiate, MINISTRIES, NEG_MIN, ministryById, ministryWish, draftOrder,
     serialize, deserialize
   };
+  // Interne Bausteine für die Legislaturperiode (js/term.js).
+  engine._api = { rand, between, pick, stateShares, nationalShares, takePoll, rollPollErr, updateMinorVisibility, changeSalience,
+    fwLevel, candStart, sizeFactor, BASE_SHARE, PARTY_IDS, ALL_IDS, TOPIC_IDS, MINOR_IDS, normalize, positionAppeal, newPerson,
+    pollShares, pollStateShares, TD, GEN, W, competenceOf };
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = engine;

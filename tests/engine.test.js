@@ -723,3 +723,113 @@ test('Koalitionsverhandlungen: Klima entscheidet, Erfolg bringt Punkte, Scheiter
   assert.strictEqual(h.result.neg.success, false);
   assert.ok(h.result.awaitingChoice || h.phase === 'done');
 });
+
+// ---------- Legislaturperiode ----------
+const T = require('../js/term.js');
+function electedGame(party, seed, boost) {
+  const g = E.newGame(party, 'Test', seed);
+  g.week = g.maxWeeks; g.duelDone = true;
+  while (g.pendingEvent) E.resolveEvent(g, 0);
+  if (boost) g.nat[party] += boost;
+  E.endWeek(g);
+  for (let z = 0; z < 6 && g.phase !== 'done'; z++) {
+    if (g.result.awaitingChoice) E.chooseCoalition(g, g.result.options.findIndex(o => o.members.length > 1 && !o.tolerated) >= 0 ? g.result.options.findIndex(o => o.members.length > 1 && !o.tolerated) : 0);
+    while (g.result.neg && !g.result.neg.done) E.negotiate(g, g.result.neg.step < g.result.neg.topics.length ? 'nachgeben' : 'x');
+  }
+  return g;
+}
+
+test('Ressortverteilung: alle 16 Ministerien werden nach Sitzen vergeben', () => {
+  const g = electedGame('union', 4, 8);
+  const n = g.result.neg;
+  assert.ok(n && n.success);
+  assert.strictEqual(Object.keys(n.ministries).length, E.MINISTRIES.length);
+  const own = Object.values(n.ministries).filter(p => p === 'union').length;
+  assert.ok(own >= 6 && own <= 12);
+});
+
+test('Legislatur: Start als Kanzlerpartei mit Kabinett, Namen und Koalitionsvertrag', () => {
+  const g = electedGame('union', 4, 8);
+  const res = T.startTerm(g);
+  assert.ok(res.ok);
+  const t = g.term;
+  assert.strictEqual(g.phase, 'term');
+  assert.strictEqual(t.role, 'kanzler');
+  assert.strictEqual(t.chancellor.name, 'Test');
+  assert.ok(T.needsNames(g));
+  const id = Object.keys(t.cabinet).find(k => t.cabinet[k].party === 'union' && !t.cabinet[k].name);
+  T.nameMinister(g, id, 1, 'Erika Beispiel');
+  assert.strictEqual(t.cabinet[id].name, 'Erika Beispiel');
+  T.autoNames(g);
+  assert.ok(!T.needsNames(g));
+  const names = Object.values(t.cabinet).map(m => m.name);
+  assert.strictEqual(new Set(names).size, names.length);
+  assert.ok(names.every(x => !/\d/.test(x)));
+  assert.ok(Object.keys(t.contract).length > 0);
+  // Umfragen starten beim Wahlergebnis
+  assert.ok(Math.abs(t.lastNat.union - g.result.shares.union) < 1.2);
+});
+
+test('Legislatur: Gesetz geht durch Kabinett und Bundestag und tritt in Kraft', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  const t = g.term;
+  while (t.pending.length) T.resolvePending(g, 0);
+  const o = T.lawOptions(g);
+  const tp = o.topics.find(x => x.contract !== undefined && x.contract !== x.current && !require('../js/termdata.js').ZUST_TOPICS.includes(x.topic));
+  assert.ok(tp);
+  const r = T.performAction(g, 'gesetz', { topic: tp.topic, opt: tp.contract });
+  assert.ok(r.ok, r.text);
+  for (let i = 0; i < 4; i++) { while (t.pending.length) T.resolvePending(g, 0); T.endQuarter(g); }
+  const law = t.laws.find(l => l.by === 'union' && l.topic === tp.topic);
+  assert.strictEqual(law.stage, 'inkraft');
+  assert.strictEqual(t.policy[tp.topic], tp.contract);
+});
+
+test('Legislatur: Haushalt mit Schuldenbremse, Entwurf und Abstimmung', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  const t = g.term;
+  const b = T.budgetCalc(t);
+  assert.ok(b.spend > 500 && b.revenue > 400);
+  assert.ok(b.gap > 0); // Haushaltslücke zum Start
+  let guard = 0;
+  while (!(t.budget.draft && !t.budget.draft.done) && guard++ < 6) { while (t.pending.length) T.resolvePending(g, 0); T.endQuarter(g); }
+  assert.ok(t.budget.draft && T.playerDraftsBudget(g));
+  const plan = {};
+  Object.keys(t.budget.plan).forEach(a => { plan[a] = -10; });
+  assert.ok(T.setBudgetDraft(g, plan, false).ok);
+  assert.ok(T.budgetCalc(t, plan).gap < b.gap);
+  for (let i = 0; i < 2; i++) { while (t.pending.length) T.resolvePending(g, 0); T.endQuarter(g); }
+  assert.ok(t.budget.vote && typeof t.budget.vote.pass === 'boolean');
+});
+
+test('Legislatur: alle Rollen bis zum Ende, Speichern und nächster Wahlkampf', () => {
+  for (const [p, seed] of [['spd', 7], ['linke', 3], ['fdp', 5]]) {
+    const g = electedGame(p, seed);
+    T.startTerm(g);
+    const t = g.term;
+    let guard = 0;
+    while (!t.over && guard++ < 30) {
+      while (t.pending.length) T.resolvePending(g, 0);
+      T.performAction(g, 'basis');
+      T.performAction(g, 'ltwk', 'SN');
+      const r = T.endQuarter(g);
+      assert.ok(r.ok, r.text);
+      if (guard === 5) {
+        const h = E.deserialize(E.serialize(g));
+        assert.strictEqual(h.phase, 'term');
+        assert.deepStrictEqual(h.term.econ, g.term.econ);
+        assert.strictEqual(h.progGroups, null);
+      }
+    }
+    assert.ok(t.over);
+    assert.ok(t.ltwLog.length > 0);
+    const next = T.nextCampaign(g);
+    const g2 = E.newGame(p, next.candidate, 9, undefined, next.carry);
+    assert.strictEqual(g2.career.terms.length, 1);
+    assert.ok(g2.year >= 2030);
+    const sh = E.nationalShares(g2);
+    assert.ok(Math.abs(sh[p] - t.lastNat[p]) < 2.5, p + ' ' + sh[p] + ' vs ' + t.lastNat[p]);
+  }
+});

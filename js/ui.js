@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261017-221309';
+  const APP_VERSION = '20261017-225234';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -77,6 +77,7 @@
   let selWk = null;        // ausgewählter Wahlkreis (Nummer)
   let wkZoom = true;       // Wahlkreiskarte auf das gewählte Land gezoomt
   let selRival = null;   // Ziel eines Gegenangriffs
+  let nextCarry = null;  // Übernahme aus der Legislaturperiode für den nächsten Wahlkampf
 
   // ---------- Speichern ----------
 
@@ -94,7 +95,7 @@
   }
 
   function show(screen) {
-    ['intro', 'name', 'start', 'program', 'reveal', 'kickoff', 'game', 'election'].forEach(s => { $('screen-' + s).hidden = s !== screen; });
+    ['intro', 'name', 'start', 'program', 'reveal', 'kickoff', 'game', 'election', 'term'].forEach(s => { $('screen-' + s).hidden = s !== screen; });
     // Die Programm-Website färbt den ganzen Seitenhintergrund in der Papierfarbe der Partei.
     // Seiten, die randlos über die ganze Breite gehen, färben auch den Seitenhintergrund ein.
     if (screen === 'start') document.body.style.background = '#f4f4f1';
@@ -1656,7 +1657,7 @@
 
   // Legende unter dem Halbkreis: Partei, Sitze und Veränderung zur Bundestagswahl 2025.
   function seatLegend(seats) {
-    const prev = D.SEATS_2025 || {};
+    const prev = (g && g.prevSeats) || D.SEATS_2025 || {};
     return SPECTRUM.filter(p => seats[p] > 0 || prev[p] > 0).map(p => {
       const d = (seats[p] || 0) - (prev[p] || 0);
       return '<div class="sl-item' + (p === g.party ? ' me' : '') + '" data-p="' + p + '"><span class="sl-name">' + short(p) + '</span>' +
@@ -1682,7 +1683,7 @@
       '<p class="muted small">Fällt das Klima am Ende unter ' + E.NEG_MIN + ', platzen die Gespräche. Durchgesetzte Positionen und wichtige Ressorts bringen Punkte.</p>';
     if (n.log.length) html += '<ul class="neg-log">' + n.log.map(l => '<li>' + esc(l) + '</li>').join('') + '</ul>';
     const steps = n.topics.length + 1;
-    html += '<p class="neg-step">Runde ' + (n.step + 1) + ' von ' + steps + '</p>';
+    html += '<p class="neg-step">Runde ' + Math.min(steps, n.step + 1) + ' von ' + steps + '</p>';
     if (n.step < n.topics.length) {
       const x = n.topics[n.step];
       const t = E.topicById(x.t);
@@ -1692,9 +1693,19 @@
       html += '<div class="neg-choices">' + [['hart', '💪 Hart bleiben', 'Eure Position kommt in den Vertrag – das Klima leidet'],
         ['kompromiss', '🤝 Kompromiss', 'Beide geben etwas nach'], ['nachgeben', '🙏 Nachgeben', 'Besseres Klima, aber eure Basis murrt']]
         .map(c => '<button type="button" class="btn coalition-option neg-btn" data-c="' + c[0] + '"><b>' + c[1] + '</b><span class="hint">' + c[2] + '</span></button>').join('') + '</div>';
-    } else {
-      html += '<div class="neg-topic"><h4>🏛️ Ressortverteilung</h4><p>Welche Ministerien fordert ihr von ' + esc(partners.map(p => E.party(p).short).join(' und ')) + '?</p></div>' +
-        '<div class="neg-choices">' + E.MINISTRIES.map(m => '<button type="button" class="btn coalition-option neg-btn" data-c="' + m.id + '"><b>' + esc(m.name) + '</b><span class="hint">' + esc(m.hint) + '</span></button>').join('') + '</div>';
+    } else if (n.draft) {
+      // Ressortverteilung: reihum nach Sitzen, die Kanzlerpartei hat das Kanzleramt.
+      const d = n.draft;
+      const mine = d.order.filter(p => p === g.party).length;
+      const got = Object.keys(d.picks).filter(id => d.picks[id] === g.party).length;
+      html += '<div class="neg-topic"><h4>🏛️ Ressortverteilung</h4><p>Die Partner wählen reihum Ministerien – nach Sitzen stehen euch <b>' + mine + '</b> von ' + E.MINISTRIES.length +
+        ' zu' + (n.lead === g.party ? ' (dazu das Kanzleramt)' : '') + '. Ihr habt ' + got + ' gewählt. Nehmt ihr einem Partner sein Wunschressort weg (❤️), leidet das Klima.</p></div>';
+      html += '<div class="neg-ministries">' + E.MINISTRIES.map(m => {
+        const holder = d.picks[m.id];
+        const wish = n.members.filter(p => p !== g.party && ((window.BTW_TERMDATA.WISH[p] || []).slice(0, 3).indexOf(m.id) !== -1));
+        return '<button type="button" class="btn neg-min-btn neg-btn" data-c="' + m.id + '"' + (holder ? ' disabled' : '') + '>' + m.icon + ' <b>' + esc(m.short) + '</b>' +
+          (holder ? ' ' + pills([holder]) : '') + (!holder && wish.length ? '<span class="hint">❤️ ' + wish.map(p => esc(E.party(p).short)).join(', ') + '</span>' : '') + '</button>';
+      }).join('') + '</div>';
     }
     box.innerHTML = html;
     box.querySelectorAll('.neg-btn').forEach(b => b.addEventListener('click', () => { E.negotiate(g, b.dataset.c); save(); renderElection(false); }));
@@ -1728,7 +1739,7 @@
       html = '<p>Neue Bundesregierung (' + seats + ' Sitze' + (tol ? ', Minderheitsregierung – von der AfD toleriert' : '') + '):</p><p>' + pills(r.government) + '</p>' +
         (r.firewallBroken ? '<p class="fw-note">🧱 Die Brandmauer ist gefallen: erstmals regiert die AfD im Bund mit.</p>' : '') +
         (r.neg && r.neg.success && r.government.indexOf(g.party) !== -1 ? '<p class="small">📜 Koalitionsvertrag: ' + num1(r.neg.kept).replace(',0', '') + ' von ' + r.neg.topics.length +
-          ' Streitpunkten durchgesetzt, ' + esc((E.MINISTRIES.find(m => m.id === r.neg.ministry) || { name: '' }).name.replace(' fordern', '')) + ' (' + (r.neg.pts >= 0 ? '+' : '') + r.neg.pts + ' Punkte).</p>' : '') +
+          ' Streitpunkten durchgesetzt; eure Ressorts: ' + esc(Object.keys(r.neg.ministries || {}).filter(id => r.neg.ministries[id] === g.party).map(id => E.ministryById(id).short).join(', ') || '–') + ' (' + (r.neg.pts >= 0 ? '+' : '') + r.neg.pts + ' Punkte).</p>' : '') +
         (r.neg && r.neg.done && !r.neg.success ? '<p class="fw-note">💥 Die Verhandlungen mit euch sind gescheitert.</p>' : '') +
         '<p class="muted small">Das Kanzleramt geht an: <strong>' + esc(E.party(r.government[0]).name) + '</strong>' +
         (r.government[0] === g.party ? ' – ' + esc(g.candidate) + ' wird Regierungschef:in!' : '') + '</p>';
@@ -1798,6 +1809,14 @@
       '<div class="mob-bars flows result-flows"><span class="mob-label">Wählerwanderung seit Wahlkampfstart (Prozentpunkte)</span>' + flowBarsHtml(E.flowSummary(g, g.party), g.party) + '</div>';
     card.hidden = false;
   }
+
+  // Nach dem Wahlabend: weiter in die Legislaturperiode.
+  $('btn-term').addEventListener('click', () => {
+    if (!g || !g.result || !g.result.outcome || !window.BTW_TERM) return;
+    window.BTW_TERM.startTerm(g);
+    save();
+    window.BTW_TERMUI.start(g);
+  });
 
   // ---------- Wahlprogramm ----------
 
@@ -2422,6 +2441,7 @@
     selTopic = null;
     $('feedback').textContent = '';
     $('local-feedback').textContent = '';
+    if (g.phase === 'term' && window.BTW_TERMUI) { window.BTW_TERMUI.start(g); return; }
     if (g.phase !== 'campaign') { showElection(); return; }
     gameTab = 'map';
     newsSeen = g.log[0] || null; // Meldungen ab jetzt zählen als neu
@@ -2497,7 +2517,8 @@
 
   $('btn-program-confirm').addEventListener('click', () => {
     if (E.validateProgram(draft).length) return;
-    const game = E.newGame(chosenParty, $('candidate').value, undefined, draft);
+    const game = E.newGame(chosenParty, $('candidate').value, undefined, draft, nextCarry || undefined);
+    nextCarry = null;
     g = game;
     save();
     showReveal(game);
@@ -2721,6 +2742,7 @@
 
   $('btn-restart').addEventListener('click', () => {
     clearSave();
+    nextCarry = null;
     g = null;
     chosenParty = null;
     $('btn-start').disabled = true;
@@ -2733,6 +2755,27 @@
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => { if (g && !$('screen-game').hidden) renderChart(); }, 150);
   });
+
+  // Schnittstelle für die Legislaturperiode (js/termui.js).
+  window.BTW_UI = {
+    setGame: x => { g = x; }, show, applyPartyTheme, save, toast, confirmOnButton, openModal, closeModal,
+    esc, col, onCol, num1, pct, signed, short, money, pollColumnsHtml, hemicycle, seatLegend, pills,
+    // Nach der Legislaturperiode: Programmparteitag für den nächsten Wahlkampf mit dem Stand von heute.
+    startNextCampaign(next) {
+      if (!next) return;
+      nextCarry = next.carry;
+      chosenParty = next.party;
+      $('candidate').value = next.candidate || '';
+      updateSignature();
+      enterProgram();
+      if (next.program) {
+        Object.keys(next.program.positions).forEach(t => { draft.positions[t] = next.program.positions[t]; });
+        draft.slogan = next.program.slogan || draft.slogan;
+        renderProgram();
+      }
+      toast('Bundestagswahl ' + next.carry.year + ': Neues Wahlprogramm, neuer Wahlkampf!');
+    }
+  };
 
   renderStart();
 })();
