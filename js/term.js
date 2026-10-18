@@ -392,6 +392,7 @@
     const picks = r.neg && r.neg.success && r.neg.ministries && r.neg.members.slice().sort().join() === gov.slice().sort().join() ? r.neg.ministries : draftMinistries(t);
     setupCabinet(g, picks);
     buildContract(g, r.neg && r.neg.success ? r.neg : null);
+    careerStartTerm(g, r);
 
     A.rollPollErr(g);
     A.takePoll(g);
@@ -1756,7 +1757,9 @@
         const ok = rand(g) < 0.65;
         if (ok) {
           t.formerNames.push(P.leader.name);
-          P.leader = { name: newPerson(g, g.party, weightedLand(g)).full, like: 0.8 };
+          const yr = cal(t).year;
+          P.leader = { name: newPerson(g, g.party, weightedLand(g)).full, like: 0.8, born: yr - Math.round(between(g, 38, 52)) };
+          newLeader(g, P.leader.name, yr, P.leader.born, 'Sonderparteitag').offices.push({ year: yr, office: officeName(g) });
           P.unity = clamp(P.unity + 12, 0, 100);
           actNat(g.party, 0.25);
           text = 'Neue Parteispitze: ' + P.leader.name + '. Aufbruchstimmung!';
@@ -1955,6 +1958,114 @@
     return { ok: true };
   }
 
+
+  // ---------- Laufbahn (Stufe 3) ----------
+  // Die Laufbahn begleitet die Partei über alle Legislaturen: Wahlen, Spitzenleute mit Alter und Ämtern,
+  // Bilanzen je Legislatur – und am Ende die Ewigkeits-Bilanz.
+  const MAX_AGE = 72;       // spätestens dann geht die Spitze in den Ruhestand
+  const PRESSURE_AGE = 67;  // ab dann wird nach Nachfolge gefragt
+  function ensureCareer(g) {
+    const C = g.career || (g.career = {});
+    if (!C.terms) C.terms = [];
+    if (!C.elections) C.elections = [];
+    if (!C.leaders) C.leaders = [];
+    if (!C.id) C.id = 'c' + ((g.nameSeed || 1) * 7 + (g.rng >>> 0)).toString(36);
+    C.party = g.party;
+    return C;
+  }
+  function currentLeader(g) {
+    const C = ensureCareer(g);
+    return C.leaders[C.leaders.length - 1] || null;
+  }
+  function leaderAge(g, year) {
+    const L = currentLeader(g);
+    return L && L.born ? year - L.born : null;
+  }
+  function officeName(g) {
+    const t = g.term;
+    if (t.role === 'kanzler') return 'Bundeskanzler:in';
+    if (t.role === 'junior') { const v = t.vize && t.vize.party === g.party ? ministryById(t.vize.ministry) : null; return 'Vizekanzler:in' + (v ? ' und ' + v.short : ''); }
+    if (t.role === 'opposition') {
+      const opp = CONTEST.filter(p => t.gov.indexOf(p) === -1 && (t.seats[p] || 0) > 0).sort((a, b) => t.seats[b] - t.seats[a]);
+      return opp[0] === g.party ? 'Oppositionsführer:in' : 'Fraktionsvorsitz';
+    }
+    return 'Parteivorsitz (außerparlamentarisch)';
+  }
+  // Neue Spitze übernehmen (Nachfolge, Parteitag).
+  function newLeader(g, name, year, born, how) {
+    const C = ensureCareer(g);
+    const old = currentLeader(g);
+    if (old && !old.to) old.to = year;
+    const L = { name, from: year, born, offices: [], how: how || '' };
+    C.leaders.push(L);
+    return L;
+  }
+  function careerStartTerm(g, r) {
+    const t = g.term;
+    const C = ensureCareer(g);
+    C.elections.push({ year: t.year0, share: r1(r.shares[g.party]), seats: r.seats[g.party] || 0, status: r.outcome.status, score: r.outcome.score,
+      rating: r.outcome.rating, gov: t.gov.slice(), leader: t.party.leader.name });
+    let L = currentLeader(g);
+    // Jahrgang aus dem Namen abgeleitet (45–58 Jahre bei der Wahl), ohne den Zufallsverlauf des Spiels zu verändern.
+    const hash = String(t.party.leader.name).split('').reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7);
+    if (!L || L.name !== t.party.leader.name) L = newLeader(g, t.party.leader.name, t.year0, t.year0 - (45 + hash % 14), 'Spitzenkandidatur');
+    t.party.leader.born = L.born;
+    L.offices.push({ year: t.year0, office: officeName(g) });
+  }
+  // Ewigkeits-Bilanz über alle abgeschlossenen Legislaturen.
+  function legacy(career) {
+    const C = career || {};
+    const terms = C.terms || [];
+    const el = C.elections || [];
+    const sum = f => terms.reduce((s0, x) => s0 + (f(x) || 0), 0);
+    const q = k => sum(x => (x.roles && x.roles[k]) || 0);
+    const years = sum(x => (x.to || 0) - (x.from || 0));
+    const out = {
+      terms: terms.length, elections: el.length, years,
+      kanzlerJahre: r1(q('kanzler') / 4), juniorJahre: r1(q('junior') / 4), oppJahre: r1(q('opposition') / 4), apoJahre: r1(q('apo') / 4),
+      laws: sum(x => x.lawsOwn), promises: sum(x => x.promises), budgets: sum(x => x.budgets), ltwGov: sum(x => x.ltwGov),
+      best: el.length ? el.reduce((a, b) => (b.share > a.share ? b : a)) : null,
+      worst: el.length ? el.reduce((a, b) => (b.share < a.share ? b : a)) : null,
+      wins: el.filter(x => x.status === 'kanzler').length,
+      score: sum(x => x.score) + el.reduce((s0, x) => s0 + (x.score || 0), 0),
+      leaders: (C.leaders || []).length
+    };
+    const per = (out.terms + out.elections) ? out.score / (out.terms + out.elections) : 0;
+    out.rating = out.kanzlerJahre >= 12 ? 'Eine Dynastie' : out.kanzlerJahre >= 8 ? 'Eine Ära' : per >= 110 ? 'Glanzvolle Geschichte' : per >= 85 ? 'Feste Größe der Republik' : per >= 60 ? 'Auf und Ab' : 'Am Rand der Bedeutungslosigkeit';
+    return out;
+  }
+
+  // Wer führt in den nächsten Wahlkampf? Die bisherige Spitze (wenn sie darf) oder eine von drei Nachfolgen.
+  function leaderOptions(g, year) {
+    const t = g.term;
+    const P = t.party;
+    const age = leaderAge(g, year) || 55;
+    const s = t.summary || summary(g);
+    const forced = age >= MAX_AGE;
+    const pressure = !forced && (s.delta < -3 || s.score < 50 || age >= PRESSURE_AGE);
+    const known = t.role === 'kanzler' ? 95 : t.role === 'junior' ? 88 : t.role === 'opposition' ? 80 : 60;
+    const stay = { kind: 'stay', name: P.leader.name, age, like: r2(P.leader.like + (pressure ? -0.3 : 0)), known, canStay: !forced, pressure,
+      hint: forced ? 'Mit ' + age + ' Jahren geht es in den Ruhestand.' : pressure ? 'Die Partei fordert einen Neuanfang (' + (age >= PRESSURE_AGE ? age + ' Jahre alt' : 'schwache Bilanz') + ') – wer bleibt, verliert an Beliebtheit.' : age + ' Jahre, bekannt und erfahren.' };
+    const opts = [];
+    // Aus dem Kabinett: die kompetenteste eigene Ministerin bzw. der kompetenteste eigene Minister.
+    const minister = Object.keys(t.cabinet || {}).map(id => Object.assign({ id }, t.cabinet[id])).filter(m => m.party === g.party && m.name && !m.lead && m.name !== P.leader.name)
+      .sort((a, b) => (b.comp || 0) - (a.comp || 0))[0];
+    if (minister) opts.push({ kind: 'new', type: 'Erfahrene Ministerin/erfahrener Minister', name: minister.name, age: Math.round(between(g, 48, 62)), like: r2(between(g, 0.2, 1.0)), known: Math.round(between(g, 60, 78)),
+      hint: 'Leitet das ' + ministryById(minister.id).short + '-Ressort (Kompetenz ' + minister.comp + '). Bekannt und regierungserfahren.' });
+    const pick1 = newPerson(g, g.party, weightedLand(g), { young: true });
+    opts.push({ kind: 'new', type: 'Hoffnungsträger:in', name: pick1.full, age: Math.round(between(g, 35, 45)), like: r2(between(g, 1.0, 1.8)), known: Math.round(between(g, 30, 45)),
+      hint: 'Jung, frisch, beliebt – aber noch wenig bekannt.' });
+    const pick2 = newPerson(g, g.party, bigLand(g, g.party));
+    opts.push({ kind: 'new', type: 'Kandidat:in des Parteiflügels', name: pick2.full, age: Math.round(between(g, 45, 58)), like: r2(between(g, -0.3, 0.6)), known: Math.round(between(g, 45, 60)),
+      hint: 'Die Basis steht geschlossen dahinter, in der Mitte eher skeptisch beäugt.' });
+    if (!minister) {
+      const pick3 = newPerson(g, g.party, weightedLand(g));
+      opts.unshift({ kind: 'new', type: 'Ministerpräsident:in aus einem Land', name: pick3.full, age: Math.round(between(g, 50, 62)), like: r2(between(g, 0.3, 1.1)), known: Math.round(between(g, 55, 70)),
+        hint: 'Regiert erfolgreich ein Land und bringt Verwaltungserfahrung mit.' });
+    }
+    return { year, stay, options: opts.slice(0, 3) };
+  }
+
   // ---------- Ende der Legislaturperiode ----------
   function endTerm(g, early) {
     const t = g.term;
@@ -1983,25 +2094,35 @@
       debt: r1(t.econ.debt), growth: r1(t.econ.growth), unemp: r1(t.econ.unemp), intl: Math.round(t.intl) };
   }
 
+  // Laufbahn einschließlich der gerade beendeten Legislatur (ohne den Spielstand zu verändern).
+  function careerSnapshot(g) {
+    const t = g.term;
+    const career = copy(ensureCareer(g));
+    const c = cal(t, t.endQ === undefined ? t.q : t.endQ);
+    career.terms.push(Object.assign({ n: t.n, from: t.year0, to: c.year, role: t.role, roles: Object.assign({}, t.stats.qRole), early: t.early, gov: t.gov.slice() }, t.summary || summary(g)));
+    return career;
+  }
+
   // Übergabe an den nächsten Wahlkampf.
   function nextCampaign(g) {
     const t = g.term;
     if (!t || !t.over) return null;
     const base = {};
     D.STATES.forEach(st => { base[st.id] = A.stateShares(g, st.id); });
-    const career = g.career ? copy(g.career) : { terms: [] };
+    const career = careerSnapshot(g);
     const c = cal(t, t.endQ === undefined ? t.q : t.endQ);
     // Wahltermin: regulär im letzten Quartal der Legislatur, nach einem Bruch im Quartal danach.
     const electionAbs = t.early ? c.abs + 1 : t.abs0 + QUARTERS - 1;
-    career.terms.push(Object.assign({ n: t.n, from: t.year0, to: c.year, role: t.role, roles: Object.assign({}, t.stats.qRole), early: t.early, gov: t.gov.slice() }, t.summary));
     const P0 = party(g.party);
     const money = Math.round(P0.budget * clamp(0.6 + 0.4 * t.party.cash / P0.budget, 0.6, 1.5) * 10) / 10;
     const world = { econ: copy(t.econ), policy: copy(t.policy), taxes: copy(t.taxes), intl: t.intl, laender: copy(t.laender),
       budget: { plan: copy(t.budget.plan), extra: t.budget.extra, def: t.budget.def, reform: t.budget.reform || 0, notlage: false, drift: copy(t.budget.drift || {}) },
       landPrev: copy(t.landPrev), sq: copy(t.sq), abs0: electionAbs + 1, doneAbs: t.doneAbs };
+    const leaders = leaderOptions(g, Math.floor(electionAbs / 4));
     return {
       party: g.party,
       candidate: t.party.leader.name,
+      leaders,
       program: g.program ? copy(g.program) : null,
       carry: { base, nameSeed: ((g.nameSeed || 1) * 31 + 7919) % 2147483647 || 1, career, firewall: Object.assign({}, g.firewall || {}),
         year: Math.floor(electionAbs / 4), prevYear: t.year0, shown: Object.assign({}, g.shown || {}), money, world,
@@ -2011,11 +2132,30 @@
     };
   }
 
+  // Spitze für den nächsten Wahlkampf festlegen: 'stay' oder Index einer Nachfolge.
+  function chooseLeader(next, choice) {
+    const L = next.leaders;
+    if (!L) return next;
+    const C = next.carry.career;
+    const cur = C.leaders[C.leaders.length - 1];
+    if (choice === 'stay' && L.stay.canStay) {
+      next.candidate = L.stay.name;
+      next.carry.cand = { known: L.stay.known, like: L.stay.like };
+      return next;
+    }
+    const o = L.options[typeof choice === 'number' ? choice : 0] || L.options[0];
+    if (cur && !cur.to) cur.to = L.year;
+    C.leaders.push({ name: o.name, from: L.year, born: L.year - o.age, offices: [], how: o.type });
+    next.candidate = o.name;
+    next.carry.cand = { known: o.known, like: o.like };
+    return next;
+  }
+
   const TERM = {
     QUARTERS, ACTIONS, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
     lawOptions, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, cal,
     lawName, lawTitle, leanOf, quorum, eventChoices, fillText, eventById, ministryById, taxById, areaById, nextCampaign, summary,
-    actionCash, govSeats, isGov, sqForces, absCal, FX_NAMES, ministerFor, eventMinister, ownMinistries, endTerm, defaultVote, partyVote, mandateVote
+    actionCash, govSeats, isGov, legacy, careerSnapshot, chooseLeader, leaderAge, currentLeader, MAX_AGE, sqForces, absCal, FX_NAMES, ministerFor, eventMinister, ownMinistries, endTerm, defaultVote, partyVote, mandateVote
   };
   if (node) module.exports = TERM; else root.BTW_TERM = TERM;
 })(this);

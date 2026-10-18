@@ -927,3 +927,31 @@ test('Stufe 2: Minister, Forderungen, Bürgerfragen und Folgeereignisse', () => 
   T.resolvePending(g, 2);
   assert.ok(t.followUps.some(f => f.id === 'farmers2'));
 });
+
+test('Stufe 3: Laufbahn mit Alter, Ämtern, Nachfolge und Ewigkeits-Bilanz', () => {
+  const g = electedGame('spd', 7);
+  T.startTerm(g);
+  const t = g.term;
+  const L0 = T.currentLeader(g);
+  assert.strictEqual(L0.name, 'Test');
+  assert.ok(T.leaderAge(g, 2029) >= 45 && T.leaderAge(g, 2029) <= 58);
+  assert.ok(L0.offices.length === 1 && /Vizekanzler|Fraktion|Opposition|Kanzler|Partei/.test(L0.offices[0].office));
+  assert.strictEqual(g.career.elections.length, 1);
+  let k = 0;
+  while (!t.over && k++ < 30) { while (t.pending.length) T.resolvePending(g, 0); T.endQuarter(g); }
+  const next = T.nextCampaign(g);
+  assert.ok(next.leaders && next.leaders.options.length === 3);
+  // Zu alt: Die Spitze muss abtreten.
+  g.career.leaders[g.career.leaders.length - 1].born = 1950;
+  const old = T.nextCampaign(g);
+  assert.strictEqual(old.leaders.stay.canStay, false);
+  T.chooseLeader(old, 1);
+  assert.strictEqual(old.candidate, old.leaders.options[1].name);
+  assert.strictEqual(old.carry.career.leaders.length, 2);
+  assert.ok(old.carry.cand.known < 60);
+  const g2 = E.newGame('spd', old.candidate, 5, undefined, old.carry);
+  assert.strictEqual(g2.cand.known, old.carry.cand.known);
+  const leg = T.legacy(old.carry.career);
+  assert.strictEqual(leg.terms, 1);
+  assert.ok(leg.score > 0 && typeof leg.rating === 'string');
+});

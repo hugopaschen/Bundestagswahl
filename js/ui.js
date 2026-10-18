@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261017-235849';
+  const APP_VERSION = '20261018-000944';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -165,6 +165,32 @@
     $('ballot-candidate').textContent = candidateName();
     $('btn-start').disabled = !chosenParty;
     $('btn-intro-resume').hidden = !loadSave();
+    renderHall();
+  }
+
+  // Ruhmeshalle: die besten Laufbahnen über alle Spiele (nur in diesem Browser gespeichert).
+  const HALL_KEY = 'btw-ruhmeshalle';
+  function loadHall() {
+    try { return JSON.parse(localStorage.getItem(HALL_KEY) || '[]'); } catch (e) { return []; }
+  }
+  function saveHall(game) {
+    if (!game || !game.career || !window.BTW_TERM) return;
+    const C = game.career;
+    const L = window.BTW_TERM.legacy(C);
+    const entry = { id: C.id, party: game.party, first: (C.leaders[0] || {}).name || game.candidate, leaders: (C.leaders || []).map(x => x.name),
+      terms: L.terms, years: L.years, kanzlerJahre: L.kanzlerJahre, score: L.score, rating: L.rating, best: L.best ? L.best.share : null, at: Date.now() };
+    const list = loadHall().filter(x => x.id !== entry.id).concat([entry]).sort((a, b) => b.score - a.score).slice(0, 10);
+    try { localStorage.setItem(HALL_KEY, JSON.stringify(list)); } catch (e) { /* optional */ }
+  }
+  function renderHall() {
+    const box = $('hall');
+    if (!box) return;
+    const list = loadHall();
+    box.hidden = !list.length;
+    if (!list.length) return;
+    box.innerHTML = '<h2>🏆 Ruhmeshalle</h2><ol>' + list.slice(0, 5).map(x => '<li><span class="pill" style="--pc:' + col(x.party) + ';--pon:' + onCol(x.party) + '">' + esc(short(x.party)) + '</span> <b>' + esc(x.first) + '</b>' +
+      (x.leaders.length > 1 ? ' und ' + (x.leaders.length - 1) + ' Nachfolge' + (x.leaders.length > 2 ? 'n' : '') : '') + ' · ' + x.terms + ' Legislatur' + (x.terms === 1 ? '' : 'en') +
+      (x.kanzlerJahre ? ', ' + num1(x.kanzlerJahre).replace(',0', '') + ' Jahre Kanzleramt' : '') + ' · <b>' + x.score + '</b> Punkte <span class="muted">(' + esc(x.rating) + ')</span></li>').join('') + '</ol>';
   }
 
   function updateSignature() {
@@ -2762,7 +2788,7 @@
 
   // Schnittstelle für die Legislaturperiode (js/termui.js).
   window.BTW_UI = {
-    setGame: x => { g = x; }, show, applyPartyTheme, save, toast, confirmOnButton, openModal, closeModal,
+    setGame: x => { g = x; }, show, applyPartyTheme, save, saveHall, toast, confirmOnButton, openModal, closeModal,
     esc, col, onCol, num1, pct, signed, short, money, pollColumnsHtml, hemicycle, seatLegend, pills,
     // Nach der Legislaturperiode: Programmparteitag für den nächsten Wahlkampf mit dem Stand von heute.
     startNextCampaign(next) {

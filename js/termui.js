@@ -56,7 +56,8 @@
     const role = TD.ROLES[t.role];
     const P = E.party(g.party);
     $('t-badge').textContent = P.flyerLogo || P.short;
-    $('t-leader').textContent = t.party.leader.name + (t.role === 'kanzler' ? ' · Bundeskanzler:in' : t.role === 'junior' ? ' · Vizekanzler:in' : '');
+    const age = T.leaderAge(g, T.cal(t).year);
+    $('t-leader').textContent = t.party.leader.name + (age ? ' (' + age + ')' : '') + (t.role === 'kanzler' ? ' · Bundeskanzler:in' : t.role === 'junior' ? ' · Vizekanzler:in' : '');
     $('t-role').textContent = role.icon + ' ' + role.name + ' · ' + t.gov.map(short).join('-') + (t.tolerated ? '-Minderheitsregierung' : '-Regierung');
     const poll = g.poll.nat[g.party];
     const stats = [
@@ -83,7 +84,7 @@
     renderTop();
     document.querySelectorAll('#term-nav .game-tab').forEach(b => b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
     document.querySelectorAll('#screen-term .term-layout > .card').forEach(c => { c.hidden = c.dataset.tab !== tab; });
-    ({ lage: renderLage, gesetze: renderLaws, haushalt: renderBudget, kabinett: renderCabinet, parlament: renderParliament, partei: renderParty, umfragen: renderPolls, news: renderNews })[tab]();
+    ({ lage: renderLage, gesetze: renderLaws, haushalt: renderBudget, kabinett: renderCabinet, parlament: renderParliament, partei: renderParty, umfragen: renderPolls, news: renderNews, laufbahn: renderCareer })[tab]();
   }
 
   // ---------- Lage ----------
@@ -471,7 +472,7 @@
       html += '<div class="t-lv-row"><span>' + esc(st.name) + '</span>' + bar(u, 100, u > 60 ? 'bad' : u > 40 ? 'mid' : 'good') + '<span class="num">' + Math.round(u) + '</span></div>';
     });
     html += '</div>';
-    const career = (g.career && g.career.terms) || [];
+    const career = [];
     if (career.length) {
       html += '<h3>Eure Laufbahn</h3><ul class="t-career">' + career.map(c => '<li>' + c.n + '. Legislatur ' + c.from + '–' + c.to + ': ' + esc(TD.ROLES[c.role].name) + ' · ' + c.score + ' Punkte (' + esc(c.rating) + ')</li>').join('') + '</ul>';
     }
@@ -660,17 +661,62 @@
     const t = term();
     const s = t.summary;
     if (!s) return;
+    if (U.saveHall) U.saveHall({ party: g.party, candidate: g.candidate, career: T.careerSnapshot(g) });
     const body = '<div class="score">' + s.score + '</div><p class="muted small">Punkte</p>' +
       '<ul class="t-sum"><li>Umfrage zum Schluss: <b>' + pct(s.share) + '</b> (' + signed(s.delta) + ' seit der Wahl)</li>' +
       '<li>Gesetze in Kraft: ' + s.lawsTotal + ', davon von euch eingebracht: ' + s.lawsOwn + ', Wahlversprechen umgesetzt: ' + s.promises + '</li>' +
       '<li>Haushalte beschlossen: ' + s.budgets + ' · Affären: ' + s.scandals + '</li>' +
       '<li>Landtagswahlen: ' + s.ltw + (s.ltwGov ? ', danach in ' + s.ltwGov + ' Ländern mitregiert' : '') + '</li>' +
       '<li>Wirtschaft: Wachstum ' + num1(s.growth) + ' %, Arbeitslosigkeit ' + num1(s.unemp) + ' %, Schuldenquote ' + num1(s.debt) + ' %</li></ul>' +
-      (t.early ? '<p class="fw-note">' + esc(t.early) + '</p>' : '') + '<p>Jetzt beginnt der Wahlkampf – mit dem Stand von heute in allen Ländern.</p>';
+      (t.early ? '<p class="fw-note">' + esc(t.early) + '</p>' : '') +
+      (() => { const L = T.legacy(T.careerSnapshot(g)); return '<p class="small">🏆 Ewigkeits-Bilanz eurer Partei: <b>' + L.score + ' Punkte</b> nach ' + L.terms + ' Legislatur' + (L.terms === 1 ? '' : 'en') + ' – „' + esc(L.rating) + '“.</p>'; })() +
+      '<p>Jetzt beginnt der Wahlkampf – mit dem Stand von heute in allen Ländern.</p>';
     U.openModal('Bilanz der ' + t.n + '. Legislaturperiode', s.rating, body, [
-      { label: 'Zum nächsten Wahlkampf', primary: true, hint: 'Programmparteitag und acht Wochen Wahlkampf', onClick: () => { U.closeModal(); U.startNextCampaign(T.nextCampaign(g)); } },
+      { label: 'Zum nächsten Wahlkampf', primary: true, hint: 'Erst die Spitzenkandidatur festlegen, dann Programmparteitag und Wahlkampf', onClick: () => chooseLeaderModal(T.nextCampaign(g)) },
       { label: 'Noch einmal umsehen', onClick: U.closeModal }
     ]);
+  }
+
+  // Generationswechsel: Wer führt die Partei in die nächste Bundestagswahl?
+  function chooseLeaderModal(next) {
+    const L = next.leaders;
+    const go = choice => { U.closeModal(); U.startNextCampaign(T.chooseLeader(next, choice)); };
+    const opts = [];
+    if (L.stay.canStay) opts.push({ label: 'Weiter mit ' + L.stay.name + ' (' + L.stay.age + ')', hint: L.stay.hint, primary: !L.stay.pressure, onClick: () => go('stay') });
+    L.options.forEach((o, i) => opts.push({ label: o.name + ' (' + o.age + ') – ' + o.type, hint: o.hint + ' Bekanntheit ' + o.known + ' %, Beliebtheit ' + (o.like >= 0 ? '+' : '−') + num1(Math.abs(o.like)) + '.', primary: !L.stay.canStay && i === 0, onClick: () => go(i) }));
+    U.openModal('Bundestagswahl ' + L.year, 'Wer führt euch in den Wahlkampf?', '<p>' + (L.stay.canStay ? esc(L.stay.hint) : esc(L.stay.name) + ' tritt nicht mehr an: ' + esc(L.stay.hint)) + '</p><p class="small muted">Neue Gesichter sind weniger bekannt, bringen aber oft frischen Wind. Bekanntheit wächst im Wahlkampf mit jedem Auftritt.</p>', opts);
+  }
+
+  // ---------- Laufbahn und Ewigkeits-Bilanz ----------
+  function renderCareer() {
+    const C = g.career || {};
+    const L = T.legacy(C);
+    const role = r => TD.ROLES[r] ? TD.ROLES[r].icon + ' ' + TD.ROLES[r].name : r;
+    const status = { kanzler: '🏛️ Kanzleramt', regierung: '🤝 Regierung', opposition: '🪑 Opposition', raus: '🚪 nicht im Bundestag' };
+    let html = '<h2>🏆 Eure Laufbahn</h2><div class="t-kpis">' +
+      kpi('Ewigkeits-Bilanz', L.score + ' Punkte', esc(L.rating)) +
+      kpi('Bundestagswahlen', String(L.elections), L.wins + '× Kanzleramt gewonnen') +
+      kpi('Jahre im Kanzleramt', num1(L.kanzlerJahre).replace(',0', ''), 'mitregiert: ' + num1(L.juniorJahre).replace(',0', '') + ' Jahre') +
+      kpi('Opposition / APO', num1(L.oppJahre).replace(',0', '') + ' / ' + num1(L.apoJahre).replace(',0', '') + ' Jahre') +
+      kpi('Eigene Gesetze', String(L.laws), L.promises + ' Wahlversprechen umgesetzt') +
+      (L.best ? kpi('Bestes Ergebnis', pct(L.best.share), 'Bundestagswahl ' + L.best.year) : '') + '</div>';
+    if ((C.elections || []).length) {
+      html += '<h3>Bundestagswahlen</h3><table class="t-budget"><thead><tr><th>Jahr</th><th>Spitze</th><th>Ergebnis</th><th>Danach</th><th>Punkte</th></tr></thead><tbody>' +
+        C.elections.map(x => '<tr><td>' + x.year + '</td><td>' + esc(x.leader || '') + '</td><td class="num">' + pct(x.share) + ' · ' + x.seats + ' Sitze</td><td>' + (status[x.status] || '') + '</td><td class="num">' + (x.score || 0) + '</td></tr>').join('') + '</tbody></table>';
+    }
+    if ((C.terms || []).length) {
+      html += '<h3>Legislaturperioden</h3><table class="t-budget"><thead><tr><th>Zeit</th><th>Rolle</th><th>Regierung</th><th>Bilanz</th></tr></thead><tbody>' +
+        C.terms.map(x => '<tr><td>' + x.from + '–' + x.to + (x.early ? ' *' : '') + '</td><td>' + role(x.role) + '</td><td>' + (x.gov || []).map(pill).join(' ') + '</td><td>' + x.score + ' Punkte · ' + esc(x.rating) + '</td></tr>').join('') +
+        '</tbody></table><p class="muted small">* vorzeitig beendet</p>';
+    }
+    if ((C.leaders || []).length) {
+      const yr = T.cal(term()).year;
+      html += '<h3>Eure Spitzenleute</h3><ul class="t-leaders">' + C.leaders.map(l => '<li><b>' + esc(l.name) + '</b> ' + (l.born ? '(Jahrgang ' + l.born + (l.to ? '' : ', heute ' + (yr - l.born)) + ')' : '') +
+        ' · ' + l.from + '–' + (l.to || 'heute') + (l.how ? ' · ' + esc(l.how) : '') + (l.offices && l.offices.length ? '<br><span class="small muted">' + l.offices.map(o => o.year + ': ' + esc(o.office)).join(' · ') + '</span>' : '') + '</li>').join('') + '</ul>' +
+        '<p class="muted small">Ab ' + (T.MAX_AGE - 5) + ' Jahren fragt die Partei nach Nachfolge, mit ' + T.MAX_AGE + ' ist Schluss.</p>';
+    }
+    if (!(C.terms || []).length) html += '<p class="muted">Die erste Legislatur läuft noch. Nach ihrem Ende erscheinen hier Bilanz und Verlauf.</p>';
+    $('t-laufbahn').innerHTML = html;
   }
 
   // ---------- Steuerung ----------
