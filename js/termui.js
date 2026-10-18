@@ -618,6 +618,30 @@
     } else if (it.type === 'scandal') {
       U.openModal(eyebrow + ' · 🔥 Affäre', 'Affäre im ' + T.ministryById(it.ministry).short + '-Ministerium', '<p>' + esc(it.text) + '</p>',
         [{ label: 'Festhalten', hint: 'Riskant: Kommt mehr heraus, wird es teuer', onClick: () => choose(0) }, { label: 'Rücktritt nahelegen', hint: 'Ihr benennt eine Nachfolge', onClick: () => choose(1) }]);
+    } else if (it.type === 'whip') {
+      const l = term().laws.find(x => x.id === it.law);
+      const v = T.bundestagVote(g, l);
+      const gr = it.groups[it.i];
+      const w = T.WOBBLE.find(x => x.id === gr.reason);
+      const head = '<p>Die Abstimmung über „' + esc(T.lawName(l)) + '“ wird knapp. Prognose: <b>' + v.yes + ' Ja</b> gegen <b>' + v.no + ' Nein</b>' + (v.abst ? ', ' + v.abst + ' Enthaltungen' : '') + '.</p>' +
+        '<ul class="small">' + it.groups.map((x, i) => '<li' + (i === it.i ? ' class="now"' : i < it.i ? ' class="muted"' : '') + '>' + esc(x.name) + ' (' + esc(short(x.p)) + ', WK ' + esc(x.wk) + ') + ' + (x.n - 1) + ' weitere</li>').join('') + '</ul>' +
+        '<p><b>' + esc(gr.name) + '</b> aus dem Wahlkreis ' + esc(gr.wk) + ' und ' + (gr.n - 1) + ' weitere Abgeordnete ' + (w ? esc(w.text) : 'von ' + esc(pname(gr.p)) + ' wollen nicht mitziehen') + '.</p>';
+      const opts = w ? [{ label: 'Gespräch unter vier Augen', hint: 'Überzeugen statt Druck – klappt nicht immer', onClick: () => choose(0) },
+        { label: w.offer, hint: w.hint, onClick: () => choose(1) },
+        { label: 'Fraktionsdisziplin einfordern', hint: 'Meist erfolgreich, kostet Geschlossenheit', onClick: () => choose(2) }]
+        : [{ label: 'Die Spitze von ' + short(gr.p) + ' anrufen', hint: 'Hängt vom Koalitionsklima ab', onClick: () => choose(0) },
+          { label: 'Zugeständnis in anderer Sache', hint: '0,5 Mrd. € für ein Projekt des Partners', onClick: () => choose(1) },
+          { label: 'Darauf ankommen lassen', onClick: () => choose(2) }];
+      U.openModal(eyebrow + ' · 🗳️ Abstimmungskrimi (' + (it.i + 1) + '/' + it.groups.length + ')', 'Wackelkandidaten', head, opts);
+    } else if (it.type === 'brwhip') {
+      const l = term().laws.find(x => x.id === it.law);
+      const br = T.bundesratVote(g, l);
+      const x = it.lands[it.i];
+      U.openModal(eyebrow + ' · 🏛️ Bundesrat (' + (it.i + 1) + '/' + it.lands.length + ')', 'Kampf um ' + E.stateById(x.land).name, '<p>„' + esc(T.lawName(l)) + '“ kommt nach heutigem Stand auf <b>' + br.yes + ' von 69</b> Stimmen ' + (l.zust ? '(nötig: ' + TD.BUNDESRAT_MAJ + ')' : '(Einspruch ab ' + TD.BUNDESRAT_MAJ + ' Gegenstimmen)') + '.</p>' +
+        '<p>' + esc(x.mp) + ' (' + esc(short(x.party)) + '), Regierungschef:in von ' + esc(E.stateById(x.land).name) + ' (' + x.votes + ' Stimmen), lässt durchblicken: Mit dem richtigen Angebot könnte das Land zustimmen. Bedenken hat ' + x.block.map(p => esc(short(p))).join(', ') + '.</p>',
+        [{ label: 'Finanzzusage an das Land', hint: '1 Mrd. € aus dem Bundeshaushalt', onClick: () => choose(0) },
+          { label: 'Zugeständnis im Gesetz', hint: 'Kostenlos, aber das Gesetz wirkt schwächer', onClick: () => choose(1) },
+          { label: 'Hart bleiben', onClick: () => choose(2) }]);
     } else if (it.type === 'brstell') {
       const l = term().laws.find(x => x.id === it.law);
       U.openModal(eyebrow + ' · 🏛️ Bundesrat, 1. Durchgang', 'Stellungnahme der Länder', '<p>Der Bundesrat nimmt zu eurem Entwurf „' + esc(T.lawName(l)) + '“ Stellung: Die Länder verlangen Änderungen und eine Beteiligung des Bundes an den Kosten. Nach heutigem Stand bekäme das Gesetz im 2. Durchgang nur <b>' + it.yes + ' von 69</b> Stimmen.</p>' +

@@ -887,7 +887,7 @@
       if (law.kind === 'topic') rate *= 0.6 + (t.sq[law.topic] === undefined ? SQ0 : t.sq[law.topic]) / 100; // starker Status quo = mehr Widerstand
       if (law.ghost || (law.backers && law.backers.length)) rate *= 0.6; // Verbände werben bei Abgeordneten
       if (law.foe && (t.lobbyCampaigns || []).some(c => c.law === law.id && c.left > 0)) rate *= 1.3;
-      const no = Math.round(s * rate);
+      const no = Math.max(0, Math.round(s * rate) - ((law.conv && law.conv[p]) || 0)); // umgestimmte Abweichler
       return { yes: s - no, abst: 0, no };
     }
     if (d === 0) return { yes: Math.round(s * 0.92), abst: s - Math.round(s * 0.92), no: 0 };
@@ -983,6 +983,103 @@
     einspruch: ['Einspruch des Bundesrates', 'Abstimmung über die Zurückweisung'],
     inkraft: ['Ausfertigung durch den Bundespräsidenten', 'Verkündung im Bundesgesetzblatt']
   };
+  // ---------- Abstimmungskrimi ----------
+  // Vor knappen Abstimmungen meldet die Fraktionsführung Wackelkandidaten – mit Namen, Wahlkreis und Grund.
+  const WOBBLE = [
+    { id: 'gewissen', text: 'hat Gewissensbedenken', offer: 'Gewissensentscheidung respektieren', hint: 'Sie stimmen dagegen – aber ihr wirkt glaubwürdig' },
+    { id: 'wahlkreis', text: 'fürchtet Gegenwind im Wahlkreis', offer: 'Förderprojekt im Wahlkreis zusagen', hint: '0,3 Mrd. € – wenn es herauskommt, heißt es „Kuhhandel“' },
+    { id: 'karriere', text: 'fühlt sich bei der Postenvergabe übergangen', offer: 'Einen Posten in Aussicht stellen', hint: 'Wirkt sicher – aber andere werden neidisch' },
+    { id: 'land', text: 'steht unter Druck des Landesverbands', offer: 'Den Landesverband einbinden', hint: 'Die meisten lenken ein, der Landesverband wird gestärkt' }
+  ];
+  function mpOf(g, p, land) {
+    const list = E.WK_LIST.filter(w => !land || w.land === land);
+    for (let i = 0; i < 12; i++) {
+      const w = list[Math.floor(rand(g) * list.length)];
+      const name = E.wkCandidate(g, w.nr, p);
+      if (name && !/\d/.test(name)) return { name, wk: w.name, land: w.land };
+    }
+    const w = list[0];
+    return { name: newPerson(g, p, w.land).full, wk: w.name, land: w.land };
+  }
+  function mpName(g, land) {
+    const L = g.term.laender[land];
+    if (!L.mp || L.mpParty !== L.gov[0]) { L.mp = mpOf(g, L.gov[0], land).name; L.mpParty = L.gov[0]; }
+    return L.mp;
+  }
+  function whipGroups(g, law) {
+    const t = g.term;
+    const v = bundestagVote(g, law);
+    const dissent = t.gov.reduce((s, p) => s + v.detail[p].no, 0);
+    // Kritisch ist die eigene Mehrheit der Koalition – eine Mehrheit nur dank der Opposition gilt als Blamage.
+    const govYes = t.gov.reduce((s, p) => s + v.detail[p].yes, 0);
+    const critical = govSeats(t) >= MAJ ? govYes < MAJ + 6 : v.yes - v.no < 2 * dissent + 16; // Minderheitsregierung: Hauptsache durch
+    if (dissent < 2 || !critical) return null;
+    const groups = [];
+    const own = v.detail[g.party] ? v.detail[g.party].no : 0;
+    if (own >= 2) {
+      const a = Math.ceil(own / 2);
+      [a, own - a].filter(n => n > 0).forEach(n => { const m = mpOf(g, g.party); groups.push(Object.assign({ p: g.party, n, reason: pick(g, WOBBLE).id }, m)); });
+    }
+    t.gov.filter(p => p !== g.party && v.detail[p].no >= 2).slice(0, 1).forEach(p => groups.push(Object.assign({ p, n: v.detail[p].no, reason: 'partner' }, mpOf(g, p))));
+    return groups.length ? { groups, yes: v.yes, no: v.no } : null;
+  }
+  function brSwing(g, law) {
+    const t = g.term;
+    const v = bundesratVote(g, law);
+    if (law.zust ? v.pass : 69 - v.yes < TD.BUNDESRAT_MAJ) return null;
+    const lands = Object.keys(t.laender).filter(l => !v.lands[l] && t.laender[l].gov.filter(p => !partyBackslaw(g, p, law)).every(p => Math.abs(leanOf(g, p, lawTopic(law)) - lawLean(law)) <= 1))
+      .sort((x, y) => t.laender[y].votes - t.laender[x].votes).slice(0, 2)
+      .map(l => ({ land: l, votes: t.laender[l].votes, mp: mpName(g, l), party: t.laender[l].gov[0], block: t.laender[l].gov.filter(p => !partyBackslaw(g, p, law)) }));
+    return lands.length ? { lands, yes: v.yes } : null;
+  }
+  function resolveWhip(g, item, choice) {
+    const t = g.term;
+    const law = t.laws.find(l => l.id === item.law);
+    const gr = item.groups[item.i];
+    const conv = n => { law.conv = law.conv || {}; law.conv[gr.p] = (law.conv[gr.p] || 0) + n; };
+    const who = gr.name + ' (' + gr.wk + ') und ' + (gr.n - 1) + ' weitere';
+    let text;
+    if (gr.reason === 'partner') {
+      if (choice === 0) {
+        if (rand(g) < clamp(t.mood / 100 + 0.2, 0.2, 0.9)) { conv(gr.n); text = 'Die Spitze von ' + sname(gr.p) + ' holt ihre Leute zurück.'; } else { conv(Math.floor(gr.n / 3)); text = sname(gr.p) + ' bekommt die eigene Fraktion nur teilweise in den Griff.'; }
+        t.mood = clamp(t.mood - 2, 0, 100);
+      } else if (choice === 1) { conv(gr.n); t.budget.oneoff += 0.5; text = 'Ein Zugeständnis in anderer Sache (0,5 Mrd. €) – ' + sname(gr.p) + ' stimmt geschlossen.'; }
+      else text = 'Ihr lasst es darauf ankommen.';
+    } else {
+      const w = WOBBLE.find(x => x.id === gr.reason);
+      if (choice === 0) {
+        if (rand(g) < clamp(0.45 + (t.party.unity - 50) / 200 + (law.contract ? 0.1 : 0), 0.15, 0.85)) { conv(gr.n); text = 'Das Gespräch unter vier Augen wirkt: ' + gr.name + ' stimmt zu.'; }
+        else { conv(Math.floor(gr.n / 3)); text = gr.name + ' bleibt skeptisch – nur wenige lassen sich überzeugen.'; }
+      } else if (choice === 1) {
+        if (w.id === 'gewissen') { t.party.unity = clamp(t.party.unity + 1, 0, 100); addCred(g, 1, 'Gewissensfreiheit respektiert'); text = 'Ihr respektiert die Gewissensentscheidung.'; }
+        else if (w.id === 'wahlkreis') { conv(gr.n); t.budget.oneoff += 0.3; text = 'Das Förderprojekt kommt – ' + gr.name + ' stimmt zu.'; if (rand(g) < 0.3) { addCred(g, -2, 'Stimmen gegen Förderprojekt gekauft'); news(g, 'Bericht: Zustimmung zu „' + lawName(law) + '“ mit Förderprojekt im Wahlkreis ' + gr.wk + ' erkauft.', 'warn'); } }
+        else if (w.id === 'karriere') { conv(gr.n); t.party.unity = clamp(t.party.unity - 1, 0, 100); text = gr.name + ' stimmt zu – und rechnet fest mit dem Posten.'; if (rand(g) < 0.25) addCred(g, -1, 'Postenversprechen für eine Stimme'); }
+        else { conv(Math.ceil(gr.n * 0.7)); if (t.party.lv[gr.land] !== undefined) t.party.lv[gr.land] = clamp(t.party.lv[gr.land] + 3, 0, 100); text = 'Der Landesverband ' + E.stateById(gr.land).name + ' lenkt ein.'; }
+      } else {
+        if (rand(g) < 0.75) { conv(gr.n); t.party.unity = clamp(t.party.unity - 3, 0, 100); text = 'Die Fraktionsführung macht Druck – die Reihen schließen sich, aber es grummelt.'; }
+        else { t.party.unity = clamp(t.party.unity - 5, 0, 100); addCred(g, -1); news(g, gr.name + ' beklagt öffentlich Druck der Fraktionsführung.', 'warn'); text = gr.name + ' geht an die Presse: „Ich lasse mich nicht erpressen.“'; }
+      }
+    }
+    law.log.push('Vor der Abstimmung: ' + who + ' – ' + text);
+    item.i += 1;
+    if (item.i >= item.groups.length) { const v = bundestagVote(g, law); text += ' Neue Prognose: ' + v.yes + ' Ja, ' + v.no + ' Nein' + (v.abst ? ', ' + v.abst + ' Enthaltungen' : '') + '.'; }
+    return text;
+  }
+  function resolveBrWhip(g, item, choice) {
+    const t = g.term;
+    const law = t.laws.find(l => l.id === item.law);
+    const x = item.lands[item.i];
+    const name = E.stateById(x.land).name;
+    let text;
+    if (choice === 0) { law.bought = (law.bought || []).concat(x.land); t.budget.oneoff += 1; text = x.mp + ' bekommt eine Finanzzusage für ' + name + ' (1 Mrd. €) – ' + x.votes + ' Stimmen dafür.'; }
+    else if (choice === 1) { law.bought = (law.bought || []).concat(x.land); law.brDeal = true; text = 'Ein Zugeständnis im Gesetz überzeugt ' + x.mp + ' – das Gesetz wird etwas verwässert.'; }
+    else text = name + ' bleibt bei seiner Haltung.';
+    law.log.push('Vor dem Bundesrat: ' + text);
+    item.i += 1;
+    if (item.i >= item.lands.length) text += ' Neue Prognose: ' + bundesratVote(g, law).yes + ' von 69 Stimmen.';
+    return text;
+  }
+
   // Typische Kritik in Ausschussanhörungen (Sachverständige der Fraktionen, Verbände, Wissenschaft).
   const ANHOERUNG = ['Der Normenkontrollrat bemängelt hohen Bürokratieaufwand.', 'Ein Staatsrechtler hält zwei Paragrafen für verfassungsrechtlich angreifbar.',
     'Die kommunalen Spitzenverbände warnen vor Kosten, die bei den Kommunen hängen bleiben.', 'Der Bundesrechnungshof zweifelt an der Finanzierung.',
@@ -995,6 +1092,8 @@
     law.log.push('Als Fraktionsentwurf eingebracht – ohne Referentenentwurf und ersten Durchgang im Bundesrat.');
     cabinetStage(g, law);
     if (law.stage === 'veto') return 'Der Koalitionspartner verweigert die gemeinsame Einbringung von „' + lawName(law) + '“.';
+    const w = whipGroups(g, law);
+    if (w) { law.whipped = true; g.term.pending.push({ type: 'whip', law: law.id, groups: w.groups, yes: w.yes, no: w.no, i: 0 }); }
     return 'Fraktionsentwurf „' + lawName(law) + '“: 1. Lesung noch in diesem Quartal, Abstimmung zum Quartalsende.';
   }
   function processLaw(g, law) {
@@ -1002,6 +1101,7 @@
     cat('parlament');
     if (law.stage === 'kabinett') { cabinetStage(g, law); return; }
     if (law.stage === 'bundestag') {
+      if (!law.fraktion && law.btQ === t.q) return; // erst im nächsten Quartal: 1. Lesung, Ausschuss, 2./3. Lesung
       if (law.delay) { law.delay = false; law.log.push('Der Ausschuss vertagt die Beschlussempfehlung – Nachbesserungen nach der Anhörung.'); return; }
       if (!law.fraktion) law.log.push('Bundesrat, 1. Durchgang: Stellungnahme' + (law.brDeal ? ' – die Bundesregierung übernimmt Änderungswünsche der Länder.' : '.'));
       law.log.push('1. Lesung, Überweisung an den Ausschuss' + (law.fixed ? ', Nachbesserungen nach der Anhörung.' : ', öffentliche Anhörung.'));
@@ -1017,6 +1117,13 @@
         return;
       }
       law.log.push('2./3. Lesung: Bundestag beschließt – ' + v.yes + ' Ja, ' + v.no + ' Nein, ' + v.abst + ' Enthaltungen.');
+      const govYes = t.gov.reduce((s, p) => s + v.detail[p].yes, 0);
+      if (govYes < MAJ && govSeats(t) >= MAJ && !v.afdDecisive) {
+        law.log.push('Die Koalition verfehlt die eigene Mehrheit (' + govYes + ' von ' + MAJ + ').');
+        news(g, 'Ohne eigene Mehrheit: Die Koalition bringt „' + lawName(law) + '“ nur mit Stimmen der Opposition durch.', 'warn');
+        t.mood = clamp(t.mood - 3, 0, 100);
+        if (t.gov.indexOf(g.party) !== -1) t.party.unity = clamp(t.party.unity - 2, 0, 100);
+      }
       if (v.afdDecisive) {
         news(g, 'Eklat im Bundestag: „' + lawName(law) + '“ kommt nur mit Stimmen der AfD durch. Proteste vor dem Reichstag.', 'bad');
         // Vorbild Januar 2025: Die Mitte verliert, die linke Opposition mobilisiert.
@@ -1466,7 +1573,7 @@
     const item = t.pending[0];
     if (!item) return { ok: false };
     let text = '';
-    cat({ scandal: 'skandal', vote: 'abstimmung', cabinet: 'kabinett', veto: 'kabinett', disloyal: 'kabinett', sq: 'statusquo', lobby: 'lobby', door: 'lobby', lobbyaffair: 'skandal', brstell: 'parlament', anhoerung: 'parlament' }[item.type] || 'ereignis');
+    cat({ scandal: 'skandal', vote: 'abstimmung', cabinet: 'kabinett', veto: 'kabinett', disloyal: 'kabinett', sq: 'statusquo', lobby: 'lobby', door: 'lobby', lobbyaffair: 'skandal', brstell: 'parlament', anhoerung: 'parlament', whip: 'abstimmung', brwhip: 'parlament' }[item.type] || 'ereignis');
     if (item.type === 'event') {
       const ev = eventById(item.id);
       const c = eventChoices(g, ev)[choice];
@@ -1513,12 +1620,17 @@
         text = m.name + ' tritt zurück. Ihr müsst die Nachfolge benennen.';
       }
       news(g, 'Affäre im ' + ministryById(item.ministry).short + '-Ministerium: ' + text, 'warn');
+    } else if (item.type === 'whip' || item.type === 'brwhip') {
+      const law = t.laws.find(l => l.id === item.law);
+      if (!law || law.stage !== (item.type === 'whip' ? 'bundestag' : 'bundesrat')) { t.pending.shift(); return { ok: true, text: '' }; }
+      text = item.type === 'whip' ? resolveWhip(g, item, choice) : resolveBrWhip(g, item, choice);
+      if (item.i < (item.groups || item.lands).length) return { ok: true, text, more: true };
     } else if (item.type === 'brstell') {
       const law = t.laws.find(l => l.id === item.law);
       if (!law || law.stage !== 'bundestag') { t.pending.shift(); return { ok: true, text: '' }; }
       if (choice === 0) {
         law.brDeal = true;
-        t.budget.extra -= 1.5; // der Bund übernimmt Kosten der Länder
+        t.budget.extra += 1.5; // der Bund übernimmt Kosten der Länder
         law.log.push('Gegenäußerung der Bundesregierung: Änderungswünsche der Länder werden übernommen (Bund trägt 1,5 Mrd. € Mehrkosten).');
         text = 'Ihr kommt den Ländern entgegen: Der Bund übernimmt Mehrkosten. Damit steigen die Chancen im Bundesrat.';
       } else {
@@ -1541,18 +1653,18 @@
       const law = t.laws.find(l => l.id === item.law);
       if (choice === 0) { law.stage = 'zurueckgezogen'; law.log.push('Zurückgezogen.'); text = 'Der Entwurf wird zurückgezogen.'; }
       else if (choice === 1 && law.kind === 'topic' && optIndex(law.topic, 0) !== t.policy[law.topic]) {
-        law.opt = optIndex(law.topic, 0); law.contract = t.contract[law.topic] === law.opt; law.stage = 'bundestag'; t.mood = clamp(t.mood - 1, 0, 100);
+        law.opt = optIndex(law.topic, 0); law.contract = t.contract[law.topic] === law.opt; law.stage = 'bundestag'; law.btQ = t.q; t.mood = clamp(t.mood - 1, 0, 100);
         law.log.push('Kompromiss im Kabinett: „' + lawName(law) + '“.'); text = 'Kompromiss gefunden.';
       } else if (choice === 2 && t.role === 'kanzler') {
-        law.stage = 'bundestag'; t.mood = clamp(t.mood - 12, 0, 100); law.log.push('Per Richtlinienkompetenz durchgesetzt.'); text = 'Ihr setzt den Entwurf per Richtlinienkompetenz durch – der Partner ist empört.';
+        law.stage = 'bundestag'; law.btQ = t.q; t.mood = clamp(t.mood - 12, 0, 100); law.log.push('Per Richtlinienkompetenz durchgesetzt.'); text = 'Ihr setzt den Entwurf per Richtlinienkompetenz durch – der Partner ist empört.';
       } else { law.stage = 'zurueckgezogen'; law.log.push('Zurückgezogen.'); text = 'Der Entwurf wird zurückgezogen.'; }
       news(g, '„' + lawName(law) + '“: ' + text, 'info');
     } else if (item.type === 'cabinet') {
       const law = t.laws.find(l => l.id === item.law);
       const d = Math.abs(leanOf(g, g.party, lawTopic(law)) - lawLean(law));
-      if (choice === 0) { law.stage = 'bundestag'; law.log.push('Kabinett beschließt den Entwurf.'); if (d === 2) { t.party.unity = clamp(t.party.unity - 4, 0, 100); addCred(g, -4, 'Im Kabinett einem Entwurf gegen eure Linie zugestimmt'); } else if (d === 0) addCred(g, 1); text = 'Ihr stimmt im Kabinett zu.'; }
+      if (choice === 0) { law.stage = 'bundestag'; law.btQ = t.q; law.log.push('Kabinett beschließt den Entwurf.'); if (d === 2) { t.party.unity = clamp(t.party.unity - 4, 0, 100); addCred(g, -4, 'Im Kabinett einem Entwurf gegen eure Linie zugestimmt'); } else if (d === 0) addCred(g, 1); text = 'Ihr stimmt im Kabinett zu.'; }
       else if (choice === 1 && law.kind === 'topic' && optIndex(law.topic, 0) !== t.policy[law.topic] && law.opt !== optIndex(law.topic, 0)) {
-        law.opt = optIndex(law.topic, 0); law.stage = 'bundestag'; t.mood = clamp(t.mood - 2, 0, 100); law.log.push('Nachverhandelt: „' + lawName(law) + '“.'); text = 'Ihr handelt einen Kompromiss heraus.';
+        law.opt = optIndex(law.topic, 0); law.stage = 'bundestag'; law.btQ = t.q; t.mood = clamp(t.mood - 2, 0, 100); law.log.push('Nachverhandelt: „' + lawName(law) + '“.'); text = 'Ihr handelt einen Kompromiss heraus.';
       } else { law.stage = 'zurueckgezogen'; law.log.push('Im Kabinett gestoppt.'); t.mood = clamp(t.mood - 8, 0, 100); if (d >= 1) { t.party.unity = clamp(t.party.unity + 2, 0, 100); addCred(g, 2, 'Im Kabinett Linie gehalten'); } else addCred(g, -2, 'Einen Entwurf nach eurer Linie gestoppt'); text = 'Ihr stoppt den Entwurf im Kabinett.'; }
       news(g, 'Kabinett, „' + lawName(law) + '“ (' + sname(law.by) + '): ' + text, 'info');
     } else if (item.type === 'budgetcab') {
@@ -2141,6 +2253,15 @@
         if (!br.pass && (l.zust || 69 - br.yes >= TD.BUNDESRAT_MAJ)) t.pending.push({ type: 'brstell', law: l.id, yes: br.yes });
         else if (rand(g) < 0.5) t.pending.push({ type: 'anhoerung', law: l.id, expert: pick(g, ANHOERUNG) });
       });
+      // Knappe Abstimmungen dieses Quartals: Wackelkandidaten im Bundestag, umkämpfte Länder im Bundesrat
+      t.laws.filter(l => t.gov.indexOf(l.by) !== -1 && !l.whipped && l.stage === 'bundestag' && (l.by === g.party || t.role === 'kanzler')).forEach(l => {
+        const w = whipGroups(g, l);
+        if (w) { l.whipped = true; t.pending.push({ type: 'whip', law: l.id, groups: w.groups, yes: w.yes, no: w.no, i: 0 }); }
+      });
+      t.laws.filter(l => t.gov.indexOf(l.by) !== -1 && !l.brWhipped && l.stage === 'bundesrat' && (l.by === g.party || t.role === 'kanzler')).forEach(l => {
+        const b = brSwing(g, l);
+        if (b) { l.brWhipped = true; t.pending.push({ type: 'brwhip', law: l.id, lands: b.lands, yes: b.yes, i: 0 }); }
+      });
     }
     // Abstimmungen, bei denen ihr als Opposition entscheidet
     if (t.role === 'opposition') {
@@ -2171,7 +2292,7 @@
     t.mood = clamp(t.mood + (50 - t.mood) * 0.04 - 0.5 + between(g, -1.5, 1.5), 0, 100);
     // Dauerstreit kostet alle Partner – wie bei der Ampel (zusammen 52 → 38 % in knapp zwei Jahren).
     t.streit = t.mood < 40 ? (t.streit || 0) + 1 : Math.max(0, (t.streit || 0) - 1);
-    if (t.streit) { cat('streit'); t.gov.forEach(p => addNatT(g, p, -0.15 * Math.min(t.streit, 5), 'slow')); if (t.streit === 3) news(g, '💥 „Streitkoalition“: Die Medien zählen die Tage bis zum Bruch.', 'warn'); }
+    if (t.streit) { cat('streit'); t.gov.forEach(p => addNatT(g, p, -0.15 * Math.min(t.streit, 4), 'slow')); if (t.streit === 3) news(g, '💥 „Streitkoalition“: Die Medien zählen die Tage bis zum Bruch.', 'warn'); }
     if (t.mood >= 12) { t.lowMood = 0; return; }
     t.lowMood = (t.lowMood || 0) + 1;
     if (t.lowMood < 2 && rand(g) < 0.5) return;
@@ -2198,8 +2319,8 @@
     const econ = 0.25 * (e.growth - 1) - 0.6 * (e.unemp - t.econPrev.unemp) - 0.08 * Math.max(0, e.infl - 2.5);
     // Regierungsverschleiß (Amtsmalus, wie GroKo 2013–17): Liefern dämpft ihn nur etwas; Stillstand kostet extra.
     const delivered = Math.min(2, t.qLaws || 0);
-    const idle = t.q - (t.lastLawQ === undefined ? -1 : t.lastLawQ) >= 4 ? 0.08 : 0;
-    t.gov.forEach(p => { addNat(g, p, ((p === t.chanc ? -0.38 : -0.42) * (1 - 0.125 * delivered) - idle) + econ * (p === t.chanc ? 1 : 0.5)); });
+    const idle = t.q - (t.lastLawQ === undefined ? -1 : t.lastLawQ) >= 4 ? 0.06 : 0;
+    t.gov.forEach(p => { addNat(g, p, ((p === t.chanc ? -0.35 : -0.42) * (1 - 0.125 * delivered) - idle) + econ * (p === t.chanc ? 1 : 0.5)); });
     if (t.gov.length > 1 && t.mood < 35) t.gov.forEach(p => addNat(g, p, -0.1));
     if (t.budget.status === 'vorlaeufig') t.gov.forEach(p => addNat(g, p, -0.12));
     if (t.ua) { t.gov.forEach(p => addNat(g, p, -0.1)); addNat(g, g.party, 0.04); }
@@ -2460,7 +2581,7 @@
   }
 
   const TERM = {
-    QUARTERS, ACTIONS, LAW_STEPS, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
+    QUARTERS, ACTIONS, LAW_STEPS, WOBBLE, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
     lawOptions, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, cal,
     lawName, lawTitle, leanOf, quorum, eventChoices, fillText, eventById, ministryById, taxById, areaById, nextCampaign, summary,
     actionCash, govSeats, isGov, legacy, LB, careerSnapshot, chooseLeader, leaderAge, currentLeader, MAX_AGE, sqForces, absCal, FX_NAMES, ministerFor, eventMinister, ownMinistries, endTerm, defaultVote, partyVote, mandateVote

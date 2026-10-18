@@ -1024,3 +1024,36 @@ test('Gesetzgebungsverfahren: Regierungsentwurf mit beiden Durchgängen im Bunde
   assert.ok(!lb.log.some(x => x.indexOf('Kabinett beschließt') !== -1));
   assert.ok(T.LAW_STEPS.bundestag.length === 4);
 });
+
+test('Abstimmungskrimi: Wackelkandidaten umstimmen, Länder im Bundesrat gewinnen', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  const t = g.term;
+  T.autoNames(g);
+  while (t.pending.length) T.resolvePending(g, 0);
+  const o = T.lawOptions(g);
+  const tp = o.topics.find(x => x.contract !== undefined && x.contract !== x.current);
+  T.performAction(g, 'gesetz', { topic: tp.topic, opt: tp.contract, fraktion: true });
+  t.pending = t.pending.filter(p => p.type !== 'whip');
+  const law = t.laws.find(l => l.topic === tp.topic && l.by === 'union');
+  const before = T.bundestagVote(g, law).detail.union;
+  t.pending.unshift({ type: 'whip', law: law.id, i: 0, groups: [
+    { p: 'union', n: 6, reason: 'wahlkreis', name: 'Erika Beispiel', wk: 'Testhausen', land: 'BY' },
+    { p: 'union', n: 4, reason: 'gewissen', name: 'Max Muster', wk: 'Musterstadt', land: 'BY' }] });
+  const r1 = T.resolvePending(g, 1);
+  assert.ok(r1.more && /Förderprojekt/.test(r1.text));
+  assert.strictEqual(law.conv.union, 6);
+  const r2 = T.resolvePending(g, 1);
+  assert.ok(!r2.more && /Prognose/.test(r2.text));
+  assert.strictEqual(law.conv.union, 6);
+  assert.ok(T.bundestagVote(g, law).detail.union.no <= Math.max(0, before.no - 0));
+  assert.ok(law.log.some(x => x.indexOf('Erika Beispiel') !== -1));
+  // Bundesrat: Finanzzusage holt ein Land
+  law.stage = 'bundesrat';
+  const land = Object.keys(t.laender).find(l => !T.bundesratVote(g, law).lands[l]);
+  if (land) {
+    t.pending.unshift({ type: 'brwhip', law: law.id, i: 0, lands: [{ land, votes: t.laender[land].votes, mp: 'Testi', party: t.laender[land].gov[0], block: [] }] });
+    T.resolvePending(g, 0);
+    assert.ok(T.bundesratVote(g, law).lands[land]);
+  }
+});
