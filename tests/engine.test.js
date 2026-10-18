@@ -1264,3 +1264,48 @@ test('Landesregierungen: Koalitionen aus 2–3 Parteien, Brandmauer wie im Bund,
   const by = seatsOf({ union: 48, afd: 20, gruene: 12, spd: 8, fw: 4 });
   assert.deepStrictEqual(T.landGovernment(g, by, 'BY', ['union', 'fw']), ['union']);
 });
+
+test('Abstimmungen: Protokolle für die Live-Auszählung, Länderaufruf, Archiv und Schlussdebatte', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  T.autoNames(g);
+  const t = g.term;
+  let sawBt = false; let sawBr = false; let sawDebate = false;
+  for (let i = 0; i < 8 && !t.over; i++) {
+    while (t.pending.length) { if (t.pending[0].type === 'debatte') sawDebate = true; T.resolvePending(g, 0); }
+    if (T.canAct(g, 'gesetz').ok) { const o = T.lawOptions(g); const tp = o.topics.find(x => x.contract !== undefined && x.contract !== x.current) || o.topics[0]; if (tp) T.performAction(g, 'gesetz', { topic: tp.topic, opt: tp.contract !== undefined ? tp.contract : tp.opts[0] }); }
+    while (t.pending.length) { if (t.pending[0].type === 'debatte') sawDebate = true; T.resolvePending(g, 0); }
+    T.endQuarter(g);
+    (t.reel || []).forEach(r => {
+      if (r.kind === 'bt') { sawBt = true; assert.ok(['hand', 'namentlich', 'hammel'].includes(r.method)); assert.ok(r.yes + r.no + r.abst > 300); }
+      if (r.kind === 'br') { sawBr = true; assert.strictEqual(r.votes.length, 16); assert.strictEqual(r.votes.reduce((s, x) => s + x.votes, 0), 69); assert.strictEqual(r.votes[0].land, 'BW'); }
+    });
+  }
+  assert.ok(sawBt && sawBr && sawDebate, sawBt + '/' + sawBr + '/' + sawDebate);
+  assert.ok((t.voteLog || []).length > 0 && t.voteLog.every(x => x.my === 'ja'));
+});
+
+test('Gewissensentscheidung und Optionen der Opposition (Änderungsantrag, Zugeständnis, namentlich)', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  T.autoNames(g);
+  const t = g.term;
+  while (t.pending.length) T.resolvePending(g, 0);
+  t.pending.unshift({ type: 'gewissen', id: 'organspende' });
+  const r = T.resolvePending(g, 0);
+  assert.ok(r.reel && r.reel.gewissen && r.reel.method === 'namentlich');
+  assert.ok(/Ja|Nein/.test(r.text));
+  // Opposition: Linke stimmt über ein Regierungsgesetz ab
+  const o = electedGame('linke', 4, 0);
+  T.startTerm(o);
+  const to = o.term;
+  for (let i = 0; i < 8 && !to.pending.some(p => p.type === 'vote' && !p.budget); i++) { while (to.pending.length) T.resolvePending(o, 1); T.endQuarter(o); }
+  const k = to.pending.findIndex(p => p.type === 'vote' && !p.budget);
+  if (k >= 0) {
+    const item = to.pending.splice(k, 1)[0];
+    to.pending.unshift(item);
+    const res = T.resolvePending(o, 3);
+    assert.ok(/Änderungsantrag/.test(res.text));
+    assert.ok(['ja', 'nein', 'enthaltung'].includes(to.voteChoice[item.law]));
+  }
+});

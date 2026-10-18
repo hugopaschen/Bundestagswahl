@@ -171,6 +171,17 @@
       chip('Inflation', num1(e.infl) + ' %', e.infl > 3) + chip('Schuldenquote', num1(e.debt) + ' %') + chip('Haushalt', (b.gap > 0 ? 'Schuldenbremse −' : 'Spielraum ') + mrd(Math.abs(b.gap)), b.gap > 0) +
       (T.isGov(t.role) && t.gov.length > 1 ? chip('Beliebtheit Spitze', (t.party.leader.like >= 0 ? '+' : '−') + num1(Math.abs(t.party.leader.like))) : '') +
       (T.isGov(t.role) ? chip('Ansehen in der Welt', Math.round(t.intl) + '/100') : '') + '</div>';
+    // Sitzungswoche: Abstimmungen am Ende dieses Quartals mit Prognose
+    const due = T.dueVotes(g);
+    if (due.length) {
+      html += '<h3>🗳️ Abstimmungen in diesem Quartal</h3><ul class="t-due">' + due.map(x => {
+        if (x.kind === 'budget') return '<li><span>🏦 Haushaltsgesetz ' + x.year + '</span><span class="t-pg mid">Bundestag</span></li>';
+        const l = x.law;
+        if (x.kind === 'bt') { const m = x.v.yes - x.v.no; return '<li><span>📜 ' + esc(T.lawName(l)) + ' ' + pill(l.by) + '</span><span class="t-pg ' + (!x.v.pass ? 'bad' : m < 20 ? 'mid' : 'good') + '">Bundestag ' + x.v.yes + ':' + x.v.no + '</span></li>'; }
+        const ok = l.zust ? x.v.pass : 69 - x.v.yes < TD.BUNDESRAT_MAJ;
+        return '<li><span>🏛️ ' + esc(T.lawName(l)) + ' ' + pill(l.by) + '</span><span class="t-pg ' + (ok ? 'good' : 'bad') + '">Bundesrat ' + x.v.yes + '/69</span></li>';
+      }).join('') + '</ul><p class="muted small">Prognose nach heutigem Stand. Fraktion auf Linie bringen, Länder überzeugen oder Debatten können sie noch drehen.</p>';
+    }
     html += actionsHtml();
     // Termine: die nächsten drei, der Rest zum Aufklappen
     const cal = T.calendar(g, 9);
@@ -584,6 +595,12 @@
       html += '<details class="t-more"><summary>Landtagswahlen in dieser Legislaturperiode (' + t.ltwLog.length + ')</summary><ul class="t-ltw">' + t.ltwLog.slice().reverse().map(x => '<li><b>' + esc(E.stateById(x.land).name) + '</b> (' + esc(T.quarterLabel(t, x.q)) + '): ' +
         esc(short(g.party)) + ' ' + pct(x.shares[g.party]) + ' (' + signed(x.diff) + ') · Regierung: ' + x.gov.map(pill).join(' ') + '</li>').join('') + '</ul></details>';
     }
+    if ((t.voteLog || []).length) {
+      const lbl = { ja: '✅ Ja', nein: '❌ Nein', enthaltung: '➖ Enthaltung' };
+      html += '<details class="t-more"><summary>🗂️ Euer Abstimmungsverhalten (' + t.voteLog.length + ')</summary><ul class="t-ltw">' + t.voteLog.map(x => '<li><span class="muted small">' + esc(T.quarterLabel(t, Math.min(x.q, T.QUARTERS - 1))) + '</span> ' + esc(x.title) +
+        ' · <b>' + (lbl[x.my] || x.my) + '</b> · ' + (x.pass ? 'angenommen' : 'abgelehnt') + ' (' + x.yes + ':' + x.no + ')' + (x.decisive ? ' ⚖️' : '') + (x.gewissen ? ' 🧭' : '') + '</li>').join('') +
+        '</ul><p class="muted small">⚖️ = eure Stimmen gaben den Ausschlag · 🧭 = Gewissensentscheidung. Gegner und Presse erinnern sich an euer Abstimmungsverhalten.</p></details>';
+    }
     if (g.rivals) {
       const ids = Object.keys(g.rivals).filter(p => (t.seats[p] || 0) > 0).sort((a, b) => t.seats[b] - t.seats[a]);
       html += '<h3>Die Spitzen der anderen Parteien</h3><ul class="t-ltw">' + ids.map(p => {
@@ -766,6 +783,111 @@
   }
 
   // ---------- Entscheidungen (Dialoge) ----------
+  // ---------- Live-Auszählung ----------
+  const SEAT_ORDER = ['linke', 'tierschutz', 'gruene', 'volt', 'spd', 'bsw', 'fdp', 'fw', 'union', 'afd'];
+  const VOTE_COL = { ja: 'var(--good)', nein: 'var(--bad)', abst: '#b9b9b9' };
+  let seatCache = null;
+  function seatLayout(n) {
+    if (seatCache && seatCache.n === n) return seatCache.pos;
+    const rows = 13; const r0 = 0.36; const r1 = 1;
+    const radii = []; for (let i = 0; i < rows; i++) radii.push(r0 + (r1 - r0) * i / (rows - 1));
+    const sum = radii.reduce((a, b) => a + b, 0);
+    const counts = radii.map(r => Math.floor(n * r / sum));
+    let rest = n - counts.reduce((a, b) => a + b, 0);
+    for (let i = rows - 1; rest > 0; i = (i + rows - 1) % rows) { counts[i] += 1; rest -= 1; }
+    const pos = [];
+    radii.forEach((r, i) => { for (let k = 0; k < counts[i]; k++) { const a = Math.PI * (1 - (k + 0.5) / counts[i]); pos.push({ a, x: r * Math.cos(a), y: -r * Math.sin(a) }); } });
+    pos.sort((p1, p2) => p2.a - p1.a);
+    seatCache = { n, pos };
+    return pos;
+  }
+  // Bundestag: Fraktion für Fraktion füllt sich der Saal; Abweichler leuchten auf, die Präsidentin verkündet das Ergebnis.
+  function playBt(rec, done) {
+    const t = term();
+    const parties = SEAT_ORDER.filter(p => rec.detail[p] && (rec.detail[p].yes + rec.detail[p].no + rec.detail[p].abst) > 0);
+    const n = parties.reduce((x, p) => x + rec.detail[p].yes + rec.detail[p].no + rec.detail[p].abst, 0);
+    const pos = seatLayout(n);
+    const govSide = rec.gewissen ? [] : t.gov;
+    let k = 0;
+    let dots = '';
+    const block = {};
+    parties.forEach(p => {
+      const d = rec.detail[p];
+      block[p] = [];
+      [['ja', d.yes], ['abst', d.abst], ['nein', d.no]].forEach(([v, c]) => {
+        for (let i = 0; i < c; i++, k++) {
+          const s0 = pos[k];
+          const dev = govSide.indexOf(p) !== -1 && v === 'nein';
+          dots += '<circle class="seat' + (dev ? ' dev' : '') + '" data-v="' + v + '" data-p="' + p + '" cx="' + s0.x.toFixed(3) + '" cy="' + s0.y.toFixed(3) + '" r="0.021" style="stroke:' + col(p) + '"></circle>';
+        }
+      });
+    });
+    const method = { hand: '✋ Abstimmung per Handzeichen', namentlich: '🗂️ Namentliche Abstimmung – die Schriftführer zählen die Stimmkarten', hammel: '🐑 Hammelsprung: Alle verlassen den Saal und kommen durch die Ja-, Nein- oder Enthaltungstür zurück' }[rec.method] || '';
+    const body = '<p class="small muted">' + method + '</p><div class="vote-live"><svg viewBox="-1.05 -1.06 2.1 1.1" role="img" aria-label="Abstimmung im Bundestag">' + dots + '</svg>' +
+      '<div class="vote-count"><span class="vc-ja">Ja <b id="vc-ja">0</b></span><span class="vc-nein">Nein <b id="vc-nein">0</b></span><span class="vc-abst">Enthaltung <b id="vc-abst">0</b></span></div><p class="vote-now small" id="vote-now"></p></div><div id="vote-result"></div>';
+    U.openModal(T.quarterLabel(t, rec.q === undefined ? t.q : Math.min(rec.q, T.QUARTERS - 1)) + ' · 🏛️ Plenarsaal', rec.title, body, [{ label: 'Sofort zum Ergebnis', onClick: () => finish() }]);
+    const box = document.getElementById('modal-body');
+    let i = 0;
+    let timer = null;
+    const cnt = { ja: 0, nein: 0, abst: 0 };
+    const reveal = p => {
+      const d = rec.detail[p];
+      box.querySelectorAll('circle.seat[data-p="' + p + '"]').forEach(c => { c.style.fill = VOTE_COL[c.dataset.v]; c.classList.add('on'); });
+      cnt.ja += d.yes; cnt.nein += d.no; cnt.abst += d.abst;
+      ['ja', 'nein', 'abst'].forEach(v => { const el = document.getElementById('vc-' + v); if (el) el.textContent = cnt[v]; });
+      const now = document.getElementById('vote-now');
+      if (now) now.textContent = short(p) + ': ' + d.yes + ' Ja · ' + d.no + ' Nein · ' + d.abst + ' Enthaltung' + (govSide.indexOf(p) !== -1 && d.no ? ' – ' + d.no + ' Abweichler!' : '');
+    };
+    const finish = () => {
+      clearTimeout(timer);
+      while (i < parties.length) reveal(parties[i++]);
+      const verdict = rec.gewissen ? (rec.pass ? 'Der Gruppenantrag ist angenommen.' : 'Der Gruppenantrag ist abgelehnt.') : /^Haushalt/.test(rec.title) ? (rec.pass ? 'Das Haushaltsgesetz ist angenommen.' : 'Das Haushaltsgesetz ist abgelehnt.') : (rec.pass ? 'Der Gesetzentwurf ist angenommen.' : 'Der Gesetzentwurf ist abgelehnt.');
+      const my = rec.my ? ' Eure Fraktion: ' + ({ ja: 'Ja', nein: 'Nein', enthaltung: 'Enthaltung' }[rec.my]) + '.' : '';
+      document.getElementById('vote-result').innerHTML = '<p class="vote-verdict ' + (rec.pass ? 'pos' : 'neg') + '">„Mit Ja haben gestimmt ' + rec.yes + ', mit Nein ' + rec.no + ', Enthaltungen ' + rec.abst + '. ' + verdict + '“</p>' +
+        (rec.decisive ? '<p class="t-lead">⚖️ <b>Zünglein an der Waage:</b> Eure Stimmen haben den Ausschlag gegeben.</p>' : '') +
+        (rec.afd ? '<p class="t-lead neg">⚠️ Die Mehrheit kam nur mit Stimmen der AfD zustande.</p>' : '') +
+        (rec.method === 'namentlich' && rec.names && rec.names.length ? '<p class="small">Im Protokoll: ' + rec.names.map(esc).join(', ') + ' u. a.</p>' : '') +
+        '<table class="vote-table"><tr><th></th><th>Ja</th><th>Nein</th><th>Enth.</th></tr>' + parties.map(p => '<tr><td>' + pill(p) + '</td><td>' + rec.detail[p].yes + '</td><td>' + rec.detail[p].no + '</td><td>' + rec.detail[p].abst + '</td></tr>').join('') + '</table><p class="small muted">' + esc(my) + '</p>';
+      const btn = document.querySelector('#modal-actions button');
+      if (btn) { const nb = btn.cloneNode(false); nb.className = 'btn choice primary'; nb.innerHTML = '<span>Weiter</span>'; nb.addEventListener('click', done); btn.replaceWith(nb); nb.focus(); }
+    };
+    const step = () => { if (i >= parties.length) { finish(); return; } reveal(parties[i++]); timer = setTimeout(step, rec.method === 'hammel' ? 650 : 420); };
+    timer = setTimeout(step, rec.method === 'hammel' ? 900 : 500);
+  }
+  // Bundesrat: Die Länder werden alphabetisch aufgerufen.
+  function playBr(rec, done) {
+    const t = term();
+    const label = { ja: 'Ja', nein: 'Nein', enth: 'Enthaltung', uneinheitlich: 'uneinheitlich – ungültig!' };
+    const body = '<p class="small muted">Die Präsidentin ruft die Länder auf. ' + (rec.zust ? 'Zustimmungsgesetz: Nötig sind 35 Ja-Stimmen.' : 'Einspruchsgesetz: Ein Einspruch braucht 35 Stimmen.') + '</p>' +
+      '<ul class="br-call">' + rec.votes.map((x, i) => '<li data-i="' + i + '"><span>' + esc(E.stateById(x.land).name) + ' <small class="muted">(' + x.votes + ')</small></span><span class="br-gov">' + x.gov.map(pill).join(' ') + '</span><b class="br-v"></b></li>').join('') + '</ul>' +
+      '<div class="br-tally"><div class="br-tally-bar"><i id="br-fill"></i><b style="left:' + (35 / 69 * 100) + '%"></b></div><span id="br-sum">0 Ja-Stimmen</span></div><div id="vote-result"></div>';
+    U.openModal(T.quarterLabel(t, rec.q === undefined ? t.q : Math.min(rec.q, T.QUARTERS - 1)) + ' · 🏛️ Bundesrat', rec.title, body, [{ label: 'Sofort zum Ergebnis', onClick: () => finish() }]);
+    let i = 0; let yes = 0; let timer = null;
+    const reveal = () => {
+      const x = rec.votes[i];
+      const li = document.querySelector('.br-call li[data-i="' + i + '"]');
+      if (li) { li.classList.add('on', 'v-' + x.v); li.querySelector('.br-v').textContent = label[x.v]; }
+      if (x.v === 'ja') yes += x.votes;
+      const f = document.getElementById('br-fill'); if (f) f.style.width = (yes / 69 * 100) + '%';
+      const sm = document.getElementById('br-sum'); if (sm) sm.textContent = yes + ' Ja-Stimmen';
+      i += 1;
+    };
+    const finish = () => {
+      clearTimeout(timer);
+      while (i < rec.votes.length) reveal();
+      document.getElementById('vote-result').innerHTML = '<p class="vote-verdict ' + (rec.pass ? 'pos' : 'neg') + '">„' + (rec.zust ? (rec.pass ? 'Der Bundesrat hat zugestimmt.' : 'Die erforderliche Mehrheit ist nicht erreicht.') : (rec.pass ? 'Der Bundesrat legt keinen Einspruch ein.' : 'Der Bundesrat ruft den Vermittlungsausschuss an.')) + '“</p>';
+      const btn = document.querySelector('#modal-actions button');
+      if (btn) { const nb = btn.cloneNode(false); nb.className = 'btn choice primary'; nb.innerHTML = '<span>Weiter</span>'; nb.addEventListener('click', done); btn.replaceWith(nb); nb.focus(); }
+    };
+    const step = () => { if (i >= rec.votes.length) { finish(); return; } reveal(); timer = setTimeout(step, 260); };
+    timer = setTimeout(step, 500);
+  }
+  function playReels(list, done) {
+    if (!list.length) { done(); return; }
+    const rec = list.shift();
+    (rec.kind === 'br' ? playBr : playBt)(rec, () => playReels(list, done));
+  }
+
   function checkPending() {
     const t = term();
     if (!t.pending.length) {
@@ -778,6 +900,7 @@
     const after = res => {
       save();
       render();
+      if (res && res.reel) { playBt(res.reel, () => after({ text: res.text })); return; }
       if (res && res.text) {
         U.openModal(eyebrow, 'Ergebnis', '<p>' + esc(res.text) + '</p>', [{ label: 'Weiter', primary: true, onClick: checkPending }]);
       } else checkPending();
@@ -793,6 +916,25 @@
     } else if (it.type === 'scandal') {
       U.openModal(eyebrow + ' · 🔥 Affäre', 'Affäre im ' + T.ministryById(it.ministry).short + '-Ministerium', '<p>' + esc(it.text) + '</p>',
         [{ label: 'Festhalten', hint: 'Riskant: Kommt mehr heraus, wird es teuer', onClick: () => choose(0) }, { label: 'Rücktritt nahelegen', hint: 'Ihr benennt eine Nachfolge', onClick: () => choose(1) }]);
+    } else if (it.type === 'debatte') {
+      const l = term().laws.find(x => x.id === it.law);
+      if (it.i === 0) U.openModal(eyebrow + ' · 🎙️ 2./3. Lesung', 'Schlussdebatte: ' + T.lawName(l), '<p>Heute wird über euren Entwurf abgestimmt. Vorher die Schlussdebatte – wer spricht für eure Fraktion?</p>',
+        [{ label: term().party.leader.name + ' (Parteispitze)', hint: 'Viel Aufmerksamkeit – hängt an der Beliebtheit', onClick: () => choose(0) },
+          { label: 'Die zuständige Fachpolitikerin', hint: 'Überzeugt mit Detailwissen – hängt an eurer Kompetenz', onClick: () => choose(1) },
+          { label: 'Routine: Redezeit abgeben', hint: 'Kein Risiko', onClick: () => choose(2) }]);
+      else U.openModal(eyebrow + ' · 🎙️ 2./3. Lesung', 'Das Kernargument', '<p>Womit soll die Rede die Wackelkandidaten überzeugen?</p>',
+        [{ label: 'Sachargument: Zahlen und Fakten', hint: 'Stark bei hoher Kompetenz', onClick: () => choose(0) },
+          { label: 'Menschen: eine Geschichte aus dem Wahlkreis', hint: 'Wirkt, wenn man euch mag', onClick: () => choose(1) },
+          { label: 'Angriff auf die Opposition', hint: 'Die eigenen Reihen schließen sich', onClick: () => choose(2) }]);
+    } else if (it.type === 'namentlich') {
+      const l = term().laws.find(x => x.id === it.law);
+      U.openModal(eyebrow + ' · 🗂️ Geschäftsordnung', 'Namentliche Abstimmung beantragen?', '<p>In der Koalition gibt es rund ' + it.dissent + ' Abweichler bei „' + esc(T.lawName(l)) + '“. Bei namentlicher Abstimmung (§ 52 GOBT) wird jede Stimme mit Namen protokolliert – die Abweichler stehen öffentlich da.</p>',
+        [{ label: 'Namentliche Abstimmung beantragen', hint: 'Die Koalition wird vorgeführt', onClick: () => choose(0) }, { label: 'Handzeichen reicht', onClick: () => choose(1) }]);
+    } else if (it.type === 'gewissen') {
+      const x = T.GEWISSEN.find(y => y.id === it.id);
+      U.openModal(eyebrow + ' · 🧭 Gewissensentscheidung', x.title, '<p>' + esc(x.text) + '</p><p class="small muted">Bei ethischen Fragen geben die Fraktionen die Abstimmung meist frei. Gebt ihr eine Linie vor, folgen die meisten – aber nicht alle, und es gibt Unmut, wenn die Linie gegen die Mehrheit der Fraktion geht.</p>',
+        [{ label: 'Abstimmung freigeben', hint: 'Jede und jeder entscheidet nach Gewissen', onClick: () => choose(0) },
+          { label: 'Fraktionslinie: Ja', onClick: () => choose(1) }, { label: 'Fraktionslinie: Nein', onClick: () => choose(2) }]);
     } else if (it.type === 'kbefragung') {
       const opp = it.opp ? (g.rivals && g.rivals[it.opp] ? g.rivals[it.opp].name + ' (' + short(it.opp) + ')' : short(it.opp)) : 'die Opposition';
       U.openModal(eyebrow + ' · 🎤 Regierungsbefragung', 'Fragen an die Kanzlerin/den Kanzler', '<p>Mittwoch, 13 Uhr, Plenarsaal. Nach einem kurzen Eingangsstatement stellen die Abgeordneten Fragen. ' + esc(opp) + ' eröffnet mit einer Frage zum Thema <b>' + esc(E.topicById(it.topic).name) + '</b>.</p>' +
@@ -928,7 +1070,9 @@
         const l = term().laws.find(x => x.id === it.law);
         const def = T.defaultVote(g, l);
         U.openModal(eyebrow + ' · 🗳️ Abstimmung', 'Bundestag: ' + T.lawTitle(l), '<p>Die Regierung (' + esc(short(l.by)) + ') stellt den Entwurf zur Abstimmung. Eure Linie: <b>' + ({ ja: 'zustimmen', nein: 'ablehnen', enthaltung: 'enthalten' }[def]) + '</b>.</p>',
-          [{ label: 'Ja', hint: def === 'ja' ? 'entspricht eurer Linie' : '', onClick: () => choose(0) }, { label: 'Nein', hint: def === 'nein' ? 'entspricht eurer Linie' : '', onClick: () => choose(1) }, { label: 'Enthaltung', onClick: () => choose(2) }]);
+          [{ label: 'Ja', hint: def === 'ja' ? 'entspricht eurer Linie' : '', onClick: () => choose(0) }, { label: 'Nein', hint: def === 'nein' ? 'entspricht eurer Linie' : '', onClick: () => choose(1) }, { label: 'Enthaltung', onClick: () => choose(2) },
+            { label: '✏️ Änderungsantrag stellen', hint: 'Eure Alternative in der 2. Lesung – meist abgelehnt, aber sichtbar', onClick: () => choose(3) },
+            { label: '🤝 Zustimmung gegen Zugeständnis', hint: 'Nur wenn die Koalition eure Stimmen braucht', onClick: () => choose(4) }]);
       }
     } else if (it.type === 'info') {
       let body = '';
@@ -1044,9 +1188,14 @@
     render();
     const lastFx = (t.pollFxHist || []).slice(-1)[0];
     const topFx = lastFx ? fxRows(lastFx.fx).filter(c => c !== 'verblassen')[0] : null;
-    if (!t.over) U.toast(T.quarterLabel(t) + ' · Neue Umfrage: ' + pct(g.poll.nat[g.party]) + ' (' + signed(g.poll.nat[g.party] - before) + ')' +
-      (topFx ? ' · größter Einfluss: ' + (T.FX_NAMES[topFx] || topFx).replace(/^\S+ /, '') + ' ' + signed(lastFx.fx[topFx]) : ''));
-    checkPending();
+    const reels = (t.reel || []).slice();
+    t.reel = [];
+    playReels(reels, () => {
+      U.closeModal();
+      if (!t.over) U.toast(T.quarterLabel(t) + ' · Neue Umfrage: ' + pct(g.poll.nat[g.party]) + ' (' + signed(g.poll.nat[g.party] - before) + ')' +
+        (topFx ? ' · größter Einfluss: ' + (T.FX_NAMES[topFx] || topFx).replace(/^\S+ /, '') + ' ' + signed(lastFx.fx[topFx]) : ''));
+      checkPending();
+    });
   });
   let resizeT = null;
   window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (g && !$('screen-term').hidden && tab === 'umfragen') drawTermChart(); }, 150); });

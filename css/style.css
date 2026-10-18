@@ -2212,3 +2212,32 @@ details.t-law[open] > summary { border-bottom: 1px solid var(--border); }
 .br-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .br-legend i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
 .br-legend-fed i { background: color-mix(in srgb, var(--good) 35%, var(--surface-2)); border: 1px solid var(--border); }
+
+/* Live-Auszählung */
+.vote-live svg { width: 100%; max-width: 560px; display: block; margin: 0 auto; }
+.vote-live circle.seat { fill: var(--surface-2); stroke-width: 0.006; transition: fill .25s, r .25s; }
+.vote-live circle.seat.dev.on { stroke: var(--text) !important; stroke-width: 0.012; r: 0.026; }
+.vote-count { display: flex; justify-content: center; gap: 18px; font-variant-numeric: tabular-nums; margin-top: 4px; }
+.vote-count b { font-size: 1.35rem; }
+.vc-ja b { color: var(--good); } .vc-nein b { color: var(--bad); } .vc-abst b { color: var(--muted); }
+.vote-now { text-align: center; min-height: 1.3em; margin: 4px 0 0; }
+.vote-verdict { font-weight: 700; font-size: 1.02rem; text-align: center; margin: 12px 0 8px; }
+.vote-verdict.pos { color: var(--good); } .vote-verdict.neg { color: var(--bad); }
+.vote-table { margin: 6px auto; border-collapse: collapse; font-size: .88rem; font-variant-numeric: tabular-nums; }
+.vote-table td, .vote-table th { padding: 3px 10px; text-align: right; border-bottom: 1px solid var(--border); }
+.vote-table td:first-child { text-align: left; }
+.br-call { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 3px; font-size: .9rem; }
+.br-call li { display: grid; grid-template-columns: 1fr auto 120px; gap: 8px; align-items: center; padding: 3px 8px; border-radius: 6px; opacity: .45; }
+.br-call li.on { opacity: 1; }
+.br-call li.v-ja { background: color-mix(in srgb, var(--good) 15%, transparent); }
+.br-call li.v-nein, .br-call li.v-enth { background: color-mix(in srgb, var(--bad) 10%, transparent); }
+.br-call li.v-uneinheitlich { background: color-mix(in srgb, var(--bad) 30%, transparent); font-weight: 700; }
+.br-v { text-align: right; }
+.br-gov { display: flex; gap: 3px; flex-wrap: wrap; justify-content: flex-end; }
+.br-tally { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; margin-top: 8px; font-variant-numeric: tabular-nums; }
+.br-tally-bar { position: relative; height: 12px; background: var(--surface-2); border-radius: 6px; overflow: visible; }
+.br-tally-bar i { display: block; height: 100%; width: 0; background: var(--good); border-radius: 6px; transition: width .25s; }
+.br-tally-bar b { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--text); }
+.t-due { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.t-due li { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; padding: 7px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); font-size: .92rem; }
+@media (max-width: 640px) { .br-call li { grid-template-columns: 1fr 90px; } .br-gov { display: none; } }
