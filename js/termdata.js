@@ -261,7 +261,7 @@
         { label: 'Gezielte Hilfen für Geringverdiener', hint: 'Günstiger', fx: { budget: 4, infl: 0.3, gov: 0.1 } },
         { label: 'Markt wirken lassen', hint: 'Spart Geld, sorgt für Ärger', fx: { infl: 0.7, gov: -2.0, growth: -0.1 } }
       ] },
-    { id: 'cyber', cat: 'intl', roles: ['gov', 'opp'], w: 1.5, title: 'Cyberangriff auf Krankenhäuser', text: 'Hacker legen die IT von 40 Kliniken lahm. Spuren führen zu einer staatsnahen Gruppe aus Russland.',
+    { id: 'cyber', cat: 'intl', roles: ['gov', 'opp'], w: 1.5, title: 'Cyberangriff auf Krankenhäuser', text: 'Hacker legen die IT von 40 Kliniken lahm, darunter das Uniklinikum {stadt}. Spuren führen zu einer staatsnahen Gruppe aus Russland.',
       gov: [
         { label: 'Cyberabwehr massiv ausbauen', hint: '2 Mrd. €, Kompetenz Digitales', fx: { budget: 2, comp: { digitales: 3 }, sal: { digitales: 0.02, sicherheit: 0.01 } } },
         { label: 'Diplomaten ausweisen, Sanktionen', hint: 'Starkes Signal', fx: { intl: 3, like: 0.1 } }
@@ -289,13 +289,13 @@
       ] },
 
     // ---------- Wirtschaft und Inland ----------
-    { id: 'industry_jobs', cat: 'wirtschaft', roles: ['gov'], w: 2.5, title: 'Werksschließungen in der Autoindustrie', text: 'Ein großer Autozulieferer kündigt an, drei Werke zu schließen – 12.000 Arbeitsplätze in Niedersachsen, Sachsen und dem Saarland.',
+    { id: 'industry_jobs', cat: 'wirtschaft', roles: ['gov'], w: 2.5, title: 'Werksschließungen in der Autoindustrie', text: '{firma} kündigt an, drei Werke zu schließen – 12.000 Arbeitsplätze in Niedersachsen, Sachsen und dem Saarland.',
       choices: [
         { label: 'Staatshilfe gegen Jobgarantie', hint: '2 Mrd. €', fx: { budget: 2, unemp: -0.05, gov: 0.15 } },
         { label: 'Transformationsfonds für die Regionen', hint: 'Langfristig klug', fx: { budget: 1, growth: 0.03 } },
         { label: 'Keine Subventionen für Einzelfirmen', hint: 'Ordnungspolitisch sauber, Wut vor Ort', fx: { unemp: 0.08, gov: -0.2 } }
       ] },
-    { id: 'rail_chaos', cat: 'inland', roles: ['gov', 'opp'], w: 2, title: 'Bahnchaos und Brückensperrungen', text: 'Eine Autobahnbrücke im Ruhrgebiet wird gesperrt, gleichzeitig fallen tausende Züge aus. Die Wut der Pendler ist riesig.',
+    { id: 'rail_chaos', cat: 'inland', roles: ['gov', 'opp'], w: 2, title: 'Bahnchaos und Brückensperrungen', text: 'Eine Autobahnbrücke bei {stadt} wird gesperrt, gleichzeitig fallen tausende Züge aus. Die Wut der Pendler ist riesig.',
       gov: [
         { label: 'Sanierungsoffensive aus dem Sondervermögen', hint: 'Schneller planen und bauen', fx: { growth: 0.03, sal: { verkehr: 0.03 }, gov: 0.05 } },
         { label: 'Bahnvorstand austauschen', hint: 'Symbolpolitik', fx: { like: 0.15 } }
@@ -333,7 +333,7 @@
         { label: 'Helfer schicken, nicht politisieren', hint: 'Anständig', fx: { own: 0.3, like: 0.3 } },
         { label: 'Versäumnisse beim Klimaschutz anprangern', hint: 'Riskant', fx: { own: 0.3, sal: { klima: 0.03 } }, chance: 0.5, fail: { own: -1.2 }, okText: 'Die Debatte kommt an.', failText: 'Euch wird vorgeworfen, das Leid zu instrumentalisieren.' }
       ] },
-    { id: 'attack', cat: 'inland', big: true, roles: ['gov', 'opp', 'apo'], w: 1.5, title: 'Anschlag auf einen Weihnachtsmarkt', text: 'Ein Attentäter fährt in einen Weihnachtsmarkt. Es gibt Tote und Verletzte. Das Land steht unter Schock, die Debatte über innere Sicherheit und Migration kocht hoch.',
+    { id: 'attack', cat: 'inland', big: true, roles: ['gov', 'opp', 'apo'], w: 1.5, title: 'Anschlag auf einen Weihnachtsmarkt', text: 'Ein Attentäter fährt in {stadt} in einen Weihnachtsmarkt. Es gibt Tote und Verletzte. Das Land steht unter Schock, die Debatte über innere Sicherheit und Migration kocht hoch.',
       gov: [
         { label: 'Sicherheitspaket: mehr Befugnisse für Behörden', hint: 'Streit um Bürgerrechte', fx: { sal: { sicherheit: 0.05, migration: 0.03 }, mood: -3, gov: 0.8 } },
         { label: 'Besonnen bleiben, Aufklärung abwarten', hint: 'Kritik: zu weich', fx: { sal: { sicherheit: 0.04 }, gov: -1.0, like: 0.2 } }
@@ -481,12 +481,12 @@
       ] },
 
     // ---------- Skandale ----------
-    { id: 'lobby', cat: 'skandal', big: true, roles: ['gov', 'opp', 'apo'], w: 1.5, title: 'Maskenaffäre 2.0', text: 'Recherchen zeigen: Ein Bundestagsabgeordneter eurer Partei hat Provisionen für die Vermittlung von Rüstungsaufträgen kassiert.',
+    { id: 'lobby', cat: 'skandal', big: true, roles: ['gov', 'opp', 'apo'], w: 1.5, title: 'Maskenaffäre 2.0', text: 'Recherchen zeigen: Euer Bundestagsabgeordneter {person} hat Provisionen für die Vermittlung von Rüstungsaufträgen kassiert.',
       choices: [
         { label: 'Sofortiger Fraktionsausschluss', hint: 'Klare Kante – der Schaden bleibt begrenzt', fx: { own: -0.5, like: 0.2, unity: -1 } },
         { label: 'Auf die Unschuldsvermutung verweisen', hint: 'Riskant – wie die Maskenaffäre 2021', fx: { own: -0.4 }, chance: 0.5, fail: { own: -2.5, like: -0.4 }, okText: 'Die Vorwürfe lösen sich auf.', failText: 'Neue Belege tauchen auf – der Schaden ist groß.' }
       ] },
-    { id: 'plagiat', cat: 'skandal', roles: ['gov', 'opp', 'apo'], w: 1, title: 'Plagiatsvorwurf', text: 'Ein Plagiatsjäger findet in der Doktorarbeit eurer stellvertretenden Vorsitzenden zahlreiche ungekennzeichnete Stellen.',
+    { id: 'plagiat', cat: 'skandal', roles: ['gov', 'opp', 'apo'], w: 1, title: 'Plagiatsvorwurf', text: 'Ein Plagiatsjäger findet in der Doktorarbeit eurer stellvertretenden Vorsitzenden {person} zahlreiche ungekennzeichnete Stellen.',
       choices: [
         { label: 'Rücktritt nahelegen', hint: 'Sauber', fx: { unity: -2, like: 0.1 } },
         { label: 'Prüfung der Universität abwarten', hint: 'Zieht sich hin', fx: { own: -0.15 } }
@@ -666,7 +666,7 @@
         { label: 'Groß bewerben', hint: 'Mehr Geld, mehr Aufmerksamkeit', fx: { cash: 0.6, own: 0.05 } },
         { label: 'Klein halten', hint: 'Kein Risiko, falls es floppt', fx: { cash: 0.2 } }
       ] },
-    { id: 'split', cat: 'partei', roles: ['apo', 'opp'], w: 1, minQ: 4, once: true, title: 'Abspaltung droht', text: 'Eine Gruppe prominenter Mitglieder um einen früheren Bundestagsabgeordneten droht, eine eigene Partei zu gründen.',
+    { id: 'split', cat: 'partei', roles: ['apo', 'opp'], w: 1, minQ: 4, once: true, title: 'Abspaltung droht', text: 'Eine Gruppe prominenter Mitglieder um den früheren Bundestagsabgeordneten {person} droht, eine eigene Partei zu gründen.',
       choices: [
         { label: 'Zugeständnisse machen', hint: 'Posten und Programmpunkte', fx: { unity: 5, cash: -0.2 } },
         { label: 'Ziehen lassen', hint: 'Klarheit, aber Verluste', fx: { members: -6, unity: 3, own: -0.25 } }

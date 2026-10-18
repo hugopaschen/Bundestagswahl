@@ -400,6 +400,10 @@
     const plan = editing ? budgetPlan : t.budget.plan;
     const b = T.budgetCalc(t, plan);
     let html = '<h2>🏦 Haushalt & Steuern</h2>';
+    const qn = T.cal(t).qn;
+    const BSTEPS = [[1, 'Eckwerte'], [3, 'Regierungsentwurf'], [3, '1. Lesung'], [4, 'Bereinigungssitzung'], [4, '2./3. Lesung'], [4, 'Bundesrat']];
+    html += '<div class="t-stages">' + BSTEPS.map(x => '<span class="t-stage ' + (x[0] < qn ? 'done' : x[0] === qn ? 'now' : '') + '">' + x[1] + '</span>').join('<i>›</i>') + '</div>' +
+      '<p class="muted small">Haushaltsverfahren (Art. 110 GG): Eckwerte im Frühjahr, Regierungsentwurf im Sommer, 1. Lesung im September, Bereinigungssitzung im November, Beschluss im Dezember' + (t.budget.eck && t.budget.eck !== 'fort' ? ' · Eckwerte dieses Jahr: ' + (t.budget.eck === 'konsol' ? 'Konsolidierung' : 'Investitionen') : '') + '.</p>';
     html += '<div class="t-kpis">' +
       kpi('Ausgaben', mrd(b.spend), 'Bundeshaushalt ' + (editing ? d.year : T.cal(t).year)) +
       kpi('Einnahmen', mrd(b.revenue), 'davon Steueränderungen ' + (b.taxRev >= 0 ? '+' : '−') + mrd(Math.abs(b.taxRev))) +
@@ -459,7 +463,8 @@
       (t.vize ? '<div class="t-cab-card"><span class="t-cab-min">Vizekanzler:in</span><b>' + esc(t.vize.name) + '</b>' + pill(t.vize.party) + '</div>' : '') + '</div>';
     const unnamed = Object.keys(t.cabinet).filter(id => t.cabinet[id].party === g.party && !t.cabinet[id].name);
     if (unnamed.length) {
-      html += '<div class="t-callout">✍️ Benennt eure Ministerinnen und Minister. Jeder Typ hat Stärken: Fachleute sind kompetent, Parteisoldaten loyal, Landesfürsten beruhigen ihren Landesverband, Quereinsteiger bringen frischen Wind – und Risiken.</div>';
+      html += '<div class="t-callout">✍️ Benennt eure Ministerinnen und Minister. Jeder Typ hat Stärken: Fachleute sind kompetent, Parteisoldaten loyal, Landesfürsten beruhigen ihren Landesverband, Quereinsteiger bringen frischen Wind – und Risiken.</div>' +
+        '<p><button type="button" class="btn primary" id="t-auto-names">⚡ Vorschläge der Fraktion übernehmen (' + unnamed.length + ' Ressorts)</button> <span class="small muted">Die Fraktionsführung wählt nach Kompetenz und Proporz; einzelne Ressorts könnt ihr später umbilden.</span></p>';
       unnamed.forEach(id => {
         const m = T.ministryById(id);
         const slot = t.cabinet[id];
@@ -481,6 +486,8 @@
     html += '</div>';
     if (!T.isGov(t.role)) html += '<p class="muted small">Ihr sitzt nicht in der Regierung. Kanzlerpartei: ' + esc(pname(t.chanc)) + '.</p>';
     $('t-kabinett').innerHTML = html;
+    const ab = $('t-auto-names');
+    if (ab) ab.addEventListener('click', () => { T.autoNames(g); save(); render(); U.toast('Das Kabinett steht.'); });
     $('t-kabinett').querySelectorAll('.t-cand').forEach(b => b.addEventListener('click', () => {
       const inp = $('t-kabinett').querySelector('.t-custom-name[data-m="' + b.dataset.m + '"]');
       T.nameMinister(g, b.dataset.m, Number(b.dataset.i), inp ? inp.value : '');
@@ -660,6 +667,28 @@
     } else if (it.type === 'scandal') {
       U.openModal(eyebrow + ' · 🔥 Affäre', 'Affäre im ' + T.ministryById(it.ministry).short + '-Ministerium', '<p>' + esc(it.text) + '</p>',
         [{ label: 'Festhalten', hint: 'Riskant: Kommt mehr heraus, wird es teuer', onClick: () => choose(0) }, { label: 'Rücktritt nahelegen', hint: 'Ihr benennt eine Nachfolge', onClick: () => choose(1) }]);
+    } else if (it.type === 'kbefragung') {
+      const opp = it.opp ? (g.rivals && g.rivals[it.opp] ? g.rivals[it.opp].name + ' (' + short(it.opp) + ')' : short(it.opp)) : 'die Opposition';
+      U.openModal(eyebrow + ' · 🎤 Regierungsbefragung', 'Fragen an die Kanzlerin/den Kanzler', '<p>Mittwoch, 13 Uhr, Plenarsaal. Nach einem kurzen Eingangsstatement stellen die Abgeordneten Fragen. ' + esc(opp) + ' eröffnet mit einer Frage zum Thema <b>' + esc(E.topicById(it.topic).name) + '</b>.</p>' +
+        '<p class="small muted">Kompetenz eurer Partei bei diesem Thema: ' + Math.round((g.competence || {})[it.topic] || 40) + '/100</p>',
+        [{ label: 'Mit Fakten antworten', hint: 'Gelingt bei hoher Kompetenz', onClick: () => choose(0) },
+          { label: 'Gegenangriff auf die Opposition', hint: 'Die Fraktion jubelt, die Mitte weniger', onClick: () => choose(1) },
+          { label: 'Ausweichen', hint: 'Sicher – aber kostet Glaubwürdigkeit', onClick: () => choose(2) }]);
+    } else if (it.type === 'eckwerte') {
+      U.openModal(eyebrow + ' · 🏦 Haushaltsverfahren', 'Eckwerte für den Haushalt ' + it.year, '<p>Im Frühjahr beschließt das Kabinett die Eckwerte – den Rahmen für den Regierungsentwurf im Sommer. Welche Linie gebt ihr vor?</p>',
+        [{ label: 'Fortschreiben', hint: 'Der bisherige Haushalt als Grundlage', onClick: () => choose(0) },
+          { label: 'Konsolidieren', hint: 'Entwurf startet mit Kürzungen · glaubwürdig, Partner murren', onClick: () => choose(1) },
+          { label: 'Investieren', hint: 'Entwurf startet mit mehr Geld für Verkehr, Forschung, Verteidigung, Wohnen', onClick: () => choose(2) }]);
+    } else if (it.type === 'bereinigung') {
+      U.openModal(eyebrow + ' · 🏦 Haushaltsausschuss', 'Bereinigungssitzung', '<p>In der traditionellen Nachtsitzung vor der 2./3. Lesung legen die Haushälter letzte Änderungen fest. Die Abgeordneten der Koalition wollen Projekte in ihren Wahlkreisen.</p>',
+        [{ label: 'Projekte zulassen', hint: '0,8 Mrd. € · gutes Klima in Fraktion und Koalition', onClick: () => choose(0) },
+          { label: 'Hart bleiben', hint: 'Solide, aber die Haushälter murren', onClick: () => choose(1) }]);
+    } else if (it.type === 'memory') {
+      const m = it.m;
+      U.openModal(eyebrow + ' · 🎙️ Interview', 'Rückblick: „' + m.title + '“', '<p>Vor ' + it.ago + ' Quartalen (' + esc(T.quarterLabel(term(), m.q)) + ') habt ihr entschieden: <b>' + esc(m.label) + '</b>. ' + (m.ok ? 'Im Rückblick ging die Rechnung auf.' : 'Im Rückblick ging das schief.') + '</p><p>Die Interviewerin hakt nach: „Würden Sie heute wieder so entscheiden?“</p>',
+        [{ label: 'Zur Entscheidung stehen', hint: m.ok ? 'Ihr könnt auf das Ergebnis verweisen' : 'Riskant: Es hat nicht funktioniert', onClick: () => choose(0) },
+          { label: m.ok ? 'Bescheiden bleiben' : 'Einen Fehler eingestehen', hint: m.ok ? 'Sympathisch' : 'Glaubwürdig, kostet kurz', onClick: () => choose(1) },
+          { label: 'Ausweichen', hint: 'Die Frage bleibt hängen', onClick: () => choose(2) }]);
     } else if (it.type === 'ltwcamp') {
       const name = E.stateById(it.land).name;
       const L = term().laender[it.land];

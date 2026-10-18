@@ -1161,3 +1161,28 @@ test('Landtagswahlen: Wahlkampfentscheidung, gebündelter Wahlabend, Koalitionsg
   assert.ok(camp > 0 && night > 0 && koa > 0, camp + '/' + night + '/' + koa);
   assert.ok(multi);
 });
+
+test('Haushaltsverfahren, Regierungsbefragung, Rückblicke und Ereignis-Varianten', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  T.autoNames(g);
+  const t = g.term;
+  const seen = {};
+  for (let i = 0; i < 16 && !t.over; i++) {
+    while (t.pending.length) {
+      const it = t.pending[0];
+      seen[it.type] = (seen[it.type] || 0) + 1;
+      if (it.type === 'event') {
+        const ev = T.eventById(it.id);
+        const txt = T.fillText(g, it, ev.title + ' ' + ev.text);
+        assert.ok(!/\{(firma|stadt|person|land|landName|partner|topic)\}/.test(txt), txt);
+      }
+      T.resolvePending(g, it.type === 'eckwerte' ? 2 : 0);
+    }
+    T.endQuarter(g);
+  }
+  assert.ok(seen.kbefragung >= 3, JSON.stringify(seen));
+  assert.ok(seen.bereinigung >= 2, JSON.stringify(seen));
+  assert.ok((t.memory || []).length > 0);
+  assert.ok(T.needsNames(g) === false);
+});

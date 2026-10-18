@@ -306,7 +306,13 @@
   }
   function autoNames(g) {
     const t = g.term;
-    Object.keys(t.cabinet).forEach(id => { if (t.cabinet[id].party === g.party && !t.cabinet[id].name) nameMinister(g, id, 0); });
+    // Vorschlag der Fraktion: die kompetenteste Kandidatur je Ressort.
+    Object.keys(t.cabinet).forEach(id => {
+      const slot = t.cabinet[id];
+      if (slot.party !== g.party || slot.name) return;
+      const c = slot.cands || [];
+      nameMinister(g, id, c.reduce((b, x, i) => (x.comp > c[b].comp ? i : b), 0));
+    });
   }
 
   // ---------- Koalitionsvertrag ----------
@@ -1533,8 +1539,17 @@
     const tops = A.TOPIC_IDS.slice().sort((a, b) => g.salience[b] - g.salience[a]).slice(0, 5);
     item.topic = pick(g, tops);
     if (ev.cat === 'intl' || ev.cat === 'inland' || ev.cat === 'wirtschaft') t.crisisQ = t.q;
+    // Abwechslung: Firma, Stadt und Person wechseln von Spiel zu Spiel (frei erfunden, keine realen Unternehmen).
+    const tx = ev.title + ev.text;
+    if (/\{firma\}/.test(tx)) item.firm = pick(g, EV_FIRMS);
+    if (/\{stadt\}/.test(tx)) item.city = item.land ? EV_CITY[item.land] : pick(g, Object.keys(EV_CITY).map(k => EV_CITY[k]));
+    if (/\{person\}/.test(tx)) item.person = newPerson(g, g.party, pick(g, D.STATES).id).full;
     t.pending.push(item);
   }
+  const EV_FIRMS = ['Ein großer Autozulieferer aus Niedersachsen', 'Ein Maschinenbaukonzern aus Baden-Württemberg', 'Ein Chemiekonzern vom Rhein',
+    'Ein Stahlhersteller aus dem Ruhrgebiet', 'Ein ostdeutscher Batteriehersteller', 'Ein Familienunternehmen aus Franken mit Weltmarktführerschaft'];
+  const EV_CITY = { BW: 'Stuttgart', BY: 'Nürnberg', BE: 'Berlin', BB: 'Cottbus', HB: 'Bremen', HH: 'Hamburg', HE: 'Kassel', MV: 'Rostock', NI: 'Hannover', NW: 'Duisburg',
+    RP: 'Ludwigshafen', SL: 'Saarbrücken', SN: 'Chemnitz', ST: 'Halle', SH: 'Lübeck', TH: 'Erfurt' };
   // Wer ist für ein Ereignis zuständig? (nur in der Regierung relevant)
   function eventMinister(g, ev) {
     const t = g.term;
@@ -1548,6 +1563,9 @@
       .replace(/\{partner\}/g, item.partner ? sname(item.partner) : '')
       .replace(/\{topic\}/g, item.topic ? E.topicById(item.topic).name : '')
       .replace(/\{minister\}/g, item.minister || '')
+      .replace(/\{firma\}/g, item.firm || 'Ein großer Industriekonzern')
+      .replace(/\{stadt\}/g, item.city || 'einer Großstadt')
+      .replace(/\{person\}/g, item.person || '')
       .replace(/\{ministry\}/g, item.ministry ? ministryById(item.ministry).short + '-Ministerium' : '');
   }
 
@@ -1594,12 +1612,13 @@
     return { yes, no, pass: yes > no };
   }
 
+  function P_like(g, v) { g.term.party.leader.like = clamp(g.term.party.leader.like + v, -5, 5); }
   function resolvePending(g, choice, extra) {
     const t = g.term;
     const item = t.pending[0];
     if (!item) return { ok: false };
     let text = '';
-    cat({ scandal: 'skandal', vote: 'abstimmung', cabinet: 'kabinett', veto: 'kabinett', disloyal: 'kabinett', sq: 'statusquo', lobby: 'lobby', door: 'lobby', lobbyaffair: 'skandal', landkoa: 'wahlen', ltwcamp: 'wahlen', brstell: 'parlament', anhoerung: 'parlament', whip: 'abstimmung', brwhip: 'parlament' }[item.type] || 'ereignis');
+    cat({ scandal: 'skandal', vote: 'abstimmung', cabinet: 'kabinett', veto: 'kabinett', disloyal: 'kabinett', sq: 'statusquo', lobby: 'lobby', door: 'lobby', lobbyaffair: 'skandal', landkoa: 'wahlen', ltwcamp: 'wahlen', memory: 'glaubw', eckwerte: 'haushalt', kbefragung: 'aktion', bereinigung: 'haushalt', brstell: 'parlament', anhoerung: 'parlament', whip: 'abstimmung', brwhip: 'parlament' }[item.type] || 'ereignis');
     if (item.type === 'event') {
       const ev = eventById(item.id);
       const c = eventChoices(g, ev)[choice];
@@ -1631,6 +1650,7 @@
         else { text += ' Der Bundestag verweigert das Mandat (' + v.yes + ':' + v.no + ') – eine Blamage.'; t.intl = clamp(t.intl - 8, 0, 100); t.gov.forEach(p => addNat(g, p, -0.25)); }
       }
       news(g, fillText(g, item, ev.title) + ': ' + c.label + '. ' + text, 'event');
+      if (c.chance !== undefined || ev.big) (t.memory = t.memory || []).push({ q: t.q, title: fillText(g, item, ev.title), label: c.label, ok, role: t.role });
     } else if (item.type === 'scandal') {
       const m = t.cabinet[item.ministry];
       if (choice === 0) { // festhalten
@@ -1669,6 +1689,29 @@
       if (entry) { entry.gov = L.gov.slice(); entry.inGov = L.gov.indexOf(g.party) !== -1; }
       text += ' Bundesrat: Länder nur mit Bundesregierungsparteien jetzt ' + brAligned(t) + ' von 69 Stimmen.';
       news(g, '🤝 Regierungsbildung in ' + name + ': ' + L.gov.map(sname).join('-') + '.', 'info');
+    } else if (item.type === 'kbefragung') {
+      const comp = (g.competence && g.competence[item.topic]) || 40;
+      if (choice === 0) {
+        if (rand(g) < clamp(0.35 + comp / 120, 0.3, 0.9)) { P_like(g, 0.1); addNat(g, g.party, 0.05); text = 'Sattelfest: Ihr beantwortet jede Nachfrage mit Zahlen. Selbst die Opposition nickt.'; }
+        else { P_like(g, -0.06); text = 'Eine Zahl stimmt nicht – die Opposition korrigiert genüsslich.'; }
+      } else if (choice === 1) { t.party.unity = clamp(t.party.unity + 2, 0, 100); P_like(g, -0.03); text = 'Ihr dreht den Spieß um und attackiert die Opposition. Die eigene Fraktion jubelt.'; }
+      else { addCred(g, -1, 'In der Regierungsbefragung ausgewichen'); text = 'Ausweichende Antworten – „Kanzler:in ohne Antworten“, schreibt die Presse.'; }
+    } else if (item.type === 'eckwerte') {
+      t.budget.eck = ['fort', 'konsol', 'invest'][choice] || 'fort';
+      if (t.budget.eck === 'konsol') { t.mood = clamp(t.mood - 2, 0, 100); addCred(g, 1, 'Solide Eckwerte für den Haushalt'); }
+      if (t.budget.eck === 'invest') t.mood = clamp(t.mood + 1, 0, 100);
+      text = { fort: 'Die Eckwerte schreiben den bisherigen Haushalt fort.', konsol: 'Sparkurs: Die Eckwerte sehen Kürzungen in allen gestaltbaren Bereichen vor.', invest: 'Investitionskurs: mehr Geld für Verkehr, Forschung, Verteidigung und Wohnen.' }[t.budget.eck] +
+        ' Der Regierungsentwurf im Sommer baut darauf auf.';
+      news(g, 'Eckwertebeschluss für den Haushalt ' + item.year + ': ' + text, 'info');
+    } else if (item.type === 'bereinigung') {
+      if (choice === 0) { t.budget.oneoff += 0.8; t.mood = clamp(t.mood + 3, 0, 100); t.party.unity = clamp(t.party.unity + 2, 0, 100); text = 'In der Bereinigungssitzung bekommen die Haushälter ihre Projekte (0,8 Mrd. €) – Fraktionen und Partner sind zufrieden.'; }
+      else { t.mood = clamp(t.mood - 2, 0, 100); addCred(g, 1, 'Keine Wahlkreisgeschenke im Haushalt'); text = 'Ihr bleibt hart: keine Extrawünsche. Die Haushälter murren.'; }
+      news(g, 'Bereinigungssitzung des Haushaltsausschusses (Haushalt ' + item.year + '): ' + text, 'info');
+    } else if (item.type === 'memory') {
+      const m = item.m;
+      if (choice === 0) { if (m.ok) { addCred(g, 2, 'Zu „' + m.title + '“ gestanden'); addNat(g, g.party, 0.08); text = 'Ihr steht zu eurer Entscheidung – und könnt auf das Ergebnis verweisen.'; } else { addCred(g, -2, 'Gescheiterte Entscheidung schöngeredet'); text = 'Ihr verteidigt die Entscheidung. Die Interviewerin bleibt skeptisch: „Aber es hat doch nicht funktioniert?“'; } }
+      else if (choice === 1) { if (m.ok) { t.party.leader.like = clamp(t.party.leader.like + 0.03, -5, 5); text = 'Bescheiden: „Es war ein Teamerfolg.“ Sympathisch.'; } else { addCred(g, 2, 'Fehler bei „' + m.title + '“ eingestanden'); addNat(g, g.party, -0.04); text = '„Das war ein Fehler, wir haben daraus gelernt.“ Selten – und glaubwürdig.'; } }
+      else { addCred(g, -1); text = 'Ihr weicht aus. Der Clip wird mit dem Titel „Keine Antwort“ geteilt.'; }
     } else if (item.type === 'ltwcamp') {
       const name = E.stateById(item.land).name;
       if (choice === 1) {
@@ -2300,8 +2343,19 @@
     t.pollFx = {};
     t.qLaws = 0;
     // Haushaltssaison: Entwurf für das nächste Jahr (nicht im letzten Jahr vor der Wahl nötig, aber üblich)
+    // Haushaltsverfahren wie im Bund: Eckwerte (März) → Regierungsentwurf (Kabinett, Sommer) → 1. Lesung (September)
+    // → Bereinigungssitzung des Haushaltsausschusses (November) → 2./3. Lesung → Bundesrat (Einspruchsgesetz).
+    if (c.qn === 1) {
+      t.budget.eck = 'fort';
+      if (isGov(t.role) && playerDraftsBudget(g)) t.pending.push({ type: 'eckwerte', year: c.year + 1 });
+      else news(g, 'Das Kabinett beschließt die Eckwerte für den Haushalt ' + (c.year + 1) + '.', 'info');
+    }
+    if (c.qn === 4 && isGov(t.role) && t.budget.draft && t.budget.draft.done && !first) t.pending.push({ type: 'bereinigung', year: t.budget.draft.year });
     if (c.qn === 3) {
       t.budget.draft = { year: c.year + 1, plan: Object.assign({}, t.budget.plan), notlage: false, done: false };
+      const free = TD.AREAS.filter(a => !a.fixed && a.id in t.budget.draft.plan).map(a => a.id);
+      if (t.budget.eck === 'konsol') free.forEach(a => { t.budget.draft.plan[a] = Math.max(-10, t.budget.draft.plan[a] - 5); });
+      if (t.budget.eck === 'invest') ['verkehr', 'forschung', 'verteidigung', 'wohnen'].filter(a => free.indexOf(a) !== -1).forEach(a => { t.budget.draft.plan[a] = Math.min(10, t.budget.draft.plan[a] + 5); });
       if (!playerDraftsBudget(g)) {
         t.budget.draft.plan = aiBudgetPlan(g);
         t.budget.draft.done = true;
@@ -2328,6 +2382,14 @@
         }
       });
     }
+    // Regierungsbefragung: Die Kanzlerin/der Kanzler stellt sich dreimal im Jahr dem Plenum (§ 106 GOBT, seit 2018).
+    if (!first && t.role === 'kanzler' && c.qn === 2) {
+      const opp = CONTEST.filter(p => t.gov.indexOf(p) === -1 && (t.seats[p] || 0) > 0).sort((a, b) => t.seats[b] - t.seats[a])[0];
+      t.pending.push({ type: 'kbefragung', topic: A.TOPIC_IDS.slice().sort((a, b) => g.salience[b] - g.salience[a])[0], opp });
+    }
+    // Rückblick: Journalisten erinnern an eine frühere Entscheidung.
+    const mem = (t.memory || []).filter(m => !m.done && t.q - m.q >= 4);
+    if (!first && mem.length && rand(g) < 0.25) { const m = pick(g, mem); m.done = true; t.pending.push({ type: 'memory', m, ago: t.q - m.q }); }
     // Landtagswahl am Ende dieses Quartals: Wie stark mischt sich die Bundespartei ein?
     if (!first) ltwDue(t).forEach(l => { if ((t.landPrev[l] || 0) >= 3 || t.laender[l].gov.indexOf(g.party) !== -1) t.pending.push({ type: 'ltwcamp', land: l }); });
     // Eure Entwürfe im parlamentarischen Verfahren: Stellungnahme des Bundesrates und Anhörung im Ausschuss
