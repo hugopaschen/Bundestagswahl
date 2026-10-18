@@ -2075,15 +2075,50 @@
   const DUEL_STYLES = [
     { id: 'sachlich', name: 'Sachlich argumentieren', desc: 'Punktet, wenn du beim Thema kompetent bist.' },
     { id: 'angriff', name: 'Angreifen', desc: 'Hohes Risiko, hoher Gewinn.' },
-    { id: 'emotional', name: 'Persönliche Geschichte erzählen', desc: 'Solide, kaum Abhängigkeit vom Thema.' }
+    { id: 'emotional', name: 'Persönliche Geschichte erzählen', desc: 'Solide, kaum Abhängigkeit vom Thema.' },
+    { id: 'konter', name: 'Den Angriff direkt kontern', desc: 'Schlagfertig zurück – wirkt, wenn man euch mag; gegen Angreifer besonders.' }
   ];
+  // Angriffe der Gegenüber je nach Stil (frei formuliert nach typischen TV-Runden).
+  const DUEL_ATTACKS = {
+    angreifer: ['Ihre Partei hat beim Thema {t} auf ganzer Linie versagt!', 'Sie reden schön – die Menschen merken davon nichts. Beim Thema {t} schon gar nicht.'],
+    staatsmann: ['Das Land braucht beim Thema {t} Ernsthaftigkeit statt Parolen.', 'Mit Verlaub: Was Sie zum Thema {t} vorschlagen, ist nicht durchgerechnet.'],
+    populist: ['Beim Thema {t} wird über die Köpfe der Leute hinweg entschieden – auch von Ihnen!', 'Fragen Sie mal die Menschen draußen, was die von Ihrer {t}-Politik halten!'],
+    technokrat: ['Ihre Zahlen zum Thema {t} stimmen hinten und vorne nicht.', 'Die Studienlage zum Thema {t} sagt etwas ganz anderes als Sie.']
+  };
+  const duelSize = g => sizeFactor(nationalShares(g)[g.party]);
 
+  // Format nach Umfrage wie im echten Fernsehen: Duell der beiden Großen, Triell bei drei Kanzlerkandidaturen,
+  // sonst die Elefantenrunde aller Spitzen. Je Frage greift ein Gegenüber an.
   function startDuel(g) {
     const topics = TOPIC_IDS.slice().sort((a, b) => g.salience[b] - g.salience[a]).slice(0, 3);
     const sh = nationalShares(g);
-    const rival = PARTY_IDS.filter(p => p !== g.party).sort((a, b) => sh[b] - sh[a])[0];
-    g.duel = { topics, round: 0, points: 0, results: [], rival };
+    const order = PARTY_IDS.filter(p => isShown(g, p)).sort((a, b) => sh[b] - sh[a]);
+    const top = order.slice(0, 3);
+    let format = 'elefantenrunde';
+    if (top.slice(0, 2).indexOf(g.party) !== -1 && sh[top[1]] - sh[top[2]] > 4) format = 'duell';
+    else if (top.indexOf(g.party) !== -1 && sh[top[2]] - (sh[order[3]] || 0) > 3) format = 'triell';
+    const opponents = (format === 'duell' ? top.slice(0, 2) : format === 'triell' ? top : order.slice(0, 7)).filter(p => p !== g.party);
+    const rival = opponents[0];
+    const attacks = topics.map((t, i) => {
+      const p = opponents[i % opponents.length];
+      const st = (g.rivals && g.rivals[p] && g.rivals[p].style) || 'staatsmann';
+      return { p, name: rivalName(g, p), style: st, text: pick(g, DUEL_ATTACKS[st] || DUEL_ATTACKS.staatsmann).replace('{t}', topicById(t).name) };
+    });
+    g.duel = { topics, round: 0, points: 0, results: [], rival, format, opponents, attacks };
     return g.duel;
+  }
+  // Schlusswort nach der letzten Frage (nur über die Oberfläche): 0 Zukunft, 1 klare Kante, 2 Bitte um die Stimme.
+  function duelClosing(g, choice) {
+    const like = g.cand ? g.cand.like : 0;
+    const fringe = ['afd', 'linke', 'bsw'].indexOf(g.party) !== -1;
+    let d = between(g, -0.1, 0.25);
+    if (choice === 0) d += like > 0 ? 0.15 : -0.05;
+    else if (choice === 1) d += fringe ? 0.2 : -0.05;
+    else d += 0.1;
+    d = Math.round(d * duelSize(g) * 10) / 10;
+    g.nat[g.party] += d;
+    if (g.duelLast) g.duelLast.closing = d;
+    return { ok: true, delta: d, text: d >= 0.2 ? 'Ein starkes Schlusswort – die Zuschauer sind bei euch.' : d > 0 ? 'Ein solides Schlusswort.' : 'Das Schlusswort verpufft.' };
   }
 
   function duelAnswer(g, styleId) {
@@ -2094,7 +2129,12 @@
     if (styleId === 'sachlich') score = 0.15 + comp * 0.8 + between(g, -0.15, 0.15);
     else if (styleId === 'angriff') score = between(g, 0.0, 1.05);
     else if (styleId === 'emotional') score = 0.45 + between(g, -0.15, 0.2);
-    else return { ok: false, text: 'Unbekannte Strategie.' };
+    else if (styleId === 'konter') {
+      const at = g.duel.attacks && g.duel.attacks[g.duel.round];
+      const st = at ? at.style : 'staatsmann';
+      score = 0.35 + 0.08 * (g.cand ? g.cand.like : 0) + (st === 'angreifer' ? 0.15 : st === 'staatsmann' ? -0.1 : 0) + between(g, -0.25, 0.3);
+      if (at && score > 0.55 && g.rivals && g.rivals[at.p]) g.rivals[at.p].feud = Math.min(5, (g.rivals[at.p].feud || 0) + 1);
+    } else return { ok: false, text: 'Unbekannte Strategie.' };
     // Das Gegenüber: Gegen Angreifer wirkt Gelassenheit, gegen Staatsmännische kein Angriff, gegen Populisten der Faktencheck.
     const st = g.duel.rival && g.rivals && g.rivals[g.duel.rival] ? g.rivals[g.duel.rival].style : null;
     const DUEL_FIT = { angreifer: { emotional: 0.1, angriff: -0.05 }, staatsmann: { angriff: -0.1, sachlich: 0.05 }, populist: { sachlich: 0.1 }, technokrat: { emotional: 0.1, sachlich: -0.05 } };
@@ -2113,6 +2153,7 @@
       journal(g, 'd', 'Elefantenrunde im Fernsehen', g.duel.points);
       addLog(g, 'duel', 'Elefantenrunde: Blitzumfrage ' + fmt(g.duel.points) + ' Punkte für euch.');
       res.total = g.duel.points;
+      g.duelLast = { format: g.duel.format, opponents: g.duel.opponents, points: g.duel.points, results: g.duel.results };
       g.duel = null;
       g.duelDone = true;
     }
@@ -3269,7 +3310,7 @@
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent,
     startDuel, duelAnswer,
-    endWeek, sainteLague, findCoalitions, coalitionViable, chooseCoalition, negotiate, MINISTRIES, NEG_MIN, ministryById, ministryWish, draftOrder,
+    endWeek, duelClosing, sainteLague, findCoalitions, coalitionViable, chooseCoalition, negotiate, MINISTRIES, NEG_MIN, ministryById, ministryWish, draftOrder,
     serialize, deserialize, applyYear, YEAR0, lobbyPruefstein, lobbyAnswer, LB
   };
   // Interne Bausteine für die Legislaturperiode (js/term.js).

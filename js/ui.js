@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261018-210423';
+  const APP_VERSION = '20261018-210753';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -1468,14 +1468,18 @@
       })));
   }
 
+  const DUEL_NAMES = { duell: 'Das TV-Duell', triell: 'Das Triell', elefantenrunde: 'Die große Elefantenrunde' };
   function showDuelIntro() {
     const topics = D.TOPICS.slice().sort((a, b) => g.salience[b.id] - g.salience[a.id]).slice(0, 3);
-    openModal('Woche ' + g.week + ' · Live im Fernsehen', 'Die große Elefantenrunde',
-      '<p>Eine Woche vor der Wahl treffen alle Spitzenkandidierenden im Fernsehstudio aufeinander. Millionen schauen zu.</p>' +
-      (() => { const sh = E.nationalShares(g); const rv = Object.keys(g.rivals || {}).filter(p => E.party(p)).sort((a, b) => sh[b] - sh[a])[0]; return rv ? '<p>Dein härtestes Gegenüber: <b>' + esc(E.rivalLabel(g, rv)) + '</b> – ' + esc(E.rivalStyle(g.rivals[rv]).desc) + '. Gegen Angreifer hilft Gelassenheit, gegen Populisten der Faktencheck, gegen Staatsmännische wirken Attacken schnell kleinlich.</p>' : ''; })() +
-      '<p>Es wird um die wichtigsten Themen gehen: <strong>' + topics.map(t => esc(t.name)).join(', ') + '</strong>.</p>' +
-      '<p class="muted small">Wähle für jede Frage deine Strategie. Sachliche Antworten gelingen bei deinen Stärken, Angriffe sind ein Glücksspiel.</p>',
-      [{ label: 'Ab ins Studio', primary: true, onClick: () => { E.startDuel(g); save(); showDuelRound(); } }]);
+    E.startDuel(g);
+    save();
+    const d = g.duel;
+    const who = d.opponents.map(p => '<b>' + esc(E.rivalName(g, p)) + '</b> (' + esc(short(p)) + ', ' + esc(E.rivalStyle(g.rivals && g.rivals[p]).name) + ')').join(', ');
+    openModal('Woche ' + g.week + ' · Live im Fernsehen', DUEL_NAMES[d.format],
+      '<p>' + (d.format === 'duell' ? 'Nur die beiden Großen treten an: ' : d.format === 'triell' ? 'Drei Kanzlerkandidaturen im Studio: ' : 'Alle Spitzenkandidierenden im Studio: ') + esc(g.candidate) + ' gegen ' + who + '. Millionen schauen zu.</p>' +
+      '<p>Es geht um die wichtigsten Themen: <strong>' + topics.map(t => esc(t.name)).join(', ') + '</strong>. Bei jeder Frage greift euch jemand an – reagiert sachlich, persönlich, mit einem eigenen Angriff oder kontert direkt. Am Ende habt ihr ein Schlusswort.</p>' +
+      '<p class="muted small">Gegen Angreifer hilft ein guter Konter oder Gelassenheit, gegen Populisten der Faktencheck, gegen Staatsmännische wirken Attacken schnell kleinlich.</p>',
+      [{ label: 'Ab ins Studio', primary: true, onClick: showDuelRound }]);
   }
 
   function duelScoreHtml(results) {
@@ -1485,29 +1489,42 @@
 
   function showDuelRound() {
     const d = g.duel;
+    if (!d) return;
     const topic = d.topics[d.round];
-    openModal('Elefantenrunde · Frage ' + (d.round + 1) + ' von ' + d.topics.length, E.topicById(topic).icon + ' ' + E.topicById(topic).name,
-      duelScoreHtml(d.results) + '<p class="duel-question">„' + esc(QUESTIONS[topic]) + '“</p>' +
-      '<p class="muted small">Kompetenz deiner Partei bei diesem Thema: ' + E.competenceOf(g, g.party)[topic] + '/100' +
-        (E.isCore(g, topic) ? ' · 🎯 Kernthema eures Programms' : '') + '</p>',
-      E.DUEL_STYLES.map(s => ({
-        label: s.name,
-        hint: s.desc,
+    const at = d.attacks && d.attacks[d.round];
+    openModal(DUEL_NAMES[d.format || 'elefantenrunde'] + ' · Frage ' + (d.round + 1) + ' von ' + d.topics.length, E.topicById(topic).icon + ' ' + E.topicById(topic).name,
+      duelScoreHtml(d.results) + '<p class="duel-question">Moderation: „' + esc(QUESTIONS[topic]) + '“</p>' +
+      (at ? '<p class="duel-attack" style="--pc:' + col(at.p) + '">🗣️ <b>' + esc(at.name) + '</b> (' + esc(short(at.p)) + ') fällt euch ins Wort: „' + esc(at.text) + '“</p>' : '') +
+      '<p class="muted small">Kompetenz eurer Partei bei diesem Thema: ' + E.competenceOf(g, g.party)[topic] + '/100' + (E.isCore(g, topic) ? ' · 🎯 Kernthema eures Programms' : '') + '</p>',
+      E.DUEL_STYLES.map(st => ({
+        label: st.name,
+        hint: st.desc,
         onClick: () => {
           const results = d.results;
-          const res = E.duelAnswer(g, s.id);
+          const res = E.duelAnswer(g, st.id);
           save();
           const body = '<p><strong>' + esc(res.verdict) + '</strong> Wirkung: ' + signed(res.delta) + ' Punkte.</p>' + duelScoreHtml(results);
           if (res.done) {
             renderGame();
-            openModal('Elefantenrunde · Blitzumfrage', res.total >= 0 ? 'Die Zuschauer sehen euch vorn!' : 'Kein guter Abend für euch',
-              body + '<p>Gesamtwirkung der Elefantenrunde: <strong>' + signed(res.total) + ' Punkte</strong>.</p>',
-              [{ label: 'Zurück in den Wahlkampf', primary: true, onClick: () => { closeModal(); renderGame(); } }]);
+            openModal('Schlusswort', 'Eine Minute für das Schlusswort', body + '<p>Die Moderation gibt euch das letzte Wort. Womit schließt ' + esc(g.candidate) + '?</p>',
+              [{ label: 'Ein Appell an die Zukunft', hint: 'Wirkt, wenn man euch mag', onClick: () => closing(0, res) },
+                { label: 'Klare Kante gegen die Konkurrenz', hint: 'Mobilisiert – in der Mitte riskant', onClick: () => closing(1, res) },
+                { label: '„Gehen Sie wählen – ich bitte um Ihr Vertrauen.“', hint: 'Solide', onClick: () => closing(2, res) }]);
           } else {
-            openModal('Elefantenrunde', 'Antwort: ' + s.name, body, [{ label: 'Nächste Frage', primary: true, onClick: showDuelRound }]);
+            openModal(DUEL_NAMES[d.format || 'elefantenrunde'], 'Antwort: ' + st.name, body, [{ label: 'Nächste Frage', primary: true, onClick: showDuelRound }]);
           }
         }
       })));
+  }
+  function closing(choice, res) {
+    const c = E.duelClosing(g, choice);
+    save();
+    renderGame();
+    const total = Math.round((res.total + c.delta) * 10) / 10;
+    openModal('Blitzumfrage nach der Sendung', total >= 0 ? 'Die Zuschauer sehen euch vorn!' : 'Kein guter Abend für euch',
+      '<p>' + esc(c.text) + ' (' + signed(c.delta) + ')</p>' + duelScoreHtml(g.duelLast ? g.duelLast.results : []) +
+      '<p>Gesamtwirkung: <strong>' + signed(total) + ' Punkte</strong>.</p>',
+      [{ label: 'Zurück in den Wahlkampf', primary: true, onClick: () => { closeModal(); renderGame(); } }]);
   }
 
   // ---------- Wahlabend ----------
