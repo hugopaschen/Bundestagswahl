@@ -2374,7 +2374,7 @@
   const rivalStyle = r => RIVAL_STYLES.find(s => s.id === (r && r.style)) || RIVAL_STYLES[1];
   function newRival(g, p) {
     const fringe = ['afd', 'linke', 'bsw'].indexOf(p) !== -1;
-    const style = fringe && rand(g) < 0.5 ? 'populist' : pick(g, RIVAL_STYLES).id;
+    const style = fringe && rand(g) < 0.5 ? 'populist' : pick(g, RIVAL_STYLES.filter(x => fringe || x.id !== 'populist')).id;
     const person = newPerson(g, p);
     return { name: String(person.full).replace(/\d+/g, '').trim(), style, born: (g.year || YEAR0) - 45 - Math.floor(rand(g) * 18), feud: 0, since: g.year || YEAR0 };
   }
