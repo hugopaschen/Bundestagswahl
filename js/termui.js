@@ -508,7 +508,7 @@
     const last = hist.length ? hist[hist.length - 1] : null;
     const total = {};
     hist.concat([{ fx: t.pollFx || {} }]).forEach(h => Object.keys(h.fx).forEach(c => { total[c] = (total[c] || 0) + h.fx[c]; }));
-    let html = '<h3>🔍 Was eure Umfrage bewegt</h3><p class="muted small">Euer Handeln bestimmt die Umfragen: Aktionen, Gesetze, euer Abstimmungsverhalten, wie ihr auf Krisen reagiert und ob ihr eurer Linie treu bleibt. Werte in Prozentpunkten (geschätzt, vor der Wählerwanderung zwischen den Parteien).</p><div class="t-fx-wrap">';
+    let html = '<h3>🔍 Was eure Umfrage bewegt</h3><p class="muted small">Euer Handeln bestimmt die Umfragen – wie in der Realität vor allem die großen Momente: Krisenmanagement, Streit in der Koalition, umstrittene Gesetze, Affären, ein Hype um eure Spitze oder ein viraler Auftritt. Routinearbeit verpufft schnell, Krisen und Dauerstreit wirken lange nach, ein Hype verglüht ohne Wahlerfolge. Werte in Prozentpunkten (geschätzt, vor der Wählerwanderung zwischen den Parteien).</p><div class="t-fx-wrap">';
     html += fxBlock('Seit Beginn dieses Quartals', t.pollFx || {});
     if (last) html += fxBlock('Im letzten Quartal (' + T.quarterLabel(t, last.q) + ')', last.fx);
     html += fxBlock('Seit der Wahl', total) + '</div>';

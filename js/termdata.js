@@ -206,11 +206,11 @@
    */
   var EVENTS = [
     // ---------- Internationale Krisen ----------
-    { id: 'ukraine_offensive', cat: 'intl', roles: ['gov'], w: 3, title: 'Neue russische Offensive', text: 'Russland startet eine Großoffensive in der Ostukraine. Kiew bittet dringend um Luftverteidigung und Munition. Washington zögert.',
+    { id: 'ukraine_offensive', cat: 'intl', big: true, roles: ['gov'], w: 3, title: 'Neue russische Offensive', text: 'Russland startet eine Großoffensive in der Ostukraine. Kiew bittet dringend um Luftverteidigung und Munition. Washington zögert.',
       choices: [
-        { label: 'Zusätzliche Patriot-Systeme liefern', hint: 'Ansehen in Europa steigt, teuer', fx: { intl: 8, budget: 4, def: 2, sal: { verteidigung: 0.02 }, gov: 0.2 } },
+        { label: 'Zusätzliche Patriot-Systeme liefern', hint: 'Ansehen in Europa steigt, teuer', fx: { intl: 8, budget: 4, def: 2, sal: { verteidigung: 0.02 }, gov: 0.5 } },
         { label: 'Europäische Initiative anführen', hint: 'Gemeinsam mit Paris und Warschau', fx: { intl: 10, budget: 2, like: 0.2, sal: { europa: 0.015 } }, chance: 0.65, fail: { intl: 2, like: -0.2 }, okText: 'Die EU zieht mit – ein Erfolg für Berlin.', failText: 'Ungarn blockiert, die Initiative versandet.' },
-        { label: 'Zurückhaltung, Verhandlungen fordern', hint: 'Im Osten populär, in Europa Kritik', fx: { intl: -10, gov: -0.1, sal: { verteidigung: 0.01 }, own: 0.2 } }
+        { label: 'Zurückhaltung, Verhandlungen fordern', hint: 'Im Osten populär, in Europa Kritik', fx: { intl: -10, gov: -0.8, sal: { verteidigung: 0.01 }, own: 0.4 } }
       ] },
     { id: 'ukraine_ceasefire', cat: 'intl', roles: ['gov'], w: 2, minQ: 3, title: 'Waffenstillstand in der Ukraine?', text: 'Unter Vermittlung der Türkei liegt ein Waffenstillstandsabkommen auf dem Tisch. Europa soll die Sicherheitsgarantien stellen – auch mit Bundeswehr-Soldaten.',
       choices: [
@@ -249,17 +249,17 @@
         { label: 'Einsatz mittragen', hint: 'Staatspolitische Verantwortung', fx: { own: 0.1, unity: -2 } },
         { label: 'Einsatz ablehnen', hint: 'Klare Kante', fx: { own: 0.15, unity: 1 } }
       ] },
-    { id: 'refugees', cat: 'intl', roles: ['gov'], w: 2.5, title: 'Neue Fluchtbewegung', text: 'Nach einem Bürgerkrieg im Nahen Osten machen sich Hunderttausende auf den Weg nach Europa. Kommunen melden: Wir sind am Limit.',
+    { id: 'refugees', cat: 'intl', big: true, roles: ['gov'], w: 2.5, title: 'Neue Fluchtbewegung', text: 'Nach einem Bürgerkrieg im Nahen Osten machen sich Hunderttausende auf den Weg nach Europa. Kommunen melden: Wir sind am Limit.',
       choices: [
-        { label: 'Grenzkontrollen verschärfen', hint: 'Streit mit Nachbarländern', fx: { intl: -5, gov: 0.1, sal: { migration: 0.04 }, mood: -3 } },
-        { label: 'EU-Verteilung durchsetzen', hint: 'Mühsame Verhandlungen', fx: { intl: 5, sal: { migration: 0.03 } }, chance: 0.45, fail: { gov: -0.3, sal: { migration: 0.02 } }, okText: 'Die EU einigt sich auf einen Verteilschlüssel.', failText: 'Die Verhandlungen scheitern, die Kommunen sind wütend.' },
+        { label: 'Grenzkontrollen verschärfen', hint: 'Streit mit Nachbarländern', fx: { intl: -5, gov: 0.6, sal: { migration: 0.04 }, mood: -3 } },
+        { label: 'EU-Verteilung durchsetzen', hint: 'Mühsame Verhandlungen', fx: { intl: 5, sal: { migration: 0.03 } }, chance: 0.45, fx2: { gov: 1.0 }, fail: { gov: -1.5, sal: { migration: 0.02 } }, okText: 'Die EU einigt sich auf einen Verteilschlüssel.', failText: 'Die Verhandlungen scheitern, die Kommunen sind wütend.' },
         { label: 'Kommunen mit 3 Mrd. € unterstützen', hint: 'Entlastung vor Ort', fx: { budget: 3, sal: { migration: 0.03 }, gov: 0.05 } }
       ] },
-    { id: 'gas_crisis', cat: 'intl', roles: ['gov'], w: 1.5, title: 'Energiepreise explodieren', text: 'Ein Anschlag auf eine Pipeline in der Nordsee und ein kalter Winter treiben die Gaspreise auf Rekordniveau.',
+    { id: 'gas_crisis', cat: 'intl', big: true, roles: ['gov'], w: 1.5, title: 'Energiepreise explodieren', text: 'Ein Anschlag auf eine Pipeline in der Nordsee und ein kalter Winter treiben die Gaspreise auf Rekordniveau.',
       choices: [
-        { label: 'Preisbremse für Haushalte', hint: 'Teuer, aber spürbar', fx: { budget: 12, infl: -0.3, gov: 0.3 } },
+        { label: 'Preisbremse für Haushalte', hint: 'Teuer, aber spürbar', fx: { budget: 12, infl: -0.3, gov: 1.2 } },
         { label: 'Gezielte Hilfen für Geringverdiener', hint: 'Günstiger', fx: { budget: 4, infl: 0.3, gov: 0.1 } },
-        { label: 'Markt wirken lassen', hint: 'Spart Geld, sorgt für Ärger', fx: { infl: 0.7, gov: -0.4, growth: -0.1 } }
+        { label: 'Markt wirken lassen', hint: 'Spart Geld, sorgt für Ärger', fx: { infl: 0.7, gov: -2.0, growth: -0.1 } }
       ] },
     { id: 'cyber', cat: 'intl', roles: ['gov', 'opp'], w: 1.5, title: 'Cyberangriff auf Krankenhäuser', text: 'Hacker legen die IT von 40 Kliniken lahm. Spuren führen zu einer staatsnahen Gruppe aus Russland.',
       gov: [
@@ -324,29 +324,29 @@
         { label: 'Kampagne „Mieten runter“', hint: 'Mobilisiert in Städten', fx: { own: 0.25, sal: { wohnen: 0.03 }, members: 1 } },
         { label: 'Bündnis mit dem Mieterbund', hint: 'Glaubwürdigkeit', fx: { own: 0.15, comp: { wohnen: 3 } } }
       ] },
-    { id: 'flood', cat: 'inland', roles: ['gov', 'opp', 'apo'], w: 1.5, title: 'Jahrhunderthochwasser', text: 'Starkregen setzt ganze Täler in Bayern und Sachsen unter Wasser. Es gibt Tote, die Schäden gehen in die Milliarden.',
+    { id: 'flood', cat: 'inland', big: true, roles: ['gov', 'opp', 'apo'], w: 0.7, title: 'Jahrhunderthochwasser', text: 'Starkregen setzt ganze Täler in Bayern und Sachsen unter Wasser. Es gibt Tote, die Schäden gehen in die Milliarden.',
       gov: [
-        { label: 'Sofort ins Krisengebiet, Fluthilfe 5 Mrd. €', hint: 'Krisenmanagement zählt', fx: { budget: 5, like: 0.4, gov: 0.3, sal: { klima: 0.03 } } },
-        { label: 'Hilfe zusagen, aber in Berlin bleiben', hint: 'Bilder fehlen', fx: { budget: 5, like: -0.2 } }
+        { label: 'Sofort ins Krisengebiet, Fluthilfe 5 Mrd. €', hint: 'Wie 2002 an der Elbe: Krisenmanagement kann Wahlen entscheiden', fx: { budget: 5, sal: { klima: 0.03 } }, chance: 0.75, fx2: { like: 0.8, chanc: 2.0, gov: 0.4 }, fail: { like: -0.5, gov: -1.0 }, okText: 'Gummistiefel, Sandsäcke, schnelle Hilfe – das Land sieht eine handlungsfähige Regierung.', failText: 'Die Hilfe kommt schleppend an, die Betroffenen sind wütend.' },
+        { label: 'Hilfe zusagen, aber in Berlin bleiben', hint: 'Bilder fehlen', fx: { budget: 5, like: -0.4, gov: -1.0 } }
       ],
       choices: [
-        { label: 'Helfer schicken, nicht politisieren', hint: 'Anständig', fx: { own: 0.1, like: 0.2 } },
-        { label: 'Versäumnisse beim Klimaschutz anprangern', hint: 'Riskant', fx: { own: 0.1, sal: { klima: 0.03 } }, chance: 0.5, fail: { own: -0.3 }, okText: 'Die Debatte kommt an.', failText: 'Euch wird vorgeworfen, das Leid zu instrumentalisieren.' }
+        { label: 'Helfer schicken, nicht politisieren', hint: 'Anständig', fx: { own: 0.3, like: 0.3 } },
+        { label: 'Versäumnisse beim Klimaschutz anprangern', hint: 'Riskant', fx: { own: 0.3, sal: { klima: 0.03 } }, chance: 0.5, fail: { own: -1.2 }, okText: 'Die Debatte kommt an.', failText: 'Euch wird vorgeworfen, das Leid zu instrumentalisieren.' }
       ] },
-    { id: 'attack', cat: 'inland', roles: ['gov', 'opp', 'apo'], w: 1.5, title: 'Anschlag auf einen Weihnachtsmarkt', text: 'Ein Attentäter fährt in einen Weihnachtsmarkt. Es gibt Tote und Verletzte. Das Land steht unter Schock, die Debatte über innere Sicherheit und Migration kocht hoch.',
+    { id: 'attack', cat: 'inland', big: true, roles: ['gov', 'opp', 'apo'], w: 1.5, title: 'Anschlag auf einen Weihnachtsmarkt', text: 'Ein Attentäter fährt in einen Weihnachtsmarkt. Es gibt Tote und Verletzte. Das Land steht unter Schock, die Debatte über innere Sicherheit und Migration kocht hoch.',
       gov: [
-        { label: 'Sicherheitspaket: mehr Befugnisse für Behörden', hint: 'Streit um Bürgerrechte', fx: { sal: { sicherheit: 0.05, migration: 0.03 }, mood: -3, gov: 0.1 } },
-        { label: 'Besonnen bleiben, Aufklärung abwarten', hint: 'Kritik: zu weich', fx: { sal: { sicherheit: 0.04 }, gov: -0.15, like: 0.1 } }
+        { label: 'Sicherheitspaket: mehr Befugnisse für Behörden', hint: 'Streit um Bürgerrechte', fx: { sal: { sicherheit: 0.05, migration: 0.03 }, mood: -3, gov: 0.8 } },
+        { label: 'Besonnen bleiben, Aufklärung abwarten', hint: 'Kritik: zu weich', fx: { sal: { sicherheit: 0.04 }, gov: -1.0, like: 0.2 } }
       ],
       choices: [
-        { label: 'Schärfere Gesetze fordern', hint: 'Rückenwind von rechts', fx: { own: 0.2, sal: { sicherheit: 0.04 } } },
-        { label: 'Vor Spaltung warnen', hint: 'Zusammenhalt', fx: { own: 0.05, like: 0.15, sal: { sicherheit: 0.03 } } }
+        { label: 'Schärfere Gesetze fordern', hint: 'Rückenwind von rechts', fx: { own: 0.8, sal: { sicherheit: 0.04 } } },
+        { label: 'Vor Spaltung warnen', hint: 'Zusammenhalt', fx: { own: 0.2, like: 0.3, sal: { sicherheit: 0.03 } } }
       ] },
-    { id: 'recession', cat: 'wirtschaft', roles: ['gov'], w: 1.5, minQ: 2, title: 'Rezessionswarnung', text: 'Die Wirtschaftsforschungsinstitute senken ihre Prognose: Deutschland droht ein drittes Rezessionsjahr innerhalb von sechs Jahren.',
+    { id: 'recession', cat: 'wirtschaft', big: true, roles: ['gov'], w: 1.5, minQ: 2, title: 'Rezessionswarnung', text: 'Die Wirtschaftsforschungsinstitute senken ihre Prognose: Deutschland droht ein drittes Rezessionsjahr innerhalb von sechs Jahren.',
       choices: [
-        { label: 'Konjunkturpaket (15 Mrd. €)', hint: 'Schulden steigen', fx: { budget: 15, growth: 0.3, unemp: -0.1 } },
+        { label: 'Konjunkturpaket (15 Mrd. €)', hint: 'Schulden steigen', fx: { budget: 15, growth: 0.3, unemp: -0.1, gov: 0.6 } },
         { label: 'Bürokratieabbau-Gesetz', hint: 'Billig, wirkt langsam', fx: { growth: 0.08, comp: { wirtschaft: 2 } } },
-        { label: 'Sparkurs halten', hint: 'Solide, aber riskant', fx: { growth: -0.1, unemp: 0.05 } }
+        { label: 'Sparkurs halten', hint: 'Solide, aber riskant', fx: { growth: -0.1, unemp: 0.05, gov: -0.8 } }
       ] },
     { id: 'strike', cat: 'wirtschaft', roles: ['gov', 'opp'], w: 1.5, title: 'Großstreik bei Bahn und Flughäfen', text: 'Verdi und die GDL legen das Land eine Woche lahm. Die Wirtschaft fordert ein Streikrecht mit Grenzen.',
       gov: [
@@ -465,13 +465,13 @@
     // ---------- Koalition ----------
     { id: 'coal_leak', cat: 'koalition', roles: ['gov'], w: 2, title: 'Durchgestochene Kabinettsvorlage', text: 'Ein interner Entwurf von {partner} landet bei der „Bild“ – mit spöttischen Randnotizen über euch.',
       choices: [
-        { label: 'Öffentlich Konsequenzen fordern', hint: 'Klima leidet', fx: { mood: -8, own: 0.1 } },
+        { label: 'Öffentlich Konsequenzen fordern', hint: 'Klima leidet, alle verlieren', fx: { mood: -8, own: 0.2, gov: -0.4 } },
         { label: 'Intern im Koalitionsausschuss klären', hint: 'Diskret', fx: { mood: -2 } }
       ] },
     { id: 'coal_dispute', cat: 'koalition', roles: ['gov'], w: 2.5, minQ: 1, title: 'Koalitionsstreit um {topic}', text: '{partner} stellt den Kompromiss beim Thema {topic} öffentlich infrage. Talkshows sprechen von einer „Koalition im Dauerstreit“.',
       choices: [
         { label: 'Nachgeben', hint: 'Ruhe, aber eure Basis murrt', fx: { mood: 6, unity: -3, own: -0.1 } },
-        { label: 'Hart bleiben', hint: 'Profil, aber Streit', fx: { mood: -7, own: 0.15, gov: -0.1 } },
+        { label: 'Hart bleiben', hint: 'Profil, aber öffentlicher Streit schadet allen Partnern', fx: { mood: -7, own: 0.3, gov: -0.5 } },
         { label: 'Koalitionsausschuss einberufen', hint: 'Mühsam, aber geordnet', fx: { mood: 2, ap: -1 } }
       ] },
     { id: 'coal_poll', cat: 'koalition', roles: ['junior'], w: 1.5, title: 'Juniorpartner in der Krise?', text: 'Eine Umfrage sieht euch deutlich unter eurem Wahlergebnis. Parteifreunde fordern: „Wir müssen sichtbarer werden – notfalls mit Krach.“',
@@ -481,10 +481,10 @@
       ] },
 
     // ---------- Skandale ----------
-    { id: 'lobby', cat: 'skandal', roles: ['gov', 'opp', 'apo'], w: 1.5, title: 'Maskenaffäre 2.0', text: 'Recherchen zeigen: Ein Bundestagsabgeordneter eurer Partei hat Provisionen für die Vermittlung von Rüstungsaufträgen kassiert.',
+    { id: 'lobby', cat: 'skandal', big: true, roles: ['gov', 'opp', 'apo'], w: 1.5, title: 'Maskenaffäre 2.0', text: 'Recherchen zeigen: Ein Bundestagsabgeordneter eurer Partei hat Provisionen für die Vermittlung von Rüstungsaufträgen kassiert.',
       choices: [
-        { label: 'Sofortiger Fraktionsausschluss', hint: 'Klare Kante', fx: { own: -0.1, like: 0.2, unity: -1 } },
-        { label: 'Auf die Unschuldsvermutung verweisen', hint: 'Riskant', fx: { own: -0.2 }, chance: 0.5, fail: { own: -0.6, like: -0.3 }, okText: 'Die Vorwürfe lösen sich auf.', failText: 'Neue Belege tauchen auf – der Schaden ist groß.' }
+        { label: 'Sofortiger Fraktionsausschluss', hint: 'Klare Kante – der Schaden bleibt begrenzt', fx: { own: -0.5, like: 0.2, unity: -1 } },
+        { label: 'Auf die Unschuldsvermutung verweisen', hint: 'Riskant – wie die Maskenaffäre 2021', fx: { own: -0.4 }, chance: 0.5, fail: { own: -2.5, like: -0.4 }, okText: 'Die Vorwürfe lösen sich auf.', failText: 'Neue Belege tauchen auf – der Schaden ist groß.' }
       ] },
     { id: 'plagiat', cat: 'skandal', roles: ['gov', 'opp', 'apo'], w: 1, title: 'Plagiatsvorwurf', text: 'Ein Plagiatsjäger findet in der Doktorarbeit eurer stellvertretenden Vorsitzenden zahlreiche ungekennzeichnete Stellen.',
       choices: [
@@ -524,6 +524,20 @@
         { label: 'Konstruktive Gegenrede mit eigenem Konzept', hint: 'Seriös', fx: { own: 0.15, like: 0.2 } }
       ] },
 
+    { id: 'pandemic', cat: 'inland', big: true, ministry: 'gesundheit', roles: ['gov', 'opp', 'apo'], w: 0.25, minQ: 2, once: true, title: 'Eine neue Pandemie', text: 'Ein neuartiges Virus breitet sich rasant aus. Die Krankenhäuser füllen sich, die Menschen haben Angst. Das Land schaut auf die Regierung.',
+      gov: [
+        { label: 'Entschlossen handeln: Schutzmaßnahmen und Hilfspakete', hint: 'Vorbild 2020: Krisenmanagement kann alles drehen', fx: { budget: 25, growth: -1.2, sal: { gesundheit: 0.06 } }, chance: 0.65, fx2: { chanc: 5.0, gov: 1.0, like: 1.2 }, fail: { chanc: -2.0, like: -0.6 }, okText: 'Die Menschen vertrauen der Regierung – die Umfragen springen nach oben.', failText: 'Chaos bei Masken und Tests – das Vertrauen bricht ein.' },
+        { label: 'Abwarten und die Wirtschaft schonen', hint: 'Riskant', fx: { growth: -0.4, sal: { gesundheit: 0.05 } }, chance: 0.35, fx2: { gov: 0.8 }, fail: { chanc: -4.0, like: -1.0 }, okText: 'Die Welle ebbt glimpflich ab.', failText: 'Die Lage gerät außer Kontrolle – schwere Vorwürfe gegen die Regierung.' }
+      ],
+      choices: [
+        { label: 'Die Regierung unterstützen', hint: 'Staatspolitische Verantwortung', fx: { own: 0.3, like: 0.3 } },
+        { label: 'Die Maßnahmen scharf kritisieren', hint: 'Mobilisiert die Skeptiker', fx: { own: 0.4 }, chance: 0.5, fx2: { own: 1.2 }, fail: { own: -1.0 }, okText: 'Die Kritik trifft einen Nerv.', failText: 'Ihr wirkt verantwortungslos.' }
+      ] },
+    { id: 'gaffe', cat: 'skandal', big: true, roles: ['gov', 'opp'], w: 0, title: 'Ein unglückliches Bild', text: 'Eine Kamera hat eure Spitze im Krisengebiet lachend im Hintergrund erwischt, während der Bundespräsident spricht. Das Video läuft in Dauerschleife.',
+      choices: [
+        { label: 'Sofort entschuldigen', hint: 'Schadensbegrenzung', fx: { like: -0.4, own: -0.6 } },
+        { label: 'Aussitzen', hint: 'Vielleicht vergessen es alle', fx: {}, chance: 0.35, fx2: { own: -0.2 }, fail: { own: -2.2, like: -1.2 }, okText: 'Nach ein paar Tagen redet niemand mehr darüber.', failText: 'Das Bild wird zum Symbol – wie 2021 im Ahrtal.' }
+      ] },
     // ---------- Stufe 2: weitere Ereignisse, mit Zuständigkeit (ministry) und Folgeereignissen (next) ----------
     { id: 'china_ev', cat: 'wirtschaft', ministry: 'wirtschaft', roles: ['gov'], w: 1.5, title: 'Billige E-Autos aus China', text: 'Chinesische Hersteller erobern den europäischen Markt. Die EU-Kommission schlägt Strafzölle vor, Peking droht mit Gegenmaßnahmen gegen deutsche Autobauer.',
       choices: [

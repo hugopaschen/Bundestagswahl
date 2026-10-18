@@ -109,18 +109,45 @@
     t.pollFx = t.pollFx || {};
     t.pollFx[c] = (t.pollFx[c] || 0) + v;
   }
+  // Wirkungsstufen nach der Realität: Routine verpufft schnell, Krisen und Dauerstreit wirken lange,
+  // ein Hype (neue Spitze, virale Momente) ist ein Strohfeuer – außer Wahlerfolge bestätigen ihn.
+  const DECAY = { fast: 0.55, norm: 0.85, slow: 0.94, hype: 0.6 };
+  const CAT_TIER = { aktion: 'fast', abstimmung: 'fast', partei: 'fast', glaubw: 'fast', skandal: 'slow', regierung: 'slow', krise: 'slow', streit: 'slow', hype: 'hype', viral: 'hype' };
+  let TIER = null; // Stufe für die nächste Wirkung (überschreibt die Ursache)
+  function bucket(g, tier, p) {
+    const t = g.term;
+    if (!t.bk) { t.bk = { fast: {}, norm: {}, slow: {}, hype: {} }; PIDS.forEach(q => { t.bk.norm[q] = g.nat[q] || 0; }); }
+    return t.bk[tier];
+  }
   function addNat(g, p, v) {
     if (!v) return;
     const d = v * A.sizeFactor(shareOf(g, p));
-    if (PIDS.indexOf(p) !== -1) g.nat[p] += d;
-    else if (g.minor && g.minor[p]) g.minor[p].nat += d;
+    if (PIDS.indexOf(p) !== -1) {
+      g.nat[p] += d;
+      const b = bucket(g, TIER || CAT_TIER[CAT] || 'norm', p);
+      b[p] = (b[p] || 0) + d;
+    } else if (g.minor && g.minor[p]) g.minor[p].nat += d;
     else return;
     if (p === g.party) noteFx(g, CAT, d);
+  }
+  // Wirkung in einer bestimmten Stufe.
+  function addNatT(g, p, v, tier) { const old = TIER; TIER = tier; addNat(g, p, v); TIER = old; }
+  // Verblassen je Stufe; g.nat ist die Summe aller Stufen.
+  function decayNat(g) {
+    const t = g.term;
+    bucket(g, 'norm', g.party);
+    const before = g.nat[g.party] || 0;
+    PIDS.forEach(p => {
+      let sum = 0;
+      Object.keys(DECAY).forEach(k => { t.bk[k][p] = (t.bk[k][p] || 0) * DECAY[k]; sum += t.bk[k][p]; });
+      g.nat[p] = sum;
+    });
+    noteFx(g, 'verblassen', (g.nat[g.party] || 0) - before);
   }
   const FX_NAMES = { aktion: '🎯 Eure Aktionen', gesetz: '📜 Gesetze', parlament: '🏛️ Abstimmungen im Bundestag', haushalt: '🏦 Haushalt',
     karlsruhe: '⚖️ Karlsruhe', wahlen: '🗳️ Landtags- und Europawahlen', statusquo: '⚖️ Status quo', ereignis: '📰 Eure Reaktion auf Ereignisse',
     skandal: '🔥 Affären', abstimmung: '🗳️ Euer Abstimmungsverhalten', kabinett: '👥 Kabinett', regierung: '🏛️ Regierungsbilanz und Wirtschaft',
-    partei: '🎪 Spitze und Geschlossenheit', glaubw: '🤝 Glaubwürdigkeit', konkurrenz: '🥊 Konkurrenz', verblassen: '⏳ Frühere Effekte verblassen', sonst: 'Sonstiges' };
+    partei: '🎪 Spitze und Geschlossenheit', glaubw: '🤝 Glaubwürdigkeit', krise: '🚨 Krisenmanagement', streit: '💥 Streit in der Koalition', hype: '🔥 Hype um eure Spitze', viral: '📱 Viraler Moment', konkurrenz: '🥊 Konkurrenz', verblassen: '⏳ Frühere Effekte verblassen', sonst: 'Sonstiges' };
   // Glaubwürdigkeit (0–100): Wer seiner Linie treu bleibt, gewinnt Vertrauen; wer umfällt, verliert es.
   function addCred(g, v, why) {
     const t = g.term;
@@ -893,9 +920,11 @@
       law.log.push('Bundestag stimmt zu: ' + v.yes + ' Ja, ' + v.no + ' Nein, ' + v.abst + ' Enthaltungen.');
       if (v.afdDecisive) {
         news(g, 'Eklat im Bundestag: „' + lawName(law) + '“ kommt nur mit Stimmen der AfD durch. Proteste vor dem Reichstag.', 'bad');
-        t.gov.forEach(p => addNat(g, p, -0.3));
-        if (g.party === 'afd') addNat(g, 'afd', 0.2);
-        if (t.gov.indexOf(g.party) !== -1) t.party.unity = clamp(t.party.unity - 5, 0, 100);
+        // Vorbild Januar 2025: Die Mitte verliert, die linke Opposition mobilisiert.
+        t.gov.forEach(p => addNatT(g, p, p === 'afd' ? 0 : -1.0, 'slow'));
+        ['linke', 'gruene', 'spd'].forEach(p => { if (t.gov.indexOf(p) === -1) addNatT(g, p, p === 'linke' ? 0.8 : 0.4, 'norm'); });
+        if (g.party === 'afd') addNat(g, 'afd', 0.4);
+        if (t.gov.indexOf(g.party) !== -1) { t.party.unity = clamp(t.party.unity - 6, 0, 100); addCred(g, -4, 'Mehrheit nur mit Stimmen der AfD'); }
       }
       if (law.zust) { law.stage = 'bundesrat'; return; }
       enact(g, law);
@@ -950,7 +979,7 @@
       applyEcon(t.econ, { growth: (now.growth || 0) - (prev.growth || 0) }, 1);
       t.econ.infl += (now.infl || 0) - (prev.infl || 0);
       const dRev = now.rev - prev.rev;
-      pop = -dRev / 25 + (now.lean === -1 && dRev > 0 ? 0.35 : 0) + (now.climate ? -0.1 : 0);
+      pop = (-dRev / 25 + (now.lean === -1 && dRev > 0 ? 0.35 : 0) + (now.climate ? -0.1 : 0)) * 2.2;
     } else {
       const prevOpt = t.policy[law.topic];
       const prevLean = D.PROGRAM[law.topic][prevOpt].lean;
@@ -967,7 +996,10 @@
       D.GROUPS.forEach(k => { if (!g.grp[k.id]) return; t.gov.forEach(p => { g.grp[k.id][p] = (g.grp[k.id][p] || 0) + 0.6 * (diff[k.id] - mean); }); });
       t.policy[law.topic] = law.opt;
       t.sq[law.topic] = 55; // die neue Regelung ist der neue Status quo
-      pop = D.PROGRAM[law.topic][law.opt].pop;
+      const o = D.PROGRAM[law.topic][law.opt];
+      // Wie umstritten: Lager-Position und Kosten (Betroffenheit). Vorbild Heizungsgesetz 2023 (−3 für die Grünen).
+      const controversy = Math.abs(o.lean) * (o.cost + 1) / 3;
+      pop = (o.pop - 0.15 * controversy) * 2.2;
       A.changeSalience(g, law.topic, -0.01);
     }
     // Gut gemacht oder handwerklich schlecht? Die Kompetenz der zuständigen Ministerin/des Ministers zählt.
@@ -976,7 +1008,12 @@
     if (pop > 0) pop *= cf; else pop *= 2 - cf;
     if (mn && mn.comp < 45 && rand(g) < 0.3) { pop -= 0.15; law.log.push('Handwerkliche Mängel: ' + mn.name + ' muss nachbessern.'); news(g, 'Pannen beim Gesetz „' + lawName(law) + '“: Kritik an ' + mn.name + '.', 'warn'); }
     // Umfragen: Regierung bekommt Lob oder Kritik, Parteien mit passender Linie punkten bei Anhängern.
-    t.gov.forEach(p => addNat(g, p, 0.3 * pop * sal * (p === t.chanc ? 1 : 0.7)));
+    // Wichtige Themen polarisieren stärker; die Partei des zuständigen Ressorts trägt den größten Teil.
+    const salP = Math.pow(clamp(sal, 0.5, 2.5), 1.5);
+    const owner = mn ? mn.party : t.chanc;
+    // Negativitätsverzerrung: Unbeliebtes schadet stärker, als Beliebtes nützt (Wählerinnen und Wähler nehmen Gutes als selbstverständlich).
+    if (pop > 0) pop *= 0.3;
+    t.gov.forEach(p => addNat(g, p, pop * salP * (pop > 0 ? (p === owner ? 0.9 : p === t.chanc ? 0.8 : 0.5) : (p === owner ? 1.2 : p === t.chanc ? 0.9 : 0.6))));
     PIDS.forEach(p => {
       const d = Math.abs(leanOf(g, p, topic) - L);
       if (t.gov.indexOf(p) !== -1) addNat(g, p, d === 0 ? 0.12 : d === 2 ? -0.15 : 0);
@@ -1143,6 +1180,12 @@
     t.landPrev[land] = shares[g.party];
     t.ltwBoost[land] = 0;
     addNat(g, g.party, clamp(diff * 0.05, -0.4, 0.4));
+    // Bestätigt die Wahl den Hype, bleibt ein Teil; sonst verpufft er (Schulz-Effekt 2017).
+    const hb = bucket(g, 'hype', g.party);
+    if ((hb[g.party] || 0) > 0.4) {
+      if (diff >= 1) { const keep = hb[g.party] * 0.5; hb[g.party] -= keep; const sb = bucket(g, 'slow', g.party); sb[g.party] = (sb[g.party] || 0) + keep; news(g, 'Der Höhenflug hält: Die Landtagswahl bestätigt den Aufwind.', 'good'); }
+      else if (diff <= -1) { const lost = hb[g.party] * 0.7; hb[g.party] -= lost; g.nat[g.party] -= lost; noteFx(g, 'hype', -lost); news(g, 'Strohfeuer: Nach der Landtagswahl ist der Hype vorbei.', 'bad'); }
+    }
     t.party.unity = clamp(t.party.unity + clamp(diff, -6, 6), 0, 100);
     t.gov.forEach(p => { if (p !== g.party && (shares[p] || 0) < (sh[p] || 0) - 2) t.mood = clamp(t.mood - 2, 0, 100); });
     const entry = { q: t.q, land, shares, gov, diff: r1(diff), inGov: gov.indexOf(g.party) !== -1, inParl: shares[g.party] >= 5 };
@@ -1297,10 +1340,22 @@
       if (!c) return { ok: false };
       let ok = true;
       const resp = eventMinister(g, ev);
-      if (c.chance !== undefined) ok = rand(g) < clamp(c.chance + (resp && isGov(t.role) ? (resp.comp - 60) / 200 : 0), 0.05, 0.95);
+      if (c.chance !== undefined) ok = rand(g) < clamp(c.chance + (resp && isGov(t.role) ? (resp.comp - 60) / (ev.big ? 100 : 200) : 0), 0.05, 0.95);
+      if (ev.big) { cat('krise'); TIER = 'slow'; }
       applyFx(g, c.fx, item);
       if (ok && c.fx2) applyFx(g, c.fx2, item);
       if (!ok) applyFx(g, c.fail, item);
+      TIER = null;
+      // Regiert ihr nicht, entscheidet die Regierung selbst – auch sie kann in der Krise gewinnen oder verlieren.
+      if (ev.big && ev.gov && !isGov(t.role)) {
+        const good = rand(g) < 0.55;
+        const amt = good ? between(g, 1, 3) : -between(g, 1, 2.5);
+        cat('konkurrenz');
+        addNatT(g, t.chanc, amt, 'slow');
+        news(g, (good ? 'Die Bundesregierung meistert die Lage (' : 'Die Bundesregierung wirkt überfordert (') + fillText(g, item, ev.title) + ').', good ? 'info' : 'warn');
+      }
+      // Ein unglückliches Bild in der Krise (Vorbild Flut 2021) – trifft Regierung wie Opposition.
+      if (ev.big && ev.cat !== 'skandal' && rand(g) < 0.12) (t.followUps = t.followUps || []).push({ id: 'gaffe', q: t.q + 1 });
       const nx = ok ? c.next : (c.failNext || c.next);
       if (nx) (t.followUps = t.followUps || []).push({ id: nx.id, q: t.q + (nx.in || 2), land: item.land });
       text = c.chance !== undefined ? (ok ? c.okText : c.failText) || '' : '';
@@ -1314,13 +1369,13 @@
       const m = t.cabinet[item.ministry];
       if (choice === 0) { // festhalten
         const ok = rand(g) < 0.5;
-        if (ok) { addNat(g, g.party, -0.15); text = m.name + ' übersteht die Affäre.'; }
-        else { addNat(g, g.party, -0.5); t.party.leader.like = clamp(t.party.leader.like - 0.3, -5, 5); t.mood = clamp(t.mood - 5, 0, 100); text = 'Immer neue Details – der Druck wird unerträglich.'; }
+        if (ok) { addNat(g, g.party, -0.3); text = m.name + ' übersteht die Affäre.'; }
+        else { addNat(g, g.party, -1.8); t.party.leader.like = clamp(t.party.leader.like - 0.3, -5, 5); t.mood = clamp(t.mood - 5, 0, 100); text = 'Immer neue Details – der Druck wird unerträglich.'; }
       } else { // entlassen
         t.formerNames.push(m.name);
         t.cabinet[item.ministry] = { party: g.party, name: null, cands: candidatesFor(g, g.party) };
         t.party.unity = clamp(t.party.unity - 2, 0, 100);
-        addNat(g, g.party, -0.05);
+        addNat(g, g.party, -0.4);
         text = m.name + ' tritt zurück. Ihr müsst die Nachfolge benennen.';
       }
       news(g, 'Affäre im ' + ministryById(item.ministry).short + '-Ministerium: ' + text, 'warn');
@@ -1518,6 +1573,7 @@
     { id: 'lvpflege', roles: ['kanzler', 'junior', 'opposition', 'apo'], icon: '🧩', name: 'Landesverband befrieden', target: 'land', desc: 'Besuch, Gespräche, Posten: Ärger in einem Landesverband dämpfen.' },
     { id: 'basis', roles: ['kanzler', 'junior', 'opposition', 'apo'], icon: '🏠', name: 'Basisarbeit', desc: 'Regionalkonferenzen und Mitgliederabende: mehr Geschlossenheit.' }
   ];
+  const VIRAL = ['social', 'protest', 'talkshow', 'buerger', 'antrag', 'aktuelle', 'regerkl'];
   const ACTION_CASH = { ltwk: 0.4, protest: 0.15, social: 0.15, mitglieder: 0.2, parteitag: 0.5, buerger: 0.05, talkshow: 0 };
 
   function actionCash(g, id) { return cashCost(g, ACTION_CASH[id] || 0); }
@@ -1761,7 +1817,10 @@
           P.leader = { name: newPerson(g, g.party, weightedLand(g)).full, like: 0.8, born: yr - Math.round(between(g, 38, 52)) };
           newLeader(g, P.leader.name, yr, P.leader.born, 'Sonderparteitag').offices.push({ year: yr, office: officeName(g) });
           P.unity = clamp(P.unity + 12, 0, 100);
-          actNat(g.party, 0.25);
+          // Hype um die neue Spitze (Vorbild Schulz-Effekt): groß, aber ein Strohfeuer ohne Wahlerfolge.
+          cat('hype');
+          addNatT(g, g.party, between(g, 2, 3.5) / A.sizeFactor(shareOf(g, g.party)), 'hype');
+          t.hypeQ = t.q;
           text = 'Neue Parteispitze: ' + P.leader.name + '. Aufbruchstimmung!';
         } else { P.unity = clamp(P.unity - 10, 0, 100); text = 'Kampfkandidatur und Streit auf offener Bühne – der Parteitag geht schief.'; }
         news(g, '🎪 Parteitag: ' + text, 'big');
@@ -1789,6 +1848,20 @@
       }
       case 'basis': P.unity = clamp(P.unity + 5 * f, 0, 100); P.members = Math.round(P.members * 1.003); text = 'Regionalkonferenzen stärken den Zusammenhalt.'; break;
       default: return { ok: false, text: 'Unbekannte Aktion.' };
+    }
+    // Virale Momente: selten, aber groß (Vorbild Linke 2025) – Auftritte mit sicheren Antworten haben bessere Chancen.
+    if (VIRAL.indexOf(id) !== -1) {
+      const good = target && typeof target === 'object' && target.right >= 2;
+      const chance = (0.012 + (t.role === 'opposition' || t.role === 'apo' ? 0.01 : 0) + (good ? 0.02 : 0)) * f;
+      if (rand(g) < chance) {
+        const amount = between(g, 1.5, 3.5);
+        cat('viral');
+        addNatT(g, g.party, amount / A.sizeFactor(shareOf(g, g.party)), 'hype');
+        P.members = Math.round(P.members * 1.03);
+        t.hypeQ = t.q;
+        text += ' 📱 Der Auftritt geht viral – Millionen Aufrufe, tausende Eintritte!';
+        news(g, '📱 Viral: ' + party(g.party).short + ' begeistert im Netz. Die Umfragen ziehen an – ob es hält?', 'big');
+      }
     }
     t.ap -= a.ap === undefined ? 1 : a.ap;
     P.cash -= actionCash(g, id);
@@ -1863,8 +1936,11 @@
 
   function updateMood(g) {
     const t = g.term;
-    if (t.gov.length < 2) { t.mood = 60; return; }
+    if (t.gov.length < 2) { t.mood = 60; t.streit = 0; return; }
     t.mood = clamp(t.mood + (50 - t.mood) * 0.04 - 0.5 + between(g, -1.5, 1.5), 0, 100);
+    // Dauerstreit kostet alle Partner – wie bei der Ampel (zusammen 52 → 38 % in knapp zwei Jahren).
+    t.streit = t.mood < 40 ? (t.streit || 0) + 1 : Math.max(0, (t.streit || 0) - 1);
+    if (t.streit) { cat('streit'); t.gov.forEach(p => addNatT(g, p, -0.15 * Math.min(t.streit, 5), 'slow')); if (t.streit === 3) news(g, '💥 „Streitkoalition“: Die Medien zählen die Tage bis zum Bruch.', 'warn'); }
     if (t.mood >= 12) { t.lowMood = 0; return; }
     t.lowMood = (t.lowMood || 0) + 1;
     if (t.lowMood < 2 && rand(g) < 0.5) return;
@@ -1883,23 +1959,22 @@
   function updatePolls(g) {
     const t = g.term;
     const e = t.econ;
-    noteFx(g, 'verblassen', g.nat[g.party] ? g.nat[g.party] * (NAT_DECAY - 1) : 0);
-    PIDS.forEach(p => { g.nat[p] *= NAT_DECAY; });
+    decayNat(g);
     D.STATES.forEach(st => { PIDS.forEach(p => { g.reg[st.id][p] *= 0.8; }); });
     MINOR.forEach(m => { g.minor[m].nat *= NAT_DECAY; g.minor[m].trend = clamp(g.minor[m].trend + between(g, -0.12, 0.14), -1, 2.5); });
     // Regierungsverschleiß und Wirtschaftslage (geschätzt)
     cat('regierung');
     const econ = 0.25 * (e.growth - 1) - 0.6 * (e.unemp - t.econPrev.unemp) - 0.08 * Math.max(0, e.infl - 2.5);
-    // Regierungsverschleiß: Wer liefert (Gesetze in Kraft), verschleißt weniger; Stillstand kostet extra.
+    // Regierungsverschleiß (Amtsmalus, wie GroKo 2013–17): Liefern dämpft ihn nur etwas; Stillstand kostet extra.
     const delivered = Math.min(2, t.qLaws || 0);
     const idle = t.q - (t.lastLawQ === undefined ? -1 : t.lastLawQ) >= 4 ? 0.08 : 0;
-    t.gov.forEach(p => { addNat(g, p, ((p === t.chanc ? -0.16 : -0.09) * (1 - 0.4 * delivered) - idle) + econ * (p === t.chanc ? 1 : 0.5)); });
+    t.gov.forEach(p => { addNat(g, p, ((p === t.chanc ? -0.38 : -0.42) * (1 - 0.125 * delivered) - idle) + econ * (p === t.chanc ? 1 : 0.5)); });
     if (t.gov.length > 1 && t.mood < 35) t.gov.forEach(p => addNat(g, p, -0.1));
     if (t.budget.status === 'vorlaeufig') t.gov.forEach(p => addNat(g, p, -0.12));
     if (t.ua) { t.gov.forEach(p => addNat(g, p, -0.1)); addNat(g, g.party, 0.04); }
     // Eigene Spitze und Geschlossenheit
     cat('partei');
-    addNat(g, g.party, 0.04 * t.party.leader.like + (t.party.unity - 55) / 400);
+    addNat(g, g.party, 0.025 * t.party.leader.like + (t.party.unity - 55) / 400);
     // Glaubwürdigkeit: Wer verlässlich nach seinem Programm handelt, gewinnt Vertrauen.
     cat('glaubw');
     if (t.cred === undefined) t.cred = 55;

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /*
  * Balance der Legislaturperiode: Je Partei und Spielweise vier Legislaturen (4 Startwerte) simulieren und den
- * Durchschnitt der Umfrageveränderung (eigene Partei, Prozentpunkte seit der Wahl) mit den Zielwerten vergleichen.
+ * Durchschnitt der Umfrageveränderung (eigene Partei, Prozentpunkte seit der Wahl) mit den Zielbereichen vergleichen.
  * Aufruf: npm run balance            (Tabelle)
- *         npm run balance -- --check (Abbruch mit Fehler, wenn ein Wert außerhalb der Toleranz liegt)
+ *         npm run balance -- --check (Abbruch mit Fehler, wenn ein Wert außerhalb des Zielbereichs liegt)
  *         npm run balance -- --fx    (zusätzlich: woher die Umfrageveränderung kommt)
  */
 const path = require('path');
@@ -11,14 +11,14 @@ const E = require(path.join(__dirname, '..', 'js', 'engine.js'));
 const T = require(path.join(__dirname, '..', 'js', 'term.js'));
 
 const SEEDS = [3, 4, 5, 7];
-const TOLERANCE = 1.0;
-// Zielwerte (Durchschnitt aus 4 Spielen): die Simulationsreihe vom Oktober 2026. Union aktiv: gemessen mit einem
-// Spieler, der die Koalition pflegt (die frühere −1,1 stammte von einem Testspieler, der die Koalition sprengte).
+// Zielbereiche (Durchschnitt aus 4 Spielen) nach echten Legislaturen: GroKo 2013–17 (Union −8,6, SPD −5,2
+// bis zur Wahl), Ampel 2021–24 (zusammen 52 → 38 %), Union in der Opposition 2022–24 (+6 bis +8).
+// aktiv = Spieler, der die Koalition pflegt und liefert; passiv = Spieler, der nichts tut.
 const TARGETS = {
-  union: { role: 'Kanzlerschaft', passiv: -1.7, aktiv: 3.5 },
-  spd: { role: 'Juniorpartner', passiv: -0.2, aktiv: 4.0 },
-  linke: { role: 'Opposition', passiv: 0.6, aktiv: 5.6 },
-  fdp: { role: 'APO', passiv: 0.2, aktiv: 1.9 }
+  union: { role: 'Kanzlerschaft', passiv: [-9, -3], aktiv: [-4, 0] },
+  spd: { role: 'Juniorpartner', passiv: [-7, -1], aktiv: [-4, 0] },
+  linke: { role: 'Opposition', passiv: [0, 5], aktiv: [3, 7] },
+  fdp: { role: 'APO', passiv: [-1, 2], aktiv: [0.5, 3.5] }
 };
 
 function elect(p, seed) {
@@ -85,15 +85,15 @@ function play(p, seed, active) {
 }
 
 let bad = 0;
-console.log('Partei  Rolle          Spielweise  Ergebnis  Ziel   Einzelwerte');
+console.log('Partei  Rolle          Spielweise  Ergebnis  Zielbereich  Einzelwerte');
 Object.keys(TARGETS).forEach(p => ['passiv', 'aktiv'].forEach(mode => {
   const runs = SEEDS.map(s => play(p, s, mode === 'aktiv'));
   const avg = runs.reduce((s, r) => s + r.delta, 0) / runs.length;
   const target = TARGETS[p][mode];
-  const ok = Math.abs(avg - target) <= TOLERANCE;
+  const ok = avg >= target[0] && avg <= target[1];
   if (!ok) bad += 1;
   const f = x => (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(1);
-  console.log(p.padEnd(7), TARGETS[p].role.padEnd(14), mode.padEnd(11), f(avg).padStart(6), '  ', f(target).padStart(5), ok ? '✓' : '✗',
+  console.log(p.padEnd(7), TARGETS[p].role.padEnd(14), mode.padEnd(11), f(avg).padStart(6), '  ', (f(target[0]) + '…' + f(target[1])).padStart(11), ok ? '✓' : '✗',
     ' ', runs.map(r => f(r.delta) + (r.early ? '*' : '')).join(' '));
   if (process.argv.indexOf('--fx') !== -1) {
     const fx = {};
@@ -101,5 +101,5 @@ Object.keys(TARGETS).forEach(p => ['passiv', 'aktiv'].forEach(mode => {
     console.log('        Ursachen:', Object.keys(fx).sort((a, b) => Math.abs(fx[b]) - Math.abs(fx[a])).slice(0, 7).map(c => c + ' ' + f(fx[c])).join(', '));
   }
 }));
-console.log('* = Legislatur vorzeitig beendet. Toleranz ± ' + TOLERANCE + ' Punkte.');
-if (process.argv.indexOf('--check') !== -1 && bad) { console.error(bad + ' Wert(e) außerhalb der Toleranz.'); process.exit(1); }
+console.log('* = Legislatur vorzeitig beendet.');
+if (process.argv.indexOf('--check') !== -1 && bad) { console.error(bad + ' Wert(e) außerhalb des Zielbereichs.'); process.exit(1); }
