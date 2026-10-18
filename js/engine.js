@@ -2440,7 +2440,13 @@
     if (g.furore && g.minor && g.minor[g.furore]) g.minor[g.furore].trend -= d;
     else g.otherSwing -= d;
   }
-  const isShown = (g, m) => !!(g && g.shown && g.shown[m]);
+  // Eigenständig ausgewiesen: Kleinparteien erst ab 3,5 %; die großen Parteien, solange sie nicht unter 2 % gefallen sind.
+  // Die eigene Partei wird immer ausgewiesen.
+  const isShown = (g, m) => {
+    if (g && m === g.party) return true;
+    if (PARTY_IDS.indexOf(m) !== -1) return !(g && g.folded && g.folded[m]);
+    return !!(g && g.shown && g.shown[m]);
+  };
 
   // Jede Woche: eigener Trend (Zufall, Protestwahl), und wer ausgewiesen wird, macht sichtbar Wahlkampf.
   function minorTurn(g, shares, protest, news) {
@@ -2467,29 +2473,50 @@
     });
   }
 
-  // Nach jeder Umfrage: Ab 3,5 % wird eine Kleinpartei eigenständig ausgewiesen, unter 2,5 % nicht mehr.
+  // Nach jeder Umfrage: Unter 2 % fällt eine Partei unter „Sonstige“, ab 3,5 % wird sie (wieder) eigenständig ausgewiesen.
+  // Gibt die Änderungen zurück, damit auch die Legislatur sie melden kann.
   function updateMinorVisibility(g, quiet) {
     if (!g.shown) g.shown = {};
+    if (!g.folded) g.folded = {};
     const nat = g.poll ? g.poll.nat : publishedShares(g);
+    const changes = [];
+    PARTY_IDS.forEach(p => {
+      if (p === g.party) { delete g.folded[p]; return; }
+      const v = nat[p] || 0;
+      const name = party(p).name;
+      if (!g.folded[p] && v < (D.MINOR_HIDE || 2)) {
+        g.folded[p] = true;
+        changes.push(name + ' rutscht mit ' + v.toFixed(1).replace('.', ',') + ' % unter „Sonstige“.');
+      } else if (g.folded[p] && v >= (D.MINOR_SHOW || 3.5)) {
+        delete g.folded[p];
+        changes.push(name + ' wird mit ' + v.toFixed(1).replace('.', ',') + ' % wieder eigenständig ausgewiesen.');
+      }
+    });
+    if (!quiet) changes.forEach(x => addLog(g, 'ai', x));
     MINORS.forEach(m => {
       const v = nat[m.id] || 0;
       if (!g.shown[m.id] && v >= (D.MINOR_SHOW || 3.5)) {
         g.shown[m.id] = true;
-        if (!quiet) addLog(g, 'ai', 'Neu in der Sonntagsfrage: ' + m.name + (m.plural ? ' werden' : ' wird') + ' mit ' + v.toFixed(1).replace('.', ',') + ' % erstmals eigenständig ausgewiesen.');
+        const txt = 'Neu in der Sonntagsfrage: ' + m.name + (m.plural ? ' werden' : ' wird') + ' mit ' + v.toFixed(1).replace('.', ',') + ' % eigenständig ausgewiesen.';
+        changes.push(txt);
+        if (!quiet) addLog(g, 'ai', txt);
       } else if (g.shown[m.id] && v < (D.MINOR_HIDE || 2.5)) {
         g.shown[m.id] = false;
-        if (!quiet) addLog(g, 'ai', m.name + (m.plural ? ' rutschen' : ' rutscht') + ' in den Umfragen wieder unter „Sonstige“ (' + v.toFixed(1).replace('.', ',') + ' %).');
+        const txt = m.name + (m.plural ? ' rutschen' : ' rutscht') + ' in den Umfragen wieder unter „Sonstige“ (' + v.toFixed(1).replace('.', ',') + ' %).';
+        changes.push(txt);
+        if (!quiet) addLog(g, 'ai', txt);
       }
     });
+    return changes;
   }
 
   // Für die Anzeige: Kleinparteien, die nicht ausgewiesen werden, stecken in „Sonstige“.
   function shownIds(g) {
-    return PARTY_IDS.concat(MINOR_IDS.filter(m => isShown(g, m)));
+    return PARTY_IDS.filter(p => isShown(g, p)).concat(MINOR_IDS.filter(m => isShown(g, m)));
   }
   function mergeShares(g, sh, extra) {
     const out = Object.assign({}, sh);
-    MINOR_IDS.forEach(m => {
+    PARTY_IDS.concat(MINOR_IDS).forEach(m => {
       if (!(m in out) || isShown(g, m) || (extra && extra(m))) return;
       out[D.OTHER.id] = (out[D.OTHER.id] || 0) + (out[m] || 0);
       delete out[m];
@@ -2513,6 +2540,7 @@
     const rivals = PARTY_IDS.filter(p => p !== me).sort((a, b) => Math.abs(shares[a] - shares[me]) - Math.abs(shares[b] - shares[me]));
 
     rivals.forEach(p => {
+      if (!isShown(g, p)) return; // unter „Sonstige“ geführt: keine eigenen Kampagnen
       const name = party(p).name;
       const comp = competenceOf(g, p);
       let actions = 2;

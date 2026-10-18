@@ -2455,12 +2455,36 @@
     } else breakCoalition(g, leaver);
   }
 
+  // Eigenständig ausgewiesene Kleinparteien handeln selbst: Kampagnen, Aktionen, Erfolge in den Kommunen.
+  // Wer unter „Sonstige“ geführt wird, bleibt unsichtbar und hat keine eigenen Aktionen.
+  function minorActions(g) {
+    (D.MINORS || []).forEach(m => {
+      if (!E.isShown(g, m.id)) return;
+      const mi = g.minor[m.id];
+      const tp = pick(g, m.topics);
+      A.changeSalience(g, tp, 0.003);
+      mi.nat += between(g, 0.02, 0.1);
+      if (m.home) mi.reg[m.home] = (mi.reg[m.home] || 0) + between(g, 0.1, 0.3);
+      if (rand(g) < 0.4) {
+        const pl = m.plural;
+        const what = pick(g, [
+          (pl ? ' starten' : ' startet') + ' eine Kampagne zum Thema ' + E.topicById(tp).name + '.',
+          (pl ? ' sammeln' : ' sammelt') + ' Unterschriften für ein Volksbegehren' + (m.home ? ' in ' + E.stateById(m.home).name : '') + '.',
+          (pl ? ' gewinnen' : ' gewinnt') + ' bei Kommunalwahlen mehrere Bürgermeisterposten.',
+          (pl ? ' organisieren' : ' organisiert') + ' Proteste gegen die Politik der Bundesregierung.'
+        ]);
+        news(g, m.name + what, 'info');
+      }
+    });
+  }
+
   function updatePolls(g) {
     const t = g.term;
     const e = t.econ;
     decayNat(g);
     D.STATES.forEach(st => { PIDS.forEach(p => { g.reg[st.id][p] *= 0.8; }); });
     MINOR.forEach(m => { g.minor[m].nat *= NAT_DECAY; g.minor[m].trend = clamp(g.minor[m].trend + between(g, -0.12, 0.14), -1, 2.5); });
+    minorActions(g);
     // Regierungsverschleiß und Wirtschaftslage (geschätzt)
     cat('regierung');
     const econ = 0.25 * (e.growth - 1) - 0.6 * (e.unemp - t.econPrev.unemp) - 0.08 * Math.max(0, e.infl - 2.5);
@@ -2488,7 +2512,7 @@
     // Dauerrivalen schlagen zurück: Wer sich oft mit euch angelegt hat, sucht die Gelegenheit.
     Object.keys(g.rivals || {}).forEach(p => {
       const rv = g.rivals[p];
-      if (!(rv.feud >= 2) || !(t.seats[p] > 0)) return;
+      if (!(rv.feud >= 2) || !(t.seats[p] > 0) || !E.isShown(g, p)) return;
       if (rand(g) < 0.15 * E.rivalStyle(rv).attack) {
         addNat(g, g.party, -0.12);
         addNat(g, p, 0.04);
@@ -2502,7 +2526,7 @@
     A.TOPIC_IDS.forEach(tp => { g.salience[tp] += (D.SALIENCE0[tp] - g.salience[tp]) * 0.1; });
     A.rollPollErr(g);
     A.takePoll(g);
-    A.updateMinorVisibility(g, true);
+    A.updateMinorVisibility(g, true).forEach(x => news(g, '📊 ' + x, 'info'));
     t.lastNat = A.nationalShares(g);
     t.history.push({ q: t.q, nat: roundShares(g.poll.nat) });
   }

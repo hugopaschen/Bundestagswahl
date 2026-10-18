@@ -538,7 +538,7 @@
     { id: 'tierschutz', name: 'Tierschutzpartei', short: 'Tierschutz', topics: ['klima', 'land', 'gesundheit'] }
   ];
   var MINOR_SHOW = 3.5; // ab diesem Umfragewert eigenständig ausgewiesen
-  var MINOR_HIDE = 2.5; // darunter wieder unter „Sonstige“
+  var MINOR_HIDE = 2; // darunter unter „Sonstige“ (gilt für alle Parteien außer der eigenen)
 
   // Konfrontationslinien im Wahlkampf 2025 (Hauptgegner, gegen die eine Partei sich profiliert):
   // Union ↔ AfD (Migration, „Brandmauer“), Union ↔ SPD (Kanzlerduell Merz–Scholz), Union ↔ Grüne,

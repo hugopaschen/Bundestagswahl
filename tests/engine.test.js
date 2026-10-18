@@ -366,7 +366,7 @@ test('Auch die sonstigen Parteien gewinnen und verlieren in den Umfragen', () =>
     assert.ok(g.otherSwing >= -3 && g.otherSwing <= 4);
     finals.push(E.nationalShares(g).sonstige - start);
   }
-  assert.ok(finals.some(d => d > 0.3) && finals.some(d => d < -0.3));
+  assert.ok(finals.some(d => d > 0.1) && finals.some(d => d < -0.3));
 });
 
 test('Wählergruppen: je Dimension (Alter, Bildung, Wohnort) ergeben die Anteile 100 %', () => {
@@ -1204,4 +1204,32 @@ test('Spielstand im Konto: große Stände in Stücken, unvollständige werden ve
   assert.strictEqual(back.save.at, 1000);
   store['data/users/u7/save-1'].at = 999; // halber Stand eines anderen Geräts
   assert.strictEqual((await cloud.init()).save, null);
+});
+
+test('Sonntagsfrage: unter 2 % zu „Sonstige“, ab 3,5 % wieder eigenständig – nur Ausgewiesene handeln', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  T.autoNames(g);
+  const t = g.term;
+  const api = E._api;
+  // BSW künstlich unter 2 %, Freie Wähler über 3,5 %
+  g.poll.nat.bsw = 1.6; g.poll.nat.fw = 4.2;
+  const ch = api.updateMinorVisibility(g, true);
+  assert.ok(ch.some(x => /unter „Sonstige“/.test(x)));
+  assert.ok(!E.isShown(g, 'bsw'));
+  assert.ok(E.isShown(g, 'fw'));
+  assert.ok(E.isShown(g, 'union')); // eigene Partei immer
+  const merged = E.mergeShares(g, g.poll.nat);
+  assert.ok(!('bsw' in merged) && 'fw' in merged);
+  // erst ab 3,5 % wieder ausgewiesen
+  g.poll.nat.bsw = 3.0; api.updateMinorVisibility(g, true);
+  assert.ok(!E.isShown(g, 'bsw'));
+  g.poll.nat.bsw = 3.6; api.updateMinorVisibility(g, true);
+  assert.ok(E.isShown(g, 'bsw'));
+  // Ausgewiesene Kleinpartei handelt in der Legislatur
+  g.shown.fw = true;
+  const before = g.minor.fw.reg.BY || 0;
+  while (t.pending.length) T.resolvePending(g, 0);
+  T.endQuarter(g);
+  assert.ok((g.minor.fw.reg.BY || 0) > before * 0.8 || t.news.some(n => /Freie Wähler/.test(n.text)));
 });

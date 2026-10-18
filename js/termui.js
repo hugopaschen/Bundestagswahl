@@ -732,7 +732,7 @@
     const H = Math.round(Math.min(280, Math.max(180, W * 0.4)));
     const L = 28; const R = 10; const Tp = 8; const B = 22;
     const hist = t.history;
-    const ids = MAIN.concat((D.MINORS || []).map(m => m.id).filter(m => E.isShown(g, m)));
+    const ids = MAIN.filter(p => E.isShown(g, p)).concat((D.MINORS || []).map(m => m.id).filter(m => E.isShown(g, m)));
     let maxV = 0;
     hist.forEach(h => ids.forEach(p => { maxV = Math.max(maxV, h.nat[p] || 0); }));
     const yMax = Math.ceil((maxV + 2) / 10) * 10;
