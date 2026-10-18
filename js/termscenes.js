@@ -37,7 +37,7 @@
   // ---------- 🎙️ Regierungserklärung ----------
   function regerkl(ctx) {
     const h = helpers(ctx);
-    const { t } = ctx;
+    const { t, g } = ctx;
     const delivered = t.stats.lawsOwn;
     const crisis = t.q - (t.crisisQ === undefined ? -99 : t.crisisQ) <= 2;
     const pk = ctx.id === 'presse';
@@ -50,7 +50,7 @@
           { label: crisis ? 'Die Krise ernst nehmen' : 'Die Sorgen der Menschen ansprechen', hint: crisis ? 'Das Land erwartet Führung' : 'Nahbar', m: crisis ? 14 : 7, q: 1, fx: { like: 0.04 }, reply: 'Konzentrierte Stille im Saal – man hört zu.' },
           { label: 'Mit einer großen Vision einsteigen', hint: 'Wirkt nur, wenn man der Spitze glaubt', m: h.like > 0.5 ? 12 : 2, q: h.like > 0.5 ? 1 : 0, reply: h.like > 0.5 ? 'Aufbruchsstimmung auf der Regierungsbank.' : 'Höflicher Applaus.' }
         ] },
-        { title: pk ? '🗣️ Kritische Nachfrage' : '🗣️ Zwischenruf!', text: pk ? 'Ein Korrespondent unterbricht: „' + pickR(HECKLES) + '“' : 'Aus den Reihen der ' + h.short(h.rival) + ' ruft es: „' + pickR(HECKLES) + '“', options: [
+        { title: pk ? '🗣️ Kritische Nachfrage' : '🗣️ Zwischenruf!', text: pk ? 'Ein Korrespondent unterbricht: „' + pickR(HECKLES) + '“' : (g.rivals && g.rivals[h.rival] ? g.rivals[h.rival].name + ' (' + h.short(h.rival) + ')' : 'Aus den Reihen der ' + h.short(h.rival) + ' –') + ' ruft dazwischen: „' + pickR(HECKLES) + '“', options: [
           { label: 'Schlagfertig kontern', hint: 'Treffer oder Eigentor', roll: { p: clamp(0.5 + h.like * 0.08, 0.2, 0.85), win: { m: 14, q: 1, fx: { like: 0.06 }, reply: 'Gelächter und Applaus – der Konter wird zum Clip des Tages.' }, lose: { m: -8, q: -1, reply: 'Der Konter verpufft, die Opposition johlt.' } } },
           { label: 'Ruhig weiterreden', hint: 'Souverän, aber unspektakulär', m: 3, q: 0, reply: 'Die Rede geht weiter. Kein Drama.' },
           { label: '„Hören Sie doch erst einmal zu!“', hint: 'Wirkt leicht gereizt', m: -2, q: 0, fx: { like: -0.02 }, reply: 'Die Präsidentin mahnt zur Ruhe – beide Seiten.' }

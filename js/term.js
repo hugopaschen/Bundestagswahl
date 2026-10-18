@@ -259,7 +259,7 @@
     });
     // Kanzlerin/Kanzler und Vizekanzlerschaft
     if (t.chanc === g.party) t.chancellor = { name: t.party.leader.name, party: g.party };
-    else if (!t.chancellor || t.chancellor.party !== t.chanc) t.chancellor = { name: newPerson(g, t.chanc, bigLand(g, t.chanc)).full, party: t.chanc, like: A.candStart(t.chanc).like };
+    else if (!t.chancellor || t.chancellor.party !== t.chanc) t.chancellor = { name: g.rivals && g.rivals[t.chanc] ? g.rivals[t.chanc].name : newPerson(g, t.chanc, bigLand(g, t.chanc)).full, party: t.chanc, like: (g.aiLike && g.aiLike[t.chanc]) || A.candStart(t.chanc).like };
     const second = t.gov.find(p => p !== t.chanc);
     t.vize = null;
     if (second) {
@@ -2072,6 +2072,7 @@
         P.leader.like = clamp(P.leader.like + 0.04 * f, -5, 5);
         addNat(g, t.chanc, -0.03 * f * ACT_K);
         text = 'Regierungsbefragung zum Thema ' + E.topicById(target).name + '.';
+        if (g.rivals && g.rivals[t.chanc]) g.rivals[t.chanc].feud = Math.min(5, (g.rivals[t.chanc].feud || 0) + 0.5);
         break;
       }
       case 'ua': t.ua = { topic: target || 'demokratie', left: 4, q0: t.q, f }; text = 'Der Untersuchungsausschuss nimmt seine Arbeit auf.'; news(g, '🔎 Untersuchungsausschuss eingesetzt (' + E.topicById(t.ua.topic).name + ').', 'big'); break;
@@ -2365,6 +2366,16 @@
     if (t.chanc !== g.party && t.chancellor) addNat(g, t.chanc, 0.03 * (t.chancellor.like || 0));
     cat('konkurrenz');
     PIDS.forEach(p => { if (p !== g.party) addNat(g, p, between(g, -0.12, 0.12)); });
+    // Dauerrivalen schlagen zurück: Wer sich oft mit euch angelegt hat, sucht die Gelegenheit.
+    Object.keys(g.rivals || {}).forEach(p => {
+      const rv = g.rivals[p];
+      if (!(rv.feud >= 2) || !(t.seats[p] > 0)) return;
+      if (rand(g) < 0.15 * E.rivalStyle(rv).attack) {
+        addNat(g, g.party, -0.12);
+        addNat(g, p, 0.04);
+        news(g, '🥊 ' + rv.name + ' (' + sname(p) + ') attackiert euch: ' + pick(g, ['„Versagt auf ganzer Linie!“', '„Nichts als heiße Luft.“', '„Die haben das Land nicht im Griff.“', '„Wortbruch!“']), 'warn');
+      }
+    });
     // Unruhige Landesverbände kosten im Land
     Object.keys(t.party.lv).forEach(l => { const u = t.party.lv[l]; if (u > 50 && g.reg[l]) g.reg[l][g.party] -= (u - 50) / 80; });
     t.intl += (50 - t.intl) * 0.05;
@@ -2583,9 +2594,27 @@
         year: Math.floor(electionAbs / 4), prevYear: t.year0, shown: Object.assign({}, g.shown || {}), money, world,
         prevSeats: Object.assign({}, t.seats), prevShares: Object.assign({}, t.start),
         lobby: g.lobby ? Object.assign(copy(g.lobby), { asked: [] }) : null,
+        rivals: nextRivals(g, electionAbs),
         prevWk: (() => { const o = {}; ((g.result && g.result.wk) || []).forEach(w => { o[w.nr] = w.win; }); return o; })(),
         prevTurnout: g.result ? { DE: g.result.turnout, states: g.result.turnoutStates || {} } : null }
     };
+  }
+
+  // Gegnerische Spitzen: Wer schwer verloren hat oder zu alt ist, wird abgelöst; alte Fehden kühlen etwas ab.
+  function nextRivals(g, electionAbs) {
+    const t = g.term;
+    const year = Math.floor(electionAbs / 4);
+    const out = {};
+    Object.keys(g.rivals || {}).forEach(p => {
+      const rv = copy(g.rivals[p]);
+      const lost = (t.lastNat[p] || 0) - (t.start[p] || 0) < -3;
+      if (year - rv.born >= MAX_AGE - 2 || (lost && rand(g) < 0.6)) {
+        const person = newPerson(g, p, bigLand(g, p));
+        out[p] = { name: person.full, style: pick(g, E.RIVAL_STYLES).id, born: year - 42 - Math.floor(rand(g) * 15), feud: 0, since: year, prev: rv.name };
+        news(g, rv.name + ' gibt die Führung von ' + sname(p) + ' ab. Neu an der Spitze: ' + person.full + '.', 'info');
+      } else { rv.feud = Math.max(0, (rv.feud || 0) - 1); out[p] = rv; }
+    });
+    return out;
   }
 
   // Spitze für den nächsten Wahlkampf festlegen: 'stay' oder Index einer Nachfolge.

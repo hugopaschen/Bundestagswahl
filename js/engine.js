@@ -475,6 +475,8 @@
     if (!g.cand) g.cand = Object.assign({}, candStart(partyId));
     g.aiLike = {};
     PARTY_IDS.forEach(p => { g.aiLike[p] = candStart(p).like; });
+    g.rivals = carry && carry.rivals ? JSON.parse(JSON.stringify(carry.rivals)) : {};
+    initRivals(g);
     g.candHist = [{ w: 0, like: g.cand.like, known: g.cand.known }];
     g.journal = [];
     D.STATES.forEach(st => { g.mobReg[st.id] = {}; PARTY_IDS.forEach(p => { g.mobReg[st.id][p] = 0; }); });
@@ -1438,6 +1440,7 @@
         const chance = Math.max(0.15, Math.min(0.9, 0.55 + 0.25 * adv - down + qc));
         const w = wear(g, 'angriff:' + rv);
         g.grudge = g.grudge || {};
+        if (g.rivals && g.rivals[rv]) g.rivals[rv].feud = Math.min(5, (g.rivals[rv].feud || 0) + 1);
         g.grudge[rv] = g.week;
         if (sfx.force === 'win' || (sfx.force !== 'lose' && rand(g) < chance)) {
           const d = between(g, 0.6, 1.1) * w * qm * TEAM_EFFECT;
@@ -2077,7 +2080,9 @@
 
   function startDuel(g) {
     const topics = TOPIC_IDS.slice().sort((a, b) => g.salience[b] - g.salience[a]).slice(0, 3);
-    g.duel = { topics, round: 0, points: 0, results: [] };
+    const sh = nationalShares(g);
+    const rival = PARTY_IDS.filter(p => p !== g.party).sort((a, b) => sh[b] - sh[a])[0];
+    g.duel = { topics, round: 0, points: 0, results: [], rival };
     return g.duel;
   }
 
@@ -2090,6 +2095,10 @@
     else if (styleId === 'angriff') score = between(g, 0.0, 1.05);
     else if (styleId === 'emotional') score = 0.45 + between(g, -0.15, 0.2);
     else return { ok: false, text: 'Unbekannte Strategie.' };
+    // Das Gegenüber: Gegen Angreifer wirkt Gelassenheit, gegen Staatsmännische kein Angriff, gegen Populisten der Faktencheck.
+    const st = g.duel.rival && g.rivals && g.rivals[g.duel.rival] ? g.rivals[g.duel.rival].style : null;
+    const DUEL_FIT = { angreifer: { emotional: 0.1, angriff: -0.05 }, staatsmann: { angriff: -0.1, sachlich: 0.05 }, populist: { sachlich: 0.1 }, technokrat: { emotional: 0.1, sachlich: -0.05 } };
+    if (st && DUEL_FIT[st] && DUEL_FIT[st][styleId]) score += DUEL_FIT[st][styleId];
 
     const delta = Math.round((score - 0.5) * 2.4 * 10) / 10;
     const verdict = delta >= 0.6 ? 'Klarer Punktsieg!' : delta > 0 ? 'Knapp gewonnen.' : delta > -0.6 ? 'Das lief nicht rund.' : 'Ein Desaster!';
@@ -2353,6 +2362,33 @@
 
   // ---------- Spitzenkandidatur: Bekanntheit, Beliebtheit, Kanzlerfrage ----------
   const candStart = p => (D.CAND_START && D.CAND_START[p]) || { known: 70, like: 0 };
+
+  // ---------- Gegner mit Gesicht ----------
+  // Fiktive Spitzenleute der anderen Parteien mit eigenem Stil; Rivalitäten (feud) bleiben über Legislaturen erhalten.
+  const RIVAL_STYLES = [
+    { id: 'angreifer', name: 'Angreifer:in', attack: 1.5, like: -0.2, desc: 'teilt hart aus' },
+    { id: 'staatsmann', name: 'staatsmännisch', attack: 0.7, like: 0.3, desc: 'gibt sich über den Dingen stehend' },
+    { id: 'populist', name: 'Populist:in', attack: 1.2, like: 0, desc: 'setzt auf Zuspitzung' },
+    { id: 'technokrat', name: 'Technokrat:in', attack: 0.9, like: -0.1, desc: 'argumentiert mit Zahlen und Akten' }
+  ];
+  const rivalStyle = r => RIVAL_STYLES.find(s => s.id === (r && r.style)) || RIVAL_STYLES[1];
+  function newRival(g, p) {
+    const fringe = ['afd', 'linke', 'bsw'].indexOf(p) !== -1;
+    const style = fringe && rand(g) < 0.5 ? 'populist' : pick(g, RIVAL_STYLES).id;
+    const person = newPerson(g, p);
+    return { name: String(person.full).replace(/\d+/g, '').trim(), style, born: (g.year || YEAR0) - 45 - Math.floor(rand(g) * 18), feud: 0, since: g.year || YEAR0 };
+  }
+  function initRivals(g) {
+    g.rivals = g.rivals || {};
+    delete g.rivals[g.party];
+    PARTY_IDS.forEach(p => {
+      if (p === g.party) return;
+      if (!g.rivals[p]) g.rivals[p] = newRival(g, p);
+      g.aiLike[p] = Math.max(-5, Math.min(5, g.aiLike[p] + rivalStyle(g.rivals[p]).like));
+    });
+  }
+  const rivalName = (g, p) => (g.rivals && g.rivals[p] ? g.rivals[p].name : party(p).short);
+  const rivalLabel = (g, p) => (g.rivals && g.rivals[p] ? g.rivals[p].name + ' (' + party(p).short + ')' : party(p).name);
   const KNOWN_GAIN = { kundgebung: 0.04, talkshow: 0.06, presse: 0.03, buerger: 0.03, betrieb: 0.02, regional: 0.02 };
 
   // Wie sehr die Kandidatur gerade zieht (Punkte), im Verhältnis zur Größe der Partei.
@@ -2484,14 +2520,15 @@
       // Reaktion 1: Gegenkampagne, wenn ihr stark zulegt oder ihnen gefährlich nahe kommt.
       const gap = Math.abs(shares[p] - shares[me]);
       const hit = g.grudge && g.grudge[p] >= g.week - 1 ? 2 : 0; // gerade von euch angegriffen
-      const threat = (gain >= 0.7 ? 1 : 0) + (gain >= 1.5 ? 1 : 0) + (gap < 3 ? 1 : 0) + hit;
-      if (threat && attacks < 1 && g.week >= 2 && rand(g) < 0.1 + 0.12 * threat) {
+      const rv = g.rivals && g.rivals[p];
+      const threat = (gain >= 0.7 ? 1 : 0) + (gain >= 1.5 ? 1 : 0) + (gap < 3 ? 1 : 0) + hit + (rv && rv.feud >= 2 ? 1 : 0);
+      if (threat && attacks < 1 && g.week >= 2 && rand(g) < (0.1 + 0.12 * threat) * rivalStyle(rv).attack) {
         const d = between(g, 0.2, 0.4) * (1 + 0.25 * (threat - 1)) * sizeFactor(shares[me]);
         g.nat[me] -= d;
         g.nat[p] += 0.1;
         attacks++;
         actions--;
-        news.push({ prio: 2, text: name + ' startet eine Negativkampagne gegen euch (' + fmt(-d) + ').' });
+        news.push({ prio: 2, text: (rv ? rivalLabel(g, p) + (rv.feud >= 2 ? ', euer Dauerrivale,' : '') + ' greift euch an – ' + pick(g, ['„Die können es nicht!“', 'eine Negativkampagne läuft', 'Anzeigen gegen euer Programm', 'ein scharfes Interview']) : name + ' startet eine Negativkampagne gegen euch') + ' (' + fmt(-d) + ').' });
       }
 
       // Reaktion 2: Themenklau – eines eurer Kernthemen wird besetzt.
@@ -3029,7 +3066,7 @@
     const r = g.result;
     const n = r.neg;
     const seats = n.members.reduce((s, p) => s + (r.seats[p] || 0), 0);
-    const cand = n.lead === g.party ? g.candidate : (r.leaders && r.leaders[n.lead]) || 'die Spitzenkandidatur von ' + party(n.lead).short;
+    const cand = n.lead === g.party ? g.candidate : rivalName(g, n.lead);
     const unrest = (n.given >= 2 ? 0.01 : 0) + (n.redBroken ? 0.015 : 0) + (n.ratify && n.ratify.yes < 60 ? 0.01 : 0);
     const round = n.phase === 'kanzler2' ? 2 : 1;
     const rate = round === 1 ? between(g, 0, 0.035) + unrest : (choice === 'einschwoeren' ? between(g, 0, 0.01) : between(g, 0, 0.025));
@@ -3160,6 +3197,7 @@
     if (!g.minor) { g.minor = {}; MINOR_IDS.forEach(m => { g.minor[m] = { trend: 0, nat: 0, reg: {} }; }); }
     if (!g.shown) g.shown = {};
     if (!g.cand) { g.cand = Object.assign({}, candStart(g.party)); g.aiLike = {}; PARTY_IDS.forEach(p => { g.aiLike[p] = candStart(p).like; }); g.candHist = [{ w: 0, like: g.cand.like, known: g.cand.known }]; }
+    if (!g.rivals && g.aiLike) initRivals(g);
     if (!g.journal) g.journal = [];
     MINOR_IDS.forEach(m => { if (!(m in g.pollErr)) g.pollErr[m] = 0; });
     // Spielstände von vor den Kleinparteien: Umfrage mit den neuen Parteien neu erheben.
@@ -3197,7 +3235,7 @@
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     publishedShares, publishedStateShares, groupShares, pollShares, pollStateShares, pollGroupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
-    POLL_RANGE, GROUP_IDS, wkCandidate, newPerson, candBonus, chancellorPoll, MINOR_IDS, CONTEST_IDS, isShown, shownIds, mergeShares, WK_LIST, WK_BY_STATE, wkByNr, wkShares, wkProjection, directCounts, GRUNDMANDATE, FW_LEVELS, fwLevel, openFirewall, closeFirewall, firewallOptions, breakFirewall, flowSummary, steerVotes, stateFlows, regionFactor, nationalFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
+    POLL_RANGE, GROUP_IDS, RIVAL_STYLES, rivalName, rivalLabel, rivalStyle, wkCandidate, newPerson, candBonus, chancellorPoll, MINOR_IDS, CONTEST_IDS, isShown, shownIds, mergeShares, WK_LIST, WK_BY_STATE, wkByNr, wkShares, wkProjection, directCounts, GRUNDMANDATE, FW_LEVELS, fwLevel, openFirewall, closeFirewall, firewallOptions, breakFirewall, flowSummary, steerVotes, stateFlows, regionFactor, nationalFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent,
     startDuel, duelAnswer,

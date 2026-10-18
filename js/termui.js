@@ -510,6 +510,14 @@
       html += '<h3>Landtagswahlen in dieser Legislaturperiode</h3><ul class="t-ltw">' + t.ltwLog.slice().reverse().map(x => '<li><b>' + esc(E.stateById(x.land).name) + '</b> (' + esc(T.quarterLabel(t, x.q)) + '): ' +
         esc(short(g.party)) + ' ' + pct(x.shares[g.party]) + ' (' + signed(x.diff) + ') · Regierung: ' + x.gov.map(pill).join(' ') + '</li>').join('') + '</ul>';
     }
+    if (g.rivals) {
+      const ids = Object.keys(g.rivals).filter(p => (t.seats[p] || 0) > 0).sort((a, b) => t.seats[b] - t.seats[a]);
+      html += '<h3>Die Spitzen der anderen Parteien</h3><ul class="t-ltw">' + ids.map(p => {
+        const r = g.rivals[p];
+        const st = E.rivalStyle(r);
+        return '<li>' + pill(p) + ' <b>' + esc(r.name) + '</b>' + (p === t.chanc ? ' (Kanzleramt)' : '') + ' · ' + esc(st.name) + ' – ' + esc(st.desc) + (r.feud >= 1 ? ' · Rivalität ' + '🔥'.repeat(Math.min(3, Math.round(r.feud))) : '') + '</li>';
+      }).join('') + '</ul>';
+    }
     $('t-parlament').innerHTML = html;
   }
 

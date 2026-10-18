@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261018-130533';
+  const APP_VERSION = '20261018-131041';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -1148,9 +1148,21 @@
         ' · Wirkung auf euer Ergebnis: ' + signed(E.candBonus(g)) + ' Pkt.</p>' +
       (hist.length > 1 ? '<svg class="cand-spark" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"><line x1="0" x2="' + W + '" y1="' + H / 2 + '" y2="' + H / 2 + '"></line><polyline points="' + pts + '"></polyline></svg>' : '') +
       '</div><div class="cand-race"><span class="mob-label">Wen hätten Sie lieber als Bundeskanzler/in?</span>' +
-      ids.map(p => '<div class="bg-row' + (p === g.party ? ' me' : '') + '"><span class="bg-name">' + (p === g.party ? esc(g.candidate) : 'Kandidatur ' + short(p)) + '</span>' +
+      ids.map(p => '<div class="bg-row' + (p === g.party ? ' me' : '') + '"><span class="bg-name">' + (p === g.party ? esc(g.candidate) : esc(E.rivalName(g, p)) + ' <small class="muted">' + esc(short(p)) + '</small>') + '</span>' +
         '<span class="bg-track"><i style="background:' + col(p) + ';left:0;width:' + (kp[p] / max * 100) + '%"></i></span><span class="bg-val">' + pct(kp[p]) + '</span></div>').join('') +
-      '<p class="muted small">Keine/weiß nicht: ' + pct(kp.keine) + '</p></div>';
+      '<p class="muted small">Keine/weiß nicht: ' + pct(kp.keine) + '</p>' + rivalsHtml() + '</div>';
+  }
+
+  // Die Spitzen der anderen Parteien: Stil und Rivalität (🔥 = so oft habt ihr euch angelegt).
+  function rivalsHtml() {
+    if (!g.rivals) return '';
+    const sh = E.nationalShares(g);
+    const ids = Object.keys(g.rivals).filter(p => E.party(p)).sort((a, b) => (g.rivals[b].feud || 0) - (g.rivals[a].feud || 0) || (sh[b] || 0) - (sh[a] || 0));
+    return '<details class="small"><summary class="muted">Die Konkurrenz</summary><ul class="rivals">' + ids.map(p => {
+      const r = g.rivals[p];
+      const st = E.rivalStyle(r);
+      return '<li><span class="pill" style="background:' + col(p) + ';color:' + onCol(p) + '">' + esc(short(p)) + '</span> <b>' + esc(r.name) + '</b> · ' + esc(st.name) + ' – ' + esc(st.desc) + (r.feud >= 1 ? ' ' + '🔥'.repeat(Math.min(3, Math.round(r.feud))) : '') + '</li>';
+    }).join('') + '</ul></details>';
   }
 
   // Wer hält die Brandmauer zur AfD noch?
@@ -1414,6 +1426,7 @@
     const topics = D.TOPICS.slice().sort((a, b) => g.salience[b.id] - g.salience[a.id]).slice(0, 3);
     openModal('Woche ' + g.week + ' · Live im Fernsehen', 'Die große Elefantenrunde',
       '<p>Eine Woche vor der Wahl treffen alle Spitzenkandidierenden im Fernsehstudio aufeinander. Millionen schauen zu.</p>' +
+      (() => { const sh = E.nationalShares(g); const rv = Object.keys(g.rivals || {}).filter(p => E.party(p)).sort((a, b) => sh[b] - sh[a])[0]; return rv ? '<p>Dein härtestes Gegenüber: <b>' + esc(E.rivalLabel(g, rv)) + '</b> – ' + esc(E.rivalStyle(g.rivals[rv]).desc) + '. Gegen Angreifer hilft Gelassenheit, gegen Populisten der Faktencheck, gegen Staatsmännische wirken Attacken schnell kleinlich.</p>' : ''; })() +
       '<p>Es wird um die wichtigsten Themen gehen: <strong>' + topics.map(t => esc(t.name)).join(', ') + '</strong>.</p>' +
       '<p class="muted small">Wähle für jede Frage deine Strategie. Sachliche Antworten gelingen bei deinen Stärken, Angriffe sind ein Glücksspiel.</p>',
       [{ label: 'Ab ins Studio', primary: true, onClick: () => { E.startDuel(g); save(); showDuelRound(); } }]);

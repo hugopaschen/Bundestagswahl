@@ -1110,3 +1110,27 @@ test('Koalitionsbildung: Sondierung mit roter Linie, Tauschgeschäft, Mitglieder
     }
   }
 });
+
+test('Gegner mit Gesicht: Namen, Stil, Rivalität und Weitergabe an die nächste Legislatur', () => {
+  const g = E.newGame('spd', 'Test', 7);
+  assert.ok(g.rivals && !g.rivals.spd && g.rivals.union && g.rivals.union.name);
+  assert.ok(g.rivals.union.name !== 'Test' && !/\d/.test(g.rivals.union.name));
+  assert.ok(E.RIVAL_STYLES.some(s => s.id === g.rivals.union.style));
+  assert.ok(E.rivalLabel(g, 'union').indexOf(g.rivals.union.name) === 0);
+  // Angriff auf die Union erhöht die Rivalität
+  g.week = 3;
+  E.performAction(g, 'angriff', { rival: 'union', topic: 'wirtschaft' });
+  assert.strictEqual(g.rivals.union.feud, 1);
+  const el = electedGame('union', 4, 8);
+  T.startTerm(el);
+  T.autoNames(el);
+  const t = el.term;
+  const partner = t.gov.find(p => p !== 'union');
+  const names = Object.keys(el.rivals).map(p => el.rivals[p].name);
+  assert.strictEqual(new Set(names).size, names.length);
+  for (let i = 0; i < 16 && !t.over; i++) { while (t.pending.length) T.resolvePending(el, 0); T.endQuarter(el); }
+  const next = T.nextCampaign(el);
+  assert.ok(next.carry.rivals && next.carry.rivals[partner]);
+  const g2 = E.newGame('union', next.candidate, 9, undefined, next.carry);
+  assert.ok(g2.rivals[partner].name === next.carry.rivals[partner].name);
+});
