@@ -988,3 +988,39 @@ test('Lobbyismus: Verbände, Wahlprüfsteine, Reaktion auf Gesetze, Formulierung
   assert.ok(res.ok, res.text);
   assert.ok(g.lobby.rel.vdk > before);
 });
+
+test('Gesetzgebungsverfahren: Regierungsentwurf mit beiden Durchgängen im Bundesrat, Fraktionsentwurf im Eiltempo', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  const t = g.term;
+  T.autoNames(g);
+  while (t.pending.length) T.resolvePending(g, 0);
+  const o = T.lawOptions(g);
+  const [a, b] = o.topics.filter(x => x.contract !== undefined && x.contract !== x.current);
+  assert.ok(a && b);
+  // Regierungsentwurf: erst Kabinett, dann Bundestag, dann 2. Durchgang im Bundesrat
+  T.performAction(g, 'gesetz', { topic: a.topic, opt: a.contract });
+  const la = t.laws.find(l => l.topic === a.topic && l.by === 'union');
+  assert.strictEqual(la.stage, 'kabinett');
+  T.endQuarter(g);
+  assert.strictEqual(la.stage, 'bundestag');
+  // Stellungnahme/Anhörung werden angeboten, solange der Entwurf im Bundestag liegt
+  t.pending.filter(p => p.type === 'brstell' || p.type === 'anhoerung').forEach(p => assert.strictEqual(p.law, la.id));
+  while (t.pending.length) T.resolvePending(g, 1);
+  T.endQuarter(g);
+  assert.ok(['bundesrat', 'gescheitert'].includes(la.stage) || la.stage === 'inkraft', la.stage);
+  assert.ok(la.log.some(x => x.indexOf('1. Lesung') !== -1));
+  // Fraktionsentwurf: kein Kabinett, Abstimmung schon zum Ende des Quartals
+  while (t.pending.length) T.resolvePending(g, 0);
+  t.ap = t.apMax;
+  const r = T.performAction(g, 'gesetz', { topic: b.topic, opt: b.contract, fraktion: true });
+  assert.ok(r.ok, r.text);
+  const lb = t.laws.find(l => l.topic === b.topic && l.by === 'union');
+  assert.ok(lb.fraktion);
+  assert.strictEqual(lb.stage, 'bundestag');
+  while (t.pending.length) T.resolvePending(g, 0);
+  T.endQuarter(g);
+  assert.ok(lb.stage !== 'bundestag' && lb.stage !== 'kabinett', lb.stage);
+  assert.ok(!lb.log.some(x => x.indexOf('Kabinett beschließt') !== -1));
+  assert.ok(T.LAW_STEPS.bundestag.length === 4);
+});

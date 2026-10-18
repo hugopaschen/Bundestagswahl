@@ -18,13 +18,14 @@
   const mio = x => num1(x) + ' Mio. €';
   const mrd = x => num1(x) + ' Mrd. €';
   const MAIN = ['union', 'afd', 'spd', 'gruene', 'linke', 'bsw', 'fdp'];
-  const STAGES = [['kabinett', 'Kabinett'], ['bundestag', 'Bundestag'], ['bundesrat', 'Bundesrat'], ['inkraft', 'In Kraft']];
+  const STAGES = [['kabinett', 'Kabinett'], ['br1', 'Bundesrat (1.)'], ['bundestag', 'Bundestag'], ['bundesrat', 'Bundesrat (2.)'], ['vermittlung', 'Vermittlung'], ['inkraft', 'In Kraft']];
   const STAGE_NAME = { kabinett: 'Kabinett', kabinett_wait: 'Kabinett', veto: 'Veto im Kabinett', bundestag: 'Bundestag', bundesrat: 'Bundesrat',
     vermittlung: 'Vermittlungsausschuss', inkraft: 'In Kraft', gescheitert: 'Gescheitert', zurueckgezogen: 'Zurückgezogen', aufgehoben: 'Von Karlsruhe aufgehoben' };
 
   let g = null;
   let tab = 'lage';
   let lawTopic = null;   // ausgewähltes Thema im Gesetzentwurf
+  let lawRoute = 'regierung'; // Regierungs- oder Fraktionsentwurf
   let budgetPlan = null; // Haushaltsentwurf in Bearbeitung
   let budgetNotlage = false;
   let newsSeen = null;
@@ -223,14 +224,18 @@
   }
 
   // ---------- Gesetzgebung ----------
+  // Stationen nach dem echten Verfahren; Fraktionsentwürfe beginnen im Bundestag, der Vermittlungsausschuss nur bei Bedarf.
+  const STAGE_STEPS = { kabinett: T.LAW_STEPS.kabinett, br1: ['Stellungnahme der Länder (Art. 76 Abs. 2 GG)', 'Gegenäußerung der Bundesregierung'], bundestag: T.LAW_STEPS.bundestag.slice(1),
+    bundesrat: [T.LAW_STEPS.bundesrat[0]], vermittlung: T.LAW_STEPS.vermittlung.concat(T.LAW_STEPS.einspruch), inkraft: T.LAW_STEPS.inkraft };
   function stageChips(l) {
-    const idx = { kabinett: 0, kabinett_wait: 0, veto: 0, bundestag: 1, bundesrat: 2, vermittlung: 2, inkraft: 3 }[l.stage];
+    const idx = { kabinett: 0, kabinett_wait: 0, veto: 0, bundestag: 2, bundesrat: 3, vermittlung: 4, inkraft: 5 }[l.stage];
     const failed = ['gescheitert', 'zurueckgezogen', 'aufgehoben'].indexOf(l.stage) !== -1;
-    return '<div class="t-stages">' + STAGES.filter(s => s[0] !== 'bundesrat' || l.zust).map((s, i) => {
+    return '<div class="t-stages">' + STAGES.filter(s => !(l.fraktion && (s[0] === 'kabinett' || s[0] === 'br1')) && (s[0] !== 'vermittlung' || l.vm)).map(s => {
       const k = STAGES.findIndex(x => x[0] === s[0]);
       const cls = failed ? 'off' : k < idx ? 'done' : k === idx ? 'now' : '';
-      return '<span class="t-stage ' + cls + '">' + s[1] + '</span>';
-    }).join('<i>›</i>') + (failed ? '<span class="t-stage fail">' + STAGE_NAME[l.stage] + '</span>' : '') + '</div>';
+      return '<span class="t-stage ' + cls + '" title="' + esc(STAGE_STEPS[s[0]].join(' → ')) + '">' + s[1] + '</span>';
+    }).join('<i>›</i>') + (failed ? '<span class="t-stage fail">' + STAGE_NAME[l.stage] + '</span>' : '') + '</div>' +
+      (idx !== undefined && idx < 5 && !failed ? '<p class="small muted">Jetzt: ' + esc(STAGE_STEPS[STAGES[idx][0]].join(' → ')) + (l.stage === 'bundestag' && !l.fraktion ? ' (vorher: Stellungnahme des Bundesrates)' : '') + '</p>' : '');
   }
   function voteBar(v) {
     const total = v.yes + v.no + (v.abst || 0);
@@ -240,16 +245,17 @@
   function lawCard(l) {
     const t = term();
     let html = '<div class="t-law ' + l.stage + '"><div class="t-law-head"><strong>' + esc(T.lawTitle(l)) + '</strong>' + pill(l.by) +
-      (l.contract ? '<span class="t-tag">Koalitionsvertrag</span>' : '') + (l.zust ? '<span class="t-tag">zustimmungspflichtig</span>' : '') + (l.promise ? '<span class="t-tag good">Wahlversprechen</span>' : '') +
+      (l.contract ? '<span class="t-tag">Koalitionsvertrag</span>' : '') + (l.zust ? '<span class="t-tag">Zustimmungsgesetz</span>' : '<span class="t-tag">Einspruchsgesetz</span>') +
+      (l.fraktion ? '<span class="t-tag warn-tag">Fraktionsentwurf</span>' : '') + (l.fixed ? '<span class="t-tag good">nachgebessert</span>' : '') + (l.brDeal ? '<span class="t-tag">Länder eingebunden</span>' : '') + (l.promise ? '<span class="t-tag good">Wahlversprechen</span>' : '') +
       (l.ghost ? '<span class="t-tag warn-tag">Formulierungshilfe: ' + esc(T.LB.byId(l.ghost).short) + '</span>' : '') + '</div>' + stageChips(l) +
       ((l.backers && l.backers.length) || l.foe ? '<p class="small">' + (l.backers && l.backers.length ? '👍 ' + l.backers.map(id => esc(T.LB.byId(id).short)).join(', ') : '') + (l.foe ? ' · 👎 ' + esc(T.LB.byId(l.foe).short) : '') + '</p>' : '');
     if (l.stage === 'bundestag') {
       const p = T.predict(g, l).bt;
       html += '<p class="small">Prognose Bundestag:</p>' + voteBar(p) + (p.afdDecisive ? '<p class="small warn">⚠️ Mehrheit nur mit Stimmen der AfD</p>' : '') + (l.disc ? '<p class="small">📣 Fraktion auf Linie gebracht</p>' : '');
     }
-    if (l.stage === 'bundesrat' || (l.zust && ['kabinett', 'bundestag'].indexOf(l.stage) !== -1)) {
+    if (['kabinett', 'bundestag', 'bundesrat', 'vermittlung'].indexOf(l.stage) !== -1) {
       const br = T.bundesratVote(g, l);
-      html += '<p class="small">Prognose Bundesrat: <b>' + br.yes + '</b> von 69 Stimmen (nötig: ' + TD.BUNDESRAT_MAJ + ')' + (l.bought && l.bought.length ? ' · Zusagen an ' + l.bought.join(', ') : '') + '</p>';
+      html += '<p class="small">Prognose Bundesrat: <b>' + br.yes + '</b> von 69 Stimmen ' + (l.zust ? '(Zustimmung nötig: ' + TD.BUNDESRAT_MAJ + ')' : '(Einspruch erst ab ' + TD.BUNDESRAT_MAJ + ' Gegenstimmen)') + (l.bought && l.bought.length ? ' · Zusagen an ' + l.bought.join(', ') : '') + '</p>';
     }
     if (l.log.length) html += '<details><summary class="small">Verlauf</summary><ul class="small">' + l.log.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></details>';
     return html + '</div>';
@@ -258,7 +264,11 @@
     const t = term();
     let html = '<h2>📜 Gesetzgebung</h2>';
     const active = t.laws.filter(l => ['kabinett', 'kabinett_wait', 'veto', 'bundestag', 'bundesrat', 'vermittlung'].indexOf(l.stage) !== -1);
-    html += '<p class="muted small">Ein Gesetz geht durch das Kabinett, den Bundestag (Mehrheit der abgegebenen Stimmen) und – wenn es zustimmungspflichtig ist – den Bundesrat (35 von 69 Stimmen; ein Land stimmt nur zu, wenn alle Regierungsparteien dort einverstanden sind). Jede Stufe dauert ein Quartal.</p>';
+    html += '<details class="small"><summary class="muted">So läuft ein Gesetz (Art. 76–82 GG)</summary><p class="muted small">Regierungsentwurf: Referentenentwurf, Ressortabstimmung, Anhörung von Ländern und Verbänden, Kabinettsbeschluss (1 Quartal). ' +
+      'Dann nimmt der Bundesrat Stellung (1. Durchgang), der Bundestag berät in 1. Lesung, der Ausschuss hört Sachverständige an, in 2./3. Lesung wird abgestimmt (Mehrheit der abgegebenen Stimmen; 1 Quartal). ' +
+      'Im 2. Durchgang braucht ein Zustimmungsgesetz 35 von 69 Stimmen im Bundesrat; gegen ein Einspruchsgesetz kann der Bundesrat den Vermittlungsausschuss anrufen und Einspruch einlegen, den der Bundestag mit Kanzlermehrheit (Mehrheit der Mitglieder) zurückweisen kann. ' +
+      'Ein Land stimmt nur zu, wenn alle Regierungsparteien dort einverstanden sind. Zum Schluss fertigt der Bundespräsident aus, das Gesetz wird im Bundesgesetzblatt verkündet. ' +
+      'Fraktionsentwürfe („aus der Mitte des Bundestages“) sparen Kabinett und 1. Durchgang – schneller, aber fehleranfälliger.</p></details>';
     html += renderSq();
     html += '<h3>In Arbeit</h3>' + (active.length ? active.map(lawCard).join('') : '<p class="muted">Gerade liegt nichts an.</p>');
     if (T.isGov(t.role)) html += renderDraft();
@@ -295,6 +305,8 @@
     const can = T.canAct(g, 'gesetz');
     let html = '<h3>Neuen Gesetzentwurf einbringen</h3>';
     if (!can.ok) html += '<p class="muted small">' + esc(can.text) + '</p>';
+    html += '<div class="t-topics"><span class="small muted">Verfahren:</span> ' + [['regierung', '🏛️ Regierungsentwurf', 'über das Kabinett und den Bundesrat – gründlich, ab Kabinett gut drei Quartale'], ['fraktion', '⚡ Fraktionsentwurf', 'aus der Mitte des Bundestages – Abstimmung schon zum Quartalsende, aber mehr Abweichler und Klagerisiko']]
+      .map(r => '<button type="button" class="chip t-route" data-r="' + r[0] + '" aria-pressed="' + (lawRoute === r[0]) + '" title="' + r[2] + '">' + r[1] + '</button>').join('') + '</div>';
     if (t.role === 'junior') html += '<p class="muted small">Als Juniorpartner bringt ihr Gesetze aus euren Ressorts ein: ' + T.ownMinistries(t, g.party).map(m => T.ministryById(m).short).join(', ') + '.</p>';
     html += '<div class="t-topics">' + o.topics.map(x => '<button type="button" class="chip t-topic" data-t="' + x.topic + '" aria-pressed="' + (lawTopic === x.topic) + '">' +
       E.topicById(x.topic).icon + ' ' + esc(E.topicById(x.topic).name) + (x.contract !== undefined && x.contract !== x.current ? ' 📜' : '') + '</button>').join('') +
@@ -331,8 +343,10 @@
   function bindDraft() {
     const box = $('t-gesetze');
     box.querySelectorAll('.t-topic').forEach(b => b.addEventListener('click', () => { lawTopic = b.dataset.t; renderLaws(); }));
+    box.querySelectorAll('.t-route').forEach(b => b.addEventListener('click', () => { lawRoute = b.dataset.r; renderLaws(); }));
     box.querySelectorAll('.t-draft').forEach(b => b.addEventListener('click', () => {
       const target = b.dataset.tax ? { tax: b.dataset.tax, level: Number(b.dataset.lv) } : { topic: b.dataset.topic, opt: Number(b.dataset.opt) };
+      if (lawRoute === 'fraktion') target.fraktion = true;
       const res = T.performAction(g, 'gesetz', target);
       save();
       lawTopic = null;
@@ -604,6 +618,17 @@
     } else if (it.type === 'scandal') {
       U.openModal(eyebrow + ' · 🔥 Affäre', 'Affäre im ' + T.ministryById(it.ministry).short + '-Ministerium', '<p>' + esc(it.text) + '</p>',
         [{ label: 'Festhalten', hint: 'Riskant: Kommt mehr heraus, wird es teuer', onClick: () => choose(0) }, { label: 'Rücktritt nahelegen', hint: 'Ihr benennt eine Nachfolge', onClick: () => choose(1) }]);
+    } else if (it.type === 'brstell') {
+      const l = term().laws.find(x => x.id === it.law);
+      U.openModal(eyebrow + ' · 🏛️ Bundesrat, 1. Durchgang', 'Stellungnahme der Länder', '<p>Der Bundesrat nimmt zu eurem Entwurf „' + esc(T.lawName(l)) + '“ Stellung: Die Länder verlangen Änderungen und eine Beteiligung des Bundes an den Kosten. Nach heutigem Stand bekäme das Gesetz im 2. Durchgang nur <b>' + it.yes + ' von 69</b> Stimmen.</p>' +
+        '<p class="small muted">' + (l.zust ? 'Zustimmungsgesetz: Ohne 35 Stimmen ist es gescheitert, wenn auch der Vermittlungsausschuss keinen Kompromiss findet.' : 'Einspruchsgesetz: Der Bundesrat kann den Vermittlungsausschuss anrufen und Einspruch einlegen.') + '</p>',
+        [{ label: 'Änderungswünsche übernehmen', hint: 'Länder mit kleinen Bedenken stimmen zu · der Bund trägt 1,5 Mrd. € Mehrkosten', onClick: () => choose(0) },
+          { label: 'Gegenäußerung: zurückweisen', hint: 'Kein Geld, aber Risiko im 2. Durchgang', onClick: () => choose(1) }]);
+    } else if (it.type === 'anhoerung') {
+      const l = term().laws.find(x => x.id === it.law);
+      U.openModal(eyebrow + ' · 🎓 Ausschuss', 'Öffentliche Anhörung', '<p>Im federführenden Ausschuss hören die Abgeordneten Sachverständige zu „' + esc(T.lawName(l)) + '“ an. ' + esc(it.expert) + '</p>',
+        [{ label: 'Nachbessern', hint: 'Abstimmung ein Quartal später · weniger Abweichler, geringeres Klagerisiko', onClick: () => choose(0) },
+          { label: 'Am Entwurf festhalten', hint: 'Abstimmung im Zeitplan · etwas Glaubwürdigkeit', onClick: () => choose(1) }]);
     } else if (it.type === 'veto') {
       const l = term().laws.find(x => x.id === it.law);
       const opts = [{ label: 'Entwurf zurückziehen', hint: 'Kein Streit', onClick: () => choose(0) }];

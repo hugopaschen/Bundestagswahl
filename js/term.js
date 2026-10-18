@@ -125,7 +125,10 @@
     const d = v * A.sizeFactor(shareOf(g, p));
     if (PIDS.indexOf(p) !== -1) {
       g.nat[p] += d;
-      const b = bucket(g, TIER || CAT_TIER[CAT] || 'norm', p);
+      // Krisen: Der Amtsbonus („rally round the flag“) verblasst, Versagen bleibt hängen (Corona-Hoch der Union 2020 war 2021 weg).
+      let tier = TIER || CAT_TIER[CAT] || 'norm';
+      if (CAT === 'krise' && d > 0 && tier === 'slow') tier = 'norm';
+      const b = bucket(g, tier, p);
       b[p] = (b[p] || 0) + d;
     } else if (g.minor && g.minor[p]) g.minor[p].nat += d;
     else return;
@@ -878,6 +881,8 @@
       const unity = p === g.party ? t.party.unity : 60;
       rate *= 1.3 - unity / 100;
       if (law.disc && p === g.party) rate *= 0.3;
+      if (law.fixed) rate *= 0.8; // nach der Anhörung nachgebessert
+      if (law.fraktion) rate *= 1.2; // im Eiltempo, ohne Ressortabstimmung
       if (t.mood < 30) rate *= 1.6;
       if (law.kind === 'topic') rate *= 0.6 + (t.sq[law.topic] === undefined ? SQ0 : t.sq[law.topic]) / 100; // starker Status quo = mehr Widerstand
       if (law.ghost || (law.backers && law.backers.length)) rate *= 0.6; // Verbände werben bei Abgeordneten
@@ -913,7 +918,7 @@
     if (t.gov.indexOf(p) !== -1) return true;
     const d = Math.abs(leanOf(g, p, lawTopic(law)) - lawLean(law));
     // Wankt der Status quo, geben Länder mit nur kleinen Bedenken nach.
-    return d === 0 || (d === 1 && law.kind === 'topic' && t.sq[law.topic] < 25);
+    return d === 0 || (d === 1 && (law.brDeal || (law.kind === 'topic' && t.sq[law.topic] < 25)));
   }
   function bundesratVote(g, law) {
     const t = g.term;
@@ -955,31 +960,63 @@
         return;
       }
       law.stage = 'bundestag';
+      if (law.fraktion) { law.log.push('Die Koalitionsfraktionen bringen den Entwurf gemeinsam ein (' + quarterLabel(t) + ').'); news(g, 'Fraktionsentwurf im Bundestag: „' + lawName(law) + '“ – im Eiltempo.', 'info'); return; }
       law.log.push('Kabinett beschließt den Entwurf (' + quarterLabel(t) + ').');
-      news(g, 'Kabinett beschließt: „' + lawName(law) + '“. Jetzt ist der Bundestag dran.', 'info');
+      news(g, 'Kabinett beschließt: „' + lawName(law) + '“. Der Bundesrat nimmt Stellung, dann ist der Bundestag dran.', 'info');
       return;
     }
     law.stage = 'bundestag';
     law.log.push('Kabinett beschließt den Entwurf.');
   }
 
+  // Gesetzgebungsverfahren nach Grundgesetz und Geschäftsordnungen:
+  // Regierungsentwurf: Referentenentwurf → Ressortabstimmung → Länder- und Verbändeanhörung → Kabinettsbeschluss
+  // → Bundesrat 1. Durchgang (Stellungnahme, Art. 76 Abs. 2 GG) → 1. Lesung → Ausschuss mit Anhörung → 2./3. Lesung
+  // → Bundesrat 2. Durchgang (Zustimmung oder Einspruch, Art. 77/78 GG) → ggf. Vermittlungsausschuss → ggf. Überstimmung
+  // des Einspruchs mit Kanzlermehrheit → Ausfertigung durch den Bundespräsidenten (Art. 82 GG) → Verkündung im BGBl.
+  // Fraktionsentwürfe („aus der Mitte des Bundestages“) beginnen direkt mit der 1. Lesung.
+  const LAW_STEPS = {
+    kabinett: ['Referentenentwurf', 'Ressortabstimmung', 'Länder- und Verbändeanhörung', 'Kabinettsbeschluss'],
+    bundestag: ['Bundesrat, 1. Durchgang', '1. Lesung', 'Ausschuss mit Anhörung', '2./3. Lesung'],
+    bundesrat: ['Bundesrat, 2. Durchgang'],
+    vermittlung: ['Vermittlungsausschuss'],
+    einspruch: ['Einspruch des Bundesrates', 'Abstimmung über die Zurückweisung'],
+    inkraft: ['Ausfertigung durch den Bundespräsidenten', 'Verkündung im Bundesgesetzblatt']
+  };
+  // Typische Kritik in Ausschussanhörungen (Sachverständige der Fraktionen, Verbände, Wissenschaft).
+  const ANHOERUNG = ['Der Normenkontrollrat bemängelt hohen Bürokratieaufwand.', 'Ein Staatsrechtler hält zwei Paragrafen für verfassungsrechtlich angreifbar.',
+    'Die kommunalen Spitzenverbände warnen vor Kosten, die bei den Kommunen hängen bleiben.', 'Der Bundesrechnungshof zweifelt an der Finanzierung.',
+    'Sachverständige halten die Übergangsfristen für zu kurz.', 'Die Datenschutzbeauftragte sieht erhebliche Mängel.'];
+  // Entwurf „aus der Mitte des Bundestages“ (Art. 76 Abs. 1 GG): Die Koalitionsfraktionen bringen ihn gemeinsam ein,
+  // der erste Durchgang im Bundesrat entfällt – schneller, aber ohne die Prüfung durch Ministerien, Länder und Verbände.
+  // Vorbild: Heizungsgesetz 2023, Wahlrechtsreform 2023.
+  function fraktionsEntwurf(g, law) {
+    law.fraktion = true;
+    law.log.push('Als Fraktionsentwurf eingebracht – ohne Referentenentwurf und ersten Durchgang im Bundesrat.');
+    cabinetStage(g, law);
+    if (law.stage === 'veto') return 'Der Koalitionspartner verweigert die gemeinsame Einbringung von „' + lawName(law) + '“.';
+    return 'Fraktionsentwurf „' + lawName(law) + '“: 1. Lesung noch in diesem Quartal, Abstimmung zum Quartalsende.';
+  }
   function processLaw(g, law) {
     const t = g.term;
     cat('parlament');
     if (law.stage === 'kabinett') { cabinetStage(g, law); return; }
     if (law.stage === 'bundestag') {
+      if (law.delay) { law.delay = false; law.log.push('Der Ausschuss vertagt die Beschlussempfehlung – Nachbesserungen nach der Anhörung.'); return; }
+      if (!law.fraktion) law.log.push('Bundesrat, 1. Durchgang: Stellungnahme' + (law.brDeal ? ' – die Bundesregierung übernimmt Änderungswünsche der Länder.' : '.'));
+      law.log.push('1. Lesung, Überweisung an den Ausschuss' + (law.fixed ? ', Nachbesserungen nach der Anhörung.' : ', öffentliche Anhörung.'));
       const v = bundestagVote(g, law);
       law.bt = { yes: v.yes, no: v.no, abst: v.abst };
       if (!v.pass) {
         law.stage = 'gescheitert';
-        law.log.push('Im Bundestag gescheitert: ' + v.yes + ' Ja, ' + v.no + ' Nein, ' + v.abst + ' Enthaltungen.');
+        law.log.push('2./3. Lesung: im Bundestag gescheitert – ' + v.yes + ' Ja, ' + v.no + ' Nein, ' + v.abst + ' Enthaltungen.');
         news(g, 'Abstimmungsniederlage: „' + lawName(law) + '“ scheitert im Bundestag (' + v.yes + ':' + v.no + ').', 'bad');
         t.gov.forEach(p => addNat(g, p, -0.15));
         t.mood = clamp(t.mood - 4, 0, 100);
         if (law.by === g.party) t.stats.failed += 1;
         return;
       }
-      law.log.push('Bundestag stimmt zu: ' + v.yes + ' Ja, ' + v.no + ' Nein, ' + v.abst + ' Enthaltungen.');
+      law.log.push('2./3. Lesung: Bundestag beschließt – ' + v.yes + ' Ja, ' + v.no + ' Nein, ' + v.abst + ' Enthaltungen.');
       if (v.afdDecisive) {
         news(g, 'Eklat im Bundestag: „' + lawName(law) + '“ kommt nur mit Stimmen der AfD durch. Proteste vor dem Reichstag.', 'bad');
         // Vorbild Januar 2025: Die Mitte verliert, die linke Opposition mobilisiert.
@@ -988,34 +1025,59 @@
         if (g.party === 'afd') addNat(g, 'afd', 0.4);
         if (t.gov.indexOf(g.party) !== -1) { t.party.unity = clamp(t.party.unity - 6, 0, 100); addCred(g, -4, 'Mehrheit nur mit Stimmen der AfD'); }
       }
-      if (law.zust) { law.stage = 'bundesrat'; return; }
-      enact(g, law);
+      law.stage = 'bundesrat';
       return;
     }
     if (law.stage === 'bundesrat') {
       const v = bundesratVote(g, law);
       law.br = { yes: v.yes };
-      if (v.pass) { law.log.push('Bundesrat stimmt zu (' + v.yes + ' von 69 Stimmen).'); enact(g, law); return; }
+      if (v.pass) { law.log.push('Bundesrat, 2. Durchgang: ' + (law.zust ? 'Zustimmung' : 'kein Einspruch') + ' (' + v.yes + ' von 69 Stimmen).'); finalize(g, law); return; }
+      if (!law.zust && 69 - v.yes < TD.BUNDESRAT_MAJ) { law.log.push('Bundesrat, 2. Durchgang: Der Vermittlungsausschuss wird nicht angerufen (Einspruchsgesetz).'); finalize(g, law); return; }
       law.stage = 'vermittlung';
-      law.log.push('Bundesrat verweigert die Zustimmung (' + v.yes + ' von 69). Der Vermittlungsausschuss wird angerufen.');
-      news(g, 'Bundesrat stoppt „' + lawName(law) + '“ – Vermittlungsausschuss.', 'warn');
+      law.vm = true;
+      law.log.push('Bundesrat, 2. Durchgang: ' + (law.zust ? 'keine Zustimmung' : 'Anrufung des Vermittlungsausschusses') + ' (' + v.yes + ' von 69). Der Vermittlungsausschuss tagt.');
+      news(g, 'Bundesrat stoppt „' + lawName(law) + '“ vorerst – Vermittlungsausschuss.', 'warn');
       return;
     }
     if (law.stage === 'vermittlung') {
-      if (rand(g) < 0.6) {
+      if (rand(g) < 0.55) {
         if (law.kind === 'topic' && D.PROGRAM[law.topic][law.opt].lean !== 0) {
           const mid = optIndex(law.topic, 0);
-          if (mid !== t.policy[law.topic]) { law.opt = mid; law.log.push('Kompromiss im Vermittlungsausschuss: „' + lawName(law) + '“.'); }
-          else { law.stage = 'gescheitert'; law.log.push('Der Vermittlungsausschuss findet keinen Kompromiss.'); return; }
-        } else law.log.push('Einigung im Vermittlungsausschuss.');
-        enact(g, law);
-      } else {
-        law.stage = 'gescheitert';
-        law.log.push('Der Vermittlungsausschuss findet keinen Kompromiss.');
-        news(g, '„' + lawName(law) + '“ ist endgültig gescheitert.', 'bad');
-        if (law.by === g.party) t.stats.failed += 1;
+          if (mid !== t.policy[law.topic]) { law.opt = mid; law.log.push('Einigungsvorschlag des Vermittlungsausschusses: „' + lawName(law) + '“ – Bundestag und Bundesrat stimmen zu.'); finalize(g, law); return; }
+        } else { law.log.push('Einigung im Vermittlungsausschuss.'); finalize(g, law); return; }
       }
+      if (!law.zust) {
+        // Einspruchsgesetz: Der Bundestag kann den Einspruch mit der Mehrheit seiner Mitglieder zurückweisen (Art. 77 Abs. 4 GG).
+        const v = bundestagVote(g, law);
+        law.log.push('Kein Einigungsvorschlag – der Bundesrat legt Einspruch ein.');
+        if (v.yes >= MAJ) { law.log.push('Der Bundestag weist den Einspruch mit Kanzlermehrheit zurück (' + v.yes + ' Stimmen).'); news(g, 'Bundestag überstimmt den Bundesrat: „' + lawName(law) + '“ kommt.', 'info'); finalize(g, law); return; }
+        law.stage = 'gescheitert';
+        law.log.push('Die Kanzlermehrheit von ' + MAJ + ' Stimmen wird verfehlt (' + v.yes + ') – der Einspruch bleibt bestehen.');
+        news(g, '„' + lawName(law) + '“ scheitert am Einspruch des Bundesrates.', 'bad');
+        if (law.by === g.party) t.stats.failed += 1;
+        return;
+      }
+      law.stage = 'gescheitert';
+      law.log.push('Der Vermittlungsausschuss findet keinen Kompromiss – ohne Zustimmung des Bundesrates ist das Gesetz gescheitert.');
+      news(g, '„' + lawName(law) + '“ ist endgültig gescheitert.', 'bad');
+      if (law.by === g.party) t.stats.failed += 1;
     }
+  }
+  // Ausfertigung (der Bundespräsident prüft die Verfassungsmäßigkeit – sehr selten verweigert) und Verkündung.
+  function finalize(g, law) {
+    const t = g.term;
+    const risky = law.kind === 'topic' && Math.abs(D.PROGRAM[law.topic][law.opt].lean) === 1 && law.fraktion && !law.fixed;
+    if (risky && rand(g) < 0.04) {
+      law.stage = 'gescheitert';
+      law.log.push('Der Bundespräsident verweigert die Ausfertigung: erhebliche verfassungsrechtliche Bedenken.');
+      news(g, '🏛️ Selten in der Geschichte: Der Bundespräsident unterschreibt „' + lawName(law) + '“ nicht.', 'bad');
+      t.gov.forEach(p => addNat(g, p, -0.4));
+      return;
+    }
+    law.log.push('Ausfertigung durch den Bundespräsidenten und Verkündung im Bundesgesetzblatt.');
+    enact(g, law);
+    // Im Eiltempo ohne Anhörung beschlossen: Die Opposition wittert Verfahrensfehler (wie beim Heizungsgesetz 2023).
+    if (law.fraktion && !law.fixed && law.kind === 'topic' && Math.abs(D.PROGRAM[law.topic][law.opt].lean) === 1) aiKlage(g, { kind: 'law', law: law.id, chance: 0.2, text: '„' + lawName(law) + '“' });
   }
 
   function applyEcon(e, fx, sign) {
@@ -1068,6 +1130,8 @@
     const mn = ministerFor(t, law.kind === 'tax' ? 'finanzen' : law.topic);
     const cf = compFactor(mn);
     if (pop > 0) pop *= cf; else pop *= 2 - cf;
+    if (law.brDeal && pop > 0) pop *= 0.8; // Kompromiss mit den Ländern verwässert die Wirkung
+    if (law.fraktion && !law.fixed) { pop -= 0.1; if (rand(g) < 0.25) { pop -= 0.15; law.log.push('Im Eiltempo beschlossen: handwerkliche Fehler werden sichtbar.'); news(g, 'Kritik am Verfahren: „' + lawName(law) + '“ wurde durch den Bundestag gepeitscht.', 'warn'); } }
     if (mn && mn.comp < 45 && rand(g) < 0.3) { pop -= 0.15; law.log.push('Handwerkliche Mängel: ' + mn.name + ' muss nachbessern.'); news(g, 'Pannen beim Gesetz „' + lawName(law) + '“: Kritik an ' + mn.name + '.', 'warn'); }
     // Umfragen: Regierung bekommt Lob oder Kritik, Parteien mit passender Linie punkten bei Anhängern.
     // Wichtige Themen polarisieren stärker; die Partei des zuständigen Ressorts trägt den größten Teil.
@@ -1402,7 +1466,7 @@
     const item = t.pending[0];
     if (!item) return { ok: false };
     let text = '';
-    cat({ scandal: 'skandal', vote: 'abstimmung', cabinet: 'kabinett', veto: 'kabinett', disloyal: 'kabinett', sq: 'statusquo', lobby: 'lobby', door: 'lobby', lobbyaffair: 'skandal' }[item.type] || 'ereignis');
+    cat({ scandal: 'skandal', vote: 'abstimmung', cabinet: 'kabinett', veto: 'kabinett', disloyal: 'kabinett', sq: 'statusquo', lobby: 'lobby', door: 'lobby', lobbyaffair: 'skandal', brstell: 'parlament', anhoerung: 'parlament' }[item.type] || 'ereignis');
     if (item.type === 'event') {
       const ev = eventById(item.id);
       const c = eventChoices(g, ev)[choice];
@@ -1449,6 +1513,30 @@
         text = m.name + ' tritt zurück. Ihr müsst die Nachfolge benennen.';
       }
       news(g, 'Affäre im ' + ministryById(item.ministry).short + '-Ministerium: ' + text, 'warn');
+    } else if (item.type === 'brstell') {
+      const law = t.laws.find(l => l.id === item.law);
+      if (!law || law.stage !== 'bundestag') { t.pending.shift(); return { ok: true, text: '' }; }
+      if (choice === 0) {
+        law.brDeal = true;
+        t.budget.extra -= 1.5; // der Bund übernimmt Kosten der Länder
+        law.log.push('Gegenäußerung der Bundesregierung: Änderungswünsche der Länder werden übernommen (Bund trägt 1,5 Mrd. € Mehrkosten).');
+        text = 'Ihr kommt den Ländern entgegen: Der Bund übernimmt Mehrkosten. Damit steigen die Chancen im Bundesrat.';
+      } else {
+        law.log.push('Gegenäußerung der Bundesregierung: Die Änderungswünsche der Länder werden zurückgewiesen.');
+        text = 'Ihr weist die Forderungen der Länder zurück. Im zweiten Durchgang droht ' + (law.zust ? 'die Ablehnung' : 'der Vermittlungsausschuss') + '.';
+      }
+    } else if (item.type === 'anhoerung') {
+      const law = t.laws.find(l => l.id === item.law);
+      if (!law || law.stage !== 'bundestag') { t.pending.shift(); return { ok: true, text: '' }; }
+      if (choice === 0) {
+        law.fixed = true; law.delay = true;
+        law.log.push('Anhörung im Ausschuss: ' + item.expert + ' Der Entwurf wird nachgebessert.');
+        text = 'Ihr bessert nach. Die Abstimmung verschiebt sich um ein Quartal, dafür steht das Gesetz auf festerem Grund.';
+      } else {
+        law.log.push('Anhörung im Ausschuss: ' + item.expert + ' Die Koalition hält am Entwurf fest.');
+        addCred(g, -1, 'Kritik in der Anhörung ignoriert: „' + lawName(law) + '“');
+        text = 'Ihr haltet am Entwurf fest. Die Abstimmung bleibt im Zeitplan – Kritik und Klagerisiko bleiben auch.';
+      }
     } else if (item.type === 'veto') {
       const law = t.laws.find(l => l.id === item.law);
       if (choice === 0) { law.stage = 'zurueckgezogen'; law.log.push('Zurückgezogen.'); text = 'Der Entwurf wird zurückgezogen.'; }
@@ -1716,7 +1804,8 @@
     let text = '';
     const P = t.party;
     // Aktionen wirken über vier Jahre gedämpft – sonst summiert sich jede Kleinigkeit zu Prozentpunkten.
-    const actNat = (p, v) => addNat(g, p, v * ACT_K);
+    // Regierungen werden an Ergebnissen gemessen: Öffentlichkeitsarbeit wirkt bei ihnen schwächer als in der Opposition (geschätzt).
+    const actNat = (p, v) => addNat(g, p, v * ACT_K * (isGov(t.role) && v > 0 ? 0.8 : 1));
     const comp = topic => (g.competence ? g.competence[topic] : 40) || 40;
     const salF = topic => clamp(g.salience[topic] / D.SALIENCE0[topic], 0.5, 2);
     switch (id) {
@@ -1728,12 +1817,14 @@
           const law = makeLaw(g, { kind: 'tax', tax: target.tax, level: target.level }, g.party);
           lobbyReact(g, law);
           text = 'Entwurf „' + lawName(law) + '“ geht ins Kabinett.';
+          if (target.fraktion) text = fraktionsEntwurf(g, law);
         } else {
           const tp = o.topics.find(x => x.topic === target.topic);
           if (!tp || tp.opts.indexOf(target.opt) === -1) return { ok: false, text: 'Dieses Vorhaben ist nicht möglich.' };
           const law = makeLaw(g, { kind: 'topic', topic: target.topic, opt: target.opt }, g.party);
           lobbyReact(g, law);
           text = 'Entwurf „' + lawName(law) + '“ geht ins Kabinett' + (law.contract ? ' (steht im Koalitionsvertrag).' : '.');
+          if (target.fraktion) text = fraktionsEntwurf(g, law);
         }
         break;
       }
@@ -1868,7 +1959,7 @@
           const law = t.laws.find(l => l.id === Number(target) && l.stage === 'inkraft');
           if (!law) return { ok: false, text: 'Bitte ein Gesetz wählen.' };
           const d = Math.abs(leanOf(g, g.party, lawTopic(law)) - lawLean(law));
-          t.klagen.push({ kind: 'law', law: law.id, due: t.q + 2, chance: d === 2 ? 0.3 : 0.12, text: '„' + lawName(law) + '“', by: 'player' });
+          t.klagen.push({ kind: 'law', law: law.id, due: t.q + 2, chance: (d === 2 ? 0.3 : 0.12) + (law.fraktion && !law.fixed ? 0.1 : 0) - (law.fixed ? 0.05 : 0), text: '„' + lawName(law) + '“', by: 'player' });
         }
         text = 'Die Klage ist eingereicht. Karlsruhe entscheidet in etwa einem halben Jahr.';
         break;
@@ -2040,6 +2131,15 @@
           const txt = pick(g, TD.SCANDALS).replace(/\{minister\}/g, m.name).replace(/\{ministry\}/g, ministryById(id).short + '-Ministerium');
           t.pending.push({ type: 'scandal', ministry: id, text: txt });
         }
+      });
+    }
+    // Eure Entwürfe im parlamentarischen Verfahren: Stellungnahme des Bundesrates und Anhörung im Ausschuss
+    if (isGov(t.role)) {
+      t.laws.filter(l => l.stage === 'bundestag' && l.by === g.party && !l.fraktion && !l.hearing).forEach(l => {
+        l.hearing = true;
+        const br = bundesratVote(g, l);
+        if (!br.pass && (l.zust || 69 - br.yes >= TD.BUNDESRAT_MAJ)) t.pending.push({ type: 'brstell', law: l.id, yes: br.yes });
+        else if (rand(g) < 0.5) t.pending.push({ type: 'anhoerung', law: l.id, expert: pick(g, ANHOERUNG) });
       });
     }
     // Abstimmungen, bei denen ihr als Opposition entscheidet
@@ -2360,7 +2460,7 @@
   }
 
   const TERM = {
-    QUARTERS, ACTIONS, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
+    QUARTERS, ACTIONS, LAW_STEPS, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
     lawOptions, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, cal,
     lawName, lawTitle, leanOf, quorum, eventChoices, fillText, eventById, ministryById, taxById, areaById, nextCampaign, summary,
     actionCash, govSeats, isGov, legacy, LB, careerSnapshot, chooseLeader, leaderAge, currentLeader, MAX_AGE, sqForces, absCal, FX_NAMES, ministerFor, eventMinister, ownMinistries, endTerm, defaultVote, partyVote, mandateVote
