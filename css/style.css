@@ -2126,3 +2126,4 @@ path.wk.pending { opacity: 0; }
 .sc-rv-icon { font-size: 1.8rem; line-height: 1; }
 .sc-review small { display: block; color: var(--muted); margin-top: 2px; }
 .t-tag.warn-tag { background: var(--bad); color: #fff; border-color: var(--bad); }
+.cloud-status { margin: 14px 0 0; font-size: .85rem; opacity: .92; }

@@ -1186,3 +1186,22 @@ test('Haushaltsverfahren, Regierungsbefragung, Rückblicke und Ereignis-Variante
   assert.ok((t.memory || []).length > 0);
   assert.ok(T.needsNames(g) === false);
 });
+
+test('Spielstand im Konto: große Stände in Stücken, unvollständige werden verworfen', async () => {
+  const C = require('../js/cloud.js');
+  const store = {};
+  const ref = p => ({ get: async () => ({ exists: p in store, data: () => store[p] }), set: async d => { store[p] = JSON.parse(JSON.stringify(d)); } });
+  C.claude = { use: async n => (n === 'db' ? { collection: c => ({ doc: id => ref(c + '/' + id) }) } : n === 'user' ? { id: async () => 'u7' } : null) };
+  const cloud = C.BTW_CLOUD;
+  assert.strictEqual((await cloud.init()).save, null);
+  const big = 'x'.repeat(450000) + 'ENDE';
+  cloud.push(big, 1000, 'Test');
+  await new Promise(r => setTimeout(r, 1800));
+  assert.strictEqual(store['data/users/u7/save'].n, 3);
+  assert.ok(Object.values(store).every(d => JSON.stringify(d).length < 256 * 1024));
+  const back = await cloud.init();
+  assert.strictEqual(back.save.s, big);
+  assert.strictEqual(back.save.at, 1000);
+  store['data/users/u7/save-1'].at = 999; // halber Stand eines anderen Geräts
+  assert.strictEqual((await cloud.init()).save, null);
+});

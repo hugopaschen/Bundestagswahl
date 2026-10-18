@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261018-132607';
+  const APP_VERSION = '20261018-145740';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -84,8 +84,14 @@
 
   // ---------- Speichern ----------
 
+  // Lokal speichern und – im veröffentlichten Spiel – ins Claude-Konto (cloud.js), damit es geräteübergreifend weitergeht.
+  const SAVE_AT_KEY = 'btw-wahlkampf-save-at';
+  const CLOUD = window.BTW_CLOUD;
   function save() {
-    try { localStorage.setItem(SAVE_KEY, E.serialize(g)); } catch (e) { /* Speichern optional */ }
+    const s = E.serialize(g);
+    const at = Date.now();
+    try { localStorage.setItem(SAVE_KEY, s); localStorage.setItem(SAVE_AT_KEY, String(at)); } catch (e) { /* Speichern optional */ }
+    if (CLOUD) CLOUD.push(s, at, E.party(g.party).short + ' · ' + g.candidate);
   }
   function loadSave() {
     try {
@@ -94,7 +100,37 @@
     } catch (e) { return null; }
   }
   function clearSave() {
-    try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignorieren */ }
+    const at = Date.now();
+    try { localStorage.removeItem(SAVE_KEY); localStorage.setItem(SAVE_AT_KEY, String(at)); } catch (e) { /* ignorieren */ }
+    if (CLOUD) CLOUD.clear(at);
+  }
+  // Beim Start: Der neuere Stand gewinnt – vom Gerät oder aus dem Konto.
+  function cloudSync() {
+    if (!CLOUD) return;
+    const label = { connecting: '☁️ Verbinde mit deinem Claude-Konto …', on: '☁️ Spielstand wird mit deinem Claude-Konto synchronisiert – weiterspielen auf jedem Gerät.', error: '☁️ Konto gerade nicht erreichbar – der Spielstand bleibt vorerst auf diesem Gerät.' };
+    const showStatus = st => { const el = $('cloud-status'); if (!el) return; el.hidden = !label[st]; el.textContent = label[st] || ''; };
+    CLOUD.onStatus(showStatus);
+    CLOUD.init().then(remote => {
+      if (!remote) return;
+      let localAt = 0;
+      let local = null;
+      try { localAt = Number(localStorage.getItem(SAVE_AT_KEY) || 0); local = localStorage.getItem(SAVE_KEY); } catch (e) { /* optional */ }
+      const r = remote.save;
+      if (r && r.at > localAt) {
+        try { if (r.s) localStorage.setItem(SAVE_KEY, r.s); else localStorage.removeItem(SAVE_KEY); localStorage.setItem(SAVE_AT_KEY, String(r.at)); } catch (e) { /* optional */ }
+      } else if (local && (!r || localAt > r.at)) {
+        CLOUD.push(local, localAt || Date.now(), '');
+      }
+      // Ruhmeshalle: beide Listen zusammenführen.
+      if (remote.hall && remote.hall.length) {
+        const ids = new Set(loadHall().map(x => x.id));
+        const merged = loadHall().concat(remote.hall.filter(x => !ids.has(x.id))).sort((a, b) => b.score - a.score).slice(0, 10);
+        try { localStorage.setItem(HALL_KEY, JSON.stringify(merged)); } catch (e) { /* optional */ }
+      }
+      if (loadHall().length) CLOUD.pushHall(loadHall());
+      // Nur den Startbildschirm auffrischen – ein laufendes Spiel bleibt unberührt.
+      if (!g) { $('btn-intro-resume').hidden = !loadSave(); renderHall(); }
+    });
   }
 
   function show(screen) {
@@ -168,7 +204,7 @@
     renderHall();
   }
 
-  // Ruhmeshalle: die besten Laufbahnen über alle Spiele (nur in diesem Browser gespeichert).
+  // Ruhmeshalle: die besten Laufbahnen über alle Spiele (im Browser, im veröffentlichten Spiel auch im Claude-Konto).
   const HALL_KEY = 'btw-ruhmeshalle';
   function loadHall() {
     try { return JSON.parse(localStorage.getItem(HALL_KEY) || '[]'); } catch (e) { return []; }
@@ -181,6 +217,7 @@
       terms: L.terms, years: L.years, kanzlerJahre: L.kanzlerJahre, score: L.score, rating: L.rating, best: L.best ? L.best.share : null, at: Date.now() };
     const list = loadHall().filter(x => x.id !== entry.id).concat([entry]).sort((a, b) => b.score - a.score).slice(0, 10);
     try { localStorage.setItem(HALL_KEY, JSON.stringify(list)); } catch (e) { /* optional */ }
+    if (CLOUD) CLOUD.pushHall(list);
   }
   function renderHall() {
     const box = $('hall');
@@ -2907,6 +2944,7 @@
     if (saved) startGame(saved);
   };
   $('btn-intro-resume').addEventListener('click', resume);
+  cloudSync();
 
   $('btn-end-week').addEventListener('click', () => {
     const left = g.ap + (g.team || 0);
