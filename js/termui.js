@@ -677,10 +677,12 @@
   function renderPolls() {
     const t = term();
     let html = '<h2>📊 Sonntagsfrage</h2><div class="poll-cols">' + U.pollColumnsHtml(g.poll.nat, t.start) + '</div><p class="muted small">Veränderung zur Bundestagswahl ' + t.year0 + '. Fehlerspanne ± ' + E.POLL_RANGE + ' Punkte.</p>';
+    html += '<h3>🧮 Koalitionsrechner</h3><p class="muted small">Sitze nach dieser Umfrage (5-%-Hürde, ohne Grundmandate und Überhang). Parteien antippen – reicht es für eine Mehrheit?</p><div class="calc-body t-calc" id="t-poll-calc"></div>';
     html += '<h3>Verlauf seit der Wahl</h3><div class="t-chart" id="t-chart"></div>';
     html += fxHtml();
     html += groupsHtml();
     $('t-umfragen').innerHTML = html;
+    U.pollCalcHtml($('t-poll-calc'), g.poll.nat);
     drawTermChart();
   }
   // Was eure Umfrage bewegt: Wirkungen nach Ursache (Prozentpunkte, vor der Wählerwanderung).

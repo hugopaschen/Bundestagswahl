@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261018-193346';
+  const APP_VERSION = '20261018-194454';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -1094,6 +1094,7 @@
 
   function renderPollBars(shares) {
     $('poll-bars').innerHTML = pollColumnsHtml(shares, g.startShares);
+    pollCalcHtml($('poll-calc'), shares);
   }
 
   // Säulendiagramm der Sonntagsfrage (auch für einzelne Wählergruppen).
@@ -1565,9 +1566,30 @@
     const box = $('calc');
     const r = g.result;
     if (!box || !r || !r.seats) return;
+    calcSel = calcInto(box, r.seats, calcSel, animateLast, () => renderCalc);
+  }
+  // Sitze nach der dargestellten Umfrage: 5-%-Hürde, Sainte-Laguë über alle Sitze (ohne Grundmandate und Überhang).
+  function pollSeats(shares) {
+    const sh = merged(shares);
+    const ins = {};
+    Object.keys(sh).forEach(p => { if (p !== D.OTHER.id && sh[p] >= 5) ins[p] = sh[p]; });
+    return E.sainteLague(ins, D.SEATS);
+  }
+  // Koalitionsrechner zur Sonntagsfrage (Wahlkampf und Legislatur); die Auswahl bleibt beim Neuzeichnen erhalten.
+  let pollCalcSel = [];
+  function pollCalcHtml(box, shares) {
+    if (!box) return;
+    const seats = pollSeats(shares);
+    const draw = anim => { pollCalcSel = calcInto(box, seats, pollCalcSel, anim, () => draw); };
+    draw(false);
+  }
+  // Zeichnet Halbkreis, Status und Parteiknöpfe in box; gibt die bereinigte Auswahl zurück.
+  function calcInto(box, seats, sel, animateLast, again) {
     const total = D.SEATS;
     const maj = E.MAJORITY;
-    calcSel = calcSel.filter(p => r.seats[p] > 0);
+    sel = sel.filter(p => seats[p] > 0);
+    const calcSel = sel;
+    const r = { seats };
     const sum = calcSel.reduce((x, p) => x + r.seats[p], 0);
     const am = Math.PI * (1 - maj / total);
     let svg = '<svg viewBox="-1.02 -1.12 2.04 1.14" role="img" aria-label="Koalitionsrechner: ' + sum + ' von ' + total + ' Sitzen">' +
@@ -1600,13 +1622,15 @@
     box.querySelectorAll('.calc-party').forEach(b => b.addEventListener('click', () => {
       const p = b.dataset.p;
       const i = calcSel.indexOf(p);
-      if (i === -1) { calcSel.push(p); renderCalc(true); } else { calcSel.splice(i, 1); renderCalc(false); }
+      if (i === -1) calcSel.push(p); else calcSel.splice(i, 1);
+      again()(i === -1);
     }));
     if (animateLast && calcSel.length) {
       const seg = box.querySelector('.calc-seg[data-i="' + (calcSel.length - 1) + '"]');
       const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       if (seg) sweepSegment(seg, reduce ? 60 : Math.max(350, 1400 * r.seats[calcSel[calcSel.length - 1]] / total));
     }
+    return calcSel;
   }
 
   // Rückblick: Umfrageverlauf, beste und teuerste Entscheidungen, Woche für Woche – und zum Teilen.
@@ -3004,7 +3028,7 @@
   window.BTW_UI = {
     setGame: x => { g = x; }, show, applyPartyTheme, save, saveHall, toast,
     runAction: (id, target, done) => runAction(E.ACTIONS.find(x => x.id === id), target || {}, done), confirmOnButton, openModal, closeModal,
-    esc, col, onCol, num1, pct, signed, short, money, pollColumnsHtml, hemicycle, seatLegend, pills,
+    esc, col, onCol, num1, pct, signed, short, money, pollColumnsHtml, pollCalcHtml, hemicycle, seatLegend, pills,
     // Nach der Legislaturperiode: Programmparteitag für den nächsten Wahlkampf mit dem Stand von heute.
     startNextCampaign(next) {
       if (!next) return;
