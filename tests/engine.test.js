@@ -1243,3 +1243,24 @@ test('Alter Spielstand: Partei unter 2 % wird schon beim Laden unter „Sonstige
   assert.ok(!E.isShown(back, 'bsw'));
   assert.ok(!('bsw' in E.mergeShares(back, back.poll.nat)));
 });
+
+test('Landesregierungen: Koalitionen aus 2–3 Parteien, Brandmauer wie im Bund, allein nur mit absoluter Mehrheit', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  const seatsOf = sh => { const ins = {}; Object.keys(sh).forEach(p => { if (sh[p] >= 5) ins[p] = sh[p]; }); const s = E.sainteLague(ins, 630); ['union', 'afd', 'spd', 'gruene', 'linke', 'bsw', 'fdp', 'fw'].forEach(p => { if (!(p in s)) s[p] = 0; }); return s; };
+  const sum = (s, m) => m.reduce((a, p) => a + s[p], 0);
+  // Brandenburg-ähnlich: ohne AfD keine Mehrheit aus höchstens drei Parteien → Minderheitskoalition, nicht eine Partei allein
+  const bb = seatsOf({ afd: 37.3, union: 18.7, spd: 12.7, linke: 13, gruene: 6.6, bsw: 6.1, fdp: 1.3 });
+  const govBB = T.landGovernment(g, bb, 'BB', ['spd', 'bsw']);
+  assert.ok(govBB.length >= 2 && govBB.length <= 3, govBB.join());
+  assert.ok(govBB.indexOf('afd') === -1);
+  assert.ok(!(govBB.indexOf('union') !== -1 && govBB.indexOf('linke') !== -1));
+  // Mehrheit möglich → Mehrheitskoalition
+  const nw = seatsOf({ union: 30.6, afd: 21.5, spd: 13, gruene: 14.5, linke: 10.3, fdp: 2.9 });
+  const govNW = T.landGovernment(g, nw, 'NW', ['union', 'gruene']);
+  assert.ok(govNW.length >= 2 && govNW.length <= 3 && sum(nw, govNW) >= E.MAJORITY && govNW.indexOf('afd') === -1, govNW.join());
+  assert.strictEqual(govNW[0], 'union');
+  // Absolute Mehrheit der Sitze → allein
+  const by = seatsOf({ union: 48, afd: 20, gruene: 12, spd: 8, fw: 4 });
+  assert.deepStrictEqual(T.landGovernment(g, by, 'BY', ['union', 'fw']), ['union']);
+});

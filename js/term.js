@@ -1397,17 +1397,44 @@
   }
 
   // ---------- Landtagswahlen ----------
+  // Regierungsbildung im Land nach denselben Regeln wie im Bund: Koalitionen aus bis zu drei Parteien,
+  // Brandmauer und Unvereinbarkeitsbeschlüsse wie auf Bundesebene. Reihenfolge:
+  // 1. Mehrheitskoalition – die stärkste Partei, die eine Mehrheit zusammenbekommt, verhandelt;
+  //    bevorzugt wenige Partner, programmatische Nähe und die bisherige Regierung.
+  // 2. Von der AfD tolerierte Minderheitsregierung (nur, wenn die Partner das nicht ausschließen).
+  // 3. Sonst Minderheitskoalition mit den meisten Sitzen (wie Sachsen seit 2024: CDU und SPD).
+  // Allein regiert nur, wer die absolute Mehrheit der Sitze hat.
   function landGovernment(g, seats, land, prevGov) {
-    const coalitions = E.findCoalitions(seats, g).filter(c => c.viable);
     const order = CONTEST.filter(p => seats[p] > 0).sort((a, b) => seats[b] - seats[a]);
+    if (order.length && seats[order[0]] >= MAJ) return [order[0]];
+    const sum = m => m.reduce((s, p) => s + seats[p], 0);
+    const dist = m => { let d = 0; for (let a = 0; a < m.length; a++) for (let b = a + 1; b < m.length; b++) A.TOPIC_IDS.forEach(tp => { d += Math.abs(leanOf(g, m[a], tp) - leanOf(g, m[b], tp)); }); return d; };
+    const score = c => c.members.length * 100 + dist(c.members) * 2 - 15 * c.members.filter(p => prevGov.indexOf(p) !== -1).length + (c.members.indexOf('afd') !== -1 ? 1000 : 0);
+    const sortLead = c => [c.members[0]].concat(c.members.slice(1).sort((a, b) => seats[b] - seats[a]));
+    const all = E.findCoalitions(seats, g);
+    const majority = all.filter(c => c.viable && !c.tolerated);
     for (const f of order) {
-      const opts = coalitions.filter(c => c.members.indexOf(f) !== -1)
-        .sort((a, b) => (a.tolerated ? 1 : 0) - (b.tolerated ? 1 : 0) || a.members.length - b.members.length ||
-          b.members.filter(p => prevGov.indexOf(p) !== -1).length - a.members.filter(p => prevGov.indexOf(p) !== -1).length || a.seats - b.seats);
-      if (opts.length) return [f].concat(opts[0].members.filter(p => p !== f));
+      const opts = majority.filter(c => c.members.indexOf(f) !== -1).sort((a, b) => score(a) - score(b));
+      if (opts.length && (f !== 'afd' || opts[0].members.length === 1 || opts[0].members.every(p => p === 'afd' || E.fwLevel(g, p) >= 3))) {
+        return [f].concat(opts[0].members.filter(p => p !== f).sort((a, b) => seats[b] - seats[a]));
+      }
     }
-    const lead = order.find(p => p !== 'afd') || order[0];
-    return [lead];
+    const tol = all.filter(c => c.tolerated).sort((a, b) => b.seats - a.seats)[0];
+    if (tol) return sortLead({ members: tol.members.slice().sort((a, b) => seats[b] - seats[a]) });
+    // Minderheitskoalition: bis zu drei Parteien ohne AfD (oder mit ihr, wenn alle Partner koalitionsbereit sind).
+    const ids = order.slice();
+    let best = null;
+    for (let mask = 1; mask < (1 << ids.length); mask++) {
+      const m = ids.filter((_, k) => mask & (1 << k));
+      if (m.length > 3) continue;
+      const withAfd = m.indexOf('afd') !== -1;
+      if (withAfd && !(m.length === 1 && order[0] === 'afd' && order.filter(p => p !== 'afd').length === 0)) continue;
+      if (!E.coalitionViable(m, g)) continue;
+      const c = { members: m.slice().sort((a, b) => seats[b] - seats[a]), seats: sum(m) };
+      if (!best || c.seats - 3 * dist(m) / A.TOPIC_IDS.length > best.seats - 3 * dist(best.members) / A.TOPIC_IDS.length) best = c;
+    }
+    if (best) return best.members;
+    return [order.find(p => p !== 'afd') || order[0]];
   }
 
   function landtagswahl(g, land) {
@@ -1454,7 +1481,7 @@
     t.stats.ltw.push(entry);
     const top = Object.keys(shares).filter(p => p !== OTHER).sort((a, b) => shares[b] - shares[a]).slice(0, 4);
     news(g, '🗳️ Landtagswahl ' + E.stateById(land).name + ': ' + top.map(p => sname(p) + ' ' + f1(shares[p]) + ' %').join(', ') +
-      '. Neue Regierung: ' + gov.map(sname).join('-') + (gov.length === 1 && seats[gov[0]] < MAJ ? ' (Minderheit)' : '') + '.', 'big');
+      '. Neue Regierung: ' + gov.map(sname).join('-') + (gov.reduce((x, p) => x + (seats[p] || 0), 0) < MAJ ? ' (Minderheitsregierung)' : '') + '.', 'big');
     (t.ltwNight = t.ltwNight || []).push(entry);
     if (mine.length) t.ltwKoa = (t.ltwKoa || []).concat([{ land, options: mine.map(c => c.members.slice().sort((a, b) => seats[b] - seats[a])), def: gov.slice() }]);
     return entry;
@@ -1680,10 +1707,13 @@
         // Opposition im Land: Die anderen bilden eine Regierung ohne euch.
         const last = (t.ltwLog || []).filter(x => x.land === item.land).slice(-1)[0];
         const seats = last ? last.seats : null;
-        const alt = seats ? E.findCoalitions(seats, g).filter(c => c.viable && c.members.indexOf(g.party) === -1).sort((a, b) => (a.tolerated ? 1 : 0) - (b.tolerated ? 1 : 0) || a.members.length - b.members.length || a.seats - b.seats)[0] : null;
-        if (alt) L.gov = alt.members.slice().sort((a, b) => seats[b] - seats[a]);
-        else if (before.indexOf(g.party) !== -1) L.gov = before.filter(p => p !== g.party).length ? before.filter(p => p !== g.party) : before;
-        text = 'Ihr geht in ' + name + ' in die Opposition. ' + (alt ? 'Regierung: ' + L.gov.map(sname).join('-') + '.' : 'Eine Minderheitsregierung übernimmt.');
+        if (seats) {
+          // Gleiche Regeln wie sonst – nur ohne euch (eure Sitze bleiben, zählen aber nicht für die Regierung).
+          const rest = Object.assign({}, seats, { [g.party]: 0 });
+          L.gov = landGovernment(g, rest, item.land, before.filter(p => p !== g.party));
+        } else if (before.indexOf(g.party) !== -1 && before.length > 1) L.gov = before.filter(p => p !== g.party);
+        const minority = seats && L.gov.reduce((x, p) => x + (seats[p] || 0), 0) < MAJ;
+        text = 'Ihr geht in ' + name + ' in die Opposition. Regierung: ' + L.gov.map(sname).join('-') + (minority ? ' (Minderheitsregierung).' : '.');
       }
       const entry = (t.ltwLog || []).filter(x => x.land === item.land).slice(-1)[0];
       if (entry) { entry.gov = L.gov.slice(); entry.inGov = L.gov.indexOf(g.party) !== -1; }
@@ -2781,7 +2811,7 @@
   }
 
   const TERM = {
-    QUARTERS, ACTIONS, LAW_STEPS, WOBBLE, brAligned, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
+    QUARTERS, ACTIONS, LAW_STEPS, WOBBLE, brAligned, landGovernment, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
     lawOptions, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, cal,
     lawName, lawTitle, leanOf, quorum, eventChoices, fillText, eventById, ministryById, taxById, areaById, nextCampaign, summary,
     actionCash, govSeats, isGov, legacy, LB, careerSnapshot, chooseLeader, leaderAge, currentLeader, MAX_AGE, sqForces, absCal, FX_NAMES, ministerFor, eventMinister, ownMinistries, endTerm, defaultVote, partyVote, mandateVote

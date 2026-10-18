@@ -945,7 +945,7 @@
           const max = Math.max.apply(null, ids.map(p => x.shares[p]));
           return '<h4>' + esc(E.stateById(x.land).name) + ' <span class="small ' + (x.diff >= 0 ? 'pos' : 'neg') + '">' + esc(short(g.party)) + ' ' + pct(x.shares[g.party]) + ' (' + signed(x.diff) + ')</span></h4>' +
             '<div class="t-ltw-bars">' + ids.map(p => '<div class="t-ltw-row' + (p === g.party ? ' me' : '') + '"><span>' + esc(short(p)) + '</span><i style="width:' + x.shares[p] / max * 100 + '%;background:' + col(p) + '"></i><b>' + pct(x.shares[p]) + '</b></div>').join('') + '</div>' +
-            '<p class="small">' + (x.open ? '🤝 Ihr könnt mitregieren – gleich beginnen die Koalitionsgespräche.' : 'Neue Landesregierung: ' + x.gov.map(pill).join(' ') + (x.inGov ? ' – ihr regiert mit!' : '')) + '</p>';
+            '<p class="small">' + (x.open ? '🤝 Ihr könnt mitregieren – gleich beginnen die Koalitionsgespräche.' : 'Neue Landesregierung: ' + x.gov.map(pill).join(' ') + (x.seats && x.gov.reduce((a, p) => a + (x.seats[p] || 0), 0) < E.MAJORITY ? ' <span class="t-tag warn-tag">Minderheitsregierung</span>' : '') + (x.inGov ? ' – ihr regiert mit!' : '')) + '</p>';
         }).join('') + '<p class="small muted">Bundesrat: Länder nur mit Bundesregierungsparteien ' + T.brAligned(term()) + ' von 69 Stimmen (vor der Regierungsbildung).</p>';
       } else if (it.kind === 'ew') {
         title = 'Europawahl';
