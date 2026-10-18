@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261018-185422';
+  const APP_VERSION = '20261018-185952';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -31,7 +31,14 @@
   const MINOR_ORDER = (D.MINORS || []).map(m => m.id);
   const CONTEST_ORDER = MAIN_ORDER.concat(MINOR_ORDER); // für Wahlkreise: alle, die gewinnen können
   // Ausgewiesene Parteien: große unter 2 % und Kleinparteien unter 3,5 % stecken in „Andere“.
-  const pollOrder = () => (g ? MAIN_ORDER.filter(p => E.isShown(g, p)) : MAIN_ORDER).concat(g ? MINOR_ORDER.filter(m => E.isShown(g, m)) : []).concat([D.OTHER.id]);
+  // Reihenfolge wie das Ergebnis der letzten Bundestagswahl: der Sieger links, dann die Zweite usw.
+  // In der Legislatur zählt die Wahl, die sie eröffnet hat; im Wahlkampf die vorherige (zu Beginn 2025).
+  const lastResult = () => (g && g.term && g.phase === 'term' ? g.term.start : g && g.prevShares ? g.prevShares : D.RESULT_2025) || {};
+  const pollOrder = () => {
+    const ids = (g ? MAIN_ORDER.filter(p => E.isShown(g, p)) : MAIN_ORDER).concat(g ? MINOR_ORDER.filter(m => E.isShown(g, m)) : []);
+    const last = lastResult();
+    return ids.map((p, i) => ({ p, i })).sort((a, b) => (last[b.p] || 0) - (last[a.p] || 0) || a.i - b.i).map(x => x.p).concat([D.OTHER.id]);
+  };
   const merged = sh => (g ? E.mergeShares(g, sh) : sh);
   const short = p => (p === D.OTHER.id ? D.OTHER.short : E.party(p).short);
   // Die letzte Bundestagswahl: 2025 oder die letzte Wahl im Spiel (nach einer Legislaturperiode).
