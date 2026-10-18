@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261018-201014';
+  const APP_VERSION = '20261018-203650';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -1888,8 +1888,8 @@
   }
 
   // Legende unter dem Halbkreis: Partei, Sitze und Veränderung zur Bundestagswahl 2025.
-  function seatLegend(seats) {
-    const prev = (g && g.prevSeats) || D.SEATS_2025 || {};
+  function seatLegend(seats, base) {
+    const prev = base || (g && g.prevSeats) || D.SEATS_2025 || {};
     return SPECTRUM.filter(p => seats[p] > 0 || prev[p] > 0).map(p => {
       const d = (seats[p] || 0) - (prev[p] || 0);
       return '<div class="sl-item' + (p === g.party ? ' me' : '') + '" data-p="' + p + '"><span class="sl-name">' + short(p) + '</span>' +
@@ -3028,7 +3028,7 @@
   window.BTW_UI = {
     setGame: x => { g = x; }, show, applyPartyTheme, save, saveHall, toast,
     runAction: (id, target, done) => runAction(E.ACTIONS.find(x => x.id === id), target || {}, done), confirmOnButton, openModal, closeModal,
-    esc, col, onCol, num1, pct, signed, short, money, pollColumnsHtml, pollCalcHtml, hemicycle, seatLegend, pills,
+    esc, col, onCol, num1, pct, signed, short, money, pollColumnsHtml, pollCalcHtml, pollSeats, hemicycle, seatLegend, pills,
     // Nach der Legislaturperiode: Programmparteitag für den nächsten Wahlkampf mit dem Stand von heute.
     startNextCampaign(next) {
       if (!next) return;

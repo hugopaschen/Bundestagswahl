@@ -578,6 +578,14 @@
     const seats = t.seats;
     let html = '<h2>🗳️ Bundestag und Bundesrat</h2><div class="t-parl"><div><h3>Bundestag (' + D.SEATS + ' Sitze)</h3><div class="hemicycle t-hemi">' + U.hemicycle(seats) + '</div><div class="seat-legend">' + U.seatLegend(seats) + '</div>' +
       '<p class="small">Regierung: ' + t.gov.map(pill).join(' ') + ' · ' + T.govSeats(t) + ' Sitze (Mehrheit ab ' + E.MAJORITY + ')' + (t.tolerated ? ' – Minderheitsregierung' : '') + '</p>';
+    // Projektion: Wenn am nächsten Sonntag Bundestagswahl wäre (Sitze nach der aktuellen Umfrage).
+    const proj = U.pollSeats(g.poll.nat);
+    const govProj = t.gov.reduce((x, p) => x + (proj[p] || 0), 0);
+    const coal = E.findCoalitions(proj, g).filter(c => c.viable && !c.tolerated).slice(0, 4);
+    const projHtml = '<div><h3>Wenn am Sonntag Bundestagswahl wäre</h3><div class="hemicycle t-hemi">' + U.hemicycle(proj) + '</div><div class="seat-legend">' + U.seatLegend(proj, seats) + '</div>' +
+      '<p class="small">Regierung ' + t.gov.map(pill).join(' ') + ': <b>' + govProj + ' Sitze</b> – ' + (govProj >= E.MAJORITY ? '✅ Mehrheit bliebe' : '❌ Mehrheit wäre weg') + '</p>' +
+      '<p class="small">Mögliche Mehrheiten: ' + (coal.length ? coal.map(c => c.members.map(pill).join('') + ' <span class="muted">' + c.seats + '</span>').join(' · ') : 'keine ohne Tolerierung') + '</p>' +
+      '<p class="muted small">Sitze nach der aktuellen Umfrage (5-%-Hürde, ohne Grundmandate und Überhang); Veränderung gegenüber dem heutigen Bundestag.</p></div>';
     const q = T.quorum(g);
     if (t.role === 'opposition') html += '<p class="small">Viertel der Abgeordneten für Untersuchungsausschuss und Normenkontrollklage: ' + (q.ok ? '✅' : '❌') + ' ' + q.seats + ' von ' + Math.ceil(D.SEATS / 4) + ' nötigen Sitzen.</p>';
     let brRows = '';
@@ -588,7 +596,7 @@
       if (aligned) fedGov += L.votes;
       brRows += '<tr class="' + (aligned ? 'aligned' : '') + '"><td>' + esc(E.stateById(l).name) + '</td><td class="num">' + L.votes + '</td><td>' + L.gov.map(pill).join(' ') + '</td></tr>';
     });
-    html += '</div></div><h3>Bundesrat (69 Stimmen)</h3>' + bundesratSvg(t) + '<p class="t-lead ' + (fedGov >= TD.BUNDESRAT_MAJ ? '' : 'neg') + '"><b>' + fedGov + ' von 69 Stimmen</b> kommen aus Ländern, in denen nur Bundesregierungsparteien regieren – ' +
+    html += '</div>' + projHtml + '</div><h3>Bundesrat (69 Stimmen)</h3>' + bundesratSvg(t) + '<p class="t-lead ' + (fedGov >= TD.BUNDESRAT_MAJ ? '' : 'neg') + '"><b>' + fedGov + ' von 69 Stimmen</b> kommen aus Ländern, in denen nur Bundesregierungsparteien regieren – ' +
       (fedGov >= TD.BUNDESRAT_MAJ ? 'genug für zustimmungspflichtige Gesetze.' : 'für zustimmungspflichtige Gesetze (' + TD.BUNDESRAT_MAJ + ') braucht ihr andere Länder.') + '</p>' +
       '<details class="t-more"><summary>Alle 16 Landesregierungen als Tabelle</summary><table class="t-br"><tbody>' + brRows + '</tbody></table></details>';
     if (t.ltwLog.length) {
