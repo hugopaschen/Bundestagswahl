@@ -2190,3 +2190,25 @@ details.t-law[open] > summary { border-bottom: 1px solid var(--border); }
   details.t-law > summary { grid-template-columns: 1fr; }
   .t-law-s { justify-content: flex-start; }
 }
+
+/* Bundesrat-Grafik */
+:root { --c-csu: #6f7072; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --c-csu: #9a9b9d; } }
+:root[data-theme="dark"] { --c-csu: #9a9b9d; }
+.br-fig { margin: 4px 0 12px; }
+.br-fig svg { width: 100%; height: auto; display: block; }
+.br-title { text-align: center; font-size: 1.15rem; font-weight: 700; margin: 0 0 4px; }
+.br-title small { display: block; font-weight: 500; font-size: .85rem; color: var(--muted); }
+.br-ring { fill: var(--surface-2); stroke: var(--border); stroke-width: 1; }
+.br-ring.fed { fill: color-mix(in srgb, var(--good) 35%, var(--surface-2)); }
+.br-sep { stroke: var(--surface); stroke-width: 3; }
+.br-num-bg { fill: var(--surface); }
+.br-num { font-size: 17px; font-weight: 800; text-anchor: middle; fill: var(--text); }
+.br-label { font-size: 21px; fill: var(--text); }
+.br-label.mine { font-weight: 800; }
+.br-c1 { font-size: 22px; text-anchor: middle; fill: var(--text); }
+.br-c2 { font-size: 40px; font-weight: 800; text-anchor: middle; fill: var(--text); }
+.br-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; font-size: .85rem; margin-top: 4px; }
+.br-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.br-legend i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+.br-legend-fed i { background: color-mix(in srgb, var(--good) 35%, var(--surface-2)); border: 1px solid var(--border); }

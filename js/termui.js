@@ -577,9 +577,9 @@
       if (aligned) fedGov += L.votes;
       brRows += '<tr class="' + (aligned ? 'aligned' : '') + '"><td>' + esc(E.stateById(l).name) + '</td><td class="num">' + L.votes + '</td><td>' + L.gov.map(pill).join(' ') + '</td></tr>';
     });
-    html += '</div><div><h3>Bundesrat (69 Stimmen)</h3><p class="t-lead ' + (fedGov >= TD.BUNDESRAT_MAJ ? '' : 'neg') + '"><b>' + fedGov + ' von 69 Stimmen</b> kommen aus Ländern, in denen nur Bundesregierungsparteien regieren – ' +
+    html += '</div></div><h3>Bundesrat (69 Stimmen)</h3>' + bundesratSvg(t) + '<p class="t-lead ' + (fedGov >= TD.BUNDESRAT_MAJ ? '' : 'neg') + '"><b>' + fedGov + ' von 69 Stimmen</b> kommen aus Ländern, in denen nur Bundesregierungsparteien regieren – ' +
       (fedGov >= TD.BUNDESRAT_MAJ ? 'genug für zustimmungspflichtige Gesetze.' : 'für zustimmungspflichtige Gesetze (' + TD.BUNDESRAT_MAJ + ') braucht ihr andere Länder.') + '</p>' +
-      '<details class="t-more"><summary>Alle 16 Landesregierungen</summary><table class="t-br"><tbody>' + brRows + '</tbody></table></details></div></div>';
+      '<details class="t-more"><summary>Alle 16 Landesregierungen als Tabelle</summary><table class="t-br"><tbody>' + brRows + '</tbody></table></details>';
     if (t.ltwLog.length) {
       html += '<details class="t-more"><summary>Landtagswahlen in dieser Legislaturperiode (' + t.ltwLog.length + ')</summary><ul class="t-ltw">' + t.ltwLog.slice().reverse().map(x => '<li><b>' + esc(E.stateById(x.land).name) + '</b> (' + esc(T.quarterLabel(t, x.q)) + '): ' +
         esc(short(g.party)) + ' ' + pct(x.shares[g.party]) + ' (' + signed(x.diff) + ') · Regierung: ' + x.gov.map(pill).join(' ') + '</li>').join('') + '</ul></details>';
@@ -593,6 +593,53 @@
       }).join('') + '</ul>';
     }
     $('t-parlament').innerHTML = html;
+  }
+
+  // Zusammensetzung des Bundesrates im Stil der offiziellen Grafik: Halbkreis, Länder alphabetisch, Breite nach Stimmen,
+  // die Koalitionsparteien eines Landes als Ringe (außen die Partei der Regierungschefin/des Regierungschefs).
+  const BR_SHORT = { BW: 'Baden-Württemberg', MV: 'Mecklenburg-Vorpommern', NW: 'Nordrhein-Westfalen', RP: 'Rheinland-Pfalz', SH: 'Schleswig-Holstein', ST: 'Sachsen-Anhalt' };
+  function bundesratSvg(t) {
+    const cx = 550; const cy = 70; const r0 = 175; const r1 = 380; const r2 = 418;
+    const ids = Object.keys(t.laender).sort((a, b) => E.stateById(a).name.localeCompare(E.stateById(b).name, 'de'));
+    const total = ids.reduce((s, l) => s + t.laender[l].votes, 0);
+    const pt = (r, a) => (cx + r * Math.cos(a)).toFixed(1) + ' ' + (cy + r * Math.sin(a)).toFixed(1);
+    const sector = (ra, rb, a0, a1) => 'M' + pt(ra, a0) + ' A' + ra + ' ' + ra + ' 0 0 0 ' + pt(ra, a1) + ' L' + pt(rb, a1) + ' A' + rb + ' ' + rb + ' 0 0 1 ' + pt(rb, a0) + 'Z';
+    const fill = (l, p) => (l === 'BY' && p === 'union' ? 'var(--c-csu)' : col(p));
+    let a = Math.PI;
+    let body = '';
+    let labels = '';
+    const used = new Set();
+    ids.forEach(l => {
+      const L = t.laender[l];
+      const a1 = a - Math.PI * L.votes / total;
+      const n = L.gov.length;
+      L.gov.forEach((p, k) => {
+        used.add(l === 'BY' && p === 'union' ? 'csu' : p);
+        body += '<path d="' + sector(r1 - (r1 - r0) * k / n, r1 - (r1 - r0) * (k + 1) / n, a, a1) + '" fill="' + fill(l, p) + '"><title>' + esc(E.stateById(l).name) + ': ' + esc(short(p)) + '</title></path>';
+      });
+      // Trennlinie, grauer Ring mit Stimmenzahl
+      body += '<path d="' + sector(r2, r1 + 6, a, a1) + '" class="br-ring' + (L.gov.every(p => t.gov.indexOf(p) !== -1) ? ' fed' : '') + '"></path>';
+      body += '<line x1="' + pt(r0, a1).split(' ')[0] + '" y1="' + pt(r0, a1).split(' ')[1] + '" x2="' + pt(r2, a1).split(' ')[0] + '" y2="' + pt(r2, a1).split(' ')[1] + '" class="br-sep"></line>';
+      const m = (a + a1) / 2;
+      const [vx, vy] = pt((r1 + 6 + r2) / 2, m).split(' ');
+      body += '<circle cx="' + vx + '" cy="' + vy + '" r="14" class="br-num-bg"></circle><text x="' + vx + '" y="' + (Number(vy) + 6) + '" class="br-num">' + L.votes + '</text>';
+      const c = Math.cos(m);
+      // Wie im Original: das Land genau unten mittig und etwas tiefer, die übrigen links bzw. rechts ausgerichtet.
+      const anchor = c < -0.1 ? 'end' : c > 0.1 ? 'start' : 'middle';
+      const [lx, ly] = pt(r2 + (anchor === 'middle' ? 34 : 16), m).split(' ');
+      const name = BR_SHORT[l] || E.stateById(l).name;
+      const parts = name.indexOf('-') > 0 && name.length > 12 ? [name.slice(0, name.indexOf('-') + 1), name.slice(name.indexOf('-') + 1)] : [name];
+      const y0 = Number(ly) + (Math.sin(m) > 0.3 ? 14 : 6) - (parts.length - 1) * 11;
+      labels += '<text x="' + lx + '" y="' + y0 + '" text-anchor="' + anchor + '" class="br-label' + (L.gov.indexOf(g.party) !== -1 ? ' mine' : '') + '">' + parts.map((x, i) => '<tspan x="' + lx + '" dy="' + (i ? 22 : 0) + '">' + esc(x) + '</tspan>').join('') + '</text>';
+      a = a1;
+    });
+    const center = '<text x="' + cx + '" y="' + (cy + 45) + '" class="br-c1">Stimmen insgesamt:</text><text x="' + cx + '" y="' + (cy + 90) + '" class="br-c2">' + total + '</text>' +
+      '<text x="' + cx + '" y="' + (cy + 125) + '" class="br-c1">absolute Mehrheit:</text><text x="' + cx + '" y="' + (cy + 165) + '" class="br-c2">' + TD.BUNDESRAT_MAJ + '</text>';
+    const order = ['union', 'csu', 'spd', 'fdp', 'gruene', 'linke', 'fw', 'bsw', 'afd', 'ssw'].filter(p => used.has(p)).concat([...used].filter(p => ['union', 'csu', 'spd', 'fdp', 'gruene', 'linke', 'fw', 'bsw', 'afd', 'ssw'].indexOf(p) === -1));
+    const legend = '<div class="br-legend">' + order.map(p => '<span><i style="background:' + (p === 'csu' ? 'var(--c-csu)' : col(p)) + '"></i>' + (p === 'union' ? 'CDU' : p === 'csu' ? 'CSU' : esc(short(p))) + '</span>').join('') +
+      '<span class="br-legend-fed"><i></i>nur Bundesregierungsparteien</span><span><b>fett</b>&nbsp;= ihr regiert mit</span></div>';
+    return '<figure class="br-fig"><p class="br-title">Die Zusammensetzung des Bundesrates <small>Stand: ' + esc(T.quarterLabel(t)) + '</small></p>' +
+      '<svg viewBox="-40 30 1180 530" role="img" aria-label="Sitzverteilung im Bundesrat nach Ländern und Landesregierungen">' + body + center + labels + '</svg>' + legend + '</figure>';
   }
 
   // ---------- Partei ----------
