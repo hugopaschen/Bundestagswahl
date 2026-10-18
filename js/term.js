@@ -436,6 +436,14 @@
     g.phase = 'term';
     const govText = gov.map(sname).join('-') + (t.tolerated ? '-Minderheitsregierung' : '-Koalition');
     news(g, 'Die ' + (t.n === 1 ? '' : t.n + '. ') + 'Legislaturperiode beginnt. ' + t.chancellor.name + ' (' + sname(t.chanc) + ') wird zur Kanzlerin/zum Kanzler gewählt – ' + govText + '.', 'big');
+    const kw = r.neg && r.neg.success && r.neg.kanzler;
+    if (kw && kw.length > 1) {
+      // Fehlstart wie im Mai 2025: Abweichler im 1. Wahlgang belasten das Klima von Anfang an.
+      t.mood = clamp(t.mood - (r.neg.weak ? 10 : 5), 0, 100);
+      if (gov.indexOf(g.party) !== -1) t.party.unity = clamp(t.party.unity - 3, 0, 100);
+      news(g, 'Fehlstart: Die Kanzlerwahl gelang erst im ' + (r.neg.weak ? 'dritten' : 'zweiten') + ' Wahlgang. Wer waren die Abweichler?', 'warn');
+    }
+    if (r.neg && r.neg.success && r.neg.ratify && r.neg.ratify.kind === 'mitglieder' && gov.indexOf(g.party) !== -1) t.party.unity = clamp(t.party.unity + (r.neg.ratify.yes >= 65 ? 4 : -2), 0, 100);
     news(g, introText(g), 'role');
     // Landtagswahlen, die in die Zeit des Wahlkampfs fielen, werden nachgeholt – der Bundesrat läuft weiter.
     if (t.doneAbs !== null) for (let idx = t.doneAbs + 1; idx < t.abs0; idx++) ltwDueAbs(idx).forEach(l => landtagswahl(g, l));

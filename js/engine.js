@@ -2867,8 +2867,7 @@
     const topics = negotiationTopics(g, members);
     const avgDiff = topics.length ? topics.reduce((s, x) => s + x.diff, 0) / topics.length : 0;
     const mood = Math.max(35, Math.min(75, 58 + (lead === g.party ? 8 : 0) - 6 * avgDiff + Math.round(between(g, -4, 4))));
-    r.neg = { members: members.slice(), lead, topics, step: 0, mood, kept: 0, given: 0, ministry: null, log: [], done: false };
-    if (!topics.length) startDraft(g);
+    r.neg = { members: members.slice(), lead, topics, step: 0, mood, kept: 0, given: 0, swap: 0, ministry: null, log: [], done: false, phase: 'sond' };
     return r.neg;
   }
 
@@ -2900,7 +2899,14 @@
   function startDraft(g) {
     const r = g.result;
     const n = r.neg;
-    n.draft = { order: draftOrder(n.members, n.lead, r.seats), pos: 0, picks: {} };
+    n.phase = 'draft';
+    const order = draftOrder(n.members, n.lead, r.seats);
+    // Tauschgeschäft „Inhalt gegen Ressort“: Für jedes Nachgeben im Tausch rückt eine eurer Wahlen nach vorn.
+    for (let k = 0; k < (n.swap || 0); k++) {
+      const i = order.indexOf(g.party, k);
+      if (i > k) { order.splice(i, 1); order.splice(k, 0, g.party); }
+    }
+    n.draft = { order, pos: 0, picks: {} };
     draftAuto(g);
   }
 
@@ -2935,12 +2941,26 @@
     const r = g.result;
     const n = r && r.neg;
     if (!n || n.done) return { ok: false };
+    // Sondierung: offen in die Gespräche – oder eine rote Linie ziehen (das wichtigste Streitthema).
+    if (n.phase === 'sond') {
+      if (choice === 'rotelinie' && n.topics.length) {
+        n.red = n.topics[0].t; n.mood -= 4;
+        n.log.push('Sondierung: Ihr zieht eine rote Linie beim Thema ' + topicById(n.red).name + '.');
+      } else { n.mood += 4; n.log.push('Sondierung in guter Atmosphäre – die Spitzen empfehlen Koalitionsverhandlungen.'); }
+      n.phase = 'topics';
+      if (!n.topics.length) startDraft(g);
+      return { ok: true };
+    }
+    if (n.phase === 'ratify') return ratify(g, choice);
+    if (n.phase === 'kanzler2') return kanzlerwahl(g, choice);
     if (n.step < n.topics.length) {
       const x = n.topics[n.step];
       const nameT = topicById(x.t).name;
-      if (choice === 'hart') { n.mood -= 10 + 4 * x.diff; n.kept += 1; n.log.push(nameT + ': Ihr setzt euch durch – „' + D.PROGRAM[x.t][x.mine].label + '“.'); }
-      else if (choice === 'kompromiss') { n.mood -= 3; n.kept += 0.5; n.log.push(nameT + ': Kompromiss – beide Seiten geben etwas nach.'); }
-      else if (choice === 'nachgeben') { n.mood += 6; n.given += 1; n.log.push(nameT + ': Ihr gebt nach – „' + D.PROGRAM[x.t][x.theirs].label + '“ kommt in den Vertrag.'); }
+      const red = n.red === x.t;
+      if (choice === 'hart') { n.mood -= (10 + 4 * x.diff) * (red ? 0.5 : 1); n.kept += 1; n.log.push(nameT + ': Ihr setzt euch durch – „' + D.PROGRAM[x.t][x.mine].label + '“' + (red ? ' (rote Linie gehalten)' : '') + '.'); }
+      else if (choice === 'kompromiss') { n.mood -= 3; n.kept += 0.5; if (red) n.redBroken = true; n.log.push(nameT + ': Kompromiss – beide Seiten geben etwas nach.' + (red ? ' Eure rote Linie ist aufgeweicht.' : '')); }
+      else if (choice === 'nachgeben') { n.mood += 6; n.given += 1; if (red) n.redBroken = true; n.log.push(nameT + ': Ihr gebt nach – „' + D.PROGRAM[x.t][x.theirs].label + '“ kommt in den Vertrag.' + (red ? ' Die rote Linie ist gefallen!' : '')); }
+      else if (choice === 'tausch') { n.mood += 3; n.given += 1; n.swap += 1; if (red) n.redBroken = true; n.log.push(nameT + ': Tauschgeschäft – ihr gebt nach und dürft dafür früher ein Ressort wählen.'); }
       else return { ok: false };
       x.choice = choice;
       n.mood = Math.max(0, Math.min(100, n.mood));
@@ -2974,17 +2994,77 @@
   function finishNegotiation(g) {
     const r = g.result;
     const n = r.neg;
-    n.done = true;
     n.step = n.topics.length + 1;
     if (n.mood >= NEG_MIN) {
-      n.success = true;
-      n.pts = Math.round(n.kept * 6 - n.given * 2 + ministryPoints(n, g.party));
+      // Der Vertrag steht – jetzt muss die eigene Partei zustimmen (Mitgliedervotum oder Parteitag).
+      n.phase = 'ratify';
       n.ministries = Object.assign({}, n.draft ? n.draft.picks : {});
-      const ordered = n.members.slice().sort((a, b) => (a === n.lead ? -1 : b === n.lead ? 1 : r.seats[b] - r.seats[a]));
-      r.government = ordered;
-      finalizeOutcome(g, r);
       return;
     }
+    n.done = true;
+    failNegotiation(g);
+  }
+  // Zustimmung der Partei: SPD-Mitgliedervoten 2013–2025 zwischen 66 und 85 % Ja; Parteitage meist deutlicher.
+  function approval(n) {
+    return Math.max(0.2, Math.min(0.95, 0.72 + 0.05 * n.kept - 0.05 * n.given - (n.redBroken ? 0.18 : 0) + (n.red && !n.redBroken ? 0.05 : 0)));
+  }
+  function ratify(g, choice) {
+    const n = g.result.neg;
+    const vote = choice === 'mitglieder';
+    const yes = Math.max(0.15, Math.min(0.97, approval(n) + between(g, -0.12, 0.12) + (vote ? -0.04 : 0.06)));
+    n.ratify = { kind: vote ? 'mitglieder' : 'parteitag', yes: Math.round(yes * 1000) / 10 };
+    if (yes < 0.5) {
+      n.log.push((vote ? 'Mitgliedervotum' : 'Parteitag') + ': Nur ' + n.ratify.yes + ' % stimmen zu – der Koalitionsvertrag ist abgelehnt!');
+      n.done = true;
+      n.mood = 0;
+      failNegotiation(g);
+      return { ok: true };
+    }
+    n.log.push((vote ? 'Mitgliedervotum' : 'Parteitag') + ': ' + n.ratify.yes + ' % stimmen dem Koalitionsvertrag zu.' + (vote ? ' Starkes Mandat der Basis.' : ''));
+    return kanzlerwahl(g);
+  }
+  // Kanzlerwahl nach Art. 63 GG: geheim, ohne Aussprache. Im 1. Wahlgang ist die Mehrheit der Mitglieder nötig
+  // (Kanzlermehrheit). Scheitert er, folgt binnen 14 Tagen ein 2. Wahlgang (Vorbild: Merz am 6. Mai 2025, 310 von 316).
+  function kanzlerwahl(g, choice) {
+    const r = g.result;
+    const n = r.neg;
+    const seats = n.members.reduce((s, p) => s + (r.seats[p] || 0), 0);
+    const cand = n.lead === g.party ? g.candidate : (r.leaders && r.leaders[n.lead]) || 'die Spitzenkandidatur von ' + party(n.lead).short;
+    const unrest = (n.given >= 2 ? 0.01 : 0) + (n.redBroken ? 0.015 : 0) + (n.ratify && n.ratify.yes < 60 ? 0.01 : 0);
+    const round = n.phase === 'kanzler2' ? 2 : 1;
+    const rate = round === 1 ? between(g, 0, 0.035) + unrest : (choice === 'einschwoeren' ? between(g, 0, 0.01) : between(g, 0, 0.025));
+    const yes = seats - Math.round(seats * rate);
+    n.kanzler = n.kanzler || [];
+    n.kanzler.push({ round, yes, need: MAJORITY });
+    if (yes >= MAJORITY) {
+      n.log.push((round === 2 ? '2. Wahlgang: ' : 'Kanzlerwahl: ') + cand + ' ist gewählt – ' + yes + ' Stimmen (nötig: ' + MAJORITY + ').');
+      return completeNegotiation(g);
+    }
+    if (round === 1) {
+      n.phase = 'kanzler2';
+      n.log.push('Kanzlerwahl: ' + cand + ' fällt im 1. Wahlgang durch – nur ' + yes + ' von ' + MAJORITY + ' nötigen Stimmen. Abweichler in den eigenen Reihen!');
+      return { ok: true };
+    }
+    // 3. Wahlphase (Art. 63 Abs. 4 GG): Es genügt die relative Mehrheit.
+    n.log.push('Auch der 2. Wahlgang scheitert (' + yes + '). In der 3. Wahlphase reicht die relative Mehrheit – ' + cand + ' ist gewählt, aber angeschlagen.');
+    n.weak = true;
+    return completeNegotiation(g);
+  }
+  function completeNegotiation(g) {
+    const r = g.result;
+    const n = r.neg;
+    n.done = true;
+    n.phase = 'done';
+    n.success = true;
+    n.pts = Math.round(n.kept * 6 - n.given * 2 + ministryPoints(n, g.party) - (n.kanzler && n.kanzler.length > 1 ? 3 : 0) + (n.ratify && n.ratify.kind === 'mitglieder' ? 1 : 0));
+    n.ministries = Object.assign({}, n.draft ? n.draft.picks : {});
+    r.government = n.members.slice().sort((a, b) => (a === n.lead ? -1 : b === n.lead ? 1 : r.seats[b] - r.seats[a]));
+    finalizeOutcome(g, r);
+    return { ok: true };
+  }
+  function failNegotiation(g) {
+    const r = g.result;
+    const n = r.neg;
     n.success = false;
     const key = n.members.slice().sort().join();
     r.failedTalks = (r.failedTalks || []).concat([key]);

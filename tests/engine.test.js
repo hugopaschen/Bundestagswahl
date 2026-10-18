@@ -1080,3 +1080,33 @@ test('Szenen in der Legislatur: jede Szene baut sich auf, ihr Ergebnis wirkt auf
   assert.ok(good.d > bad.d);
   assert.ok(good.mood > bad.mood);
 });
+
+test('Koalitionsbildung: Sondierung mit roter Linie, Tauschgeschäft, Mitgliedervotum und Kanzlerwahl (Art. 63 GG)', () => {
+  for (let seed = 1; seed <= 12; seed++) {
+    const g = E.newGame('union', 'Test', seed);
+    g.week = g.maxWeeks; g.duelDone = true;
+    while (g.pendingEvent) E.resolveEvent(g, 0);
+    g.nat.union += 8;
+    E.endWeek(g);
+    const r = g.result;
+    if (!r.awaitingChoice) continue;
+    const i = r.options.findIndex(o => o.members.length > 1 && !o.tolerated);
+    if (i < 0) continue;
+    E.chooseCoalition(g, i);
+    const n = r.neg;
+    assert.strictEqual(n.phase, 'sond');
+    E.negotiate(g, 'rotelinie');
+    assert.ok(n.red);
+    // erstes Thema ist die rote Linie: nachgeben lässt sie fallen
+    E.negotiate(g, seed % 2 ? 'tausch' : 'hart');
+    if (seed % 2) { assert.ok(n.redBroken); assert.strictEqual(n.swap, 1); }
+    let guard = 0;
+    while (!n.done && guard++ < 40) E.negotiate(g, n.phase === 'topics' ? 'kompromiss' : n.phase === 'ratify' ? 'mitglieder' : n.phase === 'kanzler2' ? 'einschwoeren' : 'x');
+    assert.ok(n.done);
+    if (n.success) {
+      assert.ok(n.ratify && n.ratify.kind === 'mitglieder' && n.ratify.yes >= 50);
+      assert.ok(n.kanzler && n.kanzler.length >= 1);
+      assert.ok(n.kanzler[n.kanzler.length - 1].yes >= E.MAJORITY || n.weak);
+    }
+  }
+});

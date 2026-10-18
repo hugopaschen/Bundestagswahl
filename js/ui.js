@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261018-130103';
+  const APP_VERSION = '20261018-130533';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -1832,16 +1832,37 @@
       '<div class="neg-mood"><span class="mob-label">Verhandlungsklima</span><div class="neg-bar ' + moodCls + '"><i style="width:' + n.mood + '%"></i><b class="neg-min" style="left:' + E.NEG_MIN + '%" title="Darunter platzen die Gespräche"></b></div><span class="neg-val">' + Math.round(n.mood) + '</span></div>' +
       '<p class="muted small">Fällt das Klima am Ende unter ' + E.NEG_MIN + ', platzen die Gespräche. Durchgesetzte Positionen und wichtige Ressorts bringen Punkte.</p>';
     if (n.log.length) html += '<ul class="neg-log">' + n.log.map(l => '<li>' + esc(l) + '</li>').join('') + '</ul>';
-    const steps = n.topics.length + 1;
-    html += '<p class="neg-step">Runde ' + Math.min(steps, n.step + 1) + ' von ' + steps + '</p>';
-    if (n.step < n.topics.length) {
+    const PH = [['sond', 'Sondierung'], ['topics', 'Verhandlungen'], ['draft', 'Ressorts'], ['ratify', 'Zustimmung der Basis'], ['kanzler2', 'Kanzlerwahl']];
+    const ph = n.phase || (n.step < n.topics.length ? 'topics' : 'draft');
+    const pi = PH.findIndex(x => x[0] === ph);
+    html += '<div class="t-stages">' + PH.map((x, i) => '<span class="t-stage ' + (i < pi ? 'done' : i === pi ? 'now' : '') + '">' + x[1] + '</span>').join('<i>›</i>') + '</div>';
+    if (ph === 'sond') {
+      const top = n.topics[0];
+      html += '<div class="neg-topic"><h4>🤝 Sondierungsgespräche</h4><p>Erste vertrauliche Gespräche: Reicht die Basis für Koalitionsverhandlungen? Die größten Streitpunkte: ' +
+        n.topics.map(x => esc(E.topicById(x.t).name)).join(', ') + '.</p></div>';
+      html += '<div class="neg-choices">' + [['offen', '🕊️ Offen sondieren', 'Gute Atmosphäre: das Klima steigt'],
+        ['rotelinie', '🟥 Rote Linie ziehen' + (top ? ': ' + E.topicById(top.t).name : ''), 'Dort fällt Härte leichter – aber knickt ihr ein, nimmt es die Basis übel']]
+        .map(c => '<button type="button" class="btn coalition-option neg-btn" data-c="' + c[0] + '"><b>' + esc(c[1]) + '</b><span class="hint">' + c[2] + '</span></button>').join('') + '</div>';
+    } else if (ph === 'ratify') {
+      html += '<div class="neg-topic"><h4>🗳️ Der Koalitionsvertrag steht</h4><p>Bevor er unterschrieben wird, muss eure Partei zustimmen. Durchgesetzt: ' + num1(n.kept).replace(',0', '') + ' von ' + n.topics.length + ' Streitpunkten' + (n.redBroken ? ' · ⚠️ eure rote Linie ist gefallen' : '') + '.</p></div>';
+      html += '<div class="neg-choices">' + [['mitglieder', '📬 Mitgliedervotum', 'Alle Mitglieder stimmen ab (wie bei der SPD) – knapper, aber ein starkes Mandat'],
+        ['parteitag', '🎪 Sonderparteitag', 'Delegierte stimmen ab – meist deutlicher']]
+        .map(c => '<button type="button" class="btn coalition-option neg-btn" data-c="' + c[0] + '"><b>' + c[1] + '</b><span class="hint">' + c[2] + '</span></button>').join('') + '</div>';
+    } else if (ph === 'kanzler2') {
+      const k = n.kanzler[n.kanzler.length - 1];
+      html += '<div class="neg-topic"><h4>😱 Kanzlerwahl: 1. Wahlgang gescheitert</h4><p>Nur <b>' + k.yes + '</b> Stimmen – nötig wären ' + k.need + ' (Mehrheit der Mitglieder, Art. 63 Abs. 2 GG). Die Wahl ist geheim; Abweichler sind nicht zu ermitteln. Binnen 14 Tagen kann erneut gewählt werden.</p></div>';
+      html += '<div class="neg-choices">' + [['einschwoeren', '📣 Fraktionen einschwören, dann 2. Wahlgang', 'Sondersitzungen der Fraktionen – sehr wahrscheinlich klappt es'],
+        ['sofort', '⏱️ Sofort 2. Wahlgang', 'Noch am selben Tag – riskanter']]
+        .map(c => '<button type="button" class="btn coalition-option neg-btn" data-c="' + c[0] + '"><b>' + c[1] + '</b><span class="hint">' + c[2] + '</span></button>').join('') + '</div>';
+    } else if (n.step < n.topics.length) {
       const x = n.topics[n.step];
       const t = E.topicById(x.t);
-      html += '<div class="neg-topic"><h4>' + t.icon + ' ' + esc(t.name) + '</h4>' +
+      html += '<div class="neg-topic"><h4>' + t.icon + ' ' + esc(t.name) + (n.red === x.t ? ' 🟥 rote Linie' : '') + '</h4>' +
         '<p><b>Ihr wollt:</b> ' + esc(D.PROGRAM[x.t][x.mine].label) + '</p>' +
         '<p><b>' + esc(E.party(x.q).short) + ' will:</b> ' + esc(D.PROGRAM[x.t][x.theirs].label) + '</p></div>';
       html += '<div class="neg-choices">' + [['hart', '💪 Hart bleiben', 'Eure Position kommt in den Vertrag – das Klima leidet'],
-        ['kompromiss', '🤝 Kompromiss', 'Beide geben etwas nach'], ['nachgeben', '🙏 Nachgeben', 'Besseres Klima, aber eure Basis murrt']]
+        ['kompromiss', '🤝 Kompromiss', 'Beide geben etwas nach'], ['nachgeben', '🙏 Nachgeben', 'Besseres Klima, aber eure Basis murrt'],
+        ['tausch', '🔁 Tauschgeschäft', 'Ihr gebt nach und dürft dafür früher ein Ministerium wählen']]
         .map(c => '<button type="button" class="btn coalition-option neg-btn" data-c="' + c[0] + '"><b>' + c[1] + '</b><span class="hint">' + c[2] + '</span></button>').join('') + '</div>';
     } else if (n.draft) {
       // Ressortverteilung: reihum nach Sitzen, die Kanzlerpartei hat das Kanzleramt.
@@ -1890,7 +1911,9 @@
         (r.firewallBroken ? '<p class="fw-note">🧱 Die Brandmauer ist gefallen: erstmals regiert die AfD im Bund mit.</p>' : '') +
         (r.neg && r.neg.success && r.government.indexOf(g.party) !== -1 ? '<p class="small">📜 Koalitionsvertrag: ' + num1(r.neg.kept).replace(',0', '') + ' von ' + r.neg.topics.length +
           ' Streitpunkten durchgesetzt; eure Ressorts: ' + esc(Object.keys(r.neg.ministries || {}).filter(id => r.neg.ministries[id] === g.party).map(id => E.ministryById(id).short).join(', ') || '–') + ' (' + (r.neg.pts >= 0 ? '+' : '') + r.neg.pts + ' Punkte).</p>' : '') +
-        (r.neg && r.neg.done && !r.neg.success ? '<p class="fw-note">💥 Die Verhandlungen mit euch sind gescheitert.</p>' : '') +
+        (r.neg && r.neg.success && r.neg.ratify ? '<p class="small">🗳️ ' + (r.neg.ratify.kind === 'mitglieder' ? 'Mitgliedervotum' : 'Parteitag') + ': ' + num1(r.neg.ratify.yes) + ' % Zustimmung' +
+          (r.neg.kanzler ? ' · Kanzlerwahl: ' + r.neg.kanzler.map(k => k.round + '. Wahlgang ' + k.yes + ' Stimmen').join(', ') + ' (nötig: ' + E.MAJORITY + ')' : '') + '</p>' : '') +
+        (r.neg && r.neg.done && !r.neg.success ? '<p class="fw-note">💥 ' + (r.neg.ratify && r.neg.ratify.yes < 50 ? 'Eure Basis hat den Koalitionsvertrag abgelehnt (' + num1(r.neg.ratify.yes) + ' %).' : 'Die Verhandlungen mit euch sind gescheitert.') + '</p>' : '') +
         '<p class="muted small">Das Kanzleramt geht an: <strong>' + esc(E.party(r.government[0]).name) + '</strong>' +
         (r.government[0] === g.party ? ' – ' + esc(g.candidate) + ' wird Regierungschef:in!' : '') + '</p>';
     } else {
