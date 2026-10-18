@@ -74,7 +74,7 @@
     $('btn-end-quarter').textContent = t.over ? 'Bilanz ansehen' : t.q === T.QUARTERS - 1 ? 'Legislatur beenden' : 'Quartal beenden';
     const unseen = t.news.indexOf(newsSeen);
     const n = unseen === -1 ? t.news.length : unseen;
-    $('t-news-badge').hidden = !n || tab === 'news';
+    $('t-news-badge').hidden = !n || tab === 'lage';
     $('t-news-badge').textContent = n;
     const nb = $('t-cab-badge');
     nb.hidden = !T.needsNames(g);
@@ -85,61 +85,109 @@
   function render() {
     renderTop();
     document.querySelectorAll('#term-nav .game-tab').forEach(b => b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
-    document.querySelectorAll('#screen-term .term-layout > .card').forEach(c => { c.hidden = c.dataset.tab !== tab; });
-    ({ lage: renderLage, gesetze: renderLaws, haushalt: renderBudget, kabinett: renderCabinet, parlament: renderParliament, partei: renderParty, umfragen: renderPolls, news: renderNews, laufbahn: renderCareer })[tab]();
+    // Ein Tab kann mehrere Karten zeigen (Lage mit Nachrichten, Regierung = Kabinett + Parlament, Partei mit Laufbahn).
+    const R = { 't-lage': renderLage, 't-news': renderNews, 't-gesetze': renderLaws, 't-haushalt': renderBudget, 't-kabinett': renderCabinet, 't-parlament': renderParliament, 't-partei': renderParty, 't-laufbahn': renderCareer, 't-umfragen': renderPolls };
+    document.querySelectorAll('#screen-term .term-layout > .card').forEach(c => { c.hidden = c.dataset.tab !== tab; if (!c.hidden && R[c.id]) R[c.id](); });
   }
 
   // ---------- Lage ----------
   function kpi(label, value, sub, cls) {
     return '<div class="t-kpi ' + (cls || '') + '"><span class="t-kpi-label">' + label + '</span><span class="t-kpi-val">' + value + '</span>' + (sub ? '<span class="t-kpi-sub">' + sub + '</span>' : '') + '</div>';
   }
+  // Was jetzt ansteht: höchstens fünf Punkte, jeweils mit Sprung an die richtige Stelle.
+  function todos() {
+    const t = term();
+    const out = [];
+    const c = T.cal(t);
+    const b = T.budgetCalc(t);
+    if (t.over) return out;
+    if (T.needsNames(g)) out.push({ icon: '👥', text: 'Kabinett benennen: Es sind noch Ressorts unbesetzt.', go: 'regierung', btn: 'Zum Kabinett' });
+    if (t.budget.draft && !t.budget.draft.done && T.playerDraftsBudget(g)) out.push({ icon: '🏦', text: 'Haushaltsentwurf ' + t.budget.draft.year + ' aufstellen – sonst entscheidet das Finanzministerium.', go: 'haushalt', btn: 'Zum Haushalt', warn: true });
+    else if (T.isGov(t.role) && b.gap > 0.5) out.push({ icon: '🏦', text: 'Der Haushalt reißt die Schuldenbremse um ' + mrd(b.gap) + ' – Karlsruhe droht.', go: 'haushalt', btn: 'Zum Haushalt', warn: true });
+    (t.demands || []).filter(d => !d.done).forEach(d => out.push({ icon: '📌', text: 'Forderung von ' + short(d.p) + ': „' + D.PROGRAM[d.topic][d.opt].label + '“ bis ' + T.quarterLabel(t, d.due) + ' (Klima +8 / −10).', go: 'gesetze', btn: 'Gesetz einbringen', warn: true }));
+    t.laws.filter(l => l.stage === 'bundestag').forEach(l => {
+      const v = T.predict(g, l).bt;
+      const mine = t.gov.indexOf(l.by) !== -1 && T.isGov(t.role);
+      if (mine && (!v.pass || v.yes - v.no < 20)) out.push({ icon: '🗳️', text: 'Knappe Abstimmung zum Quartalsende: „' + T.lawName(l) + '“ (' + v.yes + ':' + v.no + ').', go: 'gesetze', btn: 'Ansehen', warn: !v.pass });
+      if (t.role === 'opposition' && l.by !== g.party) out.push({ icon: '🗳️', text: 'Abstimmung im Bundestag: „' + T.lawName(l) + '“ – eure Fraktion entscheidet mit.', go: 'gesetze', btn: 'Ansehen' });
+    });
+    T.calendar(g, 8).filter(x => x.kind === 'ltw' && x.q === t.q).forEach(x => out.push({ icon: '🗺️', text: 'Landtagswahl in ' + E.stateById(x.land).name + ' am Quartalsende.', act: 'ltwk', btn: 'Wahlkampf unterstützen' }));
+    if (T.isGov(t.role) && t.gov.length > 1 && t.mood < 35) out.push({ icon: '🤝', text: 'Das Koalitionsklima ist kritisch (' + Math.round(t.mood) + '/100) – unter 12 droht der Bruch.', act: 'koaausschuss', btn: 'Koalitionsausschuss', warn: true });
+    if (t.party.unity < 40) out.push({ icon: '🎪', text: 'Die Partei ist zerstritten (Geschlossenheit ' + Math.round(t.party.unity) + ').', act: 'basis', btn: 'Basisarbeit' });
+    const wobbly = D.TOPICS.filter(tp => t.sq[tp.id] < 25).map(tp => tp.name);
+    if (wobbly.length) out.push({ icon: '⚖️', text: 'Der Status quo wackelt: ' + wobbly.slice(0, 2).join(', ') + '.', go: 'gesetze', btn: 'Ansehen' });
+    if (c.qn === 4 && t.budget.draft && t.budget.draft.done) out.push({ icon: '🏦', text: 'Am Quartalsende stimmt der Bundestag über den Haushalt ' + t.budget.draft.year + ' ab.', go: 'haushalt', btn: 'Ansehen' });
+    return out.slice(0, 5);
+  }
+  // Aktionen in vier Gruppen, kompakt als Knöpfe.
+  const ACT_GROUPS = [
+    ['📜 Parlament & Gesetze', ['gesetz', 'disziplin', 'laender', 'forderung', 'antrag', 'anfrage', 'aktuelle', 'befragung', 'ua', 'klage', 'sq', 'vertrauen', 'misstrauen']],
+    ['📣 Öffentlichkeit', ['regerkl', 'presse', 'talkshow', 'buerger', 'reise', 'social', 'protest', 'schatten', 'krisenstab']],
+    ['🤝 Koalition & Partei', ['koaausschuss', 'profil', 'umbildung', 'basis', 'mitglieder', 'spenden', 'parteitag', 'lvpflege', 'austritt']],
+    ['🗺️ Länder & Verbände', ['ltwk', 'lobbytermin', 'lobbyrecherche', 'buendnis']]
+  ];
+  function actionsHtml() {
+    const t = term();
+    const mine = T.ACTIONS.filter(a => a.roles.indexOf(t.role) !== -1);
+    const blocked = [];
+    let html = '<h3>🎯 Aktionen <span class="muted small">' + t.ap + ' von ' + t.apMax + ' übrig</span></h3><div class="t-act-groups">';
+    ACT_GROUPS.forEach(([title, ids]) => {
+      const list = mine.filter(a => ids.indexOf(a.id) !== -1 || (title.indexOf('Öffentlichkeit') !== -1 && !ACT_GROUPS.some(gr => gr[1].indexOf(a.id) !== -1)));
+      const ok = list.filter(a => { const c = T.canAct(g, a.id); if (!c.ok) blocked.push({ a, why: c.text }); return c.ok; });
+      if (!ok.length) return;
+      html += '<div class="t-act-group"><h4>' + title + '</h4><div class="t-act-btns">' + ok.map(a => {
+        const cost = T.actionCash(g, a.id);
+        return '<button type="button" class="t-act" data-a="' + a.id + '" title="' + esc(a.desc) + '"><span>' + a.icon + ' ' + esc(a.name) + '</span>' + (cost || a.ap === 0 ? '<small>' + (a.ap === 0 ? 'keine Aktion' : '') + (cost ? mio(cost) : '') + '</small>' : '') + '</button>';
+      }).join('') + '</div></div>';
+    });
+    html += '</div>';
+    if (blocked.length) html += '<details class="t-more"><summary>Gerade nicht möglich (' + blocked.length + ')</summary><ul class="t-blocked">' + blocked.map(x => '<li>' + x.a.icon + ' <b>' + esc(x.a.name) + '</b>' + (x.why ? ' – ' + esc(x.why) : '') + '</li>').join('') + '</ul></details>';
+    return html + '<p class="t-feedback" id="t-feedback"></p>';
+  }
+  function trend(v) { return v > 0.05 ? '<span class="pos">▲ ' + signed(v) + '</span>' : v < -0.05 ? '<span class="neg">▼ ' + signed(v) + '</span>' : '<span class="muted">• ±0</span>'; }
   function renderLage() {
     const t = term();
     const e = t.econ;
     const b = T.budgetCalc(t);
     const role = TD.ROLES[t.role];
-    let html = '<h2>' + role.icon + ' ' + esc(role.name) + '</h2><p class="lead-s">' + esc(role.desc) + '</p>';
+    let html = '<h2>' + role.icon + ' ' + esc(role.name) + '</h2>';
     if (t.over) html += '<div class="t-over"><p><strong>Die Legislaturperiode ist vorbei.</strong> ' + esc(t.early || '') + '</p><button type="button" class="btn primary" id="t-show-summary">Bilanz und nächster Wahlkampf</button></div>';
-    html += '<div class="t-kpis">' +
-      kpi('Umfrage ' + esc(short(g.party)), pct(g.poll.nat[g.party]), signed(g.poll.nat[g.party] - t.share0) + ' seit der Wahl') +
-      (T.isGov(t.role) && t.gov.length > 1 ? kpi('Koalitionsklima', Math.round(t.mood) + '/100', bar(t.mood, 100, t.mood < 30 ? 'bad' : t.mood < 50 ? 'mid' : 'good')) : '') +
+    // Jetzt wichtig
+    const td = todos();
+    html += '<div class="t-todo"><h3>📋 Jetzt wichtig</h3>' + (td.length ? '<ul>' + td.map((x, i) => '<li class="' + (x.warn ? 'warn' : '') + '"><span class="t-todo-i">' + x.icon + '</span><span class="t-todo-t">' + esc(x.text) + '</span>' +
+      '<button type="button" class="btn small t-todo-b" data-i="' + i + '">' + esc(x.btn) + ' →</button></li>').join('') + '</ul>' : '<p class="muted">Alles im Griff. Nutzt eure Aktionen, um Themen zu setzen.</p>') + '</div>';
+    // Vier Kennzahlen mit Trend
+    const h = t.history;
+    const prev = h.length > 1 ? h[h.length - 2].nat[g.party] : t.share0;
+    const cred = t.cred === undefined ? 55 : t.cred;
+    html += '<div class="t-kpis t-kpis-4">' +
+      kpi('Umfrage ' + esc(short(g.party)), pct(g.poll.nat[g.party]), trend(g.poll.nat[g.party] - prev) + ' zum Vorquartal · ' + signed(g.poll.nat[g.party] - t.share0) + ' seit der Wahl') +
+      (T.isGov(t.role) && t.gov.length > 1 ? kpi('Koalitionsklima', Math.round(t.mood) + '/100', bar(t.mood, 100, t.mood < 30 ? 'bad' : t.mood < 50 ? 'mid' : 'good')) : kpi('Beliebtheit der Spitze', (t.party.leader.like >= 0 ? '+' : '−') + num1(Math.abs(t.party.leader.like)), esc(t.party.leader.name) + ' · Skala −5 bis +5')) +
       kpi('Geschlossenheit', Math.round(t.party.unity) + '/100', bar(t.party.unity, 100, t.party.unity < 40 ? 'bad' : 'good')) +
-      kpi('Glaubwürdigkeit', Math.round(t.cred === undefined ? 55 : t.cred) + '/100', bar(t.cred === undefined ? 55 : t.cred, 100, t.cred < 40 ? 'bad' : t.cred < 55 ? 'mid' : 'good')) +
-      kpi('Beliebtheit der Spitze', (t.party.leader.like >= 0 ? '+' : '−') + num1(Math.abs(t.party.leader.like)), esc(t.party.leader.name)) +
-      (T.isGov(t.role) ? kpi('Ansehen in der Welt', Math.round(t.intl) + '/100', bar(t.intl, 100)) : '') +
-      '</div>';
-    html += '<h3>📈 Wirtschaft</h3><div class="t-kpis">' +
-      kpi('Wachstum', (e.growth >= 0 ? '+' : '−') + num1(Math.abs(e.growth)) + ' %', 'BIP real, aufs Jahr gerechnet', e.growth < 0 ? 'neg' : '') +
-      kpi('Arbeitslosigkeit', num1(e.unemp) + ' %', signed(e.unemp - TD.ECON0.unemp) + ' seit Start', e.unemp > TD.ECON0.unemp + 0.5 ? 'neg' : '') +
-      kpi('Inflation', num1(e.infl) + ' %', 'Ziel der EZB: 2 %', e.infl > 3 ? 'neg' : '') +
-      kpi('Schuldenquote', num1(e.debt) + ' %', 'des BIP') +
-      kpi('Haushalt', (b.gap > 0 ? '−' : '+') + mrd(Math.abs(b.gap)), b.gap > 0 ? 'über der Schuldenbremse' : 'Spielraum unter der Schuldenbremse', b.gap > 0 ? 'neg' : '') +
-      '</div>';
-    // Termine
-    const cal = T.calendar(g, 6);
-    html += '<h3>📅 Termine</h3><ul class="t-cal">' + cal.map(c => '<li><span class="t-cal-q">' + esc(c.label) + '</span>' + esc(c.text) +
-      (c.kind === 'ltw' ? ' · regiert von ' + t.laender[c.land].gov.map(short).join('-') : '') + '</li>').join('') + '</ul>';
-    // Aktionen
-    html += '<h3>🎯 Eure Aktionen in diesem Quartal <span class="muted small">(' + t.ap + ' von ' + t.apMax + ' übrig)</span></h3><div class="action-list t-actions">';
-    T.ACTIONS.filter(a => a.roles.indexOf(t.role) !== -1).forEach(a => {
-      const chk = T.canAct(g, a.id);
-      const cost = T.actionCash(g, a.id);
-      html += '<button type="button" class="action" data-a="' + a.id + '"' + (chk.ok ? '' : ' disabled title="' + esc(chk.text) + '"') + '>' +
-        '<span class="aname">' + a.icon + ' ' + esc(a.name) + '</span><span class="adesc">' + esc(a.desc) + '</span>' +
-        (!chk.ok && chk.text ? '<span class="ahint">' + esc(chk.text) + '</span>' : '') +
-        '<span class="ameta">' + (a.ap === 0 ? 'keine Aktion' : '1 Aktion') + (cost ? ' · ' + mio(cost) : '') + '</span></button>';
-    });
-    html += '</div><p class="t-feedback" id="t-feedback"></p>';
-    // Koalitionsvertrag
+      kpi('Glaubwürdigkeit', Math.round(cred) + '/100', bar(cred, 100, cred < 40 ? 'bad' : cred < 55 ? 'mid' : 'good')) + '</div>';
+    // Schmale Zeile: Wirtschaft und mehr
+    const chip = (label, val, bad) => '<span class="t-strip-i' + (bad ? ' neg' : '') + '"><small>' + label + '</small> ' + val + '</span>';
+    html += '<div class="t-strip">' + chip('Wachstum', (e.growth >= 0 ? '+' : '−') + num1(Math.abs(e.growth)) + ' %', e.growth < 0) + chip('Arbeitslosigkeit', num1(e.unemp) + ' %', e.unemp > TD.ECON0.unemp + 0.5) +
+      chip('Inflation', num1(e.infl) + ' %', e.infl > 3) + chip('Schuldenquote', num1(e.debt) + ' %') + chip('Haushalt', (b.gap > 0 ? 'Schuldenbremse −' : 'Spielraum ') + mrd(Math.abs(b.gap)), b.gap > 0) +
+      (T.isGov(t.role) && t.gov.length > 1 ? chip('Beliebtheit Spitze', (t.party.leader.like >= 0 ? '+' : '−') + num1(Math.abs(t.party.leader.like))) : '') +
+      (T.isGov(t.role) ? chip('Ansehen in der Welt', Math.round(t.intl) + '/100') : '') + '</div>';
+    html += actionsHtml();
+    // Termine: die nächsten drei, der Rest zum Aufklappen
+    const cal = T.calendar(g, 9);
+    const li = x => '<li><span class="t-cal-q">' + esc(x.label) + '</span>' + esc(x.text) + (x.kind === 'ltw' ? ' <span class="muted small">· regiert von ' + t.laender[x.land].gov.map(short).join('-') + '</span>' : '') + '</li>';
+    html += '<h3>📅 Termine</h3><ul class="t-cal">' + cal.slice(0, 3).map(li).join('') + '</ul>' + (cal.length > 3 ? '<details class="t-more"><summary>Weitere Termine (' + (cal.length - 3) + ')</summary><ul class="t-cal">' + cal.slice(3).map(li).join('') + '</ul></details>' : '');
+    // Koalitionsvertrag (zum Aufklappen)
     if (T.isGov(t.role) && t.gov.length > 1) {
       const open = Object.keys(t.contract).filter(tp => t.contract[tp] !== t.policy[tp]);
-      const dm = (t.demands || []).filter(d => !d.done);
-      if (dm.length) html += '<div class="t-callout warn">📌 <b>Forderung von ' + dm.map(d => esc(short(d.p)) + '</b>: „' + esc(D.PROGRAM[d.topic][d.opt].label) + '“ bis ' + esc(T.quarterLabel(t, d.due))).join('; ') + '. Erfüllt ihr sie, steigt das Koalitionsklima (+8), sonst sinkt es (−10).</div>';
-      html += '<h3>📜 Koalitionsvertrag</h3><p class="muted small">Noch offen: ' + open.length + ' von ' + Object.keys(t.contract).length + ' Vorhaben. Gesetze aus dem Vertrag tragen die Partner mit.</p><ul class="t-contract">' +
-        open.slice(0, 8).map(tp => '<li>' + E.topicById(tp).icon + ' ' + esc(D.PROGRAM[tp][t.contract[tp]].label) + '</li>').join('') + '</ul>';
+      html += '<details class="t-more"><summary>📜 Koalitionsvertrag: noch ' + open.length + ' von ' + Object.keys(t.contract).length + ' Vorhaben offen</summary><p class="muted small">Gesetze aus dem Vertrag tragen die Partner mit.</p><ul class="t-contract">' +
+        open.map(tp => '<li>' + E.topicById(tp).icon + ' ' + esc(D.PROGRAM[tp][t.contract[tp]].label) + '</li>').join('') + '</ul></details>';
     }
     $('t-lage').innerHTML = html;
-    $('t-lage').querySelectorAll('.action[data-a]').forEach(btn => btn.addEventListener('click', () => onAction(btn.dataset.a, btn)));
+    $('t-lage').querySelectorAll('.t-act[data-a]').forEach(btn => btn.addEventListener('click', () => onAction(btn.dataset.a, btn)));
+    $('t-lage').querySelectorAll('.t-todo-b').forEach(btn => btn.addEventListener('click', () => {
+      const x = td[Number(btn.dataset.i)];
+      if (x.go) { tab = x.go; render(); window.scrollTo({ top: 0, behavior: 'instant' }); } else if (x.act) onAction(x.act, btn);
+    }));
     const sb = $('t-show-summary');
     if (sb) sb.addEventListener('click', showSummary);
   }
@@ -276,23 +324,37 @@
     return '<div class="t-vote"><i class="yes" style="width:' + v.yes / total * 100 + '%"></i><i class="abst" style="width:' + (v.abst || 0) / total * 100 + '%"></i><i class="no" style="width:' + v.no / total * 100 + '%"></i></div>' +
       '<span class="small">' + v.yes + ' Ja · ' + v.no + ' Nein' + (v.abst ? ' · ' + v.abst + ' Enthaltungen' : '') + '</span>';
   }
+  // Ein Gesetz als kompakte Zeile: Titel, Fortschritt, Prognose – Details zum Aufklappen.
   function lawCard(l) {
-    const t = term();
-    let html = '<div class="t-law ' + l.stage + '"><div class="t-law-head"><strong>' + esc(T.lawTitle(l)) + '</strong>' + pill(l.by) +
-      (l.contract ? '<span class="t-tag">Koalitionsvertrag</span>' : '') + (l.zust ? '<span class="t-tag">Zustimmungsgesetz</span>' : '<span class="t-tag">Einspruchsgesetz</span>') +
+    const active = ['kabinett', 'kabinett_wait', 'veto', 'bundestag', 'bundesrat', 'vermittlung'].indexOf(l.stage) !== -1;
+    const idx = { kabinett: 0, kabinett_wait: 0, veto: 0, bundestag: 2, bundesrat: 3, vermittlung: 4, inkraft: 5 }[l.stage];
+    const prog = idx === undefined ? 0 : Math.round(((idx + 1) / 6) * 100);
+    let prog2 = '';
+    if (active) {
+      const bits = [];
+      if (['kabinett', 'kabinett_wait', 'veto', 'bundestag'].indexOf(l.stage) !== -1) { const v = T.predict(g, l).bt; bits.push('<span class="t-pg ' + (v.pass ? (v.yes - v.no < 20 ? 'mid' : 'good') : 'bad') + '">Bundestag ' + (v.pass ? (v.yes - v.no < 20 ? 'knapp ✓' : '✓') : '✗') + '</span>'); }
+      const br = T.bundesratVote(g, l);
+      const brOk = l.zust ? br.pass : 69 - br.yes < TD.BUNDESRAT_MAJ;
+      bits.push('<span class="t-pg ' + (brOk ? 'good' : 'bad') + '">Bundesrat ' + (brOk ? '✓' : '✗') + '</span>');
+      prog2 = bits.join('');
+    }
+    const status = active ? STAGE_NAME[l.stage] : STAGE_NAME[l.stage] || l.stage;
+    let html = '<details class="t-law ' + l.stage + '"><summary><span class="t-law-t"><b>' + esc(T.lawTitle(l)) + '</b> ' + pill(l.by) + '</span>' +
+      '<span class="t-law-s"><span class="t-law-prog"><i style="width:' + (active ? prog : 100) + '%"></i></span><small>' + esc(status) + '</small>' + prog2 + '</span></summary><div class="t-law-body">';
+    html += '<p class="t-tags">' + (l.contract ? '<span class="t-tag">Koalitionsvertrag</span>' : '') + (l.zust ? '<span class="t-tag">Zustimmungsgesetz</span>' : '<span class="t-tag">Einspruchsgesetz</span>') +
       (l.fraktion ? '<span class="t-tag warn-tag">Fraktionsentwurf</span>' : '') + (l.fixed ? '<span class="t-tag good">nachgebessert</span>' : '') + (l.brDeal ? '<span class="t-tag">Länder eingebunden</span>' : '') + (l.promise ? '<span class="t-tag good">Wahlversprechen</span>' : '') +
-      (l.ghost ? '<span class="t-tag warn-tag">Formulierungshilfe: ' + esc(T.LB.byId(l.ghost).short) + '</span>' : '') + '</div>' + stageChips(l) +
+      (l.ghost ? '<span class="t-tag warn-tag">Formulierungshilfe: ' + esc(T.LB.byId(l.ghost).short) + '</span>' : '') + '</p>' + stageChips(l) +
       ((l.backers && l.backers.length) || l.foe ? '<p class="small">' + (l.backers && l.backers.length ? '👍 ' + l.backers.map(id => esc(T.LB.byId(id).short)).join(', ') : '') + (l.foe ? ' · 👎 ' + esc(T.LB.byId(l.foe).short) : '') + '</p>' : '');
     if (l.stage === 'bundestag') {
-      const p = T.predict(g, l).bt;
-      html += '<p class="small">Prognose Bundestag:</p>' + voteBar(p) + (p.afdDecisive ? '<p class="small warn">⚠️ Mehrheit nur mit Stimmen der AfD</p>' : '') + (l.disc ? '<p class="small">📣 Fraktion auf Linie gebracht</p>' : '');
+      const v = T.predict(g, l).bt;
+      html += '<p class="small">Prognose Bundestag:</p>' + voteBar(v) + (v.afdDecisive ? '<p class="small warn">⚠️ Mehrheit nur mit Stimmen der AfD</p>' : '') + (l.disc ? '<p class="small">📣 Fraktion auf Linie gebracht</p>' : '');
     }
-    if (['kabinett', 'bundestag', 'bundesrat', 'vermittlung'].indexOf(l.stage) !== -1) {
+    if (active) {
       const br = T.bundesratVote(g, l);
       html += '<p class="small">Prognose Bundesrat: <b>' + br.yes + '</b> von 69 Stimmen ' + (l.zust ? '(Zustimmung nötig: ' + TD.BUNDESRAT_MAJ + ')' : '(Einspruch erst ab ' + TD.BUNDESRAT_MAJ + ' Gegenstimmen)') + (l.bought && l.bought.length ? ' · Zusagen an ' + l.bought.join(', ') : '') + '</p>';
     }
-    if (l.log.length) html += '<details><summary class="small">Verlauf</summary><ul class="small">' + l.log.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></details>';
-    return html + '</div>';
+    if (l.log.length) html += '<p class="small"><b>Verlauf</b></p><ul class="small">' + l.log.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>';
+    return html + '</div></details>';
   }
   function renderLaws() {
     const t = term();
@@ -303,12 +365,12 @@
       'Im 2. Durchgang braucht ein Zustimmungsgesetz 35 von 69 Stimmen im Bundesrat; gegen ein Einspruchsgesetz kann der Bundesrat den Vermittlungsausschuss anrufen und Einspruch einlegen, den der Bundestag mit Kanzlermehrheit (Mehrheit der Mitglieder) zurückweisen kann. ' +
       'Ein Land stimmt nur zu, wenn alle Regierungsparteien dort einverstanden sind. Zum Schluss fertigt der Bundespräsident aus, das Gesetz wird im Bundesgesetzblatt verkündet. ' +
       'Fraktionsentwürfe („aus der Mitte des Bundestages“) sparen Kabinett und 1. Durchgang – schneller, aber fehleranfälliger.</p></details>';
-    html += renderSq();
-    html += '<h3>In Arbeit</h3>' + (active.length ? active.map(lawCard).join('') : '<p class="muted">Gerade liegt nichts an.</p>');
+    html += '<h3>In Arbeit (' + active.length + ')</h3>' + (active.length ? '<div class="t-laws">' + active.map(lawCard).join('') + '</div><p class="muted small">Antippen für Details, Prognosen und Verlauf.</p>' : '<p class="muted">Gerade liegt nichts an.</p>');
     if (T.isGov(t.role)) html += renderDraft();
     else html += '<p class="muted small">' + (t.role === 'opposition' ? 'Als Opposition stimmt ihr im Bundestag mit ab und könnt Gesetze in Karlsruhe prüfen lassen (Normenkontrollklage).' : 'Ohne Sitze im Bundestag schaut ihr zu – aber auf der Straße und in den Ländern könnt ihr Druck machen.') + '</p>';
+    html += renderSq();
     const done = t.laws.filter(l => active.indexOf(l) === -1).slice().reverse();
-    if (done.length) html += '<h3>Abgeschlossen</h3>' + done.map(lawCard).join('');
+    if (done.length) html += '<details class="t-more"><summary>Abgeschlossene Gesetze (' + done.length + ')</summary><div class="t-laws">' + done.map(lawCard).join('') + '</div></details>';
     $('t-gesetze').innerHTML = html;
     const more = $('t-gesetze').querySelector('.t-sq-more');
     if (more) more.addEventListener('click', () => { sqAll = !sqAll; renderLaws(); });
@@ -320,8 +382,8 @@
   function renderSq() {
     const t = term();
     const rows = D.TOPICS.map(tp => ({ tp, sq: t.sq[tp.id], f: T.sqForces(g, tp.id) })).sort((a, b) => a.sq - b.sq);
-    let html = '<h3>⚖️ Status quo unter Druck</h3><p class="muted small">Was heute gilt, hat Rückhalt. Die Ränder greifen ihn an, die Mitte verteidigt ihn. Unter 40 gewinnen die Angreifer an Zustimmung, unter 15 kippt die Lage und die Regierung muss reagieren. Ein starker Status quo macht Gesetze, die ihn ändern, schwerer – ein schwacher leichter.</p><div class="t-sq">';
-    (sqAll ? rows : rows.slice(0, 6)).forEach(r => {
+    let html = '<h3>⚖️ Status quo: die gefährdetsten Themen</h3><p class="muted small">Was heute gilt, hat Rückhalt. Die Ränder greifen ihn an, die Mitte verteidigt ihn. Unter 40 gewinnen die Angreifer an Zustimmung, unter 15 kippt die Lage und die Regierung muss reagieren. Ein starker Status quo macht Gesetze, die ihn ändern, schwerer – ein schwacher leichter.</p><div class="t-sq">';
+    (sqAll ? rows : rows.slice(0, 3)).forEach(r => {
       const cls = r.sq < 15 ? 'bad' : r.sq < 40 ? 'mid' : 'good';
       const mine = T.leanOf(g, g.party, r.tp.id) === D.PROGRAM[r.tp.id][t.policy[r.tp.id]].lean;
       html += '<div class="t-sq-row"><div class="t-sq-head"><b>' + r.tp.icon + ' ' + esc(r.tp.name) + '</b><span class="small muted">' + esc(D.PROGRAM[r.tp.id][t.policy[r.tp.id]].label) + '</span></div>' +
@@ -401,6 +463,9 @@
     const b = T.budgetCalc(t, plan);
     let html = '<h2>🏦 Haushalt & Steuern</h2>';
     const qn = T.cal(t).qn;
+    // Ein Satz zum Stand
+    const stand = editing ? '✍️ Euer Entwurf für ' + d.year + ' ist offen – im 4. Quartal stimmt der Bundestag ab.' : d && d.done ? '📄 Der Entwurf ' + d.year + ' liegt dem Bundestag vor.' : t.budget.status === 'vorlaeufig' ? '⚠️ Vorläufige Haushaltsführung – es fehlt ein beschlossener Haushalt.' : '✅ Der Haushalt ' + T.cal(t).year + ' ist beschlossen.';
+    html += '<p class="t-lead ' + (b.gap > 0 ? 'neg' : '') + '"><b>' + stand + '</b> ' + (b.gap > 0 ? 'Die Schuldenbremse wird um ' + mrd(b.gap) + ' gerissen.' : 'Die Schuldenbremse wird eingehalten (Spielraum ' + mrd(-b.gap) + ').') + '</p>';
     const BSTEPS = [[1, 'Eckwerte'], [3, 'Regierungsentwurf'], [3, '1. Lesung'], [4, 'Bereinigungssitzung'], [4, '2./3. Lesung'], [4, 'Bundesrat']];
     html += '<div class="t-stages">' + BSTEPS.map(x => '<span class="t-stage ' + (x[0] < qn ? 'done' : x[0] === qn ? 'now' : '') + '">' + x[1] + '</span>').join('<i>›</i>') + '</div>' +
       '<p class="muted small">Haushaltsverfahren (Art. 110 GG): Eckwerte im Frühjahr, Regierungsentwurf im Sommer, 1. Lesung im September, Bereinigungssitzung im November, Beschluss im Dezember' + (t.budget.eck && t.budget.eck !== 'fort' ? ' · Eckwerte dieses Jahr: ' + (t.budget.eck === 'konsol' ? 'Konsolidierung' : 'Investitionen') : '') + '.</p>';
@@ -504,18 +569,20 @@
       '<p class="small">Regierung: ' + t.gov.map(pill).join(' ') + ' · ' + T.govSeats(t) + ' Sitze (Mehrheit ab ' + E.MAJORITY + ')' + (t.tolerated ? ' – Minderheitsregierung' : '') + '</p>';
     const q = T.quorum(g);
     if (t.role === 'opposition') html += '<p class="small">Viertel der Abgeordneten für Untersuchungsausschuss und Normenkontrollklage: ' + (q.ok ? '✅' : '❌') + ' ' + q.seats + ' von ' + Math.ceil(D.SEATS / 4) + ' nötigen Sitzen.</p>';
-    html += '</div><div><h3>Bundesrat (69 Stimmen)</h3><table class="t-br"><tbody>';
+    let brRows = '';
     let fedGov = 0;
     Object.keys(t.laender).sort((a, b) => t.laender[b].votes - t.laender[a].votes).forEach(l => {
       const L = t.laender[l];
       const aligned = L.gov.every(p => t.gov.indexOf(p) !== -1);
       if (aligned) fedGov += L.votes;
-      html += '<tr class="' + (aligned ? 'aligned' : '') + '"><td>' + esc(E.stateById(l).name) + '</td><td class="num">' + L.votes + '</td><td>' + L.gov.map(pill).join(' ') + '</td></tr>';
+      brRows += '<tr class="' + (aligned ? 'aligned' : '') + '"><td>' + esc(E.stateById(l).name) + '</td><td class="num">' + L.votes + '</td><td>' + L.gov.map(pill).join(' ') + '</td></tr>';
     });
-    html += '</tbody></table><p class="small">Länder nur mit Bundesregierungsparteien: <b>' + fedGov + '</b> von 69 Stimmen (nötig für zustimmungspflichtige Gesetze: ' + TD.BUNDESRAT_MAJ + ').</p></div></div>';
+    html += '</div><div><h3>Bundesrat (69 Stimmen)</h3><p class="t-lead ' + (fedGov >= TD.BUNDESRAT_MAJ ? '' : 'neg') + '"><b>' + fedGov + ' von 69 Stimmen</b> kommen aus Ländern, in denen nur Bundesregierungsparteien regieren – ' +
+      (fedGov >= TD.BUNDESRAT_MAJ ? 'genug für zustimmungspflichtige Gesetze.' : 'für zustimmungspflichtige Gesetze (' + TD.BUNDESRAT_MAJ + ') braucht ihr andere Länder.') + '</p>' +
+      '<details class="t-more"><summary>Alle 16 Landesregierungen</summary><table class="t-br"><tbody>' + brRows + '</tbody></table></details></div></div>';
     if (t.ltwLog.length) {
-      html += '<h3>Landtagswahlen in dieser Legislaturperiode</h3><ul class="t-ltw">' + t.ltwLog.slice().reverse().map(x => '<li><b>' + esc(E.stateById(x.land).name) + '</b> (' + esc(T.quarterLabel(t, x.q)) + '): ' +
-        esc(short(g.party)) + ' ' + pct(x.shares[g.party]) + ' (' + signed(x.diff) + ') · Regierung: ' + x.gov.map(pill).join(' ') + '</li>').join('') + '</ul>';
+      html += '<details class="t-more"><summary>Landtagswahlen in dieser Legislaturperiode (' + t.ltwLog.length + ')</summary><ul class="t-ltw">' + t.ltwLog.slice().reverse().map(x => '<li><b>' + esc(E.stateById(x.land).name) + '</b> (' + esc(T.quarterLabel(t, x.q)) + '): ' +
+        esc(short(g.party)) + ' ' + pct(x.shares[g.party]) + ' (' + signed(x.diff) + ') · Regierung: ' + x.gov.map(pill).join(' ') + '</li>').join('') + '</ul></details>';
     }
     if (g.rivals) {
       const ids = Object.keys(g.rivals).filter(p => (t.seats[p] || 0) > 0).sort((a, b) => t.seats[b] - t.seats[a]);
@@ -539,16 +606,19 @@
       kpi('Geschlossenheit', Math.round(P.unity) + '/100', bar(P.unity, 100, P.unity < 40 ? 'bad' : 'good')) + '</div>';
     const LBx = T.LB;
     const near = Math.round((g.lobby && g.lobby.near) || 0);
-    html += '<h3>🏛️ Verbände und Lobbyismus</h3><p class="muted small">Wie die Interessenverbände zu euch stehen. Verbündete (ab 70) mobilisieren und spenden, Gegner (bis 25) machen Stimmung gegen euch. Lobbynähe: ' + near + '/100 – je höher, desto mehr Geld und Unterstützung, aber auch mehr Affärenrisiko.</p>' +
-      '<div class="t-kpis">' + kpi('Lobbynähe', near + '/100', bar(near, 100, near > 60 ? 'bad' : near > 35 ? 'mid' : 'good')) + '</div><div class="t-lv">' +
-      LBx.LOBBIES.slice().sort((a, b) => LBx.rel(g, b.id) - LBx.rel(g, a.id)).map(l => { const r = Math.round(LBx.rel(g, l.id)); return '<div class="t-lv-row"><span>' + l.icon + ' ' + esc(l.short) + '</span>' + bar(r, 100, r >= 70 ? 'good' : r <= 25 ? 'bad' : 'mid') + '<span class="num">' + r + '</span></div>'; }).join('') + '</div>';
-    if (g.lobby && g.lobby.register.length) html += '<h4>Lobbyregister (öffentlich)</h4><ul class="t-cred">' + g.lobby.register.slice(0, 8).map(x => '<li>' + esc(x.when) + ': ' + esc(LBx.byId(x.id).short) + ' – ' + esc(x.text) + '</li>').join('') + '</ul>';
-    html += '<h3>Landesverbände</h3><p class="muted small">Unruhe in den Landesverbänden: Ab 50 kostet sie im Land Stimmen und macht Konflikte mit der Bundespartei wahrscheinlicher.</p><div class="t-lv">';
-    D.STATES.slice().sort((a, b) => P.lv[b.id] - P.lv[a.id]).forEach(st => {
-      const u = P.lv[st.id];
-      html += '<div class="t-lv-row"><span>' + esc(st.name) + '</span>' + bar(u, 100, u > 60 ? 'bad' : u > 40 ? 'mid' : 'good') + '<span class="num">' + Math.round(u) + '</span></div>';
-    });
-    html += '</div>';
+    // Verbände: die drei stärksten Unterstützer und Gegner, der Rest zum Aufklappen.
+    const lrow = l => { const r = Math.round(LBx.rel(g, l.id)); return '<div class="t-lv-row"><span>' + l.icon + ' ' + esc(l.short) + '</span>' + bar(r, 100, r >= 70 ? 'good' : r <= 25 ? 'bad' : 'mid') + '<span class="num">' + r + '</span></div>'; };
+    const sorted = LBx.LOBBIES.slice().sort((a, b) => LBx.rel(g, b.id) - LBx.rel(g, a.id));
+    html += '<h3>🏛️ Verbände <span class="muted small">Lobbynähe ' + near + '/100</span></h3><div class="t-two"><div><h4>👍 Stärkste Unterstützer</h4><div class="t-lv">' + sorted.slice(0, 3).map(lrow).join('') + '</div></div>' +
+      '<div><h4>👎 Stärkste Gegner</h4><div class="t-lv">' + sorted.slice(-3).reverse().map(lrow).join('') + '</div></div></div>' +
+      '<details class="t-more"><summary>Alle Verbände und Lobbyregister</summary><p class="muted small">Verbündete (ab 70) mobilisieren und spenden, Gegner (bis 25) machen Stimmung gegen euch. Je höher die Lobbynähe, desto mehr Geld und Unterstützung, aber auch mehr Affärenrisiko.</p><div class="t-lv">' + sorted.map(lrow).join('') + '</div>' +
+      (g.lobby && g.lobby.register.length ? '<h4>Lobbyregister (öffentlich)</h4><ul class="t-cred">' + g.lobby.register.slice(0, 8).map(x => '<li>' + esc(x.when) + ': ' + esc(LBx.byId(x.id).short) + ' – ' + esc(x.text) + '</li>').join('') + '</ul>' : '') + '</details>';
+    // Landesverbände: nur die unruhigen.
+    const lvRow = st => { const u = P.lv[st.id]; return '<div class="t-lv-row"><span>' + esc(st.name) + '</span>' + bar(u, 100, u > 60 ? 'bad' : u > 40 ? 'mid' : 'good') + '<span class="num">' + Math.round(u) + '</span></div>'; };
+    const lvs = D.STATES.slice().sort((a, b) => P.lv[b.id] - P.lv[a.id]);
+    const restless = lvs.filter(st => P.lv[st.id] >= 40);
+    html += '<h3>🧩 Landesverbände</h3>' + (restless.length ? '<p class="muted small">Unruhig (ab 50 kostet es im Land Stimmen):</p><div class="t-lv">' + restless.map(lvRow).join('') + '</div>' : '<p class="muted">Alle Landesverbände sind ruhig.</p>') +
+      '<details class="t-more"><summary>Alle Landesverbände</summary><div class="t-lv">' + lvs.map(lvRow).join('') + '</div></details>';
     const career = [];
     if (career.length) {
       html += '<h3>Eure Laufbahn</h3><ul class="t-career">' + career.map(c => '<li>' + c.n + '. Legislatur ' + c.from + '–' + c.to + ': ' + esc(TD.ROLES[c.role].name) + ' · ' + c.score + ' Punkte (' + esc(c.rating) + ')</li>').join('') + '</ul>';
@@ -560,9 +630,9 @@
   function renderPolls() {
     const t = term();
     let html = '<h2>📊 Sonntagsfrage</h2><div class="poll-cols">' + U.pollColumnsHtml(g.poll.nat, t.start) + '</div><p class="muted small">Veränderung zur Bundestagswahl ' + t.year0 + '. Fehlerspanne ± ' + E.POLL_RANGE + ' Punkte.</p>';
+    html += '<h3>Verlauf seit der Wahl</h3><div class="t-chart" id="t-chart"></div>';
     html += fxHtml();
     html += groupsHtml();
-    html += '<h3>Verlauf seit der Wahl</h3><div class="t-chart" id="t-chart"></div>';
     $('t-umfragen').innerHTML = html;
     drawTermChart();
   }
@@ -570,14 +640,14 @@
   function fxRows(fx) {
     return Object.keys(fx).filter(c => Math.abs(fx[c]) >= 0.05).sort((a, b) => Math.abs(fx[b]) - Math.abs(fx[a]));
   }
-  function fxBlock(title, fx) {
-    const rows = fxRows(fx);
-    if (!rows.length) return '<h4>' + title + '</h4><p class="muted small">Noch keine Wirkungen.</p>';
+  function fxBlock(title, fx, n) {
+    const rows = fxRows(fx).slice(0, n || 99);
+    if (!rows.length) return '<div class="t-fx-col"><h4>' + title + '</h4><p class="muted small">Noch keine Wirkungen.</p></div>';
     const max = Math.max(0.3, ...rows.map(c => Math.abs(fx[c])));
-    return '<h4>' + title + '</h4><div class="t-fx">' + rows.map(c => {
+    return '<div class="t-fx-col"><h4>' + title + '</h4><div class="t-fx">' + rows.map(c => {
       const v = fx[c];
       return '<div class="t-fx-row"><span>' + esc(T.FX_NAMES[c] || c) + '</span><span class="t-fx-bar"><i class="' + (v >= 0 ? 'pos' : 'neg') + '" style="width:' + Math.abs(v) / max * 50 + '%;' + (v >= 0 ? 'left:50%' : 'right:50%') + '"></i></span><b class="' + (v >= 0 ? 'pos' : 'neg') + '">' + signed(v) + '</b></div>';
-    }).join('') + '</div>';
+    }).join('') + '</div></div>';
   }
   function fxHtml() {
     const t = term();
@@ -585,11 +655,14 @@
     const last = hist.length ? hist[hist.length - 1] : null;
     const total = {};
     hist.concat([{ fx: t.pollFx || {} }]).forEach(h => Object.keys(h.fx).forEach(c => { total[c] = (total[c] || 0) + h.fx[c]; }));
-    let html = '<h3>🔍 Was eure Umfrage bewegt</h3><p class="muted small">Euer Handeln bestimmt die Umfragen – wie in der Realität vor allem die großen Momente: Krisenmanagement, Streit in der Koalition, umstrittene Gesetze, Affären, ein Hype um eure Spitze oder ein viraler Auftritt. Routinearbeit verpufft schnell, Krisen und Dauerstreit wirken lange nach, ein Hype verglüht ohne Wahlerfolge. Werte in Prozentpunkten (geschätzt, vor der Wählerwanderung zwischen den Parteien).</p><div class="t-fx-wrap">';
-    html += fxBlock('Seit Beginn dieses Quartals', t.pollFx || {});
-    if (last) html += fxBlock('Im letzten Quartal (' + T.quarterLabel(t, last.q) + ')', last.fx);
-    html += fxBlock('Seit der Wahl', total) + '</div>';
-    if (t.credLog && t.credLog.length) html += '<h4>🤝 Glaubwürdigkeit: ' + Math.round(t.cred) + '/100</h4><ul class="t-cred">' + t.credLog.slice(0, 8).map(x => '<li><b class="' + (x.v >= 0 ? 'pos' : 'neg') + '">' + (x.v >= 0 ? '+' : '−') + Math.abs(x.v) + '</b> ' + esc(x.why) + '</li>').join('') + '</ul>';
+    let html = '<h3>🔍 Was euch bewegt hat</h3>' + fxBlock('Die fünf wichtigsten Ursachen seit der Wahl (Prozentpunkte)', total, 5).replace('<h4>', '<h4 class="muted small">');
+    html += '<details class="t-more"><summary>Genauer: dieses und letztes Quartal, alle Ursachen</summary><p class="muted small">Krisen und Dauerstreit wirken lange nach, Routinearbeit verpufft schnell, ein Hype verglüht ohne Wahlerfolge (Werte geschätzt, vor der Wählerwanderung).</p><div class="t-fx-wrap">' +
+      fxBlock('Seit Beginn dieses Quartals', t.pollFx || {}) + (last ? fxBlock('Im letzten Quartal (' + T.quarterLabel(t, last.q) + ')', last.fx) : '') + fxBlock('Alle Ursachen seit der Wahl', total) + '</div></details>';
+    if (t.credLog && t.credLog.length) {
+      const li = x => '<li><b class="' + (x.v >= 0 ? 'pos' : 'neg') + '">' + (x.v >= 0 ? '+' : '−') + Math.abs(x.v) + '</b> ' + esc(x.why) + '</li>';
+      html += '<h3>🤝 Glaubwürdigkeit: ' + Math.round(t.cred) + '/100</h3><ul class="t-cred">' + t.credLog.slice(0, 3).map(li).join('') + '</ul>' +
+        (t.credLog.length > 3 ? '<details class="t-more"><summary>Ältere Einträge</summary><ul class="t-cred">' + t.credLog.slice(3, 12).map(li).join('') + '</ul></details>' : '');
+    }
     return html;
   }
   // Eure Werte in den Wählergruppen: heute gegenüber der Wahl.
@@ -600,8 +673,10 @@
     const rows = D.GROUPS.filter(k => now[k.id]).map(k => ({ k, v: now[k.id][g.party] || 0, d: start[k.id] ? (now[k.id][g.party] || 0) - (start[k.id][g.party] || 0) : 0 }));
     if (!rows.length) return '';
     const max = Math.max(...rows.map(r => r.v), 1);
-    return '<h3>👥 Eure Wählergruppen</h3><p class="muted small">Euer Umfragewert in den Gruppen und die Veränderung seit der Wahl. Gesetze, Haushalt und Themen wirken je Gruppe unterschiedlich.</p><div class="t-groups">' +
-      rows.map(r => '<div class="t-grp"><span>' + r.k.icon + ' ' + esc(r.k.short) + '</span><span class="t-meter"><i style="width:' + r.v / max * 100 + '%;background:' + col(g.party) + '"></i></span><b>' + pct(r.v) + '</b><small class="' + (r.d >= 0 ? 'pos' : 'neg') + '">' + signed(r.d) + '</small></div>').join('') + '</div>';
+    const row = r => '<div class="t-grp"><span>' + r.k.icon + ' ' + esc(r.k.short) + '</span><span class="t-meter"><i style="width:' + r.v / max * 100 + '%;background:' + col(g.party) + '"></i></span><b>' + pct(r.v) + '</b><small class="' + (r.d >= 0 ? 'pos' : 'neg') + '">' + signed(r.d) + '</small></div>';
+    const moved = rows.slice().sort((a, b) => Math.abs(b.d) - Math.abs(a.d));
+    return '<h3>👥 Wählergruppen: die größten Veränderungen</h3><div class="t-groups">' + moved.slice(0, 5).map(row).join('') + '</div>' +
+      '<details class="t-more"><summary>Alle Wählergruppen (' + rows.length + ')</summary><div class="t-groups">' + rows.map(row).join('') + '</div></details>';
   }
   function drawTermChart() {
     const t = term();
@@ -636,7 +711,9 @@
     const t = term();
     newsSeen = t.news[0] || null;
     $('t-news-badge').hidden = true;
-    $('t-news').innerHTML = '<h2>📰 Nachrichten</h2><ul class="news">' + t.news.map(n => '<li class="t-n-' + n.kind + '"><span class="wk">' + esc(T.quarterLabel(t, Math.min(n.q, T.QUARTERS - 1)).replace('. Quartal ', '/')) + '</span><span>' + esc(n.text) + '</span></li>').join('') + '</ul>';
+    const li = n => '<li class="t-n-' + n.kind + '"><span class="wk">' + esc(T.quarterLabel(t, Math.min(n.q, T.QUARTERS - 1)).replace('. Quartal ', '/')) + '</span><span>' + esc(n.text) + '</span></li>';
+    $('t-news').innerHTML = '<h3>📰 Letzte Meldungen</h3><ul class="news">' + t.news.slice(0, 4).map(li).join('') + '</ul>' +
+      (t.news.length > 4 ? '<details class="t-more"><summary>Alle Nachrichten (' + t.news.length + ')</summary><ul class="news">' + t.news.slice(4).map(li).join('') + '</ul></details>' : '');
   }
 
   // ---------- Entscheidungen (Dialoge) ----------
