@@ -676,6 +676,16 @@
       kpi('Mitglieder', P.members.toLocaleString('de-DE'), signed((P.members / E.party(g.party).members - 1) * 100) + ' % seit der Wahl') +
       kpi('Parteikasse', mio(P.cash), 'geht in den nächsten Wahlkampf') +
       kpi('Geschlossenheit', Math.round(P.unity) + '/100', bar(P.unity, 100, P.unity < 40 ? 'bad' : 'good')) + '</div>';
+    const Wn = TD.WINGS[g.party] || ['Wirtschaftsflügel', 'Sozialflügel'];
+    const wings = P.wings || [55, 55];
+    const team = P.team || {};
+    html += '<h3>🧭 Führung und Flügel</h3><div class="t-two"><div><h4>Führungsteam</h4><ul class="t-team">' +
+      '<li><span class="muted small">Vorsitz</span> ' + esc(P.leader.name) + (P.lastVote ? ' <span class="muted small">(' + String(P.lastVote.pct.toFixed(1)).replace('.', ',') + ' % beim Parteitag ' + P.lastVote.year + ')</span>' : '') + '</li>' +
+      (team.gs ? '<li><span class="muted small">Generalsekretariat</span> ' + esc(team.gs) + '</li>' : '') +
+      (team.fv && (t.seats[g.party] || 0) > 0 ? '<li><span class="muted small">Fraktionsvorsitz</span> ' + esc(team.fv) + '</li>' : '') +
+      (P.crown ? '<li><span class="muted small">Gilt als Nachfolge</span> ' + esc(P.crown) + '</li>' : '') + '</ul></div>' +
+      '<div><h4>Stimmung der Flügel</h4><div class="t-lv">' + Wn.map((n, i) => { const w = Math.round(wings[i]); return '<div class="t-lv-row"><span>' + esc(n) + '</span>' + bar(w, 100, w < 40 ? 'bad' : w < 55 ? 'mid' : 'good') + '<span class="num">' + w + '</span></div>'; }).join('') + '</div>' +
+      '<p class="muted small">Eure Gesetze rechts der Mitte freuen „' + esc(Wn[0]) + '“, Gesetze links der Mitte „' + esc(Wn[1]) + '“. Ein verärgerter Flügel kostet Geschlossenheit. Ordentliche Parteitage alle zwei Jahre.</p></div></div>';
     const LBx = T.LB;
     const near = Math.round((g.lobby && g.lobby.near) || 0);
     // Verbände: die drei stärksten Unterstützer und Gegner, der Rest zum Aufklappen.
@@ -1056,6 +1066,43 @@
       U.openModal(eyebrow + ' · 🔥 Lobbyaffäre', 'Bezahlte Nebentätigkeit?', '<p>Recherchen zeigen: Ein Abgeordneter eurer Fraktion hat für ' + esc(l.short) + ' gut bezahlte „Beratungsleistungen“ erbracht – und sich zugleich im Ausschuss für dessen Anliegen eingesetzt.</p>',
         [{ label: 'Alles offenlegen und Konsequenzen ziehen', hint: 'Kostet, aber begrenzt den Schaden', onClick: () => choose(0) },
           { label: 'Aussitzen', hint: 'Riskant – wie bei Amthor oder der Maskenaffäre', onClick: () => choose(1) }]);
+    } else if (it.type === 'parteitag_o') {
+      const P = t.party;
+      U.openModal(eyebrow + ' · 🎪 Partei', 'Ordentlicher Parteitag', '<p>Alle zwei Jahre wählen die Delegierten die Parteispitze neu. ' + esc(P.leader.name) + ' stellt sich zur Wiederwahl. Geschlossenheit: ' + Math.round(P.unity) + '/100 · Flügel: ' + esc(TD.WINGS[g.party][0]) + ' ' + Math.round((P.wings || [55])[0]) + ', ' + esc(TD.WINGS[g.party][1]) + ' ' + Math.round((P.wings || [55, 55])[1]) + '.</p><p class="muted small">Womit tritt ' + esc(P.leader.name) + ' ans Rednerpult?</p>',
+        [{ label: 'Kämpferische Rede', hint: 'Stärkt die Spitze – wenn die Partei geschlossen ist', onClick: () => choose(0) },
+          { label: 'Versöhnliche Rede an beide Flügel', hint: 'Mehr Geschlossenheit', onClick: () => choose(1) },
+          { label: 'Programmatische Grundsatzrede', hint: 'Mehr Kompetenz bei euren Kernthemen', onClick: () => choose(2) },
+          { label: 'Generalsekretariat neu besetzen', hint: 'Frischer Wind in der Parteizentrale', onClick: () => choose(3) }]);
+    } else if (it.type === 'fluegel') {
+      const W = TD.WINGS[g.party];
+      const w = it.wing;
+      U.openModal(eyebrow + ' · 🎪 Partei', 'Flügelstreit: ' + W[w] + ' begehrt auf', '<p>Der Flügel „' + esc(W[w]) + '“ fühlt sich übergangen und macht seinem Ärger in Interviews und Positionspapieren Luft. „' + esc(W[1 - w]) + '“ hält dagegen. Die Medien sprechen von einer zerrissenen Partei.</p>',
+        [{ label: 'Dem Flügel entgegenkommen', hint: 'Beruhigt „' + W[w] + '“, der andere Flügel murrt', onClick: () => choose(0) },
+          { label: 'Machtwort der Parteispitze', hint: 'Riskant – hängt an der Beliebtheit der Spitze', onClick: () => choose(1) },
+          { label: 'Kommission für ein gemeinsames Papier', hint: 'Zeit gewinnen, kostet etwas Geld', onClick: () => choose(2) }]);
+    } else if (it.type === 'machtkampf') {
+      const P = t.party;
+      U.openModal(eyebrow + ' · ⚔️ Machtkampf', it.name + ' greift nach der Spitze', '<p>Die Umfragen sind schlecht, die Partei ist zerstritten (Geschlossenheit ' + Math.round(P.unity) + '). ' + esc(it.name) + (it.from === 'Kabinett' ? ' (' + esc(T.ministryById(it.ministry).short) + ')' : ', ein mächtiger Landesfürst,') + ' bringt sich offen als Alternative zu ' + esc(P.leader.name) + ' ins Spiel' + (t.role === 'kanzler' ? ' – auch fürs Kanzleramt' : '') + '.</p><p class="muted small">Wie reagiert ' + esc(P.leader.name) + '?</p>',
+        [{ label: 'Kampfkandidatur annehmen', hint: 'Alles oder nichts – hängt an Beliebtheit und Geschlossenheit', onClick: () => choose(0) },
+          { label: 'Einbinden und Macht teilen', hint: 'Ruhe – aber die Spitze wirkt schwächer', onClick: () => choose(1) },
+          { label: 'Den Weg frei machen', hint: 'Geordneter Wechsel an der Spitze', onClick: () => choose(2) }]);
+    } else if (it.type === 'ruecktritt') {
+      const m = t.cabinet[it.ministry];
+      U.openModal(eyebrow + ' · 👥 Kabinett', 'Rücktrittsforderungen gegen ' + (m ? m.name : ''), '<p>Nach einer Serie von Pannen im ' + esc(T.ministryById(it.ministry).short) + '-Ressort fordern Opposition und Leitartikel den Rücktritt von ' + esc(m ? m.name : '') + '. Kompetenz: ' + (m ? m.comp : '?') + '/100.</p>',
+        [{ label: 'Festhalten', hint: 'Riskant – neue Pannen würden euch treffen', onClick: () => choose(0) },
+          { label: 'Rücktritt annehmen', hint: 'Ihr benennt die Nachfolge', onClick: () => choose(1) },
+          { label: 'Externe Prüfung anordnen', hint: 'Zweite Chance, das Ressort wird besser', onClick: () => choose(2) }]);
+    } else if (it.type === 'ehrgeiz') {
+      const m = t.cabinet[it.ministry];
+      U.openModal(eyebrow + ' · 👥 Kabinett', 'Ehrgeiz im Kabinett', '<p>' + esc(m ? m.name : '') + ' (' + esc(T.ministryById(it.ministry).short) + ') gibt ein großes Interview über die eigene Zukunft und lässt offen, ob mehr drin ist. Kompetenz ' + (m ? m.comp : '?') + ', Loyalität ' + (m ? m.loyal : '?') + '.</p>',
+        [{ label: 'Zurückpfeifen', hint: 'Loyalität steigt, etwas Unruhe', onClick: () => choose(0) },
+          { label: 'Glänzen lassen', hint: 'Gut für die Partei – aber eine Rivalität entsteht', onClick: () => choose(1) },
+          { label: 'Öffentlich loben', hint: 'Teamgeist', onClick: () => choose(2) }]);
+    } else if (it.type === 'halbzeit') {
+      U.openModal(eyebrow + ' · 🔄 Halbzeit', 'Halbzeit der Legislatur', '<p>Zwei Jahre sind um. Hauptstadtpresse und Fraktion erwarten eine Bilanz – und fragen, ob das Kabinett in dieser Besetzung bis zur Wahl durchhält.</p>',
+        [{ label: 'Kabinett umbilden', hint: 'Das schwächste eigene Kabinettsmitglied geht – frischer Wind', onClick: () => choose(0) },
+          { label: 'Halbzeitbilanz vorlegen', hint: 'Stärkt die Koalition', onClick: () => choose(1) },
+          { label: 'Kontinuität', hint: 'Keine Wechsel', onClick: () => choose(2) }]);
     } else if (it.type === 'disloyal') {
       const m = term().cabinet[it.ministry];
       U.openModal(eyebrow + ' · 👥 Kabinett', 'Querschuss aus dem Kabinett', '<p>' + esc(m ? m.name : '') + ' (' + esc(T.ministryById(it.ministry).short) + ') kritisiert in einem Interview offen den Kurs der Regierung und der eigenen Parteiführung. Loyalität: ' + (m ? m.loyal : '?') + '/100.</p>',

@@ -914,7 +914,19 @@
     '{minister} soll Aktien eines Unternehmens gehandelt haben, über das im {ministry} entschieden wurde.'
   ];
 
+  // Parteiflügel: [marktliberal/konservativ, links/sozial] – nach den realen Strömungen der Parteien.
+  var WINGS = {
+    union: ['Wirtschaftsflügel (MIT)', 'Sozialflügel (CDA)'],
+    spd: ['Seeheimer Kreis', 'Parlamentarische Linke'],
+    gruene: ['Realos', 'Parteilinke'],
+    fdp: ['Wirtschaftsliberale', 'Sozialliberale'],
+    linke: ['Reformer', 'Bewegungslinke'],
+    afd: ['Nationalkonservative', 'Völkisch-nationaler Flügel'],
+    bsw: ['Wirtschaftsflügel', 'Linker Flügel']
+  };
+
   var TD = {
+    WINGS: WINGS,
     MINISTRIES: MINISTRIES, KANZLERAMT: KANZLERAMT, TOPIC_MINISTRY: TOPIC_MINISTRY, WISH: WISH, MINISTER_KINDS: MINISTER_KINDS,
     LAENDER: LAENDER, BUNDESRAT_MAJ: BUNDESRAT_MAJ, LTW: LTW, EUROPAWAHL: EUROPAWAHL, BUNDESVERSAMMLUNG: BUNDESVERSAMMLUNG, LTW_BONUS: LTW_BONUS,
     ECON0: ECON0, AREAS: AREAS, AREA_PREF: AREA_PREF, REVENUE0: REVENUE0, DEBT_RULE: DEBT_RULE, BUDGET_STEPS: BUDGET_STEPS, TAXES: TAXES,

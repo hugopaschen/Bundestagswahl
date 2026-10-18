@@ -2251,3 +2251,5 @@ details.t-law[open] > summary { border-bottom: 1px solid var(--border); }
 .wc-item b { font-weight: 700; margin-right: 2px; }
 .wc-item.past { opacity: .45; text-decoration: line-through; }
 .wc-item.now { background: var(--accent); color: var(--accent-ink); }
+.t-team { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.t-team li { display: flex; flex-direction: column; }

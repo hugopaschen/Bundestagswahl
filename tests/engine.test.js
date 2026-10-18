@@ -1347,3 +1347,26 @@ test('Wahlkampfkalender: feste Termine kommen zusätzlich zum Ereignis der Woche
   assert.ok(seen.every(w => w.length === 2 && !/^ms_/.test(w[1])), JSON.stringify(seen));
   assert.ok(g.postalPush.spd > 0, 'Der Briefwahl-Aufruf wirkt');
 });
+
+test('Parteileben: Machtkampf kann Partei und Kanzleramt übergeben, Parteitag wählt mit Prozentergebnis', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  T.autoNames(g);
+  const t = g.term;
+  while (t.pending.length) T.resolvePending(g, 0);
+  // Machtkampf: Rücktritt der Spitze – die Nachfolge übernimmt auch das Kanzleramt
+  t.pending.push({ type: 'machtkampf', name: 'Nora Neumann', from: 'Land' });
+  const res = T.resolvePending(g, 2);
+  assert.ok(res.ok && /Nora Neumann/.test(res.text));
+  assert.strictEqual(t.party.leader.name, 'Nora Neumann');
+  assert.strictEqual(t.chancellor.name, 'Nora Neumann');
+  // Ordentlicher Parteitag: Ergebnis in Prozent, gespeichert in der Laufbahn
+  t.pending.push({ type: 'parteitag_o' });
+  T.resolvePending(g, 1);
+  assert.ok(t.party.lastVote.pct >= 41 && t.party.lastVote.pct <= 98.5);
+  // Flügelstreit: Entgegenkommen beruhigt den einen Flügel, der andere murrt
+  const w = t.party.wings.slice();
+  t.pending.push({ type: 'fluegel', wing: 1 });
+  T.resolvePending(g, 0);
+  assert.ok(t.party.wings[1] > w[1] && t.party.wings[0] < w[0]);
+});

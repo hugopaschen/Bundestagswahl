@@ -178,6 +178,7 @@
       Object.keys(t.cabinet || {}).forEach(id => { const m = t.cabinet[id]; if (m.name) taken.add(m.name); (m.cands || []).forEach(c => taken.add(c.name)); });
       if (t.chancellor) taken.add(t.chancellor.name);
       (t.formerNames || []).forEach(n => taken.add(n));
+      if (t.party && t.party.team) { taken.add(t.party.team.gs); taken.add(t.party.team.fv); }
     }
     // Meist kommen Ministerinnen und Minister aus der Fraktion: Direktkandidaturen der Partei, bevorzugt aus dem Land.
     const list = E.WK_LIST.filter(w => !land || w.land === land).concat(E.WK_LIST);
@@ -549,6 +550,149 @@
         t.pending.push({ type: 'disloyal', ministry: id, partner: t.gov.find(p => p !== g.party) || t.chanc });
       }
     });
+  }
+
+  // ---------- Parteileben ----------
+  // Flügel (Stimmung 0–100), Führungsteam (Generalsekretariat, Fraktionsvorsitz) und Parteitage. Ordentliche
+  // Parteitage mit Wahl der Spitze finden alle zwei Jahre statt (Satzungen von CDU, SPD, Grünen u. a.).
+  function partyLife(g) {
+    const t = g.term;
+    const P = t.party;
+    if (!P.wings) P.wings = [55, 55];
+    if (!P.team) {
+      P.team = { gs: newPerson(g, g.party, weightedLand(g)).full, fv: null };
+      P.team.fv = newPerson(g, g.party, weightedLand(g)).full;
+    }
+    return P;
+  }
+  const wingNames = g => TD.WINGS[g.party] || ['Wirtschaftsflügel', 'Sozialflügel'];
+  // Gesetze rechts der Mitte freuen den ersten Flügel, Gesetze links der Mitte den zweiten.
+  function wingReact(g, lean, w) {
+    const P = partyLife(g);
+    if (!lean) return;
+    const k = w || 1;
+    P.wings[lean > 0 ? 0 : 1] = clamp(P.wings[lean > 0 ? 0 : 1] + 4 * k, 0, 100);
+    P.wings[lean > 0 ? 1 : 0] = clamp(P.wings[lean > 0 ? 1 : 0] - 3 * k, 0, 100);
+  }
+  // Neue Parteispitze: übernimmt auch Kanzleramt bzw. Vizekanzlerschaft (Kanzlerwechsel ohne Neuwahl wie 1963 und 1966).
+  function replaceLeader(g, how, name, like) {
+    const t = g.term;
+    const P = t.party;
+    const old = P.leader.name;
+    t.formerNames.push(old);
+    const yr = cal(t).year;
+    P.leader = { name: name || newPerson(g, g.party, weightedLand(g)).full, like: like === undefined ? 0.8 : like, born: yr - Math.round(between(g, 38, 52)) };
+    newLeader(g, P.leader.name, yr, P.leader.born, how).offices.push({ year: yr, office: officeName(g) });
+    if (t.chancellor && t.chancellor.party === g.party && t.chancellor.name === old) t.chancellor.name = P.leader.name;
+    Object.keys(t.cabinet).forEach(id => { const m = t.cabinet[id]; if (m.lead && m.party === g.party) m.name = P.leader.name; });
+    if (t.vize && t.vize.party === g.party) t.vize.name = P.leader.name;
+    return P.leader.name;
+  }
+  // Wer könnte die Spitze herausfordern? Ehrgeizige Kabinettsmitglieder zuerst, sonst ein Landesfürst.
+  function challenger(g) {
+    const t = g.term;
+    const mins = ownMinistries(t, g.party).map(id => Object.assign({ id }, t.cabinet[id])).filter(m => m.name && !m.lead);
+    const best = mins.sort((a, b) => (b.comp - (b.loyal || 70) / 2) - (a.comp - (a.loyal || 70) / 2))[0];
+    if (best) return { name: best.name, ministry: best.id, from: 'Kabinett' };
+    const land = bigLand(g, g.party);
+    return { name: newPerson(g, g.party, land).full, land, from: 'Land' };
+  }
+  function partyQuarter(g, c) {
+    const t = g.term;
+    const P = partyLife(g);
+    const own = (t.lastNat && t.lastNat[g.party]) || t.share0;
+    const has = type => t.pending.some(it => it.type === type);
+    if (c.qn === 2 && c.year - (P.ptYear || t.year0) >= 2 && t.q - (t.parteitagQ === undefined ? -9 : t.parteitagQ) >= 4) t.pending.push({ type: 'parteitag_o' });
+    const low = P.wings[0] < P.wings[1] ? 0 : 1;
+    if (P.wings[low] < 38 && rand(g) < 0.45 && !has('fluegel')) t.pending.push({ type: 'fluegel', wing: low });
+    if (t.q >= 4 && P.unity < 40 && own < t.share0 - 3 && t.q - (P.mkQ === undefined ? -9 : P.mkQ) >= 6 && rand(g) < 0.5 && !has('machtkampf')) {
+      P.mkQ = t.q;
+      t.pending.push(Object.assign({ type: 'machtkampf' }, challenger(g)));
+    }
+    if (!isGov(t.role)) return;
+    ownMinistries(t, g.party).forEach(id => {
+      const m = t.cabinet[id];
+      if (!m.name || m.lead || has('ruecktritt')) return;
+      if ((m.comp || 50) < 52 && rand(g) < 0.06) t.pending.push({ type: 'ruecktritt', ministry: id });
+      else if ((m.comp || 50) >= 68 && (m.loyal || 70) < 70 && rand(g) < 0.05 && !has('ehrgeiz')) t.pending.push({ type: 'ehrgeiz', ministry: id });
+    });
+    if (t.q === 8 && ownMinistries(t, g.party).filter(id => t.cabinet[id].name && !t.cabinet[id].lead).length) t.pending.push({ type: 'halbzeit' });
+  }
+
+  function resolvePartyLife(g, item, choice) {
+    const t = g.term;
+    const P = partyLife(g);
+    const W = wingNames(g);
+    let text = '';
+    if (item.type === 'parteitag_o') {
+      P.ptYear = cal(t).year;
+      t.parteitagQ = t.q;
+      if (choice === 0) P.leader.like = clamp(P.leader.like + (P.unity >= 55 ? 0.2 : -0.1), -5, 5);
+      else if (choice === 1) { P.unity = clamp(P.unity + 6, 0, 100); P.wings = P.wings.map(w => clamp(w + 5, 0, 100)); }
+      else if (choice === 2) { const core = (g.program && g.program.core) || []; core.forEach(tp => { if (g.competence) g.competence[tp] = clamp(g.competence[tp] + 2, 5, 95); }); }
+      // Ergebnis der Wiederwahl – reale Spanne: 64,9 % (Klingbeil 2025) bis 89,8 % (Merz 2024) und mehr.
+      const pct = clamp(Math.round((62 + 0.45 * (P.unity - 50) + 4 * P.leader.like + 1.2 * (((t.lastNat && t.lastNat[g.party]) || t.share0) - t.share0) + (Math.min(P.wings[0], P.wings[1]) - 50) / 5 + between(g, -5, 5)) * 10) / 10, 41, 98.5);
+      P.lastVote = { year: P.ptYear, pct };
+      const L = currentLeader(g);
+      if (L) (L.votes = L.votes || []).push({ year: P.ptYear, pct });
+      if (pct < 70) { P.leader.like = clamp(P.leader.like - 0.3, -5, 5); P.unity = clamp(P.unity - 4, 0, 100); addNat(g, g.party, -0.15); text = 'Denkzettel: ' + P.leader.name + ' wird mit nur ' + pct.toFixed(1).replace('.', ',') + ' % wiedergewählt.'; }
+      else if (pct >= 88) { P.unity = clamp(P.unity + 5, 0, 100); addNat(g, g.party, 0.15); text = 'Rückenwind: ' + P.leader.name + ' wird mit ' + pct.toFixed(1).replace('.', ',') + ' % wiedergewählt.'; }
+      else text = P.leader.name + ' wird mit ' + pct.toFixed(1).replace('.', ',') + ' % wiedergewählt – ein solides Ergebnis.';
+      if (choice === 3) { t.formerNames.push(P.team.gs); P.team.gs = newPerson(g, g.party, weightedLand(g)).full; P.unity = clamp(P.unity + 3, 0, 100); text += ' Neu im Generalsekretariat: ' + P.team.gs + '.'; }
+      news(g, '🎪 Parteitag: ' + text, pct < 70 ? 'warn' : 'info');
+    } else if (item.type === 'fluegel') {
+      const w = item.wing;
+      if (choice === 0) { P.wings[w] = clamp(P.wings[w] + 20, 0, 100); P.wings[1 - w] = clamp(P.wings[1 - w] - 8, 0, 100); P.unity = clamp(P.unity + 2, 0, 100); text = 'Ihr kommt dem Flügel „' + W[w] + '“ entgegen – der andere Flügel murrt.'; }
+      else if (choice === 1) { if (rand(g) < clamp(0.5 + P.leader.like * 0.08, 0.2, 0.85)) { P.wings[w] = clamp(P.wings[w] + 10, 0, 100); P.leader.like = clamp(P.leader.like + 0.1, -5, 5); text = 'Ein Machtwort der Spitze beendet den Streit.'; } else { P.unity = clamp(P.unity - 6, 0, 100); addNat(g, g.party, -0.2); text = 'Das Machtwort verpufft – der Streit geht in den Talkshows weiter.'; } }
+      else { P.wings[w] = clamp(P.wings[w] + 12, 0, 100); P.unity = clamp(P.unity + 3, 0, 100); t.party.cash = Math.max(0, t.party.cash - cashCost(g, 0.1)); text = 'Eine Kommission soll ein gemeinsames Papier erarbeiten. Fürs Erste herrscht Ruhe.'; }
+      news(g, 'Flügelstreit: ' + text, 'info');
+    } else if (item.type === 'machtkampf') {
+      if (choice === 0) {
+        const pWin = clamp(0.5 + P.leader.like * 0.07 + (P.unity - 40) / 100 + (item.from === 'Kabinett' ? -0.05 : 0), 0.15, 0.85);
+        if (rand(g) < pWin) { P.unity = clamp(P.unity + 8, 0, 100); P.leader.like = clamp(P.leader.like + 0.3, -5, 5); addNat(g, g.party, 0.2); text = P.leader.name + ' gewinnt die Kampfkandidatur gegen ' + item.name + ' – gestärkt aus dem Machtkampf.'; if (item.ministry && t.cabinet[item.ministry]) t.cabinet[item.ministry].loyal = 85; }
+        else { const old = P.leader.name; if (item.ministry && t.cabinet[item.ministry] && t.cabinet[item.ministry].name === item.name) t.cabinet[item.ministry] = { party: g.party, name: null, cands: candidatesFor(g, g.party) }; replaceLeader(g, 'Kampfkandidatur', item.name, 0.5); P.unity = clamp(P.unity + 4, 0, 100); addNatT(g, g.party, 0.6 / A.sizeFactor(shareOf(g, g.party)), 'hype'); text = item.name + ' setzt sich gegen ' + old + ' durch und übernimmt die Partei' + (t.role === 'kanzler' ? ' – und das Kanzleramt' : '') + '.'; }
+      } else if (choice === 1) {
+        P.unity = clamp(P.unity + 7, 0, 100); P.leader.like = clamp(P.leader.like - 0.15, -5, 5);
+        if (item.ministry && t.cabinet[item.ministry]) t.cabinet[item.ministry].loyal = 90;
+        text = item.name + ' wird eingebunden' + (item.ministry ? ' und bekommt mehr Einfluss im Kabinett' : ' und übernimmt den stellvertretenden Parteivorsitz') + '. Der Aufstand ist vertagt.';
+      } else {
+        const old = P.leader.name;
+        if (item.ministry && t.cabinet[item.ministry] && t.cabinet[item.ministry].name === item.name) t.cabinet[item.ministry] = { party: g.party, name: null, cands: candidatesFor(g, g.party) };
+        replaceLeader(g, 'Rücktritt von ' + old, item.name, 0.9);
+        P.unity = clamp(P.unity + 12, 0, 100);
+        addNatT(g, g.party, between(g, 1, 2) / A.sizeFactor(shareOf(g, g.party)), 'hype');
+        text = old + ' tritt zurück. ' + item.name + ' übernimmt' + (t.role === 'kanzler' ? ' Partei und Kanzleramt' : ' die Partei') + ' – ein geordneter Übergang.';
+      }
+      news(g, '⚔️ Machtkampf: ' + text, 'big');
+    } else if (item.type === 'ruecktritt') {
+      const m = t.cabinet[item.ministry];
+      if (!m || !m.name) return '';
+      const label = ministryById(item.ministry).short;
+      if (choice === 0) { if (rand(g) < 0.55) { m.loyal = Math.min(100, (m.loyal || 60) + 10); text = 'Ihr haltet an ' + m.name + ' fest – die Forderungen verhallen.'; } else { addNat(g, g.party, -0.3); P.leader.like = clamp(P.leader.like - 0.15, -5, 5); text = 'Neue Pannen im ' + label + '-Ressort – das Festhalten an ' + m.name + ' wird zur Belastung.'; } }
+      else if (choice === 1) { t.formerNames.push(m.name); t.cabinet[item.ministry] = { party: g.party, name: null, cands: candidatesFor(g, g.party) }; P.unity = clamp(P.unity - 2, 0, 100); addNat(g, g.party, 0.05); text = m.name + ' tritt zurück. Ihr müsst die Nachfolge benennen.'; }
+      else { m.comp = Math.min(95, (m.comp || 50) + 6); t.party.cash = Math.max(0, t.party.cash - cashCost(g, 0.05)); text = 'Externe Prüfer durchleuchten das ' + label + '-Ressort. ' + m.name + ' bekommt eine zweite Chance.'; }
+      news(g, 'Rücktrittsforderung: ' + text, 'warn');
+    } else if (item.type === 'ehrgeiz') {
+      const m = t.cabinet[item.ministry];
+      if (!m || !m.name) return '';
+      if (choice === 0) { m.loyal = Math.min(100, (m.loyal || 60) + 15); P.unity = clamp(P.unity - 2, 0, 100); text = m.name + ' wird zurückgepfiffen – und schmollt.'; }
+      else if (choice === 1) { m.loyal = Math.max(0, (m.loyal || 60) - 10); P.crown = m.name; addNat(g, g.party, 0.05); text = m.name + ' darf glänzen – die Presse spricht ' + (m.female ? 'von der Kronprinzessin' : m.female === false ? 'vom Kronprinzen' : 'von der Nachfolge an der Spitze') + '.'; }
+      else { m.loyal = Math.min(100, (m.loyal || 60) + 8); P.leader.like = clamp(P.leader.like + 0.05, -5, 5); text = 'Ihr lobt ' + m.name + ' öffentlich – Teamgeist statt Rivalität.'; }
+      news(g, 'Ehrgeiz im Kabinett: ' + text, 'info');
+    } else if (item.type === 'halbzeit') {
+      if (choice === 0) {
+        const ids = ownMinistries(t, g.party).filter(id => t.cabinet[id].name && !t.cabinet[id].lead).sort((a, b) => (t.cabinet[a].comp || 50) - (t.cabinet[b].comp || 50));
+        const id = ids[0];
+        const m = t.cabinet[id];
+        t.formerNames.push(m.name);
+        t.cabinet[id] = { party: g.party, name: null, cands: candidatesFor(g, g.party) };
+        P.unity = clamp(P.unity - 2, 0, 100); addNat(g, g.party, 0.1); t.mood = clamp(t.mood + 3, 0, 100);
+        text = 'Kabinettsumbildung zur Halbzeit: ' + m.name + ' (' + ministryById(id).short + ') muss gehen. Ihr benennt die Nachfolge.';
+      } else if (choice === 1) { t.mood = clamp(t.mood + 6, 0, 100); addNat(g, g.party, 0.08); text = 'Die Halbzeitbilanz: Die Koalition listet auf, was geschafft ist – und was noch kommt.'; }
+      else { P.unity = clamp(P.unity + 2, 0, 100); text = 'Ihr setzt auf Kontinuität – keine Wechsel im Kabinett.'; }
+      news(g, '🔄 Halbzeit: ' + text, 'info');
+    }
+    return text;
   }
 
   // ---------- Forderungen der Koalitionspartner ----------
@@ -1360,6 +1504,7 @@
     t.stats.lawsTotal += 1;
     const topic = lawTopic(law);
     const L = lawLean(law);
+    if (law.by === g.party || (isGov(t.role) && t.gov.indexOf(law.by) !== -1)) wingReact(g, L, law.by === g.party ? 1 : 0.5);
     const sal = g.salience[topic] / D.SALIENCE0[topic];
     let pop;
     if (law.kind === 'tax') {
@@ -1810,7 +1955,12 @@
     const item = t.pending[0];
     if (!item) return { ok: false };
     let text = '';
-    cat({ scandal: 'skandal', vote: 'abstimmung', cabinet: 'kabinett', veto: 'kabinett', disloyal: 'kabinett', sq: 'statusquo', lobby: 'lobby', door: 'lobby', lobbyaffair: 'skandal', landkoa: 'wahlen', ltwcamp: 'wahlen', debatte: 'parlament', namentlich: 'parlament', haushaltskrise: 'haushalt', gewissen: 'abstimmung', memory: 'glaubw', eckwerte: 'haushalt', kbefragung: 'aktion', bereinigung: 'haushalt', brstell: 'parlament', anhoerung: 'parlament', whip: 'abstimmung', brwhip: 'parlament' }[item.type] || 'ereignis');
+    cat({ scandal: 'skandal', vote: 'abstimmung', cabinet: 'kabinett', veto: 'kabinett', disloyal: 'kabinett', sq: 'statusquo', lobby: 'lobby', door: 'lobby', lobbyaffair: 'skandal', landkoa: 'wahlen', ltwcamp: 'wahlen', debatte: 'parlament', namentlich: 'parlament', haushaltskrise: 'haushalt', gewissen: 'abstimmung', memory: 'glaubw', eckwerte: 'haushalt', kbefragung: 'aktion', bereinigung: 'haushalt', brstell: 'parlament', anhoerung: 'parlament', whip: 'abstimmung', brwhip: 'parlament', parteitag_o: 'partei', fluegel: 'partei', machtkampf: 'partei', ruecktritt: 'kabinett', ehrgeiz: 'kabinett', halbzeit: 'kabinett' }[item.type] || 'ereignis');
+    if (['parteitag_o', 'fluegel', 'machtkampf', 'ruecktritt', 'ehrgeiz', 'halbzeit'].indexOf(item.type) !== -1) {
+      text = resolvePartyLife(g, item, choice);
+      t.pending.shift();
+      return { ok: true, text };
+    }
     if (item.type === 'event') {
       const ev = eventById(item.id);
       const c = eventChoices(g, ev)[choice];
@@ -2666,6 +2816,7 @@
       if (c.qn === 1) { sp('klausur'); if (rand(g) < 0.6) sp('aschermittwoch'); }
       if (c.qn === 3) sp('sommerinterview');
       if (c.qn === 4) { if ((t.seats[g.party] || 0) > 0) sp('generaldebatte'); sp('neujahr'); if (isGov(t.role) && rand(g) < 0.5) sp('herbstgipfel'); }
+      partyQuarter(g, c);
     }
     // Regierungsbefragung: Die Kanzlerin/der Kanzler stellt sich dreimal im Jahr dem Plenum (§ 106 GOBT, seit 2018).
     if (!first && t.role === 'kanzler' && c.qn === 2) {
@@ -2790,6 +2941,10 @@
     // Eigene Spitze und Geschlossenheit
     cat('partei');
     addNat(g, g.party, 0.025 * t.party.leader.like + (t.party.unity - 55) / 400);
+    // Unzufriedene Flügel nagen an der Geschlossenheit; die Stimmung beruhigt sich mit der Zeit.
+    const PL = partyLife(g);
+    t.party.unity = clamp(t.party.unity + Math.min(0, Math.min(PL.wings[0], PL.wings[1]) - 50) * 0.05, 0, 100);
+    PL.wings = PL.wings.map(w => w + (55 - w) * 0.1);
     // Glaubwürdigkeit: Wer verlässlich nach seinem Programm handelt, gewinnt Vertrauen.
     cat('glaubw');
     if (t.cred === undefined) t.cred = 55;
