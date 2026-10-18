@@ -44,7 +44,7 @@ test('Eine komplette Partie endet mit Wahlergebnis und Bewertung', () => {
   for (const p of D.PARTIES) {
     const g = E.newGame(p.id, 'Test', 123);
     while (g.phase === 'campaign') {
-      if (g.pendingEvent) E.resolveEvent(g, 0);
+      while (g.pendingEvent) E.resolveEvent(g, 0);
       if (g.week === E.DUEL_WEEK && !g.duelDone) {
         E.startDuel(g);
         while (g.duel) E.duelAnswer(g, 'sachlich');
@@ -300,7 +300,7 @@ test('Umfragen haben eine Fehlerspanne von höchstens ± 3, die Wahl nutzt den w
   const g = E.newGame('spd', 'Test', 9);
   for (let w = 0; w < 5; w++) {
     E.endWeek(g);
-    if (g.pendingEvent) E.resolveEvent(g, 0);
+    while (g.pendingEvent) E.resolveEvent(g, 0);
     Object.values(g.pollErr).forEach(e => assert.ok(Math.abs(e) <= E.POLL_RANGE));
     const pub = E.publishedShares(g);
     assert.ok(Math.abs(Object.values(pub).reduce((a, b) => a + b, 0) - 100) < 1e-6);
@@ -327,7 +327,7 @@ test('KI-Gegner reagieren: Negativkampagnen und besetzte Kernthemen kommen vor',
   for (let seed = 0; seed < 30; seed++) {
     const g = E.newGame('union', 'Test', seed);
     while (g.phase === 'campaign') {
-      if (g.pendingEvent) E.resolveEvent(g, 0);
+      while (g.pendingEvent) E.resolveEvent(g, 0);
       if (g.week === E.DUEL_WEEK && !g.duelDone) { E.startDuel(g); while (g.duel) E.duelAnswer(g, 'sachlich'); }
       E.endWeek(g);
     }
@@ -346,7 +346,8 @@ test('Spätfolgen: Eine angenommene Großspende kann Wochen später zur Spendena
     if (!g.delayed.length) continue;
     assert.ok(g.delayed[0].week > g.week);
     while (g.phase === 'campaign' && g.pendingEvent !== 'spendenaffaere2') {
-      if (g.pendingEvent) E.resolveEvent(g, 0);
+      while (g.pendingEvent && g.pendingEvent !== 'spendenaffaere2') E.resolveEvent(g, 0);
+      if (g.pendingEvent) break;
       if (g.week === E.DUEL_WEEK && !g.duelDone) { E.startDuel(g); while (g.duel) E.duelAnswer(g, 'sachlich'); }
       E.endWeek(g);
     }
@@ -362,7 +363,7 @@ test('Auch die sonstigen Parteien gewinnen und verlieren in den Umfragen', () =>
   for (let seed = 0; seed < 20; seed++) {
     const g = E.newGame('linke', 'Test', seed);
     const start = E.nationalShares(g).sonstige;
-    for (let w = 0; w < 6; w++) { E.endWeek(g); if (g.pendingEvent) E.resolveEvent(g, 0); }
+    for (let w = 0; w < 6; w++) { E.endWeek(g); while (g.pendingEvent) E.resolveEvent(g, 0); }
     assert.ok(g.otherSwing >= -3 && g.otherSwing <= 4);
     finals.push(E.nationalShares(g).sonstige - start);
   }
@@ -488,11 +489,11 @@ test('Neue Aktionen: Betrieb, Bürgerdialog, Infostand, Regionalmedium, Online-W
 test('Briefwahl: Stimmen werden ab Woche 5 abgegeben und zählen mit der Stimmung von damals', () => {
   const g = E.newGame('gruene', 'T', 7);
   assert.strictEqual(E.performAction(g, 'briefwahl').ok, false); // vor Woche 4 nicht möglich
-  while (g.week < 5) { E.endWeek(g); if (g.pendingEvent) E.resolveEvent(g, 0); }
+  while (g.week < 5) { E.endWeek(g); while (g.pendingEvent) E.resolveEvent(g, 0); }
   assert.strictEqual(E.postalCast(g), 0);
   g.ap = 3;
   assert.ok(E.performAction(g, 'briefwahl').ok);
-  E.endWeek(g); if (g.pendingEvent) E.resolveEvent(g, 0);
+  E.endWeek(g); while (g.pendingEvent) E.resolveEvent(g, 0);
   assert.ok(E.postalCast(g) > 0);
   // Ein später Einbruch trifft die Urnenwahl voll, die Briefwahl nur teilweise
   const urn = E.nationalShares(g).gruene;
@@ -507,7 +508,7 @@ test('Briefwahl: Stimmen werden ab Woche 5 abgegeben und zählen mit der Stimmun
 test('Umfrage je Wählergruppe: Verlauf wird jede Woche für alle Gruppen gespeichert', () => {
   const g = E.newGame('fdp', 'T', 4);
   assert.ok(g.history[0].groups && g.history[0].groups.arbeiter);
-  E.endWeek(g); if (g.pendingEvent) E.resolveEvent(g, 0);
+  E.endWeek(g); while (g.pendingEvent) E.resolveEvent(g, 0);
   const last = g.history[g.history.length - 1].groups;
   assert.strictEqual(Object.keys(last).length, D.GROUPS.length);
   for (const k of Object.keys(last)) {
@@ -522,7 +523,7 @@ test('Sonntagsfrage und Umfrageverlauf zeigen dieselben veröffentlichten Werte'
   const before = E.pollShares(g).union;
   E.performAction(g, 'tvspot', { topic: 'wirtschaft' });
   assert.strictEqual(E.pollShares(g).union, before); // neue Werte erst mit der nächsten Umfrage
-  E.endWeek(g); if (g.pendingEvent) E.resolveEvent(g, 0);
+  E.endWeek(g); while (g.pendingEvent) E.resolveEvent(g, 0);
   assert.deepStrictEqual(g.history[g.history.length - 1].shares, E.pollShares(g));
   assert.deepStrictEqual(g.history[g.history.length - 1].groups.jung, E.pollGroupShares(g, 'jung'));
 });
@@ -600,7 +601,7 @@ test('Termine der Kandidatur und Team-Einsätze sind getrennte Kontingente', () 
   assert.strictEqual(E.performAction(g, 'infostand', { state: 'BY' }).ok, false);
   assert.ok(E.performAction(g, 'kundgebung', { state: 'BY' }).ok);
   assert.strictEqual(g.ap, 2);
-  while (g.week < 5) { E.endWeek(g); if (g.pendingEvent) E.resolveEvent(g, 0); }
+  while (g.week < 5) { E.endWeek(g); while (g.pendingEvent) E.resolveEvent(g, 0); }
   assert.strictEqual(g.teamMax, base + 1);
   assert.strictEqual(g.team, base + 1);
 });
@@ -675,7 +676,7 @@ test('Kleinparteien: ab 3,5 % eigenständig in der Umfrage, Freie Wähler könne
   g.minor.fw.trend = 2.6;
   g.week = 2;
   E.endWeek(g);
-  if (g.pendingEvent) E.resolveEvent(g, 0);
+  while (g.pendingEvent) E.resolveEvent(g, 0);
   assert.ok(g.poll.nat.fw >= 3.5 ? E.isShown(g, 'fw') : !E.isShown(g, 'fw'));
   g.shown.fw = true;
   assert.ok(E.shownIds(g).includes('fw'));
@@ -1330,4 +1331,19 @@ test('Gescheiterter Haushalt: neue Anläufe mit Verhandlungen statt immer gleich
   }
   assert.ok(againSeen, 'Bei jedem Anlauf wird neu abgestimmt');
   assert.ok(t.over || new Set(results).size > 1 || results.some(r => r.endsWith('✓')), results.join(' '));
+});
+
+test('Wahlkampfkalender: feste Termine kommen zusätzlich zum Ereignis der Woche', () => {
+  const g = E.newGame('spd', 'T', 11);
+  const seen = [];
+  while (g.week < 6) {
+    E.endWeek(g);
+    const week = [];
+    while (g.pendingEvent) { week.push(g.pendingEvent); E.resolveEvent(g, 0); }
+    seen.push(week);
+  }
+  // Woche 2: Plakate, Woche 3: Parteitag, Woche 4: Wahlarena, Woche 5: Briefwahl, Woche 6: Wahl-O-Mat
+  assert.deepStrictEqual(seen.map(w => w[0]), ['ms_plakate', 'ms_parteitag', 'ms_wahlarena', 'ms_briefwahl', 'ms_wahlomat']);
+  assert.ok(seen.every(w => w.length === 2 && !/^ms_/.test(w[1])), JSON.stringify(seen));
+  assert.ok(g.postalPush.spd > 0, 'Der Briefwahl-Aufruf wirkt');
 });

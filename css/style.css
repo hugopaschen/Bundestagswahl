@@ -2242,3 +2242,12 @@ details.t-law[open] > summary { border-bottom: 1px solid var(--border); }
 .t-due li { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; padding: 7px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); font-size: .92rem; }
 @media (max-width: 640px) { .br-call li { grid-template-columns: 1fr 90px; } .br-gov { display: none; } }
 .duel-attack { border-left: 4px solid var(--pc, var(--bad)); background: var(--surface-2); border-radius: 8px; padding: 8px 12px; margin: 8px 0; }
+
+/* Wahlkampfkalender */
+.week-cal { display: flex; gap: 6px; align-items: center; overflow-x: auto; padding: 6px 2px 2px; font-size: 12px; scrollbar-width: none; }
+.week-cal::-webkit-scrollbar { display: none; }
+.wc-label { color: var(--muted); white-space: nowrap; margin-right: 2px; }
+.wc-item { white-space: nowrap; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+.wc-item b { font-weight: 700; margin-right: 2px; }
+.wc-item.past { opacity: .45; text-decoration: line-through; }
+.wc-item.now { background: var(--accent); color: var(--accent-ink); }

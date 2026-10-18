@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261018-211450';
+  const APP_VERSION = '20261018-212324';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -266,6 +266,11 @@
     const diff = shares[me] - g.startShares[me];
     $('stat-poll').innerHTML = pct(shares[me]) + '<span class="poll-err"> ± ' + E.POLL_RANGE + '</span> <span class="small ' + (diff >= 0 ? 'pos' : 'neg') + '">' + signed(diff) + '</span>';
     $('week-bar').style.width = ((g.week - 1) / g.maxWeeks * 100) + '%';
+    const cal = $('week-cal');
+    if (cal) {
+      cal.innerHTML = '<span class="wc-label">📅 Kalender</span>' + E.MILESTONES.map(m => '<span class="wc-item' + (m.week < g.week ? ' past' : m.week === g.week ? ' now' : '') + '">' +
+        '<b>W' + m.week + '</b> ' + m.icon + ' ' + esc(m.short) + '</span>').join('') + '<span class="wc-item' + (g.week >= g.maxWeeks ? ' now' : '') + '"><b>🗳️</b> Wahltag</span>';
+    }
     $('btn-end-week').textContent = g.week >= g.maxWeeks ? 'Zur Wahl! 🗳️' : 'Woche beenden';
     $('btn-end-week').dataset.armed = '';
     $('btn-end-week').disabled = !!(g.pendingEvent || g.duel || (g.week === E.DUEL_WEEK && !g.duelDone));
@@ -1454,7 +1459,7 @@
 
   function showEvent() {
     const ev = E.eventById(g.pendingEvent);
-    openModal('Woche ' + g.week + ' · Eilmeldung', ev.title, '<p>' + esc(E.eventText(g, ev)) + '</p><p class="muted small">Wie reagiert ihr?</p>',
+    openModal('Woche ' + g.week + (ev.milestone ? ' · 📅 Wahlkampfkalender' : ' · Eilmeldung'), ev.title, '<p>' + esc(E.eventText(g, ev)) + '</p><p class="muted small">Wie reagiert ihr?</p>',
       ev.choices.map((c, i) => ({
         label: c.label,
         hint: c.hint + (c.later ? ' · ⏳ kann Spätfolgen haben' : ''),

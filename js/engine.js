@@ -1657,8 +1657,8 @@
       ]
     },
     {
-      id: 'parteitag', title: 'Streit auf dem Parteitag',
-      text: 'Zwei Parteiflügel liefern sich einen offenen Schlagabtausch. Die Kameras laufen.',
+      id: 'parteitag', title: 'Offener Flügelstreit',
+      text: 'Zwei Parteiflügel liefern sich in Interviews einen offenen Schlagabtausch. Die Kameras laufen.',
       choices: [
         { label: 'Machtwort sprechen', hint: 'Riskant',
           apply: g => { if (rand(g) < 0.6) { g.nat[g.party] += 0.3; return 'Führungsstärke bewiesen (+0.3).'; } g.nat[g.party] -= 0.8; return 'Der Streit eskaliert (−0.8).'; } },
@@ -1677,14 +1677,6 @@
           apply: g => { const d = 0.5 * compMod(g, 'soziales'); g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + '.'; } },
         { label: 'Über andere Themen reden', hint: 'Senkt die Bedeutung des Themas',
           apply: g => { changeSalience(g, 'migration', -0.04); return 'Ihr versucht, die Debatte zu drehen.'; } }
-      ]
-    },
-    {
-      id: 'wahlomat', title: 'Der Wahl-O-Mat ist online',
-      text: 'Millionen Menschen testen ihre Übereinstimmung mit den Parteien. Gerade kleinere Parteien profitieren.',
-      choices: [
-        { label: 'Prima!', hint: 'Mehr Effekt für kleine Parteien',
-          apply: g => { const d = nationalShares(g)[g.party] < 9 ? 0.6 : 0.2; g.nat[g.party] += d; return 'Mehr Aufmerksamkeit für euer Programm (' + fmt(d) + ').'; } }
       ]
     },
     {
@@ -1839,6 +1831,129 @@
     }
   ];
 
+  // Weitere Ereignisse des Wahlkampfs – angelehnt an echte Wahlkämpfe (2021, 2025).
+  EVENTS.push(
+    {
+      id: 'deepfake', title: 'Gefälschtes Video im Netz',
+      text: g => 'Ein mit KI erzeugtes Video zeigt ' + g.candidate + ' bei angeblich abfälligen Äußerungen über Rentner. Es wurde schon hunderttausendfach geteilt.',
+      choices: [
+        { label: 'Sofort richtigstellen – mit Faktencheck', hint: 'Solide',
+          apply: g => { g.nat[g.party] += 0.1; return 'Die Richtigstellung verbreitet sich fast so schnell wie die Fälschung (+0.1).'; } },
+        { label: 'Anzeige erstatten und Plattformen einschalten', hint: '−0,2 Mio. €, Sympathie als Opfer',
+          apply: g => { g.money -= 0.2; candAdjust(g, 0.2, 0); g.nat[g.party] += 0.2; return 'Viele solidarisieren sich (+0.2).'; } },
+        { label: 'Schweigen – nicht noch mehr Aufmerksamkeit erzeugen', hint: 'Riskant',
+          apply: g => { if (rand(g) < 0.5) return 'Das Video verschwindet so schnell, wie es kam.'; g.nat[g.party] -= 0.5; candAdjust(g, -0.2, 0); return 'Viele halten das Video für echt (−0.5).'; } }
+      ]
+    },
+    {
+      id: 'plakate_weg', title: 'Plakate zerstört',
+      text: 'In mehreren Städten wurden über Nacht hunderte eurer Plakate abgerissen oder beschmiert. Wahlkampfhelfer sind frustriert.',
+      choices: [
+        { label: 'Nachplakatieren – jetzt erst recht', hint: '−0,2 Mio. €, motiviert die Basis',
+          apply: g => { g.money -= 0.2; mobilize(g, g.party, 0.01); g.nat[g.party] += 0.1; return 'Am nächsten Morgen hängen die Plakate wieder (+0.1).'; } },
+        { label: 'Mit Humor im Netz reagieren', hint: 'Kann viral gehen',
+          apply: g => { if (rand(g) < 0.6) { g.nat[g.party] += 0.3; return 'Euer Foto vom beschmierten Plakat wird zum Hit (+0.3).'; } return 'Der Post geht unter.'; } },
+        { label: 'Achselzucken', hint: 'Kein Risiko', apply: () => 'Gehört zum Wahlkampf dazu.' }
+      ]
+    },
+    {
+      id: 'stellenabbau', title: 'Zulieferer streicht Tausende Stellen',
+      text: 'Ein großer Autozulieferer kündigt an, 3.000 Stellen in Deutschland abzubauen und die Produktion nach Osteuropa zu verlagern.',
+      before: g => changeSalience(g, 'wirtschaft', 0.04),
+      choices: [
+        { label: 'Vor dem Werkstor mit der Belegschaft sprechen', hint: 'Wirkt je nach Sozialkompetenz',
+          apply: g => { const d = 0.2 + 0.5 * compMod(g, 'soziales'); g.nat[g.party] += d; return 'Die Bilder vom Werkstor laufen in den Abendnachrichten (' + fmt(d) + ').'; } },
+        { label: 'Standortprogramm fordern: Energie, Steuern, Bürokratie', hint: 'Wirkt je nach Wirtschaftskompetenz',
+          apply: g => { const d = 0.2 + 0.6 * compMod(g, 'wirtschaft'); g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + '.'; } },
+        { label: 'Das Management angreifen', hint: 'Riskant',
+          apply: g => { if (rand(g) < 0.5) { g.nat[g.party] += 0.4; return 'Ihr trefft einen Nerv (+0.4).'; } g.nat[g.party] -= 0.3; return 'Das wirkt populistisch (−0.3).'; } }
+      ]
+    },
+    {
+      id: 'zusatzbeitrag', title: 'Krankenkassen erhöhen die Beiträge',
+      text: 'Die Krankenkassen heben den Zusatzbeitrag auf ein Rekordniveau an. Arbeitnehmer und Betriebe ächzen unter steigenden Sozialabgaben.',
+      before: g => changeSalience(g, 'gesundheit', 0.05),
+      choices: [
+        { label: 'Reform der Krankenhausfinanzierung versprechen', hint: 'Wirkt je nach Gesundheitskompetenz',
+          apply: g => { const d = 0.15 + 0.6 * compMod(g, 'gesundheit'); g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + '.'; } },
+        { label: 'Beitragsdeckel fordern', hint: 'Populär – Experten zweifeln',
+          apply: g => { if (rand(g) < 0.6) { g.nat[g.party] += 0.4; return 'Die Forderung kommt an (+0.4).'; } g.nat[g.party] -= 0.2; return 'Ökonomen zerpflücken den Vorschlag (−0.2).'; } },
+        { label: 'Zur Sachlichkeit mahnen', hint: 'Kein Risiko', apply: () => 'Ihr verweist auf die laufende Reformdebatte.' }
+      ]
+    },
+    {
+      id: 'gewalttat', title: 'Eine Gewalttat erschüttert das Land',
+      text: 'Nach einer Messerattacke in einer Fußgängerzone trauert das Land. Der mutmaßliche Täter war ausreisepflichtig. Die Debatte über Migration und Sicherheit überlagert alles.',
+      before: g => { changeSalience(g, 'migration', 0.06); changeSalience(g, 'sicherheit', 0.04); },
+      choices: [
+        { label: 'Trauer zeigen, Wahlkampf einen Tag ruhen lassen', hint: 'Würdevoll',
+          apply: g => { candAdjust(g, 0.2, 0); g.nat[g.party] += 0.1; return 'Die Zurückhaltung wird respektiert (+0.1).'; } },
+        { label: 'Konsequente Abschiebungen fordern', hint: 'Wirkt je nach Migrationskompetenz',
+          apply: g => { const d = 0.1 + 0.7 * compMod(g, 'migration'); g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + '.'; } },
+        { label: 'Vor Instrumentalisierung warnen', hint: 'Spaltet',
+          apply: g => { const d = compMod(g, 'migration') < 0 ? 0.3 : -0.3; g.nat[g.party] += d; return d > 0 ? 'Eure Anhänger danken euch die klare Haltung (+0.3).' : 'Das wirkt wie ein Ablenkungsmanöver (−0.3).'; } }
+      ]
+    },
+    {
+      id: 'zoelle', title: 'US-Strafzölle auf europäische Autos',
+      text: 'Washington verhängt Strafzölle von 25 Prozent auf Autos aus der EU. Die deutsche Exportwirtschaft ist alarmiert.',
+      before: g => { changeSalience(g, 'wirtschaft', 0.04); changeSalience(g, 'europa', 0.03); },
+      choices: [
+        { label: 'Europäische Antwort fordern', hint: 'Wirkt je nach Europakompetenz',
+          apply: g => { const d = 0.15 + 0.5 * compMod(g, 'europa'); g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + '.'; } },
+        { label: 'Verhandeln statt eskalieren', hint: 'Wirkt je nach Wirtschaftskompetenz',
+          apply: g => { const d = 0.1 + 0.5 * compMod(g, 'wirtschaft'); g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + '.'; } },
+        { label: 'Abwarten', hint: 'Kein Risiko', apply: () => 'Ihr wartet die Gespräche in Brüssel ab.' }
+      ]
+    },
+    {
+      id: 'sicherheitskonferenz', title: 'Eklat auf der Sicherheitskonferenz',
+      text: 'Auf der Münchner Sicherheitskonferenz stellt die US-Regierung die Beistandsgarantie der NATO offen infrage. Europa diskutiert über Aufrüstung.',
+      before: g => changeSalience(g, 'verteidigung', 0.06),
+      choices: [
+        { label: 'Mehr Geld für die Bundeswehr fordern', hint: 'Wirkt je nach Verteidigungskompetenz',
+          apply: g => { const d = 0.1 + 0.6 * compMod(g, 'verteidigung'); g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + '.'; } },
+        { label: 'Für Diplomatie und Abrüstung werben', hint: 'Spaltet',
+          apply: g => { const d = compMod(g, 'verteidigung') < -0.2 ? 0.4 : -0.2; g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + '.'; } },
+        { label: 'Europäische Verteidigungsunion vorschlagen', hint: 'Wirkt je nach Europakompetenz',
+          apply: g => { const d = 0.1 + 0.4 * compMod(g, 'europa'); g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + '.'; } }
+      ]
+    },
+    {
+      id: 'viral', title: 'Ein Clip geht viral',
+      text: g => 'Ein spontaner Auftritt von ' + g.candidate + ' an einer Imbissbude wird auf TikTok millionenfach angesehen. Die Jungen feiern – oder lachen?',
+      choices: [
+        { label: 'Mitmachen: eigener Kanal, mehr Clips', hint: 'Erreicht Jüngere – kann peinlich wirken',
+          apply: g => { if (rand(g) < 0.65) { const d = addGroups(g, g.party, 0.5, 'social'); candAdjust(g, 0.1, 0.04); return 'Ihr seid plötzlich Kult (' + fmt(d) + ').'; } g.nat[g.party] -= 0.2; return 'Der Versuch wirkt anbiedernd (−0.2).'; } },
+        { label: 'Seriös bleiben', hint: 'Kleiner Bekanntheitsgewinn',
+          apply: g => { candAdjust(g, 0, 0.03); return 'Der Clip macht die Kandidatur trotzdem bekannter.'; } }
+      ]
+    },
+    {
+      id: 'buergergeld', title: 'Streit ums Bürgergeld',
+      text: 'Eine Studie zu Arbeitsanreizen im Bürgergeld löst eine heftige Debatte aus: Lohnt sich Arbeit noch?',
+      before: g => changeSalience(g, 'soziales', 0.04),
+      choices: [
+        { label: 'Härtere Sanktionen fordern', hint: 'Wirkt je nach Wirtschaftskompetenz',
+          apply: g => { const d = 0.1 + 0.5 * compMod(g, 'wirtschaft'); g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + '.'; } },
+        { label: 'Höheren Mindestlohn fordern', hint: 'Wirkt je nach Sozialkompetenz',
+          apply: g => { const d = 0.1 + 0.5 * compMod(g, 'soziales'); g.nat[g.party] += d; return 'Reaktion der Wähler: ' + fmt(d) + '.'; } },
+        { label: 'Neid-Debatte zurückweisen', hint: 'Kein Risiko', apply: () => 'Ihr haltet euch aus der Zuspitzung heraus.' }
+      ]
+    },
+    {
+      id: 'ueberlaeufer', title: 'Prominenter Überläufer',
+      text: g => 'Ein prominentes Mitglied ' + partyGen(g.eventTarget) + ', jahrelang im Parteivorstand, tritt aus der Partei aus und will bei euch mitmachen.',
+      before: g => { g.eventTarget = otherParty(g); },
+      choices: [
+        { label: 'Mit offenen Armen empfangen', hint: 'Schadet der Konkurrenz – eure Basis murrt vielleicht',
+          apply: g => { g.nat[g.eventTarget] -= 0.4; if (rand(g) < 0.7) { g.nat[g.party] += 0.3; return 'Ein Coup kurz vor der Wahl (+0.3).'; } g.nat[g.party] -= 0.1; return 'An der Basis fragt man, wofür der Neuzugang eigentlich steht (−0.1).'; } },
+        { label: 'Höflich ablehnen', hint: 'Prinzipientreu',
+          apply: g => { g.nat[g.eventTarget] -= 0.2; return 'Ihr bleibt bei eurer Linie.'; } }
+      ]
+    }
+  );
+
   // Spätfolgen – werden nie zufällig gezogen, sondern nur durch frühere Entscheidungen ausgelöst.
   EVENTS.push(
     // ---- Leihstimmen ----
@@ -1985,6 +2100,104 @@
     ]
   });
 
+  // ---------- Wahlkampfkalender ----------
+  // Feste Termine der letzten acht Wochen vor einer Bundestagswahl. Sie kommen zusätzlich zum Ereignis der Woche.
+  // Plakate: Viele Kommunen erlauben Wahlwerbung erst etwa sechs Wochen vor der Wahl. Wahlparteitage liegen
+  // meist vier bis sechs Wochen vor dem Termin, danach folgen Bürgerformate wie die ARD-Wahlarena, die Briefwahlunterlagen kommen etwa vier Wochen vorher, der
+  // Wahl-O-Mat der bpb geht zwei bis drei Wochen vorher online (2025: 26 Mio. Nutzungen), die Abschlusskundgebungen
+  // finden am letzten Wochenende statt.
+  const coreOf = g => (g.program && g.program.core && g.program.core.length ? g.program.core : TOPIC_IDS.slice(0, 1));
+  const coreComp = g => coreOf(g).reduce((s, t) => s + compMod(g, t), 0) / coreOf(g).length;
+  const MILESTONES = [
+    { week: 2, icon: '🪧', short: 'Plakate' },
+    { week: 3, icon: '🎉', short: 'Wahlparteitag' },
+    { week: 4, icon: '🎤', short: 'Wahlarena' },
+    { week: 5, icon: '✉️', short: 'Briefwahl' },
+    { week: 6, icon: '🗳️', short: 'Wahl-O-Mat' },
+    { week: 7, icon: '📺', short: 'Elefantenrunde' },
+    { week: 8, icon: '📣', short: 'Abschluss' }
+  ];
+  EVENTS.push(
+    {
+      id: 'ms_plakate', milestone: 2, followUp: true, title: 'Die Plakate hängen',
+      text: 'Die Kommunen geben die Laternenmasten frei – über Nacht hängen eure Plakate im ganzen Land. Welches Motiv dominiert?',
+      choices: [
+        { label: 'Das Gesicht der Kampagne', hint: 'Macht die Spitzenkandidatur bekannt – wirkt, wenn man sie mag',
+          apply: g => { candAdjust(g, 0, 0.08); const d = 0.15 + 0.08 * g.cand.like; g.nat[g.party] += d; return 'Das Porträt ist überall (' + fmt(d) + ').'; } },
+        { label: 'Eure Kernthemen', hint: 'Rückt eure Themen nach vorn',
+          apply: g => { coreOf(g).forEach(t => changeSalience(g, t, 0.015)); const d = 0.15 + 0.25 * coreComp(g); g.nat[g.party] += d; return 'Eure Themen prägen das Straßenbild (' + fmt(d) + ').'; } },
+        { label: 'Provokante Sprüche', hint: 'Riskant – kann viral gehen',
+          apply: g => { if (rand(g) < 0.5) { g.nat[g.party] += 0.6; return 'Die Plakate werden zum Netz-Hit (+0.6).'; } g.nat[g.party] -= 0.4; return 'Die Sprüche gelten als geschmacklos (−0.4).'; } }
+      ]
+    },
+    {
+      id: 'ms_parteitag', milestone: 3, followUp: true, title: 'Der Wahlparteitag',
+      text: 'Tausend Delegierte, Kameras aus dem ganzen Land: Auf dem Wahlparteitag beschließt eure Partei das Programm und kürt die Spitzenkandidatur.',
+      choices: [
+        { label: 'Geschlossenheit inszenieren', hint: 'Mobilisiert die eigenen Leute',
+          apply: g => { mobilize(g, g.party, 0.02); candAdjust(g, 0.2, 0.03); g.nat[g.party] += 0.15; return 'Minutenlanger Applaus, die Partei steht (+0.2).'; } },
+        { label: 'Das Programm zuspitzen', hint: 'Wirkt je nach Kompetenz bei euren Kernthemen',
+          apply: g => { coreOf(g).forEach(t => changeSalience(g, t, 0.02)); const d = 0.2 + 0.4 * coreComp(g); g.nat[g.party] += d; return 'Die Beschlüsse setzen die Agenda (' + fmt(d) + ').'; } },
+        { label: 'Offene Debatte zulassen', hint: 'Riskant: lebendig oder zerstritten',
+          apply: g => { if (rand(g) < 0.5) { g.nat[g.party] += 0.4; return 'Die Debatte wirkt lebendig und ehrlich (+0.4).'; } g.nat[g.party] -= 0.5; return 'Die Schlagzeile lautet „Streit auf dem Parteitag“ (−0.5).'; } }
+      ]
+    },
+    {
+      id: 'ms_wahlarena', milestone: 4, followUp: true, title: 'Die Wahlarena',
+      text: g => 'Keine Moderation, keine Spickzettel: In der Wahlarena stellen Bürgerinnen und Bürger ' + g.candidate + ' ihre Fragen – eine Pflegekraft, ein Handwerksmeister, eine Rentnerin.',
+      choices: [
+        { label: 'Zuhören und ehrlich antworten', hint: 'Wirkt, wenn man die Kandidatur mag',
+          apply: g => { candAdjust(g, 0.25, 0.03); const d = 0.1 + 0.08 * g.cand.like; g.nat[g.party] += d; return 'Ein Auftritt mit Herz (' + fmt(d) + ').'; } },
+        { label: 'Konkrete Hilfe versprechen', hint: 'Kommt gut an – Faktenchecker prüfen nach',
+          apply: g => { if (rand(g) < 0.65) { g.nat[g.party] += 0.4; return 'Die Zusage wird zum Clip des Abends (+0.4).'; } g.nat[g.party] -= 0.3; return 'Der Faktencheck zerlegt das Versprechen (−0.3).'; } },
+        { label: 'Auf das Programm verweisen', hint: 'Wirkt je nach Kompetenz bei euren Kernthemen',
+          apply: g => { const d = 0.05 + 0.25 * coreComp(g); g.nat[g.party] += d; return 'Sachlich, aber etwas hölzern (' + fmt(d) + ').'; } }
+      ]
+    },
+    {
+      id: 'ms_briefwahl', milestone: 5, followUp: true, title: 'Die Briefwahl beginnt',
+      text: 'Die Wahlbenachrichtigungen sind verschickt, die ersten Briefwahlunterlagen liegen in den Briefkästen. Ab jetzt wird gewählt – und jede Woche gehen Stimmen verloren, die ihr nicht mehr erreicht.',
+      choices: [
+        { label: 'Aufruf an die Stammwähler: „Jetzt wählen!“', hint: 'Sichert eure Anhänger früh',
+          apply: g => { const p = g.party; g.postalPush[p] = Math.min(0.25, (g.postalPush[p] || 0) + 0.05 * postalAffinity(p)); return 'Eure Anhänger füllen die Unterlagen früh aus.'; } },
+        { label: 'Haustürkampagne mit Briefwahlhilfe', hint: '−0,3 Mio. €, mobilisiert',
+          apply: g => { g.money -= 0.3; mobilize(g, g.party, 0.015); const p = g.party; g.postalPush[p] = Math.min(0.25, (g.postalPush[p] || 0) + 0.02); g.nat[g.party] += 0.1; return 'Freiwillige klingeln an Tausenden Türen (+0.1).'; } },
+        { label: 'Auf den Wahlsonntag setzen', hint: 'Kein Aufwand', apply: () => 'Ihr spart euch die Kräfte für den Schlussspurt.' }
+      ]
+    },
+    {
+      id: 'ms_wahlomat', milestone: 6, followUp: true, title: 'Der Wahl-O-Mat ist online',
+      text: 'Die Bundeszentrale für politische Bildung schaltet den Wahl-O-Mat frei. Millionen vergleichen ihre Positionen mit denen der Parteien – und teilen ihr Ergebnis.',
+      choices: [
+        { label: 'Eure Thesen im Netz bewerben', hint: 'Erreicht vor allem Jüngere – kleine Parteien profitieren mehr',
+          apply: g => { const d = addGroups(g, g.party, nationalShares(g)[g.party] < 9 ? 0.6 : 0.3, 'social'); return 'Euer Wahl-O-Mat-Ergebnis wird geteilt (' + fmt(d) + ').'; } },
+        { label: 'Begründungen schärfen', hint: 'Wirkt je nach Kompetenz bei euren Kernthemen',
+          apply: g => { const d = 0.1 + 0.3 * coreComp(g); g.nat[g.party] += d; return 'Eure Antworten überzeugen beim Nachlesen (' + fmt(d) + ').'; } },
+        { label: 'Den Wahl-O-Mat kritisieren', hint: 'Wirkt beleidigt',
+          apply: g => { g.nat[g.party] -= 0.2; return 'Die Kritik wirkt wie Angst vor dem Vergleich (−0.2).'; } }
+      ]
+    },
+    {
+      id: 'ms_abschluss', milestone: 8, followUp: true, title: 'Der Schlussspurt',
+      text: 'Das letzte Wochenende vor der Wahl. Viele Unentschlossene entscheiden sich erst jetzt. Wo setzt ihr den Schlusspunkt?',
+      choices: [
+        { label: 'Große Abschlusskundgebung', hint: '−0,5 Mio. €, mobilisiert stark',
+          apply: g => { g.money -= 0.5; mobilize(g, g.party, 0.03); g.nat[g.party] += 0.2; return 'Ein Fahnenmeer auf dem Marktplatz (+0.2).'; } },
+        { label: 'Tour durch die umkämpften Wahlkreise', hint: 'Macht die Kandidatur bekannt',
+          apply: g => { candAdjust(g, 0.1, 0.05); const d = 0.2 + 0.05 * g.cand.like; g.nat[g.party] += d; return 'Hände schütteln bis zur letzten Minute (' + fmt(d) + ').'; } },
+        { label: 'Letzter Appell im Fernsehen', hint: 'Wirkt, wenn man die Kandidatur mag',
+          apply: g => { const d = 0.1 + 0.1 * g.cand.like; g.nat[g.party] += d; return 'Der Appell erreicht die Wohnzimmer (' + fmt(d) + ').'; } }
+      ]
+    }
+  );
+
+  function dueMilestone(g) {
+    const ev = EVENTS.find(e => e.milestone === g.week && g.usedEvents.indexOf(e.id) === -1);
+    if (!ev) return null;
+    g.usedEvents.push(ev.id);
+    return ev;
+  }
+
   function eventById(id) { return EVENTS.find(e => e.id === id); }
 
   function eventText(g, ev) {
@@ -2067,6 +2280,8 @@
     journal(g, 'e', ev.title + ': ' + choice.label, dEv);
     g.pendingEvent = null;
     addLog(g, 'event', ev.title + ': ' + text);
+    // Nach einem Kalendertermin folgt das Ereignis der Woche.
+    if (ev.milestone && g.phase === 'campaign') dueFollowUp(g) || drawEvent(g);
     return { ok: true, text };
   }
 
@@ -2793,7 +3008,9 @@
     g.teamMax = teamMaxFor(g.week, g.party);
     g.team = g.teamMax;
     addLog(g, 'week', 'Woche ' + g.week + ' beginnt. Noch ' + (g.maxWeeks - g.week + 1) + ' Wochen bis zur Wahl.');
-    const ev = dueFollowUp(g) || drawEvent(g);
+    const ms = dueMilestone(g);
+    if (ms) g.pendingEvent = ms.id;
+    const ev = ms || dueFollowUp(g) || drawEvent(g);
     return { ok: true, event: ev ? ev.id : null, duel: g.week === DUEL_WEEK };
   }
 
@@ -3301,7 +3518,7 @@
 
   const engine = {
     MAX_WEEKS, AP_PER_WEEK, TEAM_PER_WEEK, TEAM_LATE, TEAM_LATE_WEEK, CANDIDATE_ACTIONS, isTeamAction, DUEL_WEEK, THRESHOLD, MAJORITY,
-    ACTIONS, EVENTS, DUEL_STYLES,
+    ACTIONS, EVENTS, DUEL_STYLES, MILESTONES,
     party, stateById, topicById, eventById, eventText,
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
