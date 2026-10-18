@@ -660,6 +660,19 @@
     } else if (it.type === 'scandal') {
       U.openModal(eyebrow + ' · 🔥 Affäre', 'Affäre im ' + T.ministryById(it.ministry).short + '-Ministerium', '<p>' + esc(it.text) + '</p>',
         [{ label: 'Festhalten', hint: 'Riskant: Kommt mehr heraus, wird es teuer', onClick: () => choose(0) }, { label: 'Rücktritt nahelegen', hint: 'Ihr benennt eine Nachfolge', onClick: () => choose(1) }]);
+    } else if (it.type === 'ltwcamp') {
+      const name = E.stateById(it.land).name;
+      const L = term().laender[it.land];
+      U.openModal(eyebrow + ' · 🗺️ Landtagswahlkampf', 'Wahl in ' + name + ' am Quartalsende', '<p>In ' + name + ' wird gewählt. Regierung bisher: ' + L.gov.map(pill).join(' ') + ' (' + L.votes + ' Stimmen im Bundesrat). Euer letztes Ergebnis dort: ' + pct(term().landPrev[it.land] || 0) + '.</p>' +
+        '<p class="small muted">Ihr liegt bundesweit bei ' + pct(g.poll.nat[g.party]) + ' (' + signed(g.poll.nat[g.party] - term().share0) + ' seit der Bundestagswahl). ' + (T.isGov(term().role) ? 'Regierungsparteien werden bei Landtagswahlen oft abgestraft.' : '') + '</p>',
+        [{ label: 'Den Landesverband machen lassen', hint: 'Er dankt es euch – kein Bundestrend-Schutz', onClick: () => choose(0) },
+          { label: 'Bundesprominenz schicken', hint: 'Mehr Stimmen im Land · kostet eine Aktion und Geld', onClick: () => choose(1) },
+          { label: 'Abstand zur Bundespartei halten', hint: 'Schützt vor dem Bundestrend; eine Niederlage fällt weniger auf euch zurück', onClick: () => choose(2) }]);
+    } else if (it.type === 'landkoa') {
+      const name = E.stateById(it.land).name;
+      U.openModal(eyebrow + ' · 🤝 Regierungsbildung im Land', 'Koalitionsgespräche in ' + name, '<p>Nach der Landtagswahl könnt ihr in ' + name + ' mitregieren. Mit wem?</p><p class="small muted">Landesregierungen bestimmen das Abstimmungsverhalten im Bundesrat (' + term().laender[it.land].votes + ' Stimmen). Bündnisse quer zur Bundeskoalition belasten das Koalitionsklima.</p>',
+        it.options.map((o, i) => ({ label: o.map(short).join('-'), hint: o.every(p => term().gov.indexOf(p) !== -1) ? 'Wie im Bund – stärkt die Bundesregierung im Bundesrat' : o.some(p => term().gov.indexOf(p) !== -1) ? 'Gemischte Koalition: Das Land enthält sich im Bundesrat meist' : 'Gegenmodell zum Bund', onClick: () => choose(i) }))
+          .concat([{ label: 'In die Opposition gehen', hint: 'Die anderen bilden die Regierung', onClick: () => choose(it.options.length) }]));
     } else if (it.type === 'whip') {
       const l = term().laws.find(x => x.id === it.law);
       const v = T.bundestagVote(g, l);
@@ -772,6 +785,15 @@
         const max = Math.max.apply(null, ids.map(p => x.shares[p]));
         body = '<div class="t-ltw-bars">' + ids.map(p => '<div class="t-ltw-row' + (p === g.party ? ' me' : '') + '"><span>' + esc(short(p)) + '</span><i style="width:' + x.shares[p] / max * 100 + '%;background:' + col(p) + '"></i><b>' + pct(x.shares[p]) + '</b></div>').join('') + '</div>' +
           '<p>Neue Landesregierung: ' + x.gov.map(pill).join(' ') + '</p><p class="small">' + esc(short(g.party)) + ': ' + signed(x.diff) + ' Punkte zur letzten Wahl im Land' + (x.inGov ? ' – ihr regiert mit!' : '') + '</p>';
+      } else if (it.kind === 'ltwabend') {
+        title = it.entries.length > 1 ? 'Superwahlabend: ' + it.entries.length + ' Landtagswahlen' : 'Wahlabend in ' + E.stateById(it.entries[0].land).name;
+        body = it.entries.map(x => {
+          const ids = Object.keys(x.shares).filter(p => p !== 'sonstige' && x.shares[p] >= 2.5).sort((a, b) => x.shares[b] - x.shares[a]).slice(0, 7);
+          const max = Math.max.apply(null, ids.map(p => x.shares[p]));
+          return '<h4>' + esc(E.stateById(x.land).name) + ' <span class="small ' + (x.diff >= 0 ? 'pos' : 'neg') + '">' + esc(short(g.party)) + ' ' + pct(x.shares[g.party]) + ' (' + signed(x.diff) + ')</span></h4>' +
+            '<div class="t-ltw-bars">' + ids.map(p => '<div class="t-ltw-row' + (p === g.party ? ' me' : '') + '"><span>' + esc(short(p)) + '</span><i style="width:' + x.shares[p] / max * 100 + '%;background:' + col(p) + '"></i><b>' + pct(x.shares[p]) + '</b></div>').join('') + '</div>' +
+            '<p class="small">' + (x.open ? '🤝 Ihr könnt mitregieren – gleich beginnen die Koalitionsgespräche.' : 'Neue Landesregierung: ' + x.gov.map(pill).join(' ') + (x.inGov ? ' – ihr regiert mit!' : '')) + '</p>';
+        }).join('') + '<p class="small muted">Bundesrat: Länder nur mit Bundesregierungsparteien ' + T.brAligned(term()) + ' von 69 Stimmen (vor der Regierungsbildung).</p>';
       } else if (it.kind === 'ew') {
         title = 'Europawahl';
         body = '<p>' + esc(short(g.party)) + ': <b>' + pct(it.own) + '</b> (' + signed(it.diff) + ' zur Bundestagswahl), ' + it.seats + ' von 96 deutschen Sitzen im Europaparlament. Ohne Sperrklausel ziehen auch kleine Parteien ein.</p>';

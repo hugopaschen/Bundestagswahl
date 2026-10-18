@@ -1134,3 +1134,30 @@ test('Gegner mit Gesicht: Namen, Stil, Rivalität und Weitergabe an die nächste
   const g2 = E.newGame('union', next.candidate, 9, undefined, next.carry);
   assert.ok(g2.rivals[partner].name === next.carry.rivals[partner].name);
 });
+
+test('Landtagswahlen: Wahlkampfentscheidung, gebündelter Wahlabend, Koalitionsgespräche im Land', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  T.autoNames(g);
+  const t = g.term;
+  let camp = 0; let night = 0; let koa = 0; let multi = false;
+  for (let i = 0; i < 16 && !t.over; i++) {
+    while (t.pending.length) {
+      const it = t.pending[0];
+      if (it.type === 'ltwcamp') camp += 1;
+      if (it.type === 'info' && it.kind === 'ltwabend') { night += 1; if (it.entries.length > 1) multi = true; }
+      if (it.type === 'landkoa') {
+        koa += 1;
+        const r = T.resolvePending(g, 0);
+        assert.ok(/Bundesrat/.test(r.text));
+        assert.deepStrictEqual(t.laender[it.land].gov, it.options[0]);
+        continue;
+      }
+      assert.ok(!(it.type === 'info' && it.kind === 'ltw'));
+      T.resolvePending(g, it.type === 'ltwcamp' ? 1 : 0);
+    }
+    T.endQuarter(g);
+  }
+  assert.ok(camp > 0 && night > 0 && koa > 0, camp + '/' + night + '/' + koa);
+  assert.ok(multi);
+});

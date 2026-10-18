@@ -447,6 +447,7 @@
     news(g, introText(g), 'role');
     // Landtagswahlen, die in die Zeit des Wahlkampfs fielen, werden nachgeholt – der Bundesrat läuft weiter.
     if (t.doneAbs !== null) for (let idx = t.doneAbs + 1; idx < t.abs0; idx++) ltwDueAbs(idx).forEach(l => landtagswahl(g, l));
+    flushLtwNight(g);
     t.doneAbs = t.abs0 - 1;
     beginQuarter(g, true);
     return { ok: true, role: t.role };
@@ -1413,6 +1414,8 @@
     if (L.gov[0] && raw[L.gov[0]] !== undefined) raw[L.gov[0]] += TD.LTW_BONUS.incumbent;
     if (TD.LTW_BONUS.fw[land]) raw.fw += TD.LTW_BONUS.fw[land];
     raw[g.party] += t.ltwBoost[land] || 0;
+    // Bundestrend: Wer im Bund regiert, wird bei Landtagswahlen oft abgestraft – es sei denn, man hält Abstand.
+    if (t.ltwDistance && t.ltwDistance[land]) raw[g.party] += isGov(t.role) ? 0.6 : 0.2;
     const sum = Object.keys(raw).reduce((s, p) => s + raw[p], 0);
     const shares = {};
     Object.keys(raw).forEach(p => { shares[p] = r1(raw[p] / sum * 100); });
@@ -1423,11 +1426,15 @@
     const prevGov = L.gov.slice();
     const gov = landGovernment(g, seats, land, prevGov);
     L.gov = gov;
+    // Koalitionsoptionen mit euch: Ihr verhandelt im Land selbst (Landesverband und Bundesspitze gemeinsam).
+    const mine = shares[g.party] >= 5 ? E.findCoalitions(seats, g).filter(c => c.viable && !c.tolerated && c.members.indexOf(g.party) !== -1)
+      .sort((a, b) => a.members.length - b.members.length || a.seats - b.seats).slice(0, 3) : [];
     const prev = t.landPrev[land] || 0;
     const diff = shares[g.party] - prev;
     t.landPrev[land] = shares[g.party];
     t.ltwBoost[land] = 0;
-    addNat(g, g.party, clamp(diff * 0.05, -0.4, 0.4));
+    addNat(g, g.party, clamp(diff * 0.05, -0.4, 0.4) * (t.ltwDistance && t.ltwDistance[land] && diff < 0 ? 0.5 : 1));
+    if (t.ltwDistance) delete t.ltwDistance[land];
     // Bestätigt die Wahl den Hype, bleibt ein Teil; sonst verpufft er (Schulz-Effekt 2017).
     const hb = bucket(g, 'hype', g.party);
     if ((hb[g.party] || 0) > 0.4) {
@@ -1436,15 +1443,26 @@
     }
     t.party.unity = clamp(t.party.unity + clamp(diff, -6, 6), 0, 100);
     t.gov.forEach(p => { if (p !== g.party && (shares[p] || 0) < (sh[p] || 0) - 2) t.mood = clamp(t.mood - 2, 0, 100); });
-    const entry = { q: t.q, land, shares, gov, diff: r1(diff), inGov: gov.indexOf(g.party) !== -1, inParl: shares[g.party] >= 5 };
+    const entry = { q: t.q, land, shares, seats, gov, diff: r1(diff), inGov: gov.indexOf(g.party) !== -1, inParl: shares[g.party] >= 5, open: mine.length > 0 };
     t.ltwLog.push(entry);
     t.stats.ltw.push(entry);
     const top = Object.keys(shares).filter(p => p !== OTHER).sort((a, b) => shares[b] - shares[a]).slice(0, 4);
     news(g, '🗳️ Landtagswahl ' + E.stateById(land).name + ': ' + top.map(p => sname(p) + ' ' + f1(shares[p]) + ' %').join(', ') +
       '. Neue Regierung: ' + gov.map(sname).join('-') + (gov.length === 1 && seats[gov[0]] < MAJ ? ' (Minderheit)' : '') + '.', 'big');
-    t.pending.push({ type: 'info', kind: 'ltw', land, entry });
+    (t.ltwNight = t.ltwNight || []).push(entry);
+    if (mine.length) t.ltwKoa = (t.ltwKoa || []).concat([{ land, options: mine.map(c => c.members.slice().sort((a, b) => seats[b] - seats[a])), def: gov.slice() }]);
     return entry;
   }
+  // Wahlabend: alle Landtagswahlen des Quartals auf einen Blick, danach die Koalitionsgespräche in den Ländern.
+  function flushLtwNight(g) {
+    const t = g.term;
+    if (t.ltwNight && t.ltwNight.length) t.pending.push({ type: 'info', kind: 'ltwabend', entries: t.ltwNight });
+    (t.ltwKoa || []).forEach(k => t.pending.push({ type: 'landkoa', land: k.land, options: k.options, def: k.def }));
+    t.ltwNight = [];
+    t.ltwKoa = [];
+  }
+  // Was eine Landesregierung für den Bundesrat bedeutet: Stimmen der Länder, in denen nur Bundesregierungsparteien regieren.
+  function brAligned(t) { return Object.keys(t.laender).reduce((s, l) => s + (t.laender[l].gov.every(p => t.gov.indexOf(p) !== -1) ? t.laender[l].votes : 0), 0); }
 
   function europawahl(g) {
     const t = g.term;
@@ -1581,7 +1599,7 @@
     const item = t.pending[0];
     if (!item) return { ok: false };
     let text = '';
-    cat({ scandal: 'skandal', vote: 'abstimmung', cabinet: 'kabinett', veto: 'kabinett', disloyal: 'kabinett', sq: 'statusquo', lobby: 'lobby', door: 'lobby', lobbyaffair: 'skandal', brstell: 'parlament', anhoerung: 'parlament', whip: 'abstimmung', brwhip: 'parlament' }[item.type] || 'ereignis');
+    cat({ scandal: 'skandal', vote: 'abstimmung', cabinet: 'kabinett', veto: 'kabinett', disloyal: 'kabinett', sq: 'statusquo', lobby: 'lobby', door: 'lobby', lobbyaffair: 'skandal', landkoa: 'wahlen', ltwcamp: 'wahlen', brstell: 'parlament', anhoerung: 'parlament', whip: 'abstimmung', brwhip: 'parlament' }[item.type] || 'ereignis');
     if (item.type === 'event') {
       const ev = eventById(item.id);
       const c = eventChoices(g, ev)[choice];
@@ -1628,6 +1646,43 @@
         text = m.name + ' tritt zurück. Ihr müsst die Nachfolge benennen.';
       }
       news(g, 'Affäre im ' + ministryById(item.ministry).short + '-Ministerium: ' + text, 'warn');
+    } else if (item.type === 'landkoa') {
+      const L = t.laender[item.land];
+      const name = E.stateById(item.land).name;
+      const before = L.gov.slice();
+      const o = item.options[choice];
+      if (o) {
+        L.gov = o.slice();
+        t.party.unity = clamp(t.party.unity + 2, 0, 100);
+        if (isGov(t.role) && t.gov.length > 1 && t.gov.some(p => p !== g.party && o.indexOf(p) === -1) && o.some(p => t.gov.indexOf(p) === -1)) t.mood = clamp(t.mood - 3, 0, 100);
+        text = 'In ' + name + ' regiert jetzt ' + o.map(sname).join('-') + '.';
+      } else {
+        // Opposition im Land: Die anderen bilden eine Regierung ohne euch.
+        const last = (t.ltwLog || []).filter(x => x.land === item.land).slice(-1)[0];
+        const seats = last ? last.seats : null;
+        const alt = seats ? E.findCoalitions(seats, g).filter(c => c.viable && c.members.indexOf(g.party) === -1).sort((a, b) => (a.tolerated ? 1 : 0) - (b.tolerated ? 1 : 0) || a.members.length - b.members.length || a.seats - b.seats)[0] : null;
+        if (alt) L.gov = alt.members.slice().sort((a, b) => seats[b] - seats[a]);
+        else if (before.indexOf(g.party) !== -1) L.gov = before.filter(p => p !== g.party).length ? before.filter(p => p !== g.party) : before;
+        text = 'Ihr geht in ' + name + ' in die Opposition. ' + (alt ? 'Regierung: ' + L.gov.map(sname).join('-') + '.' : 'Eine Minderheitsregierung übernimmt.');
+      }
+      const entry = (t.ltwLog || []).filter(x => x.land === item.land).slice(-1)[0];
+      if (entry) { entry.gov = L.gov.slice(); entry.inGov = L.gov.indexOf(g.party) !== -1; }
+      text += ' Bundesrat: Länder nur mit Bundesregierungsparteien jetzt ' + brAligned(t) + ' von 69 Stimmen.';
+      news(g, '🤝 Regierungsbildung in ' + name + ': ' + L.gov.map(sname).join('-') + '.', 'info');
+    } else if (item.type === 'ltwcamp') {
+      const name = E.stateById(item.land).name;
+      if (choice === 1) {
+        t.ltwBoost[item.land] = Math.min(4, (t.ltwBoost[item.land] || 0) + 0.8);
+        t.party.cash -= cashCost(g, 0.3);
+        t.ap = Math.max(0, t.ap - 1);
+        text = 'Die Bundesspitze tourt durch ' + name + ' – Kundgebungen, Marktplätze, Talkshows. Das kostet eine Aktion.';
+      } else if (choice !== 2) {
+        t.party.lv[item.land] = clamp((t.party.lv[item.land] || 0) - 6, 0, 100);
+        text = 'Der Landesverband ' + name + ' führt den Wahlkampf allein – und dankt für das Vertrauen.';
+      } else {
+        (t.ltwDistance = t.ltwDistance || {})[item.land] = true;
+        text = 'Der Landesverband ' + name + ' geht auf Abstand zur Bundespartei. Das schützt vor dem Bundestrend – eine Niederlage schadet euch im Bund weniger.';
+      }
     } else if (item.type === 'whip' || item.type === 'brwhip') {
       const law = t.laws.find(l => l.id === item.law);
       if (!law || law.stage !== (item.type === 'whip' ? 'bundestag' : 'bundesrat')) { t.pending.shift(); return { ok: true, text: '' }; }
@@ -2273,6 +2328,8 @@
         }
       });
     }
+    // Landtagswahl am Ende dieses Quartals: Wie stark mischt sich die Bundespartei ein?
+    if (!first) ltwDue(t).forEach(l => { if ((t.landPrev[l] || 0) >= 3 || t.laender[l].gov.indexOf(g.party) !== -1) t.pending.push({ type: 'ltwcamp', land: l }); });
     // Eure Entwürfe im parlamentarischen Verfahren: Stellungnahme des Bundesrates und Anhörung im Ausschuss
     if (isGov(t.role)) {
       t.laws.filter(l => l.stage === 'bundestag' && l.by === g.party && !l.fraktion && !l.hearing).forEach(l => {
@@ -2416,6 +2473,7 @@
     updateMood(g);
     if (t.over) return { ok: true, over: true };
     ltwDue(t).forEach(l => landtagswahl(g, l));
+    flushLtwNight(g);
     if (dueIn(TD.EUROPAWAHL, c)) europawahl(g);
     t.doneAbs = c.abs;
     t.q += 1;
@@ -2637,7 +2695,7 @@
   }
 
   const TERM = {
-    QUARTERS, ACTIONS, LAW_STEPS, WOBBLE, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
+    QUARTERS, ACTIONS, LAW_STEPS, WOBBLE, brAligned, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
     lawOptions, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, cal,
     lawName, lawTitle, leanOf, quorum, eventChoices, fillText, eventById, ministryById, taxById, areaById, nextCampaign, summary,
     actionCash, govSeats, isGov, legacy, LB, careerSnapshot, chooseLeader, leaderAge, currentLeader, MAX_AGE, sqForces, absCal, FX_NAMES, ministerFor, eventMinister, ownMinistries, endTerm, defaultVote, partyVote, mandateVote
