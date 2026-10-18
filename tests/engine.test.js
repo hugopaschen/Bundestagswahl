@@ -1233,3 +1233,13 @@ test('Sonntagsfrage: unter 2 % zu „Sonstige“, ab 3,5 % wieder eigenständig 
   T.endQuarter(g);
   assert.ok((g.minor.fw.reg.BY || 0) > before * 0.8 || t.news.some(n => /Freie Wähler/.test(n.text)));
 });
+
+test('Alter Spielstand: Partei unter 2 % wird schon beim Laden unter „Sonstige“ geführt', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  g.poll.nat.bsw = 1.8;
+  delete g.folded;
+  const back = E.deserialize(E.serialize(g));
+  assert.ok(!E.isShown(back, 'bsw'));
+  assert.ok(!('bsw' in E.mergeShares(back, back.poll.nat)));
+});

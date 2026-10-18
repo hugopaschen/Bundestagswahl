@@ -3230,6 +3230,8 @@
     MINOR_IDS.forEach(m => { if (!(m in g.pollErr)) g.pollErr[m] = 0; });
     // Spielstände von vor den Kleinparteien: Umfrage mit den neuen Parteien neu erheben.
     if (g.poll && MINOR_IDS.some(m => !(m in g.poll.nat))) takePoll(g);
+    // Ausweisung sofort nach aktuellem Stand prüfen (auch alte Spielstände: unter 2 % → „Sonstige“).
+    if (g.poll) updateMinorVisibility(g, true);
     if (!g.postal) g.postal = { frac: {}, sum: {} };
     if (!g.postalPush) g.postalPush = {};
     if (!g.mobPerm) g.mobPerm = {};
