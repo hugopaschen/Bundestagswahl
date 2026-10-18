@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261018-002839';
+  const APP_VERSION = '20261018-120658';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -639,8 +639,97 @@
   // mit Thema eine Situation und zwei Fragen von Bürgerinnen und Bürgern zum Thema. Gute Entscheidungen
   // und richtige Antworten machen die Aktion wirksamer, schlechte schwächen sie; richtige Antworten
   // stärken außerdem die Kompetenz im Thema. Ohne Vorbereitung wirkt die Aktion 10 % schwächer.
+  // Szenen: jede Aktion mit eigenen Entscheidungen, eigenem Risiko und eigener Ergebniskarte (js/scenes.js).
+  function runScene(a, target, done, scene) {
+    const st = target.state ? E.stateById(target.state) : null;
+    const tp = target.topic ? E.topicById(target.topic) : null;
+    const S = { meter: scene.meter0 || 50, q: 0, fx: {}, flags: {}, cq: { right: 0, wrong: 0 }, quizRight: 0, quizTotal: 0 };
+    let i = 0;
+    const head = a.icon + ' ' + a.name + (st && a.scope === 'region' ? ' · ' + st.name : '') + (tp ? ' · ' + tp.name : '');
+    const meterHtml = () => (scene.meter ? '<div class="sc-meter"><span>' + esc(scene.meter) + '</span><div class="sc-bar"><i style="width:' + Math.max(0, Math.min(100, S.meter)) + '%"></i></div><b>' + Math.round(S.meter) + '</b></div>' : '');
+    const merge = (fx) => { if (!fx) return; Object.keys(fx).forEach(k => { if (typeof fx[k] === 'number' && k !== 'money' && k !== 'scandal') S.fx[k] = (S.fx[k] || 0) + fx[k]; else if (k === 'groups') { S.fx.groups = S.fx.groups || {}; Object.keys(fx.groups).forEach(x => { S.fx.groups[x] = (S.fx.groups[x] || 0) + fx.groups[x]; }); } else S.fx[k] = fx[k]; }); };
+    const apply = o => {
+      let r = o;
+      if (o.roll) r = Object.assign({}, Math.random() < o.roll.p ? o.roll.win : o.roll.lose);
+      S.meter = Math.max(0, Math.min(100, S.meter + (r.m || 0)));
+      S.q += r.q || 0;
+      merge(r.fx);
+      if (r.flag) S.flags[r.flag] = true;
+      return r;
+    };
+    const feedback = (title, body, m) => {
+      i += 1;
+      openModal(head, title, meterHtml() + (m ? '<p class="sc-delta ' + (m > 0 ? 'pos' : 'neg') + '">' + (m > 0 ? '▲ +' : '▼ ') + m + '</p>' : '') + body,
+        [{ label: i < scene.steps.length ? 'Weiter →' : 'Ergebnis →', primary: true, onClick: () => (i < scene.steps.length ? step() : finish()) }]);
+      $('modal').classList.add('scen-modal');
+    };
+    const step = () => {
+      const it = scene.steps[i];
+      if (it.title === '⚠️ Störer!') S.flags.stoerer = true;
+      if (it.kind === 'cq') {
+        const ids = E.pickCitizenQuestions(g, it.topic, 1);
+        const q = E.CITIZEN_QUESTIONS[it.topic][ids[0]];
+        openModal(head + ' · Bürgerfrage', '🙋 ' + E.topicById(it.topic).name, meterHtml() + '<p class="scen-text">' + esc(q.q) + '</p>',
+          q.a.map((x, k) => ({ label: x, onClick: () => {
+            const ok = k === q.c;
+            if (ok) S.cq.right += 1; else S.cq.wrong += 1;
+            S.q += ok ? 1 : -1;
+            S.meter = Math.max(0, Math.min(100, S.meter + (ok ? 8 : -8)));
+            feedback(ok ? '✅ Richtig' : '❌ Leider falsch', (ok ? '' : '<p>Richtig wäre: <b>' + esc(q.a[q.c]) + '</b></p>') + '<p>' + esc(q.e) + '</p>', ok ? 8 : -8);
+          } })));
+      } else if (it.kind === 'quiz') {
+        openModal(head + ' · Frage', '🎙️ ' + (st ? st.name : ''), meterHtml() + '<p class="scen-text">' + esc(it.q) + '</p>',
+          it.a.map((x, k) => ({ label: x, onClick: () => {
+            const ok = k === it.c;
+            S.quizTotal += 1;
+            if (ok) S.quizRight += 1;
+            S.q += ok ? 1 : -1;
+            S.meter = Math.max(0, Math.min(100, S.meter + (ok ? 10 : -12)));
+            feedback(ok ? '✅ Richtig' : '❌ Peinlich – falsch', '<p>' + esc(it.e) + '</p>', ok ? 10 : -12);
+          } })));
+      } else {
+        openModal(head, it.title, meterHtml() + '<p class="scen-text">' + esc(it.text) + '</p>',
+          it.options.map(o => ({ label: o.label, hint: o.hint || '', onClick: () => {
+            const before = S.meter;
+            const r = apply(o);
+            feedback(r.q > 0 ? '👍 ' + it.title : r.q < 0 ? '👎 ' + it.title : '😐 ' + it.title, '<p>' + esc(r.reply || '') + '</p>', Math.round(S.meter - before));
+          } })));
+      }
+      $('modal').classList.add('scen-modal');
+    };
+    const finish = skip => {
+      const pre = { info: { stateShare: st ? E.pollStateShares(g, st.id)[g.party] : null } };
+      const card = skip ? null : scene.result(S, pre);
+      const fx = Object.assign({}, S.fx);
+      if (card && card.headline) fx.headline = card.headline;
+      const t = Object.assign({}, target, { prep: skip ? 'skip' : Math.max(-3, Math.min(3, Math.round(S.q))), fx });
+      if (!skip && (S.cq.right || S.cq.wrong)) t.cq = S.cq;
+      const res = E.performAction(g, a.id, t);
+      if (done) done(res);
+      save();
+      renderGame();
+      if (!res.ok) { closeModal(); toast(res.text); return; }
+      const rows = card ? card.rows : [];
+      const poster = card && card.poster ? '<div class="sc-poster sc-' + card.poster.motif + '"><b>' + esc(card.poster.motif === 'face' ? card.poster.cand : card.poster.motif === 'topic' ? card.poster.topic : 'Die anderen? Nein danke.') + '</b><span>„' + esc(card.poster.slogan) + '“</span><i>' + esc(E.party(g.party).short) + '</i></div>' : '';
+      openModal(head, card && card.headline ? '📰 „' + card.headline + '“' : 'Ergebnis', poster +
+        (rows.length ? '<table class="sc-card">' + rows.map(r => '<tr><td>' + esc(r[0]) + '</td><td><b>' + esc(r[1]) + '</b></td></tr>').join('') + '</table>' : '') +
+        '<p class="sc-result">' + esc(res.text) + '</p>' + (!skip ? '<p class="muted small">Eure Entscheidungen: Wirkung ' + (t.prep >= 0 ? '+' : '−') + Math.abs(t.prep * 15) + ' %.</p>' : ''),
+        [{ label: 'Weiter', primary: true, onClick: () => closeModal() }]);
+      $('modal').classList.add('scen-modal');
+    };
+    openModal(head, scene.team ? 'Eine Entscheidung fürs Team' : 'Auftritt von ' + g.candidate, '<p>' + esc(scene.intro) + '</p>' + meterHtml(),
+      [{ label: 'Los geht’s', primary: true, onClick: step },
+        { label: 'Ohne Vorbereitung durchführen', hint: '−10 % Wirkung', onClick: () => finish(true) },
+        { label: 'Abbrechen', onClick: () => closeModal() }]);
+    $('modal').classList.add('scen-modal');
+  }
+
   function runAction(a, target, done) {
     if (!E.canAct(g, a.id)) return;
+    const scene = window.BTW_SCENES && window.BTW_SCENES.has(a.id) ? window.BTW_SCENES.build(a.id, {
+      g, E, D, a, st: target.state ? E.stateById(target.state) : null, tp: target.topic ? E.topicById(target.topic) : null,
+      group: target.group, rival: target.rival, cand: g.candidate, partyShort: E.party(g.party).short }) : null;
+    if (scene) { runScene(a, target, done, scene); return; }
     let score = 0;
     const cq = { right: 0, wrong: 0 };
     const finish = prep => {
@@ -2766,8 +2855,19 @@
     toast('Neue Umfrage: ' + pct(after) + ' ± ' + E.POLL_RANGE + ' (' + signed(after - before) + ' zur Vorwoche)' +
       (rivals ? ' · 🥊 Die Konkurrenz greift euch an!' : ''));
     renderGame();
-    checkPending();
+    weekReview(before, after, checkPending);
   });
+
+  // Wochenrückblick wie in den Abendnachrichten: die Bilder eurer Woche.
+  function weekReview(before, after, next) {
+    const wk = g.week - 1;
+    const shots = (g.shots || []).filter(x => x.w === wk).sort((a, b) => Math.abs(b.d) - Math.abs(a.d)).slice(0, 3);
+    if (!shots.length) { next(); return; }
+    openModal('Woche ' + wk + ' · Der Wahlkampf in Bildern', '📺 Die Woche von ' + g.candidate,
+      '<ol class="sc-review">' + shots.map(x => '<li><span class="sc-rv-icon">' + x.icon + '</span><div><b>„' + esc(x.text) + '“</b><small>' + esc(x.title) + (x.d ? ' · ' + signed(x.d) + ' bundesweit' : '') + '</small></div></li>').join('') + '</ol>' +
+      '<p>Neue Umfrage: <b>' + pct(after) + '</b> (' + signed(after - before) + ' zur Vorwoche)</p>',
+      [{ label: 'Weiter', primary: true, onClick: () => { closeModal(); next(); } }]);
+  }
 
   $('btn-restart').addEventListener('click', () => {
     clearSave();
@@ -2788,7 +2888,8 @@
 
   // Schnittstelle für die Legislaturperiode (js/termui.js).
   window.BTW_UI = {
-    setGame: x => { g = x; }, show, applyPartyTheme, save, saveHall, toast, confirmOnButton, openModal, closeModal,
+    setGame: x => { g = x; }, show, applyPartyTheme, save, saveHall, toast,
+    runAction: (id, target, done) => runAction(E.ACTIONS.find(x => x.id === id), target || {}, done), confirmOnButton, openModal, closeModal,
     esc, col, onCol, num1, pct, signed, short, money, pollColumnsHtml, hemicycle, seatLegend, pills,
     // Nach der Legislaturperiode: Programmparteitag für den nächsten Wahlkampf mit dem Stand von heute.
     startNextCampaign(next) {

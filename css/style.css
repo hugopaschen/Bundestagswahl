@@ -2103,3 +2103,25 @@ path.wk.pending { opacity: 0; }
 .hall li { padding: 3px 0; }
 .t-leaders { list-style: none; padding: 0; margin: 0; }
 .t-leaders li { padding: 6px 0; border-bottom: 1px solid var(--border); }
+/* Szenen der Wahlkampf-Aktionen */
+.sc-meter { display: grid; grid-template-columns: auto 1fr 34px; gap: 8px; align-items: center; font-size: .82rem; margin: 6px 0 10px; }
+.sc-meter span { color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-size: .7rem; }
+.sc-bar { height: 10px; border-radius: 5px; background: var(--surface-2); overflow: hidden; }
+.sc-bar i { display: block; height: 100%; background: linear-gradient(90deg, #c0392b, #e0a100 45%, #1e7d3c); border-radius: 5px; transition: width .5s; }
+.sc-meter b { text-align: right; font-variant-numeric: tabular-nums; }
+.sc-delta { font-weight: 800; font-size: 1.1rem; margin: 0 0 6px; }
+.sc-delta.pos { color: var(--good); } .sc-delta.neg { color: var(--bad); }
+.sc-card { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: .92rem; }
+.sc-card td { padding: 6px 4px; border-bottom: 1px solid var(--border); }
+.sc-result { font-size: .95rem; }
+.sc-poster { position: relative; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; height: 170px; max-width: 260px; margin: 6px auto 10px; padding: 14px; border-radius: 6px;
+  background: var(--fl-accent, var(--accent)); color: var(--fl-accent-ink, #fff); box-shadow: 0 6px 18px rgba(0,0,0,.18); }
+.sc-poster b { font-size: 1.3rem; line-height: 1.1; font-family: var(--fl-head-font, inherit); }
+.sc-poster span { font-size: .95rem; }
+.sc-poster i { position: absolute; top: 10px; right: 12px; font-style: normal; font-weight: 900; background: var(--fl-accent-ink, #fff); color: var(--fl-accent, #000); padding: 2px 8px; border-radius: 4px; }
+.sc-poster.sc-face::before { content: '🙂'; position: absolute; top: 18px; left: 16px; font-size: 3.6rem; }
+.sc-poster.sc-attack { background: #1d1d1f; color: #fff; }
+.sc-review { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 10px; }
+.sc-review li { display: flex; gap: 12px; align-items: flex-start; background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
+.sc-rv-icon { font-size: 1.8rem; line-height: 1; }
+.sc-review small { display: block; color: var(--muted); margin-top: 2px; }

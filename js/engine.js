@@ -1268,6 +1268,8 @@
     const shareBefore = steerTopic ? nationalShares(g)[p] : 0;
     const regBefore = st ? g.reg[st.id][p] : 0;
     const pBefore = nationalShares(g)[p];
+    // Szene (js/scenes.js): Entscheidungen der Spielerin/des Spielers mit eigenen Folgen.
+    const sfx = target.fx || {};
     let text;
 
     switch (actionId) {
@@ -1310,12 +1312,13 @@
       }
       case 'social': {
         changeSalience(g, topic, 0.015);
-        if (rand(g) < Math.max(0.03, 0.25 - 0.1 * compMod(g, topic) - 0.7 * qc)) {
+        const storm = sfx.force === 'shitstorm' ? true : sfx.force === 'viral' || sfx.force === 'normal' ? false : rand(g) < Math.max(0.03, 0.25 - 0.1 * compMod(g, topic) - 0.7 * qc);
+        if (storm) {
           const d = -addGroups(g, p, -between(g, 0.4, 1.0), 'social', topic);
           spreadTopic(g, p, -d, topic);
           text = 'Shitstorm! Ein Post zum Thema ' + topicById(topic).name + ' geht nach hinten los (' + fmt(-d) + ').';
         } else {
-          const d = addGroups(g, p, between(g, 0.3, 0.8) * wear(g, 'social:' + topic) * r, 'social', topic);
+          const d = addGroups(g, p, between(g, 0.3, 0.8) * (sfx.force === 'viral' ? 1.8 : 1) * wear(g, 'social:' + topic) * r, 'social', topic);
           spreadTopic(g, p, d, topic);
           noteNational(g, p, d);
           mobilize(g, p, 0.008 * d);
@@ -1333,7 +1336,8 @@
       }
       case 'talkshow': {
         const comp = competenceOf(g, p)[topic];
-        if (rand(g) < 0.35 + 0.45 * comp / 100 + qc) {
+        const win = sfx.force === 'win' ? true : sfx.force === 'lose' ? false : rand(g) < 0.35 + 0.45 * comp / 100 + qc;
+        if (win) {
           const d = addGroups(g, p, 0.7 * wear(g, 'talkshow') * r, 'talkshow', topic);
           spreadTopic(g, p, d, topic);
           noteNational(g, p, d);
@@ -1431,7 +1435,7 @@
         const w = wear(g, 'angriff:' + rv);
         g.grudge = g.grudge || {};
         g.grudge[rv] = g.week;
-        if (rand(g) < chance) {
+        if (sfx.force === 'win' || (sfx.force !== 'lose' && rand(g) < chance)) {
           const d = between(g, 0.6, 1.1) * w * qm * TEAM_EFFECT;
           g.nat[rv] -= d;
           g.nat[p] += 0.35 * d;
@@ -1446,7 +1450,7 @@
       }
       case 'spenden': {
         // Einmal pro Woche; die Spenderkreise sind irgendwann ausgeschöpft.
-        const m = Math.round((0.8 + 0.08 * party(p).budget + between(g, 0, 0.5)) / (1 + 0.35 * (g.spendCount || 0)) * qm * 10) / 10;
+        const m = Math.round((0.8 + 0.08 * party(p).budget + between(g, 0, 0.5)) / (1 + 0.35 * (g.spendCount || 0)) * (sfx.money || qm) * 10) / 10;
         g.money = Math.round((g.money + m) * 100) / 100;
         g.spendCount = (g.spendCount || 0) + 1;
         g.spendWeek = g.week;
@@ -1455,6 +1459,12 @@
       }
     }
     if (thief) text += ' ' + party(thief).name + ' macht euch das Thema streitig.';
+    // Folgen der Szene: Mobilisierung, Bekanntheit, Beliebtheit, Zielgruppen, virale Clips, Spenden mit Haken.
+    if (sfx.mob) mobilize(g, p, sfx.mob, st ? st.id : undefined);
+    if (sfx.known || sfx.like) candAdjust(g, sfx.like || 0, sfx.known || 0);
+    if (sfx.groups) Object.keys(sfx.groups).forEach(k => { if (g.grp[k]) g.grp[k][p] += 0.5 * sfx.groups[k] * qm; });
+    if (sfx.viral) { g.nat[p] += 0.4 * sfx.viral; text += sfx.viral > 0 ? ' Ein Clip geht viral!' : ' Ein Ausschnitt geht viral – gegen euch.'; }
+    if (sfx.scandal && rand(g) < sfx.scandal) { g.nat[p] -= 0.5; candAdjust(g, -0.3, 0); text += ' Später wird bekannt, welche Bedingung an die Spende geknüpft war – Empörung (−0,5).'; }
     // Wahlkreis-Fokus: Ein Teil der Wirkung im Land fließt gezielt in die Erststimme dort.
     if (wkT && actionId !== 'erststimme' && st) {
       const gain = g.reg[st.id][p] - regBefore;
@@ -1479,7 +1489,12 @@
     journal(g, 'a', action.name + (st && action.scope === 'region' ? ' in ' + st.name : '') + (topicById(topic) && action.scope !== 'region' ? ' zu ' + topicById(topic).name : '') +
       (localTopic ? ' zu ' + topicById(localTopic).name : '') + (wkT ? ' (WK ' + wkT.name + ')' : ''), dShare);
     addLog(g, 'action', text);
-    return { ok: true, text };
+    // Bilder der Woche für den Rückblick am Wochenende.
+    if (sfx.headline) {
+      g.shots = (g.shots || []).filter(x => x.w >= g.week - 1);
+      g.shots.push({ w: g.week, icon: action.icon, title: action.name, text: sfx.headline, d: Math.round(dShare * 100) / 100 + 0 });
+    }
+    return { ok: true, text, info: { dShare, stateShare: st ? stateShares(g, st.id)[p] : null } };
   }
 
   // ---------- Ereignisse ----------
