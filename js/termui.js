@@ -184,6 +184,11 @@
       if (t.budget.vote && t.budget.vote.pass) opts.push({ label: '💶 Haushalt ' + t.budget.vote.year, hint: 'Hält er die Schuldenbremse ein?', v: 'budget' });
       t.laws.filter(l => l.stage === 'inkraft').slice(-8).forEach(l => opts.push({ label: T.lawTitle(l), hint: 'in Kraft seit ' + T.quarterLabel(t, l.q1), v: l.id }));
       if (!opts.length) { feedback('Es gibt nichts, wogegen ihr klagen könntet.'); return; }
+    } else if (a.target === 'lobby') {
+      T.LB.LOBBIES.slice().sort((x, y) => T.LB.rel(g, y.id) - T.LB.rel(g, x.id)).forEach(l => {
+        const r = Math.round(T.LB.rel(g, l.id));
+        opts.push({ label: l.icon + ' ' + l.short, hint: 'Beziehung ' + r + '/100 · ' + ({ ally: 'Unterstützer', foe: 'Gegner', neutral: 'neutral' }[T.LB.status(r)]) + (l.money >= 2 ? ' · spendenstark' : '') + (l.power >= 2 ? ' · kampagnenstark' : ''), v: l.id });
+      });
     } else if (a.target === 'contract') {
       Object.keys(t.contract).filter(tp => t.contract[tp] !== t.policy[tp]).forEach(tp => {
         const mine = g.program && g.program.positions[tp] === t.contract[tp];
@@ -235,7 +240,9 @@
   function lawCard(l) {
     const t = term();
     let html = '<div class="t-law ' + l.stage + '"><div class="t-law-head"><strong>' + esc(T.lawTitle(l)) + '</strong>' + pill(l.by) +
-      (l.contract ? '<span class="t-tag">Koalitionsvertrag</span>' : '') + (l.zust ? '<span class="t-tag">zustimmungspflichtig</span>' : '') + (l.promise ? '<span class="t-tag good">Wahlversprechen</span>' : '') + '</div>' + stageChips(l);
+      (l.contract ? '<span class="t-tag">Koalitionsvertrag</span>' : '') + (l.zust ? '<span class="t-tag">zustimmungspflichtig</span>' : '') + (l.promise ? '<span class="t-tag good">Wahlversprechen</span>' : '') +
+      (l.ghost ? '<span class="t-tag warn-tag">Formulierungshilfe: ' + esc(T.LB.byId(l.ghost).short) + '</span>' : '') + '</div>' + stageChips(l) +
+      ((l.backers && l.backers.length) || l.foe ? '<p class="small">' + (l.backers && l.backers.length ? '👍 ' + l.backers.map(id => esc(T.LB.byId(id).short)).join(', ') : '') + (l.foe ? ' · 👎 ' + esc(T.LB.byId(l.foe).short) : '') + '</p>' : '');
     if (l.stage === 'bundestag') {
       const p = T.predict(g, l).bt;
       html += '<p class="small">Prognose Bundestag:</p>' + voteBar(p) + (p.afdDecisive ? '<p class="small warn">⚠️ Mehrheit nur mit Stimmen der AfD</p>' : '') + (l.disc ? '<p class="small">📣 Fraktion auf Linie gebracht</p>' : '');
@@ -331,6 +338,7 @@
       lawTopic = null;
       render();
       U.toast(res.text);
+      checkPending();
     }));
   }
 
@@ -466,6 +474,12 @@
       kpi('Mitglieder', P.members.toLocaleString('de-DE'), signed((P.members / E.party(g.party).members - 1) * 100) + ' % seit der Wahl') +
       kpi('Parteikasse', mio(P.cash), 'geht in den nächsten Wahlkampf') +
       kpi('Geschlossenheit', Math.round(P.unity) + '/100', bar(P.unity, 100, P.unity < 40 ? 'bad' : 'good')) + '</div>';
+    const LBx = T.LB;
+    const near = Math.round((g.lobby && g.lobby.near) || 0);
+    html += '<h3>🏛️ Verbände und Lobbyismus</h3><p class="muted small">Wie die Interessenverbände zu euch stehen. Verbündete (ab 70) mobilisieren und spenden, Gegner (bis 25) machen Stimmung gegen euch. Lobbynähe: ' + near + '/100 – je höher, desto mehr Geld und Unterstützung, aber auch mehr Affärenrisiko.</p>' +
+      '<div class="t-kpis">' + kpi('Lobbynähe', near + '/100', bar(near, 100, near > 60 ? 'bad' : near > 35 ? 'mid' : 'good')) + '</div><div class="t-lv">' +
+      LBx.LOBBIES.slice().sort((a, b) => LBx.rel(g, b.id) - LBx.rel(g, a.id)).map(l => { const r = Math.round(LBx.rel(g, l.id)); return '<div class="t-lv-row"><span>' + l.icon + ' ' + esc(l.short) + '</span>' + bar(r, 100, r >= 70 ? 'good' : r <= 25 ? 'bad' : 'mid') + '<span class="num">' + r + '</span></div>'; }).join('') + '</div>';
+    if (g.lobby && g.lobby.register.length) html += '<h4>Lobbyregister (öffentlich)</h4><ul class="t-cred">' + g.lobby.register.slice(0, 8).map(x => '<li>' + esc(x.when) + ': ' + esc(LBx.byId(x.id).short) + ' – ' + esc(x.text) + '</li>').join('') + '</ul>';
     html += '<h3>Landesverbände</h3><p class="muted small">Unruhe in den Landesverbänden: Ab 50 kostet sie im Land Stimmen und macht Konflikte mit der Bundespartei wahrscheinlicher.</p><div class="t-lv">';
     D.STATES.slice().sort((a, b) => P.lv[b.id] - P.lv[a.id]).forEach(st => {
       const u = P.lv[st.id];
@@ -609,6 +623,24 @@
       const b = T.budgetCalc(term(), d.plan);
       U.openModal(eyebrow + ' · 🏦 Haushalt', 'Haushaltsentwurf ' + d.year, '<p>Das Finanzministerium (' + esc(short(term().cabinet.finanzen ? term().cabinet.finanzen.party : term().chanc)) + ') legt den Entwurf vor: Neuverschuldung ' + mrd(b.deficit) + ', erlaubt ' + mrd(b.limit) + '.</p>',
         [{ label: 'Mittragen', hint: 'Gutes Klima', onClick: () => choose(0) }, { label: 'Nachbesserungen fordern', hint: '+5 % für einen eurer Schwerpunkte, das Klima leidet', onClick: () => choose(1) }]);
+    } else if (it.type === 'lobby') {
+      const l = T.LB.byId(it.lobby);
+      const law = term().laws.find(x => x.id === it.law);
+      U.openModal(eyebrow + ' · 🏛️ Lobbyismus', l.icon + ' ' + l.short + ' meldet sich', '<p>Zu eurem Entwurf „' + esc(law ? T.lawName(law) : '') + '“ bittet ' + esc(l.name) + ' um ein Gespräch: „Das gefährdet ' +
+        (l.money >= 2 ? 'Arbeitsplätze und Investitionen' : 'die Menschen, die wir vertreten') + '. Wir haben da einen Vorschlag …“</p><p class="small muted">Beziehung: ' + Math.round(T.LB.rel(g, l.id)) + '/100 · Kampagnenkraft ' + '★'.repeat(l.power) + '</p>',
+        [{ label: 'Anhören und Kompromiss machen', hint: 'Der Entwurf wird abgeschwächt, der Verband ist zufrieden', onClick: () => choose(0) },
+          { label: 'Standhaft bleiben', hint: 'Der Verband startet eine Kampagne gegen euch', onClick: () => choose(1) },
+          { label: '„Formulierungshilfe“ übernehmen', hint: 'Glatter Weg durchs Parlament – aber es kann herauskommen', onClick: () => choose(2) }]);
+    } else if (it.type === 'door') {
+      const l = T.LB.byId(it.lobby);
+      U.openModal(eyebrow + ' · 🚪 Drehtür', 'Seitenwechsel?', '<p>' + esc(it.name) + ', bis eben im ' + esc(T.ministryById(it.ministry).short) + '-Ressort, soll Cheflobbyist:in bei ' + esc(l.name) + ' werden – sofort.</p>',
+        [{ label: 'Karenzzeit von 18 Monaten durchsetzen', hint: 'Sauber, der Verband ist verärgert', onClick: () => choose(0) },
+          { label: 'Den Wechsel hinnehmen', hint: 'Gute Kontakte – schlechte Presse', onClick: () => choose(1) }]);
+    } else if (it.type === 'lobbyaffair') {
+      const l = T.LB.byId(it.lobby);
+      U.openModal(eyebrow + ' · 🔥 Lobbyaffäre', 'Bezahlte Nebentätigkeit?', '<p>Recherchen zeigen: Ein Abgeordneter eurer Fraktion hat für ' + esc(l.short) + ' gut bezahlte „Beratungsleistungen“ erbracht – und sich zugleich im Ausschuss für dessen Anliegen eingesetzt.</p>',
+        [{ label: 'Alles offenlegen und Konsequenzen ziehen', hint: 'Kostet, aber begrenzt den Schaden', onClick: () => choose(0) },
+          { label: 'Aussitzen', hint: 'Riskant – wie bei Amthor oder der Maskenaffäre', onClick: () => choose(1) }]);
     } else if (it.type === 'disloyal') {
       const m = term().cabinet[it.ministry];
       U.openModal(eyebrow + ' · 👥 Kabinett', 'Querschuss aus dem Kabinett', '<p>' + esc(m ? m.name : '') + ' (' + esc(T.ministryById(it.ministry).short) + ') kritisiert in einem Interview offen den Kurs der Regierung und der eigenen Parteiführung. Loyalität: ' + (m ? m.loyal : '?') + '/100.</p>',

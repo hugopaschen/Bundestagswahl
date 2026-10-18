@@ -21,6 +21,8 @@
   const NAMES = (typeof module !== 'undefined' && module.exports) ? require('./names.js') : (root.BTW_NAMES || null);
   // Inhalte der Legislaturperiode (Ministerien u. a.) – auch für die Ressortverteilung in den Koalitionsverhandlungen.
   const TD = (typeof module !== 'undefined' && module.exports) ? require('./termdata.js') : (root.BTW_TERMDATA || { MINISTRIES: [], WISH: {} });
+  // Interessenverbände (Lobbyismus) – im Wahlkampf und in der Legislatur.
+  const LB = (typeof module !== 'undefined' && module.exports) ? require('./lobby.js') : (root.BTW_LOBBY || null);
   const CQ_ACTIONS = ['buerger', 'infostand', 'betrieb', 'haustuer', 'regional'];
   const SC_ALIAS = {}; // Aktionen ohne eigene Szenarien könnten hier verwandte nutzen
   const CQ_COMP = 2;      // Kompetenzpunkte je richtiger/falscher Antwort
@@ -467,6 +469,7 @@
       if (carry.prevWk) g.prevWk = Object.assign({}, carry.prevWk);
       if (carry.prevTurnout) g.prevTurnout = JSON.parse(JSON.stringify(carry.prevTurnout));
       if (carry.prevShares) g.prevShares = Object.assign({}, carry.prevShares);
+      if (carry.lobby) g.lobby = JSON.parse(JSON.stringify(carry.lobby));
     }
     applyYear(g.year || YEAR0);
     if (!g.cand) g.cand = Object.assign({}, candStart(partyId));
@@ -486,6 +489,7 @@
     g.history.push({ week: 0, shares: g.startShares, real: g.startShares });
     addLog(g, 'start', 'Der Wahlkampf beginnt! Noch ' + MAX_WEEKS + ' Wochen bis zur Bundestagswahl ' + (g.year || YEAR0) + '.');
     applyProgram(g, program);
+    if (LB) LB.init(g);
     g.grpStart = {};
     GROUP_IDS.forEach(k => { g.grpStart[k] = groupShares(g, k)[partyId]; });
     rollPollErr(g);
@@ -1464,6 +1468,7 @@
     if (sfx.known || sfx.like) candAdjust(g, sfx.like || 0, sfx.known || 0);
     if (sfx.groups) Object.keys(sfx.groups).forEach(k => { if (g.grp[k]) g.grp[k][p] += 0.5 * sfx.groups[k] * qm; });
     if (sfx.viral) { g.nat[p] += 0.4 * sfx.viral; text += sfx.viral > 0 ? ' Ein Clip geht viral!' : ' Ein Ausschnitt geht viral – gegen euch.'; }
+    if (sfx.lobby && LB) { LB.addRel(g, sfx.lobby, sfx.scandal ? 12 : 3); if (sfx.scandal) LB.addNear(g, 8); }
     if (sfx.scandal && rand(g) < sfx.scandal) { g.nat[p] -= 0.5; candAdjust(g, -0.3, 0); text += ' Später wird bekannt, welche Bedingung an die Spende geknüpft war – Empörung (−0,5).'; }
     // Wahlkreis-Fokus: Ein Teil der Wirkung im Land fließt gezielt in die Erststimme dort.
     if (wkT && actionId !== 'erststimme' && st) {
@@ -2606,11 +2611,39 @@
     news.sort((a, b) => b.prio - a.prio).slice(0, 3).forEach(n => addLog(g, 'ai', n.text));
   }
 
+  // Verbände im Wahlkampf: Verbündete mobilisieren und spenden, Gegner machen Stimmung gegen euch.
+  function lobbyWeek(g) {
+    if (!LB) return;
+    const L = LB.init(g);
+    const p = g.party;
+    LB.LOBBIES.forEach(l => {
+      const st = LB.status(L.rel[l.id]);
+      if (st === 'ally') {
+        if (l.power >= 2) mobilize(g, p, 0.002 * l.power);
+        if (l.money >= 2) g.money = Math.round((g.money + 0.08 * l.money) * 100) / 100;
+      } else if (st === 'foe' && l.power >= 2) g.nat[p] -= 0.02 * l.power;
+    });
+  }
+  // Wahlprüfstein: Ein Verband fragt nach – eine Programmposition als Antwort.
+  function lobbyPruefstein(g) { return LB ? LB.pickPruefstein(g, () => rand(g)) : null; }
+  function lobbyAnswer(g, id, topic, opt) {
+    if (!LB) return { ok: false };
+    const r = LB.answerPruefstein(g, id, topic, opt);
+    const l = LB.byId(id);
+    let text = l.short + (r.s > 0 ? ' lobt eure Antwort und empfiehlt euch seinen Mitgliedern.' : r.s < 0 ? ' kritisiert eure Antwort öffentlich.' : ' nimmt eure Antwort zur Kenntnis.');
+    if (r.s > 0 && l.power >= 2) mobilize(g, g.party, 0.003 * l.power);
+    if (r.s < 0 && l.power >= 2) g.nat[g.party] -= 0.03 * l.power;
+    if (!r.own) { candAdjust(g, -0.15, 0); text += ' Aber: Die Antwort widerspricht eurem eigenen Wahlprogramm – die Presse bemerkt es.'; }
+    addLog(g, 'event', '📋 Wahlprüfstein: ' + text);
+    return { ok: true, text, rel: r.rel };
+  }
+
   function endWeek(g) {
     if (g.phase !== 'campaign' || g.pendingEvent || g.duel) return { ok: false };
     if (g.week === DUEL_WEEK && !g.duelDone) return { ok: false, text: 'Erst steht noch die Elefantenrunde an!' };
 
     aiTurn(g);
+    lobbyWeek(g);
     castPostal(g);
     PARTY_IDS.forEach(p => {
       g.nat[p] *= BONUS_DECAY;
@@ -3068,6 +3101,7 @@
     if (!g.poll) takePoll(g);
     if (!g.grpStart) g.grpStart = {};
     GROUP_IDS.forEach(k => { if (!(k in g.grpStart)) g.grpStart[k] = groupShares(g, k)[g.party]; });
+    if (!g.lobby && LB && g.program) LB.init(g);
     const line = defaultProgram(g.party);
     TOPIC_IDS.forEach(t => {
       if (!(t in g.program.positions)) g.program.positions[t] = line.positions[t];
@@ -3088,7 +3122,7 @@
     drawEvent, resolveEvent,
     startDuel, duelAnswer,
     endWeek, sainteLague, findCoalitions, coalitionViable, chooseCoalition, negotiate, MINISTRIES, NEG_MIN, ministryById, ministryWish, draftOrder,
-    serialize, deserialize, applyYear, YEAR0
+    serialize, deserialize, applyYear, YEAR0, lobbyPruefstein, lobbyAnswer, LB
   };
   // Interne Bausteine für die Legislaturperiode (js/term.js).
   engine._api = { rand, between, pick, stateShares, nationalShares, takePoll, rollPollErr, updateMinorVisibility, changeSalience,

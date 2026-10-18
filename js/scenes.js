@@ -374,10 +374,18 @@
   }
 
   function spenden(ctx) {
+    const DONORS = [
+      { lobby: 'hausgrund', who: 'Ein Immobilienunternehmer', ask: 'dass Sie sich gegen eine Verschärfung der Mietpreisbremse stellen' },
+      { lobby: 'bdi', who: 'Eine Industriellenfamilie', ask: 'dass Sie sich bei der Erbschaftsteuer für Familienunternehmen einsetzen' },
+      { lobby: 'vda', who: 'Ein Autozulieferer', ask: 'dass Sie das Verbrenner-Aus noch einmal auf den Prüfstand stellen' },
+      { lobby: 'pharma', who: 'Ein Pharmaunternehmer', ask: 'dass Sie die Preisregeln für neue Medikamente lockern' },
+      { lobby: 'banken', who: 'Ein Bankier', ask: 'dass Sie die Finanztransaktionssteuer verhindern' }
+    ];
+    const dn = pickR(DONORS);
     return {
-      intro: 'Spendendinner in einem Berliner Hotel. Ein Unternehmer nimmt dich beiseite.', meter: null,
-      steps: [{ title: 'Ein Angebot', text: '„Ich spende gern 300.000 Euro. Ich erwarte nur, dass Sie sich bei der Erbschaftsteuer für Familienunternehmen einsetzen.“', options: [
-        { label: 'Annehmen', hint: 'Viel Geld – aber was, wenn das herauskommt?', q: 1, fx: { money: 1.6, scandal: 0.3 }, reply: 'Der Scheck ist unterschrieben.' },
+      intro: 'Spendendinner in einem Berliner Hotel. ' + dn.who + ' nimmt dich beiseite. (Großspenden über 35.000 € müssen sofort veröffentlicht werden.)', meter: null,
+      steps: [{ title: 'Ein Angebot', text: '„Ich spende gern 300.000 Euro. Ich erwarte nur, ' + dn.ask + '.“', options: [
+        { label: 'Annehmen', hint: 'Viel Geld und ein Freund im Verband – aber was, wenn das herauskommt?', q: 1, fx: { money: 1.6, scandal: 0.3, lobby: dn.lobby }, reply: 'Der Scheck ist unterschrieben.' },
         { label: 'Freundlich ablehnen: „Spenden ja, Bedingungen nein.“', hint: 'Weniger Geld, saubere Weste', q: 0, fx: { money: 0.8, like: 0.03 }, reply: 'Er spendet trotzdem – weniger.' },
         { label: 'Um eine Spende ohne Bedingungen bitten', hint: 'Verhandeln', roll: { p: 0.5, win: { q: 1, fx: { money: 1.2 }, reply: 'Er lacht und spendet trotzdem.' }, lose: { q: 0, fx: { money: 0.9 }, reply: 'Er spendet nur einen kleinen Betrag.' } } }
       ] }],

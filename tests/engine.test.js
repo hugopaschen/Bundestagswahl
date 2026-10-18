@@ -955,3 +955,36 @@ test('Stufe 3: Laufbahn mit Alter, Ämtern, Nachfolge und Ewigkeits-Bilanz', () 
   assert.strictEqual(leg.terms, 1);
   assert.ok(leg.score > 0 && typeof leg.rating === 'string');
 });
+
+test('Lobbyismus: Verbände, Wahlprüfsteine, Reaktion auf Gesetze, Formulierungshilfe', () => {
+  const g0 = E.newGame('spd', 'Test', 3);
+  assert.ok(g0.lobby.rel.dgb > g0.lobby.rel.bda, 'SPD steht den Gewerkschaften näher als den Arbeitgebern');
+  const ps = E.lobbyPruefstein(g0);
+  assert.ok(ps && E.LB.byId(ps.id));
+  const r = E.lobbyAnswer(g0, ps.id, ps.topic, g0.program.positions[ps.topic]);
+  assert.ok(r.ok && typeof r.rel === 'number');
+  // Legislatur: eigener Gesetzentwurf ruft den stärksten Gegner auf den Plan
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  const t = g.term;
+  while (t.pending.length) T.resolvePending(g, 0);
+  const o = T.lawOptions(g);
+  const tp = o.topics.find(x => x.topic === 'soziales') || o.topics[0];
+  const opt = tp.opts.find(i => D.PROGRAM[tp.topic][i].lean === 1) !== undefined ? tp.opts.find(i => D.PROGRAM[tp.topic][i].lean === 1) : tp.opts[0];
+  T.performAction(g, 'gesetz', { topic: tp.topic, opt });
+  const item = t.pending.find(x => x.type === 'lobby');
+  if (item) {
+    while (t.pending[0] !== item) T.resolvePending(g, 0);
+    const relBefore = g.lobby.rel[item.lobby];
+    T.resolvePending(g, 2); // Formulierungshilfe
+    const law = t.laws.find(l => l.id === item.law);
+    assert.strictEqual(law.ghost, item.lobby);
+    assert.ok(g.lobby.rel[item.lobby] > relBefore);
+    assert.ok(g.lobby.register.length >= 1);
+  }
+  // Lobbytermin verbessert die Beziehung und steht im Register
+  const before = g.lobby.rel.vdk;
+  const res = T.performAction(g, 'lobbytermin', 'vdk');
+  assert.ok(res.ok, res.text);
+  assert.ok(g.lobby.rel.vdk > before);
+});

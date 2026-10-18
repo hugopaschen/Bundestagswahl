@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261018-120658';
+  const APP_VERSION = '20261018-122301';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -236,6 +236,7 @@
     renderMobilization();
     renderFlows();
     renderFirewall();
+    renderLobby();
     renderCandidate();
     renderGroups();
     renderChart();
@@ -1153,6 +1154,37 @@
   }
 
   // Wer hält die Brandmauer zur AfD noch?
+  // Verbände im Wahlkampf: Beziehung zu jedem Interessenverband.
+  function renderLobby() {
+    const box = $('lobby-panel');
+    if (!box || !E.LB || !g.lobby) return;
+    box.innerHTML = E.LB.LOBBIES.slice().sort((a, b) => g.lobby.rel[b.id] - g.lobby.rel[a.id]).map(l => {
+      const r = Math.round(g.lobby.rel[l.id]);
+      const cls = r >= 70 ? 'good' : r <= 25 ? 'bad' : 'mid';
+      return '<div class="t-lv-row"><span>' + l.icon + ' ' + esc(l.short) + '</span><span class="t-meter ' + cls + '"><i style="width:' + r + '%"></i></span><span class="num">' + r + '</span></div>';
+    }).join('');
+  }
+
+  // Wahlprüfstein: Ein Verband schickt eine Frage – eure Antwort zählt.
+  function pruefstein(next) {
+    if ([2, 4, 6].indexOf(g.week) === -1 || !E.LB || (g.lobby && g.lobby.pq === g.week)) { next(); return; }
+    const ps = E.lobbyPruefstein(g);
+    if (!ps) { next(); return; }
+    g.lobby.pq = g.week;
+    const l = E.LB.byId(ps.id);
+    const tp = E.topicById(ps.topic);
+    const own = g.program ? g.program.positions[ps.topic] : -1;
+    openModal('Woche ' + g.week + ' · 📋 Wahlprüfstein', l.icon + ' ' + l.short + ' fragt nach', '<p>' + esc(l.name) + ' verschickt seinen Wahlprüfstein an alle Parteien: „Wie steht Ihre Partei beim Thema ' + esc(tp.name) +
+      '?“ Die Antworten werden an die Mitglieder verschickt.</p><p class="small muted">⭐ = euer Wahlprogramm. Wer anders antwortet, widerspricht sich.</p>',
+      D.PROGRAM[ps.topic].map((o, i) => ({ label: o.label + (i === own ? ' ⭐' : ''), hint: o.desc, onClick: () => {
+        const res = E.lobbyAnswer(g, ps.id, ps.topic, i);
+        save();
+        renderGame();
+        openModal('Woche ' + g.week + ' · 📋 Wahlprüfstein', l.icon + ' ' + l.short, '<p>' + esc(res.text) + '</p><p class="small">Beziehung zu ' + esc(l.short) + ': ' + Math.round(res.rel) + '/100</p>',
+          [{ label: 'Weiter', primary: true, onClick: () => { closeModal(); next(); } }]);
+      } })));
+  }
+
   function renderFirewall() {
     const box = $('firewall');
     if (!box) return;
@@ -2855,7 +2887,7 @@
     toast('Neue Umfrage: ' + pct(after) + ' ± ' + E.POLL_RANGE + ' (' + signed(after - before) + ' zur Vorwoche)' +
       (rivals ? ' · 🥊 Die Konkurrenz greift euch an!' : ''));
     renderGame();
-    weekReview(before, after, checkPending);
+    weekReview(before, after, () => pruefstein(checkPending));
   });
 
   // Wochenrückblick wie in den Abendnachrichten: die Bilder eurer Woche.
