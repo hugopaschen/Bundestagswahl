@@ -122,7 +122,7 @@
   // Aktionen in vier Gruppen, kompakt als Knöpfe.
   const ACT_GROUPS = [
     ['📜 Parlament & Gesetze', ['gesetz', 'disziplin', 'laender', 'forderung', 'antrag', 'anfrage', 'aktuelle', 'befragung', 'ua', 'klage', 'sq', 'vertrauen', 'misstrauen']],
-    ['📣 Öffentlichkeit', ['regerkl', 'presse', 'talkshow', 'buerger', 'reise', 'social', 'protest', 'schatten', 'krisenstab']],
+    ['📣 Öffentlichkeit', ['regerkl', 'presse', 'talkshow', 'interview', 'buerger', 'reise', 'social', 'protest', 'schatten', 'krisenstab']],
     ['🤝 Koalition & Partei', ['koaausschuss', 'profil', 'umbildung', 'basis', 'mitglieder', 'spenden', 'parteitag', 'lvpflege', 'austritt']],
     ['🗺️ Länder & Verbände', ['ltwk', 'lobbytermin', 'lobbyrecherche', 'buendnis']]
   ];
@@ -256,6 +256,9 @@
         const r = Math.round(T.LB.rel(g, l.id));
         opts.push({ label: l.icon + ' ' + l.short, hint: 'Beziehung ' + r + '/100 · ' + ({ ally: 'Unterstützer', foe: 'Gegner', neutral: 'neutral' }[T.LB.status(r)]) + (l.money >= 2 ? ' · spendenstark' : '') + (l.power >= 2 ? ' · kampagnenstark' : ''), v: l.id });
       });
+    } else if (a.target === 'outlet') {
+      const M = T.media(g);
+      T.MEDIA.forEach(m => opts.push({ label: m.icon + ' ' + m.name, hint: 'Beziehung ' + Math.round(M[m.id]) + '/100 · ' + m.desc, v: m.id }));
     } else if (a.target === 'contract') {
       Object.keys(t.contract).filter(tp => t.contract[tp] !== t.policy[tp]).forEach(tp => {
         const mine = g.program && g.program.positions[tp] === t.contract[tp];
@@ -686,6 +689,9 @@
       (P.crown ? '<li><span class="muted small">Gilt als Nachfolge</span> ' + esc(P.crown) + '</li>' : '') + '</ul></div>' +
       '<div><h4>Stimmung der Flügel</h4><div class="t-lv">' + Wn.map((n, i) => { const w = Math.round(wings[i]); return '<div class="t-lv-row"><span>' + esc(n) + '</span>' + bar(w, 100, w < 40 ? 'bad' : w < 55 ? 'mid' : 'good') + '<span class="num">' + w + '</span></div>'; }).join('') + '</div>' +
       '<p class="muted small">Eure Gesetze rechts der Mitte freuen „' + esc(Wn[0]) + '“, Gesetze links der Mitte „' + esc(Wn[1]) + '“. Ein verärgerter Flügel kostet Geschlossenheit. Ordentliche Parteitage alle zwei Jahre.</p></div></div>';
+    const M = t.media || { boulevard: 50, leit: 50, oer: 50, social: 50 };
+    html += '<h3>🗞️ Medien</h3><div class="t-lv">' + T.MEDIA.map(m => { const r = Math.round(M[m.id]); return '<div class="t-lv-row"><span>' + m.icon + ' ' + esc(m.name) + '</span>' + bar(r, 100, r >= 62 ? 'good' : r < 40 ? 'bad' : 'mid') + '<span class="num">' + r + '</span></div>'; }).join('') + '</div>' +
+      '<p class="muted small">Wer mit einem Medium spricht (Aktion „Exklusiv-Interview“), wird dort wohlwollender begleitet. Die Presseschau am Quartalsende zeigt den Ton.</p>';
     const LBx = T.LB;
     const near = Math.round((g.lobby && g.lobby.near) || 0);
     // Verbände: die drei stärksten Unterstützer und Gegner, der Rest zum Aufklappen.
@@ -716,6 +722,12 @@
     html += '<h3>Verlauf seit der Wahl</h3><div class="t-chart" id="t-chart"></div>';
     html += fxHtml();
     html += groupsHtml();
+    // Megatrends: was über die Jahrzehnte wichtiger wird
+    const yr = T.cal(t).year;
+    const sb = E.salienceBase(yr);
+    const mt = D.TOPICS.map(tp => ({ tp, d: Math.round((sb[tp.id] / D.SALIENCE0[tp.id] - 1) * 100) })).filter(x => x.d >= 2).sort((a, b) => b.d - a.d);
+    html += '<h3>📈 Megatrends</h3><p class="muted small">Über die Jahre verschiebt sich, was die Menschen bewegen wird – Alterung, Digitalisierung, Klimawandel und neue Sicherheitslage (Raten geschätzt). Wer hier Kompetenz aufbaut, profitiert in späteren Wahlen.</p>' +
+      (mt.length ? '<div class="t-strip">' + mt.map(x => '<span class="t-strip-i"><small>' + x.tp.icon + ' ' + esc(x.tp.name) + '</small> +' + x.d + ' %</span>').join('') + '</div><p class="muted small">Grundgewicht ' + yr + ' im Vergleich zu 2029.</p>' : '<p class="muted small">Noch hat sich das Grundgewicht der Themen kaum verschoben.</p>');
     $('t-umfragen').innerHTML = html;
     U.pollCalcHtml($('t-poll-calc'), g.poll.nat);
     drawTermChart();

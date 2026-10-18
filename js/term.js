@@ -152,7 +152,7 @@
   const FX_NAMES = { aktion: '🎯 Eure Aktionen', gesetz: '📜 Gesetze', parlament: '🏛️ Abstimmungen im Bundestag', haushalt: '🏦 Haushalt',
     karlsruhe: '⚖️ Karlsruhe', wahlen: '🗳️ Landtags- und Europawahlen', statusquo: '⚖️ Status quo', ereignis: '📰 Eure Reaktion auf Ereignisse',
     skandal: '🔥 Affären', abstimmung: '🗳️ Euer Abstimmungsverhalten', kabinett: '👥 Kabinett', regierung: '🏛️ Regierungsbilanz und Wirtschaft',
-    partei: '🎪 Spitze und Geschlossenheit', glaubw: '🤝 Glaubwürdigkeit', krise: '🚨 Krisenmanagement', lobby: '🏛️ Verbände und Lobbyismus', streit: '💥 Streit in der Koalition', hype: '🔥 Hype um eure Spitze', viral: '📱 Viraler Moment', konkurrenz: '🥊 Konkurrenz', verblassen: '⏳ Frühere Effekte verblassen', sonst: 'Sonstiges' };
+    partei: '🎪 Spitze und Geschlossenheit', glaubw: '🤝 Glaubwürdigkeit', krise: '🚨 Krisenmanagement', lobby: '🏛️ Verbände und Lobbyismus', streit: '💥 Streit in der Koalition', hype: '🔥 Hype um eure Spitze', viral: '📱 Viraler Moment', medien: '🗞️ Medien', konkurrenz: '🥊 Konkurrenz', verblassen: '⏳ Frühere Effekte verblassen', sonst: 'Sonstiges' };
   // Glaubwürdigkeit (0–100): Wer seiner Linie treu bleibt, gewinnt Vertrauen; wer umfällt, verliert es.
   function addCred(g, v, why) {
     const t = g.term;
@@ -365,7 +365,7 @@
     g.delayed = [];
     g.pendingEvent = null;
     g.duel = null;
-    g.salience = Object.assign({}, D.SALIENCE0);
+    g.salience = Object.assign({}, A.salienceBase(g.year));
     MINOR.forEach(m => { g.minor[m] = { trend: 0, nat: 0, reg: {} }; });
     g.cand = Object.assign({}, A.candStart(g.party));
   }
@@ -693,6 +693,44 @@
       news(g, '🔄 Halbzeit: ' + text, 'info');
     }
     return text;
+  }
+
+  // ---------- Medienlandschaft ----------
+  // Vier Medientypen mit eigener Logik (Beziehung 0–100). Reichweiten und Nutzung nach Reuters Digital News Report
+  // Deutschland (Fernsehnachrichten der Öffentlich-Rechtlichen weiter Hauptquelle, Social Media bei unter 35-Jährigen vorn).
+  const MEDIA = [
+    { id: 'boulevard', icon: '🗞️', name: 'Boulevard', desc: 'Große Reichweite, schnelle Schlagzeilen – aber Zitate werden zugespitzt.' },
+    { id: 'leit', icon: '📰', name: 'Leitmedien', desc: 'Zeitungen und Magazine: Wer hier überzeugt, gewinnt Glaubwürdigkeit und Kompetenz.' },
+    { id: 'oer', icon: '📺', name: 'Öffentlich-Rechtliche', desc: 'Nachrichten und Talk mit dem größten Publikum: gut für die Beliebtheit der Spitze.' },
+    { id: 'social', icon: '📱', name: 'Podcasts und Social Media', desc: 'Erreicht Jüngere direkt – kann viral gehen.' }
+  ];
+  function media(g) {
+    const t = g.term;
+    if (!t.media) t.media = { boulevard: 50, leit: 50, oer: 50, social: 50 };
+    return t.media;
+  }
+  function addMedia(g, id, v) { const M = media(g); M[id] = clamp(M[id] + v, 0, 100); }
+  const PRESS_TONE = {
+    boulevard: [['„Wie lange geht das noch gut?“', '„Chaos-Tage!“'], ['„Viel Lärm um wenig“', '„Jetzt wird’s ernst“'], ['„Die packen an!“', '„Endlich mal Klartext!“']],
+    leit: [['Kommentar: „Ohne Kompass“', 'Leitartikel: „Eine Partei im Selbstgespräch“'], ['Analyse: „Solide, aber blass“', 'Kommentar: „Noch nicht überzeugend“'], ['Leitartikel: „Ein kluger Kurs“', 'Analyse: „Sie haben einen Plan“']],
+    oer: [['„Kritische Fragen bleiben unbeantwortet“', '„Die Umfragen sinken weiter“'], ['„Durchwachsene Bilanz“', '„Noch fehlt das klare Profil“'], ['„Im Aufwind“', '„Klare Botschaften kommen an“']],
+    social: [['Hashtag #Rücktritt trendet', 'Spott-Memes gehen viral'], ['Gemischte Reaktionen im Netz', 'Kaum Resonanz in den Timelines'], ['Clips mit Millionen Aufrufen', 'Fans feiern im Netz']]
+  };
+  // Presseschau am Quartalsende: Ton je nach Beziehung und Umfragetrend.
+  function pressReview(g, trend) {
+    const t = g.term;
+    const M = media(g);
+    const parts = MEDIA.map((m, i) => {
+      const score = M[m.id] + trend * 8;
+      const lvl = score < 40 ? 0 : score < 62 ? 1 : 2;
+      return m.icon + ' ' + PRESS_TONE[m.id][lvl][(t.q + i) % 2]; // ohne Zufall: der Spielverlauf bleibt unberührt
+    });
+    news(g, '🗞️ Presseschau: ' + parts.join(' · '), 'info');
+    // Wohlwollende Medien tragen eure Botschaften weiter – feindselige verstärken jede Panne.
+    const avg = MEDIA.reduce((s, m) => s + M[m.id], 0) / MEDIA.length;
+    cat('medien');
+    addNat(g, g.party, (avg - 50) / 800);
+    MEDIA.forEach(m => { M[m.id] += (50 - M[m.id]) * 0.08; });
   }
 
   // ---------- Forderungen der Koalitionspartner ----------
@@ -2408,6 +2446,7 @@
     { id: 'mitglieder', roles: ['apo', 'opposition'], icon: '🙋', name: 'Mitgliederkampagne', desc: 'Neue Mitglieder bringen Beiträge und Aktive.' },
     { id: 'spenden', roles: ['apo', 'opposition'], icon: '💶', name: 'Spenden sammeln', desc: 'Die Parteikasse für den nächsten Wahlkampf füllen.' },
     { id: 'parteitag', roles: ['apo', 'opposition'], icon: '🎪', name: 'Sonderparteitag mit Neuanfang', desc: 'Neue Parteispitze wählen – frischer Wind, aber auch Risiko.' },
+    { id: 'interview', roles: ['kanzler', 'junior', 'opposition', 'apo'], icon: '🎤', name: 'Exklusiv-Interview', target: 'outlet', desc: 'Ein großes Interview – jeder Medientyp wirkt anders und merkt sich, wer mit ihm spricht.' },
     { id: 'lobbytermin', roles: ['kanzler', 'junior', 'opposition', 'apo'], icon: '🤝', name: 'Lobbytermin', target: 'lobby', desc: 'Gespräch mit einem Verband: bessere Beziehungen, Unterstützung und Spenden – steht aber im Lobbyregister.' },
     { id: 'lobbyrecherche', roles: ['opposition'], icon: '🔍', name: 'Lobbyregister-Recherche', desc: 'Kleine Anfragen zu Lobbykontakten der Regierung – vielleicht findet ihr etwas.' },
     { id: 'buendnis', roles: ['apo'], icon: '🤲', name: 'Bündnisse mit Verbänden', target: 'topic', desc: 'Gewerkschaften, Umweltverbände, Mittelstand – je nach Thema.' },
@@ -2683,6 +2722,30 @@
           text = 'Neue Parteispitze: ' + P.leader.name + '. Aufbruchstimmung!';
         } else { P.unity = clamp(P.unity - 10, 0, 100); text = 'Kampfkandidatur und Streit auf offener Bühne – der Parteitag geht schief.'; }
         news(g, '🎪 Parteitag: ' + text, 'big');
+        break;
+      }
+      case 'interview': {
+        const m = MEDIA.find(x => x.id === target);
+        if (!m) return { ok: false, text: 'Bitte ein Medium wählen.' };
+        const M = media(g);
+        const k = 1 + (M[m.id] - 50) / 100;
+        cat('medien');
+        if (m.id === 'boulevard') {
+          if (rand(g) < 0.25) { actNat(g.party, -0.05); addCred(g, -1, 'Zugespitztes Boulevard-Interview'); text = 'Die Schlagzeile verdreht eure Worte – „' + P.leader.name + ' rechnet ab!“'; }
+          else { actNat(g.party, 0.16 * f * k); text = 'Die große Schlagzeile: Millionen lesen eure Botschaft.'; }
+        } else if (m.id === 'leit') {
+          actNat(g.party, 0.07 * f * k); addCred(g, 2, 'Überzeugendes Interview in den Leitmedien');
+          const tp = A.TOPIC_IDS.slice().sort((a, b) => g.salience[b] - g.salience[a])[0];
+          if (g.competence) g.competence[tp] = clamp(g.competence[tp] + 1, 5, 95);
+          text = 'Ein langes, kluges Interview – zitiert in allen Presseschauen.';
+        } else if (m.id === 'oer') {
+          actNat(g.party, 0.09 * f * k); P.leader.like = clamp(P.leader.like + 0.08 * f, -5, 5);
+          text = 'Zur besten Sendezeit: ' + P.leader.name + ' wirkt souverän.';
+        } else {
+          if (rand(g) < 0.3) { cat('viral'); actNat(g.party, 0.22 * f * k); text = 'Der Podcast-Ausschnitt geht viral!'; }
+          else { actNat(g.party, 0.08 * f * k); text = 'Gutes Gespräch, ordentliche Reichweite bei Jüngeren.'; }
+        }
+        addMedia(g, m.id, 10 * f);
         break;
       }
       case 'lobbytermin': {
@@ -2972,7 +3035,8 @@
     Object.keys(t.party.lv).forEach(l => { const u = t.party.lv[l]; if (u > 50 && g.reg[l]) g.reg[l][g.party] -= (u - 50) / 80; });
     t.intl += (50 - t.intl) * 0.05;
     // Themen kehren langsam zur Normalität zurück
-    A.TOPIC_IDS.forEach(tp => { g.salience[tp] += (D.SALIENCE0[tp] - g.salience[tp]) * 0.1; });
+    const sb = A.salienceBase(cal(t).year);
+    A.TOPIC_IDS.forEach(tp => { g.salience[tp] += (sb[tp] - g.salience[tp]) * 0.1; });
     A.rollPollErr(g);
     A.takePoll(g);
     A.updateMinorVisibility(g, true).forEach(x => news(g, '📊 ' + x, 'info'));
@@ -2999,6 +3063,8 @@
     if (t.ua) { t.ua.left -= 1; if (t.ua.left <= 0) { news(g, '🔎 Der Untersuchungsausschuss legt seinen Abschlussbericht vor – schwere Vorwürfe gegen die Regierung.', 'big'); t.gov.forEach(p => addNat(g, p, -0.2)); t.ua = null; } }
     econQuarter(g);
     if (c.qn === 4) closeYear(g);
+    const h = t.history;
+    pressReview(g, h.length >= 2 ? clamp(h[h.length - 1].nat[g.party] - h[h.length - 2].nat[g.party], -2, 2) : 0);
     updatePolls(g);
     updateSq(g);
     cat('kabinett');
@@ -3234,7 +3300,7 @@
     QUARTERS, ACTIONS, LAW_STEPS, WOBBLE, brAligned, landGovernment, dueVotes, GEWISSEN, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
     lawOptions, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, cal,
     lawName, lawTitle, leanOf, quorum, eventChoices, fillText, eventById, ministryById, taxById, areaById, nextCampaign, summary,
-    actionCash, govSeats, isGov, legacy, LB, careerSnapshot, chooseLeader, leaderAge, currentLeader, MAX_AGE, sqForces, absCal, FX_NAMES, ministerFor, eventMinister, ownMinistries, endTerm, defaultVote, partyVote, mandateVote
+    MEDIA, media, actionCash, govSeats, isGov, legacy, LB, careerSnapshot, chooseLeader, leaderAge, currentLeader, MAX_AGE, sqForces, absCal, FX_NAMES, ministerFor, eventMinister, ownMinistries, endTerm, defaultVote, partyVote, mandateVote
   };
   if (node) module.exports = TERM; else root.BTW_TERM = TERM;
 })(this);

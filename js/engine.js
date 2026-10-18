@@ -402,6 +402,22 @@
   }
   applyYear(YEAR0);
 
+  // Megatrends: Über Jahrzehnte verschiebt sich, was die Menschen bewegt. Grundlage sind Langfristtrends
+  // (Alterung: Pflege und Rente, Digitalisierung und KI, Klimawandel, neue Sicherheitslage); die Raten je Jahr
+  // sind geschätzt. Im ersten Spiel (2029) gelten die heutigen Werte, danach verschiebt sich das Gewicht.
+  const MEGATRENDS = { gesundheit: 0.015, soziales: 0.01, digitales: 0.025, klima: 0.01, verteidigung: 0.012, wohnen: 0.005 };
+  const baseCache = {};
+  function salienceBase(year) {
+    const n = Math.max(0, (year || YEAR0) - YEAR0);
+    if (baseCache[n]) return baseCache[n];
+    const raw = {};
+    let sum = 0;
+    TOPIC_IDS.forEach(t => { raw[t] = D.SALIENCE0[t] * Math.min(1.6, 1 + (MEGATRENDS[t] || 0) * n); sum += raw[t]; });
+    TOPIC_IDS.forEach(t => { raw[t] /= sum; });
+    baseCache[n] = raw;
+    return raw;
+  }
+
   // carry (optional): Übernahme aus der vorigen Legislaturperiode – Startwerte je Land (base),
   // Namens-Saat, Laufbahn, Brandmauer-Stand und das Wahljahr.
   function newGame(partyId, candidate, seed, program, carry) {
@@ -459,7 +475,7 @@
       if (carry.nameSeed) g.nameSeed = carry.nameSeed;
       if (carry.career) g.career = JSON.parse(JSON.stringify(carry.career));
       if (carry.firewall) g.firewall = Object.assign({}, carry.firewall);
-      if (carry.year) g.year = carry.year;
+      if (carry.year) { g.year = carry.year; g.salience = Object.assign({}, salienceBase(g.year)); }
       if (carry.shown) g.shown = Object.assign({}, carry.shown);
       if (carry.cand) g.cand = Object.assign({}, carry.cand);
       if (carry.money !== undefined) g.money = carry.money;
@@ -2985,7 +3001,7 @@
     g.otherSwing = (g.otherSwing || 0) * 0.92;
     if (g.sat) Object.keys(g.sat).forEach(c => Object.keys(g.sat[c]).forEach(k => { g.sat[c][k] *= BONUS_DECAY; })); // langsame Rückkehr zum Normalwert
     TOPIC_IDS.forEach(t => {
-      g.salience[t] += SALIENCE_DRIFT * (D.SALIENCE0[t] - g.salience[t]);
+      g.salience[t] += SALIENCE_DRIFT * (salienceBase(g.year)[t] - g.salience[t]);
     });
     // Verbrauchte Aktionen erholen sich nur langsam.
     Object.keys(g.usage).forEach(k => { g.usage[k] *= 0.6; });
@@ -3518,7 +3534,7 @@
 
   const engine = {
     MAX_WEEKS, AP_PER_WEEK, TEAM_PER_WEEK, TEAM_LATE, TEAM_LATE_WEEK, CANDIDATE_ACTIONS, isTeamAction, DUEL_WEEK, THRESHOLD, MAJORITY,
-    ACTIONS, EVENTS, DUEL_STYLES, MILESTONES,
+    ACTIONS, EVENTS, DUEL_STYLES, MILESTONES, MEGATRENDS, salienceBase,
     party, stateById, topicById, eventById, eventText,
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
@@ -3531,7 +3547,7 @@
     serialize, deserialize, applyYear, YEAR0, lobbyPruefstein, lobbyAnswer, LB
   };
   // Interne Bausteine für die Legislaturperiode (js/term.js).
-  engine._api = { rand, between, pick, stateShares, nationalShares, takePoll, rollPollErr, updateMinorVisibility, changeSalience,
+  engine._api = { salienceBase, rand, between, pick, stateShares, nationalShares, takePoll, rollPollErr, updateMinorVisibility, changeSalience,
     fwLevel, candStart, sizeFactor, BASE_SHARE, PARTY_IDS, ALL_IDS, TOPIC_IDS, MINOR_IDS, normalize, positionAppeal, newPerson,
     pollShares, pollStateShares, TD, GEN, W, competenceOf };
 

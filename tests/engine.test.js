@@ -1370,3 +1370,22 @@ test('Parteileben: Machtkampf kann Partei und Kanzleramt übergeben, Parteitag w
   T.resolvePending(g, 0);
   assert.ok(t.party.wings[1] > w[1] && t.party.wings[0] < w[0]);
 });
+
+test('Megatrends und Medien: Themengewichte verschieben sich über Jahrzehnte, Interviews prägen die Presse', () => {
+  const b0 = E.salienceBase(2029);
+  const b1 = E.salienceBase(2045);
+  assert.ok(Math.abs(Object.values(b1).reduce((s, x) => s + x, 0) - 1) < 1e-9);
+  assert.ok(Math.abs(b0.wirtschaft - 0.14) < 1e-9, 'Im ersten Spiel gelten die heutigen Gewichte');
+  assert.ok(b1.digitales > b0.digitales && b1.gesundheit > b0.gesundheit && b1.wirtschaft < b0.wirtschaft);
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  T.autoNames(g);
+  const t = g.term;
+  while (t.pending.length) T.resolvePending(g, 0);
+  const before = T.media(g).leit;
+  const res = T.performAction(g, 'interview', 'leit');
+  assert.ok(res.ok, res.text);
+  assert.ok(T.media(g).leit > before);
+  T.endQuarter(g);
+  assert.ok(t.news.some(n => /Presseschau/.test(n.text)));
+});
