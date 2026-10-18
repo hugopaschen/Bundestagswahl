@@ -5,6 +5,7 @@
   const T = window.BTW_TERM;
   const TD = window.BTW_TERMDATA;
   const U = window.BTW_UI;
+  const TS = window.BTW_TERMSCENES;
   if (!T || !U) return;
 
   const $ = id => document.getElementById(id);
@@ -153,14 +154,20 @@
   function onAction(id, btn) {
     const t = term();
     const a = T.ACTIONS.find(x => x.id === id);
-    const run = target => {
-      const res = T.performAction(g, id, target);
-      U.closeModal();
+    const exec = (target, scene, card) => {
+      const res = T.performAction(g, id, target, scene);
       save();
       render();
       feedback(res.text);
+      if (card && res.ok) {
+        U.openModal(T.quarterLabel(t) + ' · ' + a.icon + ' ' + a.name, card.headline || 'Ergebnis', '<table class="sc-card">' + (card.rows || []).map(r => '<tr><td>' + esc(r[0]) + '</td><td><b>' + esc(r[1]) + '</b></td></tr>').join('') + '</table><p>' + esc(res.text) + '</p>',
+          [{ label: 'Weiter', primary: true, onClick: checkPending }]);
+        return;
+      }
+      U.closeModal();
       checkPending();
     };
+    const run = target => (TS && TS.has(id) && T.canAct(g, id).ok ? playScene(a, target, exec) : exec(target));
     if (a.confirm && !U.confirmOnButton(btn, 'Wirklich? Nochmal tippen')) return;
     if (!a.target) { run(null); return; }
     if (a.target === 'spec') { tab = 'gesetze'; render(); return; }
@@ -200,6 +207,33 @@
     const go = a.quiz ? (v => quiz(a, v, run)) : run;
     U.openModal(T.quarterLabel(t), a.icon + ' ' + a.name, '<p>' + esc(a.desc) + '</p>', opts.map(o => ({ label: o.label, hint: o.hint, onClick: () => go(o.v) }))
       .concat([{ label: 'Abbrechen', onClick: U.closeModal }]));
+  }
+
+  // Szene einer Legislatur-Aktion abspielen (termscenes.js): Entscheidungen, Anzeige, Ergebniskarte.
+  function playScene(a, target, exec) {
+    const sc = TS.build(a.id, { g, t: term(), E, D, T, topic: typeof target === 'string' && E.topicById(target) ? target : null });
+    if (!sc) { exec(target); return; }
+    const S = { meter: sc.meter0 || 50, q: 0, fx: {} };
+    const head = T.quarterLabel(term()) + ' · ' + a.icon + ' ' + a.name;
+    const meterHtml = () => (sc.meter ? '<div class="sc-meter"><span>' + esc(sc.meter) + '</span><div class="sc-bar"><i style="width:' + Math.max(0, Math.min(100, S.meter)) + '%"></i></div><b>' + Math.round(S.meter) + '</b></div>' : '');
+    let i = -1;
+    const finish = () => exec(target, { q: Math.max(-3, Math.min(3, Math.round(S.q))), fx: S.fx }, sc.result(S));
+    const next = () => {
+      i += 1;
+      if (i >= sc.steps.length) { finish(); return; }
+      const st = sc.steps[i];
+      U.openModal(head + ' (' + (i + 1) + '/' + sc.steps.length + ')', st.title, meterHtml() + '<p class="scen-text">' + esc(st.text) + '</p>', st.options.map(o => ({ label: o.label, hint: o.hint || '', onClick: () => {
+        const r = o.roll ? (Math.random() < o.roll.p ? o.roll.win : o.roll.lose) : o;
+        const before = S.meter;
+        S.meter = Math.max(0, Math.min(100, S.meter + (r.m || 0)));
+        S.q += r.q || 0;
+        Object.keys(r.fx || {}).forEach(k => { S.fx[k] = (S.fx[k] || 0) + r.fx[k]; });
+        const dm = Math.round(S.meter - before);
+        U.openModal(head, (r.q > 0 ? '👍 ' : r.q < 0 ? '👎 ' : '😐 ') + st.title, meterHtml() + (dm ? '<p class="sc-delta ' + (dm > 0 ? 'pos' : 'neg') + '">' + (dm > 0 ? '▲ +' : '▼ ') + dm + '</p>' : '') + '<p>' + esc(r.reply || '') + '</p>',
+          [{ label: i + 1 < sc.steps.length ? 'Weiter →' : 'Ergebnis →', primary: true, onClick: next }]);
+      } })));
+    };
+    U.openModal(head, a.name, '<p class="scen-text">' + esc(sc.intro) + '</p>', [{ label: 'Los geht’s', primary: true, onClick: next }, { label: 'Ohne Szene erledigen', hint: 'Normale Wirkung', onClick: () => exec(target) }, { label: 'Abbrechen', onClick: U.closeModal }]);
   }
 
   // Bürgerdialog und Talkshow: zwei Fachfragen zum Thema, jede richtige Antwort macht den Auftritt stärker.

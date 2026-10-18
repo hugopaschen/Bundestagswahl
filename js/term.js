@@ -1860,6 +1860,7 @@
     // Opposition
     { id: 'antrag', roles: ['opposition'], icon: '📄', name: 'Antrag einbringen', target: 'topic', desc: 'Eigene Alternative zur Abstimmung stellen.' },
     { id: 'anfrage', roles: ['opposition'], icon: '❓', name: 'Große Anfrage', desc: 'Die Regierung muss antworten – vielleicht kommt etwas ans Licht.' },
+    { id: 'befragung', roles: ['opposition'], icon: '🎤', name: 'Regierungsbefragung', target: 'topic', desc: 'Mittwochs im Plenum: Fragen an die Kanzlerin oder den Kanzler – und hartnäckig nachhaken.' },
     { id: 'aktuelle', roles: ['opposition'], icon: '⏱️', name: 'Aktuelle Stunde', target: 'topic', desc: 'Ein Thema kurzfristig auf die Tagesordnung setzen.' },
     { id: 'ua', roles: ['opposition'], icon: '🔎', name: 'Untersuchungsausschuss', target: 'topic', desc: 'Braucht ein Viertel der Abgeordneten (Art. 44 GG). Setzt die Regierung ein Jahr unter Druck.', quorum: true },
     { id: 'klage', roles: ['opposition'], icon: '⚖️', name: 'Normenkontrollklage', target: 'klage', desc: 'Ein Gesetz oder den Haushalt in Karlsruhe prüfen lassen (Viertel der Abgeordneten).', quorum: true },
@@ -1882,7 +1883,7 @@
     { id: 'lvpflege', roles: ['kanzler', 'junior', 'opposition', 'apo'], icon: '🧩', name: 'Landesverband befrieden', target: 'land', desc: 'Besuch, Gespräche, Posten: Ärger in einem Landesverband dämpfen.' },
     { id: 'basis', roles: ['kanzler', 'junior', 'opposition', 'apo'], icon: '🏠', name: 'Basisarbeit', desc: 'Regionalkonferenzen und Mitgliederabende: mehr Geschlossenheit.' }
   ];
-  const VIRAL = ['social', 'protest', 'talkshow', 'buerger', 'antrag', 'aktuelle', 'regerkl'];
+  const VIRAL = ['social', 'protest', 'talkshow', 'buerger', 'antrag', 'aktuelle', 'regerkl', 'befragung'];
   const ACTION_CASH = { ltwk: 0.4, protest: 0.15, social: 0.15, mitglieder: 0.2, parteitag: 0.5, buerger: 0.05, talkshow: 0 };
 
   function actionCash(g, id) { return cashCost(g, ACTION_CASH[id] || 0); }
@@ -1906,13 +1907,14 @@
     return { ok: true };
   }
 
-  function performAction(g, id, target) {
+  // scene = Ergebnis einer gespielten Szene { q: −3 … 3, fx: { mood, like, unity, cred, intl, gov } } – stärkt oder schwächt die Aktion.
+  function performAction(g, id, target, scene) {
     const t = g.term;
     cat('aktion');
     const chk = canAct(g, id);
     if (!chk.ok) return chk;
     const a = ACTIONS.find(x => x.id === id);
-    const f = useFactor(t, id);
+    const f = useFactor(t, id) * (scene ? clamp(1 + 0.15 * (scene.q || 0), 0.55, 1.45) : 1);
     let text = '';
     const P = t.party;
     // Aktionen wirken über vier Jahre gedämpft – sonst summiert sich jede Kleinigkeit zu Prozentpunkten.
@@ -2056,7 +2058,15 @@
         text = 'Aktuelle Stunde zum Thema ' + E.topicById(target).name + '.';
         break;
       }
-      case 'ua': t.ua = { topic: target || 'demokratie', left: 4, q0: t.q }; text = 'Der Untersuchungsausschuss nimmt seine Arbeit auf.'; news(g, '🔎 Untersuchungsausschuss eingesetzt (' + E.topicById(t.ua.topic).name + ').', 'big'); break;
+      case 'befragung': {
+        if (!target || !E.topicById(target)) return { ok: false, text: 'Bitte ein Thema wählen.' };
+        actNat(g.party, 0.07 * f * (comp(target) / 50));
+        P.leader.like = clamp(P.leader.like + 0.04 * f, -5, 5);
+        addNat(g, t.chanc, -0.03 * f * ACT_K);
+        text = 'Regierungsbefragung zum Thema ' + E.topicById(target).name + '.';
+        break;
+      }
+      case 'ua': t.ua = { topic: target || 'demokratie', left: 4, q0: t.q, f }; text = 'Der Untersuchungsausschuss nimmt seine Arbeit auf.'; news(g, '🔎 Untersuchungsausschuss eingesetzt (' + E.topicById(t.ua.topic).name + ').', 'big'); break;
       case 'klage': {
         if (target === 'budget') {
           const last = t.budget.history[t.budget.history.length - 1];
@@ -2183,9 +2193,18 @@
       case 'basis': P.unity = clamp(P.unity + 5 * f, 0, 100); P.members = Math.round(P.members * 1.003); text = 'Regionalkonferenzen stärken den Zusammenhalt.'; break;
       default: return { ok: false, text: 'Unbekannte Aktion.' };
     }
+    if (scene && scene.fx) {
+      const x = scene.fx;
+      if (x.mood && t.gov.length > 1) t.mood = clamp(t.mood + x.mood, 0, 100);
+      if (x.like) P.leader.like = clamp(P.leader.like + x.like, -5, 5);
+      if (x.unity) P.unity = clamp(P.unity + x.unity, 0, 100);
+      if (x.intl && isGov(t.role)) t.intl = clamp(t.intl + x.intl, 0, 100);
+      if (x.cred) addCred(g, x.cred, x.cred > 0 ? 'Überzeugender Auftritt' : 'Fragwürdiger Auftritt');
+      if (x.gov && !isGov(t.role)) t.gov.forEach(p => addNat(g, p, -0.12 * x.gov * ACT_K));
+    }
     // Virale Momente: selten, aber groß (Vorbild Linke 2025) – Auftritte mit sicheren Antworten haben bessere Chancen.
     if (VIRAL.indexOf(id) !== -1) {
-      const good = target && typeof target === 'object' && target.right >= 2;
+      const good = (target && typeof target === 'object' && target.right >= 2) || (scene && scene.q >= 2);
       const chance = (0.012 + (t.role === 'opposition' || t.role === 'apo' ? 0.01 : 0) + (good ? 0.02 : 0)) * f;
       if (rand(g) < chance) {
         const amount = between(g, 1.5, 3.5);
@@ -2323,7 +2342,7 @@
     t.gov.forEach(p => { addNat(g, p, ((p === t.chanc ? -0.35 : -0.42) * (1 - 0.125 * delivered) - idle) + econ * (p === t.chanc ? 1 : 0.5)); });
     if (t.gov.length > 1 && t.mood < 35) t.gov.forEach(p => addNat(g, p, -0.1));
     if (t.budget.status === 'vorlaeufig') t.gov.forEach(p => addNat(g, p, -0.12));
-    if (t.ua) { t.gov.forEach(p => addNat(g, p, -0.1)); addNat(g, g.party, 0.04); }
+    if (t.ua) { t.gov.forEach(p => addNat(g, p, -0.1 * (t.ua.f || 1))); addNat(g, g.party, 0.04 * (t.ua.f || 1)); }
     // Eigene Spitze und Geschlossenheit
     cat('partei');
     addNat(g, g.party, 0.025 * t.party.leader.like + (t.party.unity - 55) / 400);

@@ -1057,3 +1057,26 @@ test('Abstimmungskrimi: Wackelkandidaten umstimmen, Länder im Bundesrat gewinne
     assert.ok(T.bundesratVote(g, law).lands[land]);
   }
 });
+
+test('Szenen in der Legislatur: jede Szene baut sich auf, ihr Ergebnis wirkt auf die Aktion', () => {
+  const TS = require('../js/termscenes.js');
+  const D = require('../js/data.js');
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  const t = g.term;
+  T.autoNames(g);
+  while (t.pending.length) T.resolvePending(g, 0);
+  ['regerkl', 'presse', 'koaausschuss', 'reise', 'ua', 'antrag', 'aktuelle', 'befragung', 'protest'].forEach(id => {
+    const sc = TS.build(id, { g, t, E, D, T, topic: 'wirtschaft' });
+    assert.ok(sc && sc.intro && sc.steps.length >= 2, id);
+    sc.steps.forEach(st => { assert.ok(st.options.length >= 2, id); st.options.forEach(o => assert.ok(o.label && (o.roll || o.reply !== undefined), id + ': ' + o.label)); });
+    const card = sc.result({ meter: 60, q: 2, fx: {} });
+    assert.ok(card.headline && card.rows.length, id);
+  });
+  // Starke Szene wirkt stärker als schwache
+  const base = JSON.stringify(g);
+  const run = q => { const h = JSON.parse(base); const s0 = h.nat.union; T.performAction(h, 'regerkl', 'wirtschaft', { q, fx: { mood: q } }); return { d: h.nat.union - s0, mood: h.term.mood }; };
+  const good = run(3); const bad = run(-3);
+  assert.ok(good.d > bad.d);
+  assert.ok(good.mood > bad.mood);
+});
