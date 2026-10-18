@@ -1309,3 +1309,25 @@ test('Gewissensentscheidung und Optionen der Opposition (Änderungsantrag, Zuges
     assert.ok(['ja', 'nein', 'enthaltung'].includes(to.voteChoice[item.law]));
   }
 });
+
+test('Gescheiterter Haushalt: neue Anläufe mit Verhandlungen statt immer gleichem Ergebnis', () => {
+  const g = electedGame('linke', 4, 0);
+  T.startTerm(g);
+  const t = g.term;
+  while (t.pending.length) T.resolvePending(g, 1);
+  // Minderheitsregierung ohne Tolerierung: Der Haushalt scheitert zunächst
+  t.gov = [t.chanc]; t.tolerated = false;
+  const results = [];
+  let againSeen = false;
+  for (let i = 0; i < 8 && !t.over; i++) {
+    if (!t.budget.draft) t.budget.draft = { year: 2031, plan: Object.assign({}, t.budget.plan), notlage: false, done: true };
+    t.budget.draft.done = true;
+    if (i > 0 && t.budget.status === 'ok' && t.budget.vote && t.budget.vote.pass) break;
+    t.budget.status = 'vorlaeufig';
+    while (t.pending.length) { const it = t.pending[0]; if (it.type === 'vote' && it.budget && it.again) againSeen = true; T.resolvePending(g, it.type === 'vote' ? 1 : 0); }
+    T.endQuarter(g);
+    if (t.budget.vote) results.push(t.budget.vote.yes + ':' + t.budget.vote.no + (t.budget.vote.pass ? '✓' : '✗'));
+  }
+  assert.ok(againSeen, 'Bei jedem Anlauf wird neu abgestimmt');
+  assert.ok(t.over || new Set(results).size > 1 || results.some(r => r.endsWith('✓')), results.join(' '));
+});

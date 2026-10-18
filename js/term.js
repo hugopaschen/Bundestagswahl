@@ -128,6 +128,7 @@
       // Krisen: Der Amtsbonus („rally round the flag“) verblasst, Versagen bleibt hängen (Corona-Hoch der Union 2020 war 2021 weg).
       let tier = TIER || CAT_TIER[CAT] || 'norm';
       if (CAT === 'krise' && d > 0 && tier === 'slow') tier = 'norm';
+      if (CAT === 'krise' && d > 0 && tier === 'norm' && g.term && p === g.term.chanc) tier = 'fast'; // der Kanzlerbonus in der Krise verfliegt am schnellsten
       const b = bucket(g, tier, p);
       b[p] = (b[p] || 0) + d;
     } else if (g.minor && g.minor[p]) g.minor[p].nat += d;
@@ -793,10 +794,14 @@
     let yes = 0;
     let no = 0;
     const detail = {};
+    const absts = {};
+    const fails = t.budget.fails || 0;
+    const deals = [];
     CONTEST.forEach(p => {
       const s = t.seats[p] || 0;
       if (!s) return;
       let y = 0;
+      let a = 0;
       if (t.gov.indexOf(p) !== -1) {
         // Unzufriedene Partner stimmen bei schlechtem Klima nicht geschlossen zu.
         const pr = TD.AREA_PREF[p] || {};
@@ -805,7 +810,12 @@
         const unhappy = p !== g.party && t.mood < 25 && d < -1;
         y = unhappy ? Math.round(s * 0.4) : Math.round(s * (p === g.party ? 0.99 : 0.97));
       } else if (p === g.party) {
-        y = (t.voteChoice.budget || 'nein') === 'ja' ? s : 0;
+        const c = t.voteChoice.budget || 'nein';
+        y = c === 'ja' ? s : 0;
+        a = c === 'enthaltung' ? s : 0;
+      } else if (fails > 0 && p !== 'afd' && Math.abs(leanOf(g, p, 'finanzen') - leanOf(g, t.chanc, 'finanzen')) <= 1 && rand(g) < Math.min(0.8, 0.3 * fails + (t.budget.talks ? 0.3 : 0))) {
+        // Nach einem gescheiterten Haushalt verhandelt die Regierung: Gemäßigte Opposition enthält sich gegen Zugeständnisse.
+        a = s; t.budget.oneoff += 2; deals.push(p);
       } else if (t.tolerated && p === 'afd' && t.gov.every(q => E.fwLevel(g, q) >= 2)) {
         y = s; // Tolerierung
       } else if (t.tolerated && rand(g) < 0.5 && Math.abs(leanOf(g, p, 'finanzen') - leanOf(g, t.chanc, 'finanzen')) <= 1 && p !== 'afd') {
@@ -813,20 +823,25 @@
         t.budget.oneoff += 3;
       }
       detail[p] = y;
+      absts[p] = a;
       yes += y;
-      no += s - y;
+      no += s - y - a;
     });
+    if (deals.length) news(g, 'Haushaltsverhandlungen: ' + deals.map(sname).join(' und ') + (deals.length > 1 ? ' enthalten' : ' enthält') + ' sich – gegen Zugeständnisse im Etat.', 'info');
+    t.budget.talks = false;
     const pass = yes > no;
     t.budget.vote = { year: draft.year, yes, no, pass, detail, q: t.q };
     {
       const det = {};
-      CONTEST.forEach(p => { const s = t.seats[p] || 0; det[p] = { yes: detail[p] || 0, no: s - (detail[p] || 0), abst: 0 }; });
+      CONTEST.forEach(p => { const s = t.seats[p] || 0; det[p] = { yes: detail[p] || 0, no: s - (detail[p] || 0) - (absts[p] || 0), abst: absts[p] || 0 }; });
       const my = (t.seats[g.party] || 0) > 0 ? (isGov(t.role) ? 'ja' : t.voteChoice.budget || 'nein') : null;
-      const rec = { kind: 'bt', title: 'Haushaltsgesetz ' + draft.year, detail: det, yes, no, abst: 0, pass, method: Math.abs(yes - no) <= 4 ? 'hammel' : 'hand', decisive: false, names: [], my, q: t.q };
+      const abst = Object.keys(absts).reduce((x, p) => x + absts[p], 0);
+      const rec = { kind: 'bt', title: 'Haushaltsgesetz ' + draft.year + (fails ? ' (' + (fails + 1) + '. Anlauf)' : ''), detail: det, yes, no, abst, pass, method: Math.abs(yes - no) <= 4 ? 'hammel' : 'hand', decisive: false, names: [], my, q: t.q };
       archiveVote(g, rec, null);
       (t.reel = t.reel || []).push(rec);
     }
     if (pass) {
+      t.budget.fails = 0;
       budgetGroupEffects(g, t.budget.plan, draft.plan);
       t.budget.next = { plan: draft.plan, notlage: draft.notlage };
       t.budget.draft = null;
@@ -841,6 +856,14 @@
     } else {
       const again = t.budget.status === 'vorlaeufig';
       t.budget.status = 'vorlaeufig';
+      t.budget.fails = fails + 1;
+      // Regiert ihr: Wie geht es weiter? Regiert die KI: Nach dem zweiten Scheitern droht die Vertrauensfrage (Vorbild Ampel 2024).
+      if (isGov(t.role) && (t.role === 'kanzler' || budgetDrafter(t) === g.party)) t.pending.push({ type: 'haushaltskrise', fails: t.budget.fails });
+      else if (t.budget.fails >= 2 && rand(g) < 0.4) {
+        news(g, 'Nach dem erneut gescheiterten Haushalt stellt ' + (t.chancellor ? t.chancellor.name : 'die Regierung') + ' die Vertrauensfrage – und verliert sie absichtlich. Neuwahlen!', 'big');
+        endTerm(g, 'Neuwahl nach gescheitertem Haushalt');
+        return;
+      }
       news(g, 'Der Haushalt ' + draft.year + ' fällt im Bundestag durch (' + yes + ' Ja, ' + no + ' Nein). Vorläufige Haushaltsführung!', 'bad');
       t.gov.forEach(p => addNat(g, p, again ? -0.1 : -0.3));
       t.mood = clamp(t.mood - (again ? 3 : 8), 0, 100);
@@ -1141,7 +1164,7 @@
     if (method === 'namentlich' && dissent > 0) {
       const own = (v.detail[g.party] && isGov(t.role)) ? v.detail[g.party].no : 0;
       if (law.aiNamentlich && own > 0) { t.party.unity = clamp(t.party.unity - 3, 0, 100); news(g, 'Namentliche Abstimmung auf Antrag der Opposition: ' + own + ' Abgeordnete eurer Fraktion stimmen gegen „' + lawName(law) + '“ – jetzt stehen die Namen im Protokoll.', 'warn'); }
-      if (law.namentlich && !isGov(t.role)) { t.mood = clamp(t.mood - 3, 0, 100); addNat(g, g.party, 0.03); news(g, 'Auf euren Antrag namentliche Abstimmung: ' + dissent + ' Abgeordnete der Koalition stimmen gegen „' + lawName(law) + '“. Die Regierung ist blamiert.', 'info'); }
+      if (law.namentlich && !isGov(t.role)) { t.mood = clamp(t.mood - 3, 0, 100); addNat(g, g.party, 0.03 * ACT_K); news(g, 'Auf euren Antrag namentliche Abstimmung: ' + dissent + ' Abgeordnete der Koalition stimmen gegen „' + lawName(law) + '“. Die Regierung ist blamiert.', 'info'); }
     }
     if (decisive) news(g, '⚖️ Zünglein an der Waage: Eure Fraktion entscheidet über „' + lawName(law) + '“.', 'big');
     const rec = { kind: 'bt', title: lawTitle(law), law: law.id, detail: v.detail, yes: v.yes, no: v.no, abst: v.abst, pass: v.pass, method, decisive, names, afd: v.afdDecisive, my: myVote(g, law, v), q: t.q };
@@ -1767,7 +1790,7 @@
     const item = t.pending[0];
     if (!item) return { ok: false };
     let text = '';
-    cat({ scandal: 'skandal', vote: 'abstimmung', cabinet: 'kabinett', veto: 'kabinett', disloyal: 'kabinett', sq: 'statusquo', lobby: 'lobby', door: 'lobby', lobbyaffair: 'skandal', landkoa: 'wahlen', ltwcamp: 'wahlen', debatte: 'parlament', namentlich: 'parlament', gewissen: 'abstimmung', memory: 'glaubw', eckwerte: 'haushalt', kbefragung: 'aktion', bereinigung: 'haushalt', brstell: 'parlament', anhoerung: 'parlament', whip: 'abstimmung', brwhip: 'parlament' }[item.type] || 'ereignis');
+    cat({ scandal: 'skandal', vote: 'abstimmung', cabinet: 'kabinett', veto: 'kabinett', disloyal: 'kabinett', sq: 'statusquo', lobby: 'lobby', door: 'lobby', lobbyaffair: 'skandal', landkoa: 'wahlen', ltwcamp: 'wahlen', debatte: 'parlament', namentlich: 'parlament', haushaltskrise: 'haushalt', gewissen: 'abstimmung', memory: 'glaubw', eckwerte: 'haushalt', kbefragung: 'aktion', bereinigung: 'haushalt', brstell: 'parlament', anhoerung: 'parlament', whip: 'abstimmung', brwhip: 'parlament' }[item.type] || 'ereignis');
     if (item.type === 'event') {
       const ev = eventById(item.id);
       const c = eventChoices(g, ev)[choice];
@@ -1841,6 +1864,18 @@
       if (entry) { entry.gov = L.gov.slice(); entry.inGov = L.gov.indexOf(g.party) !== -1; }
       text += ' Bundesrat: Länder nur mit Bundesregierungsparteien jetzt ' + brAligned(t) + ' von 69 Stimmen.';
       news(g, '🤝 Regierungsbildung in ' + name + ': ' + L.gov.map(sname).join('-') + '.', 'info');
+    } else if (item.type === 'haushaltskrise') {
+      if (choice === 0) { t.budget.talks = true; t.budget.oneoff += 2; text = 'Ihr verhandelt mit der Opposition über den Etat. Beim nächsten Anlauf stehen die Chancen besser – es kostet Zugeständnisse.'; }
+      else if (choice === 1) {
+        const draft = t.budget.draft;
+        if (draft && playerDraftsBudget(g)) { draft.done = false; text = 'Zurück ans Reißbrett: Überarbeitet den Entwurf im Haushalt-Tab.'; }
+        else if (draft) { t.gov.forEach(p => { const pr = TD.AREA_PREF[p] || {}; Object.keys(pr).forEach(a => { if (pr[a] > 0 && a in draft.plan) draft.plan[a] = clamp(draft.plan[a] + 5, -10, 10); }); }); t.mood = clamp(t.mood + 4, 0, 100); text = 'Das Finanzministerium überarbeitet den Entwurf – die Partner bekommen mehr Geld für ihre Schwerpunkte.'; }
+      } else if (choice === 2 && t.role === 'kanzler') {
+        news(g, 'Vertrauensfrage nach dem gescheiterten Haushalt: Der Weg zu Neuwahlen ist frei.', 'big');
+        endTerm(g, 'Neuwahl nach gescheitertem Haushalt (Vertrauensfrage)');
+        t.pending.shift();
+        return { ok: true, text: 'Ihr stellt die Vertrauensfrage. Es gibt Neuwahlen.' };
+      } else text = 'Ihr regiert mit vorläufiger Haushaltsführung weiter und versucht es im nächsten Quartal erneut.';
     } else if (item.type === 'debatte') {
       const law = t.laws.find(l => l.id === item.law);
       if (!law || law.stage !== 'bundestag') { t.pending.shift(); return { ok: true, text: '' }; }
@@ -2047,6 +2082,15 @@
     } else if (item.type === 'vote') {
       const law0 = item.budget ? null : t.laws.find(l => l.id === item.law);
       let v = ['ja', 'nein', 'enthaltung'][choice] || 'nein';
+      if (item.budget && choice === 3 && t.budget.draft) {
+        // Haushaltsdeal: Zustimmung gegen mehr Geld für euren wichtigsten Bereich.
+        const pr = TD.AREA_PREF[g.party] || {};
+        const fav = Object.keys(pr).filter(a => pr[a] > 0 && a in t.budget.draft.plan)[0];
+        if (fav) t.budget.draft.plan[fav] = clamp(t.budget.draft.plan[fav] + 5, -10, 10);
+        v = 'ja'; addNat(g, g.party, 0.1); addCred(g, 1, 'Haushaltsdeal mit der Regierung');
+        text = 'Deal: Ihr stimmt dem Haushalt zu' + (fav ? ', dafür gibt es mehr Geld für ' + areaById(fav).name : '') + '.';
+        news(g, 'Haushaltsdeal: ' + party(g.party).short + ' stimmt dem Etat zu – gegen Zugeständnisse.', 'info');
+      }
       if (law0 && choice === 3) {
         // Änderungsantrag in der 2. Lesung: Die Koalition lehnt fast immer ab – aber ihr zeigt eine Alternative.
         const need = bundestagVote(g, law0);
@@ -2634,7 +2678,7 @@
     // Abstimmungen, bei denen ihr als Opposition entscheidet
     if (t.role === 'opposition') {
       t.laws.filter(l => l.stage === 'bundestag' && l.by !== g.party).forEach(l => t.pending.push({ type: 'vote', law: l.id }));
-      if (t.budget.draft && t.budget.draft.done && c.qn === 4) t.pending.push({ type: 'vote', budget: true });
+      if (t.budget.draft && t.budget.draft.done && (c.qn === 4 || t.budget.status === 'vorlaeufig')) t.pending.push({ type: 'vote', budget: true, again: t.budget.fails || 0 });
     }
     t.stats.qRole[t.role] = (t.stats.qRole[t.role] || 0) + 1;
   }

@@ -17,7 +17,7 @@ const SEEDS = [3, 4, 5, 7];
 const TARGETS = {
   union: { role: 'Kanzlerschaft', passiv: [-9, -3], aktiv: [-4, 0] },
   spd: { role: 'Juniorpartner', passiv: [-7, -1], aktiv: [-4, 0] },
-  linke: { role: 'Opposition', passiv: [0, 5], aktiv: [3, 7] },
+  linke: { role: 'Opposition', passiv: [0, 5], aktiv: [3, 8] },
   fdp: { role: 'APO', passiv: [-1, 2], aktiv: [0.5, 3.5] }
 };
 

@@ -924,6 +924,12 @@
     } else if (it.type === 'scandal') {
       U.openModal(eyebrow + ' · 🔥 Affäre', 'Affäre im ' + T.ministryById(it.ministry).short + '-Ministerium', '<p>' + esc(it.text) + '</p>',
         [{ label: 'Festhalten', hint: 'Riskant: Kommt mehr heraus, wird es teuer', onClick: () => choose(0) }, { label: 'Rücktritt nahelegen', hint: 'Ihr benennt eine Nachfolge', onClick: () => choose(1) }]);
+    } else if (it.type === 'haushaltskrise') {
+      const opts = [{ label: 'Mit der Opposition verhandeln', hint: 'Zugeständnisse – beim nächsten Anlauf bessere Chancen', onClick: () => choose(0) },
+        { label: 'Den Entwurf überarbeiten', hint: 'Mehr Geld für die Schwerpunkte der Koalition', onClick: () => choose(1) },
+        { label: 'Vorläufig weiterregieren', hint: 'Nächstes Quartal erneut abstimmen', onClick: () => choose(3) }];
+      if (term().role === 'kanzler') opts.push({ label: 'Vertrauensfrage stellen', hint: 'Art. 68 GG – der Weg zu Neuwahlen (wie 2024)', onClick: () => choose(2) });
+      U.openModal(eyebrow + ' · 🏦 Haushaltskrise', 'Der Haushalt ist gescheitert', '<p>Ohne beschlossenen Haushalt gilt die vorläufige Haushaltsführung (Art. 111 GG): Nur laufende Verpflichtungen dürfen bezahlt werden, neue Projekte stehen still. ' + (it.fails > 1 ? 'Es ist bereits das ' + it.fails + '. Scheitern.' : '') + ' Wie geht es weiter?</p>', opts);
     } else if (it.type === 'debatte') {
       const l = term().laws.find(x => x.id === it.law);
       if (it.i === 0) U.openModal(eyebrow + ' · 🎙️ 2./3. Lesung', 'Schlussdebatte: ' + T.lawName(l), '<p>Heute wird über euren Entwurf abgestimmt. Vorher die Schlussdebatte – wer spricht für eure Fraktion?</p>',
@@ -1072,8 +1078,12 @@
         [{ label: 'Annehmen', hint: 'Ihr tretet in die Regierung ein', onClick: () => choose(0) }, { label: 'Ablehnen', hint: 'Lieber in der Opposition bleiben', onClick: () => choose(1) }]);
     } else if (it.type === 'vote') {
       if (it.budget) {
-        U.openModal(eyebrow + ' · 🗳️ Abstimmung', 'Haushalt ' + term().budget.draft.year, '<p>Der Bundestag stimmt über den Haushalt der Regierung ab. Wie stimmt eure Fraktion?</p>',
-          [{ label: 'Ja', onClick: () => choose(0) }, { label: 'Nein', hint: 'üblich für die Opposition', onClick: () => choose(1) }, { label: 'Enthaltung', onClick: () => choose(2) }]);
+        const again = it.again || 0;
+        const opts = [{ label: 'Ja', onClick: () => choose(0) }, { label: 'Nein', hint: 'üblich für die Opposition', onClick: () => choose(1) }, { label: 'Enthaltung', hint: again ? 'lässt die Regierung durchkommen, ohne zuzustimmen' : '', onClick: () => choose(2) }];
+        if (again) opts.push({ label: '🤝 Zustimmung gegen Zugeständnis', hint: 'Mehr Geld für euren wichtigsten Bereich', onClick: () => choose(3) });
+        U.openModal(eyebrow + ' · 🗳️ Abstimmung', 'Haushalt ' + term().budget.draft.year + (again ? ' – ' + (again + 1) + '. Anlauf' : ''), again
+          ? '<p>Der Haushalt ist ' + (again > 1 ? again + '-mal' : '') + ' gescheitert, das Land wird vorläufig geführt. Die Regierung hat nachverhandelt und wirbt um Stimmen aus der Opposition. Wie stimmt eure Fraktion diesmal?</p>'
+          : '<p>Der Bundestag stimmt über den Haushalt der Regierung ab. Wie stimmt eure Fraktion?</p>', opts);
       } else {
         const l = term().laws.find(x => x.id === it.law);
         const def = T.defaultVote(g, l);
