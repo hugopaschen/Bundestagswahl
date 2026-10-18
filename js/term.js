@@ -1672,6 +1672,8 @@
     const roles = ev.roles || [];
     const okRole = roles.indexOf(role) !== -1 || (roles.indexOf('gov') !== -1 && isGov(role)) || (roles.indexOf('opp') !== -1 && role === 'opposition');
     if (!okRole) return false;
+    if (ev.special) return false; // feste Termine des politischen Jahres
+    if (ev.req && !reqOk(g, ev.req)) return false;
     if (ev.parties && ev.parties.indexOf(g.party) === -1) return false;
     if (ev.notParty && ev.notParty.indexOf(g.party) !== -1) return false;
     if (ev.minQ && t.q < ev.minQ) return false;
@@ -1680,6 +1682,24 @@
     if (ev.id === 'coal_dispute' || ev.id === 'coal_leak') return t.gov.length > 1;
     if (ev.id === 'coal_poll') return t.gov.length > 1 && shareOf(g, g.party) < t.share0 - 1;
     return true;
+  }
+  // Ereignisse, die nur in bestimmten Lagen kommen.
+  function reqOk(g, req) {
+    const t = g.term;
+    const e = t.econ;
+    const own = (t.lastNat && t.lastNat[g.party]) || 0;
+    switch (req) {
+      case 'recession': return e.growth < 0;
+      case 'highInfl': return e.infl > 3.5;
+      case 'highUnemp': return e.unemp > 7.5;
+      case 'minority': return isGov(t.role) && govSeats(t) < MAJ;
+      case 'afdHigh': return ((t.lastNat && t.lastNat.afd) || 0) > 30;
+      case 'threeParty': return t.gov.length >= 3;
+      case 'lowPoll': return own < t.share0 - 4;
+      case 'highPoll': return own > t.share0 + 4;
+      case 'nearHurdle': return own >= 3.5 && own < 5;
+      default: return true;
+    }
   }
   function eventLand(g, ev) {
     const t = g.term;
@@ -2639,6 +2659,13 @@
           t.pending.push({ type: 'scandal', ministry: id, text: txt });
         }
       });
+    }
+    // Das politische Jahr: Klausur und Aschermittwoch im Winter, Sommerinterview, Haushaltswoche und Neujahrsansprache.
+    if (!first) {
+      const sp = id => { const ev = eventById(id); if (ev && eligibleRole(g, ev)) queueEvent(g, ev); };
+      if (c.qn === 1) { sp('klausur'); if (rand(g) < 0.6) sp('aschermittwoch'); }
+      if (c.qn === 3) sp('sommerinterview');
+      if (c.qn === 4) { if ((t.seats[g.party] || 0) > 0) sp('generaldebatte'); sp('neujahr'); if (isGov(t.role) && rand(g) < 0.5) sp('herbstgipfel'); }
     }
     // Regierungsbefragung: Die Kanzlerin/der Kanzler stellt sich dreimal im Jahr dem Plenum (§ 106 GOBT, seit 2018).
     if (!first && t.role === 'kanzler' && c.qn === 2) {

@@ -680,6 +680,218 @@
       choices: [
         { label: 'Mit offenen Armen aufnehmen', hint: 'Aufmerksamkeit', fx: { like: 0.3, own: 0.1, unity: -2 } },
         { label: 'Freundlich absagen', hint: 'Die Basis zuerst', fx: { unity: 2 } }
+      ] }    ,
+    // ---------- Das politische Jahr (feste Termine, special: nicht zufällig gezogen) ----------
+    { id: 'klausur', special: true, cat: 'partei', roles: ['gov', 'opp', 'apo'], title: 'Jahresauftakt: Klausurtagung', text: 'Wie jedes Jahr im Januar zieht sich die Führung zur Klausurtagung zurück. Welche Botschaft soll vom Jahresauftakt ausgehen?',
+      choices: [
+        { label: 'Wirtschaft und Arbeitsplätze', hint: 'Kompetenz Wirtschaft, Thema wird wichtiger', fx: { comp: { wirtschaft: 2 }, sal: { wirtschaft: 0.01 } } },
+        { label: 'Sicherheit und Ordnung', hint: 'Kompetenz Innere Sicherheit', fx: { comp: { sicherheit: 2 }, sal: { sicherheit: 0.01 } } },
+        { label: 'Soziale Gerechtigkeit', hint: 'Kompetenz Soziales', fx: { comp: { soziales: 2 }, sal: { soziales: 0.01 } } },
+        { label: 'Geschlossenheit demonstrieren', hint: 'Partei und Koalition rücken zusammen', fx: { unity: 4, mood: 3 } }
+      ] },
+    { id: 'aschermittwoch', special: true, cat: 'partei', roles: ['gov', 'opp', 'apo'], title: 'Politischer Aschermittwoch', text: 'Bierzelt, Blasmusik, volle Halle: Beim Politischen Aschermittwoch wird traditionell kräftig ausgeteilt. Wie tritt eure Spitze auf?',
+      choices: [
+        { label: 'Derb austeilen', hint: 'Die eigenen Leute jubeln – die Mitte rümpft die Nase', fx: { unity: 4, like: -0.05, own: 0.05 } },
+        { label: 'Mit Witz und Selbstironie', hint: 'Riskant, aber sympathisch', fx: {}, chance: 0.55, fx2: { like: 0.15, own: 0.08 }, fail: { like: -0.05 }, okText: 'Die Pointen sitzen – der Clip läuft überall.', failText: 'Die Witze zünden nicht.' },
+        { label: 'Staatsmännisch bleiben', hint: 'Seriös, wenig Echo', fx: { like: 0.03 } }
+      ] },
+    { id: 'sommerinterview', special: true, cat: 'parlament', roles: ['gov', 'opp', 'apo'], title: 'Das Sommerinterview', text: 'Vor dem Reichstag, die Sonne knallt: Im Sommerinterview geht es um eure größte Schwäche. „Warum sollten die Menschen Ihnen noch vertrauen?“',
+      choices: [
+        { label: 'Fehler offen eingestehen', hint: 'Glaubwürdig', fx: { like: 0.08, own: 0.05 } },
+        { label: 'Mit Erfolgen kontern', hint: 'Klappt nur mit Bilanz', fx: {}, chance: 0.5, fx2: { own: 0.1 }, fail: { like: -0.05 }, okText: 'Souverän – die Bilanz überzeugt.', failText: 'Der Moderator hält dagegen – unangenehm.' },
+        { label: 'Ausweichen', hint: 'Kein Risiko – aber es fällt auf', fx: { own: -0.05 } }
+      ] },
+    { id: 'generaldebatte', special: true, cat: 'parlament', roles: ['kanzler', 'opposition'], title: 'Haushaltswoche: die Generaldebatte', text: 'In der Haushaltswoche schlägt die Stunde der Generaldebatte: Oppositionsführung und Kanzleramt liefern sich den großen Schlagabtausch des Jahres.',
+      choices: [
+        { label: 'Große Linien: das Land in zehn Jahren', hint: 'Wirkt, wenn man euch mag', fx: {}, chance: 0.55, fx2: { like: 0.12, own: 0.1 }, fail: { like: -0.03 }, okText: 'Eine Rede, über die man spricht.', failText: 'Zu abstrakt – das Plenum bleibt kühl.' },
+        { label: 'Frontalangriff auf die Gegenseite', hint: 'Die eigenen Reihen toben', fx: { unity: 4, own: 0.04 } },
+        { label: 'Zahlen, Fakten, Haushalt', hint: 'Solide', fx: { comp: { finanzen: 2 } } }
+      ] },
+    { id: 'neujahr', special: true, cat: 'parlament', roles: ['kanzler'], title: 'Die Neujahrsansprache', text: 'Silvester, 19:20 Uhr, alle Sender: Die Kanzlerin/der Kanzler wendet sich an das Land. Welcher Ton?',
+      choices: [
+        { label: 'Zuversicht: „Wir schaffen das gemeinsam.“', hint: 'Sympathisch', fx: { like: 0.1 } },
+        { label: 'Ehrlichkeit über schwere Zeiten', hint: 'Glaubwürdig, etwas düster', fx: { like: 0.05, own: 0.05 } },
+        { label: 'Ein Versprechen für das neue Jahr', hint: 'Mutig – man wird euch daran messen', fx: { own: 0.12, unity: 2 } }
+      ] },
+    { id: 'herbstgipfel', special: true, cat: 'wirtschaft', roles: ['gov'], title: 'Wirtschaftsgipfel im Kanzleramt', text: 'Gewerkschaften, Arbeitgeber und Industrie sitzen im Kanzleramt an einem Tisch. Worauf einigt man sich?',
+      choices: [
+        { label: 'Industriestrompreis', hint: '5 Mrd. € im Jahr – die Industrie atmet auf', fx: { budget: 5, growth: 0.08 } },
+        { label: 'Weiterbildungsoffensive', hint: '2 Mrd. € – weniger Arbeitslose', fx: { budget: 2, unemp: -0.1 } },
+        { label: 'Bürokratieabbau-Paket', hint: 'Kostet nichts – wirkt langsam', fx: { growth: 0.04, own: 0.04 } }
+      ] },
+    // ---------- Wirtschaft ----------
+    { id: 'tarif_oed', cat: 'wirtschaft', roles: ['gov', 'opp'], w: 1.2, title: 'Tarifkonflikt im öffentlichen Dienst', text: 'Kitas, Müllabfuhr und Nahverkehr stehen still. Die Gewerkschaften fordern 8 % mehr Lohn, die Kommunen sagen: unbezahlbar.',
+      gov: [
+        { label: 'Schlichtung vorschlagen', hint: 'Ein angesehener Schlichter vermittelt', fx: {}, chance: 0.65, fx2: { own: 0.06 }, fail: { growth: -0.03, own: -0.05 }, okText: 'Der Schlichterspruch wird angenommen.', failText: 'Die Schlichtung scheitert – der Streik geht weiter.' },
+        { label: 'Den Kommunen Geld geben', hint: '3 Mrd. € – schneller Frieden', fx: { budget: 3, own: 0.04 } },
+        { label: 'Tarifautonomie respektieren', hint: 'Abwarten', fx: { growth: -0.02 } }
+      ],
+      choices: [
+        { label: 'Solidarität mit den Beschäftigten', hint: 'Bei Arbeitnehmern beliebt', fx: { own: 0.08, sal: { soziales: 0.01 } } },
+        { label: 'Die Eltern ohne Kita in den Mittelpunkt stellen', hint: 'Bei Familien beliebt', fx: { own: 0.06 } }
+      ] },
+    { id: 'konjunktur', req: 'recession', cat: 'wirtschaft', roles: ['gov', 'opp'], w: 2.5, title: 'Die Rezession ist da', text: 'Zwei Quartale in Folge schrumpft die Wirtschaft. Ökonomen fordern ein Konjunkturpaket, der Rechnungshof warnt vor neuen Schulden.',
+      gov: [
+        { label: 'Großes Konjunkturpaket', hint: '20 Mrd. € – kräftiger Impuls, Schuldenbremse unter Druck', fx: { budget: 20, growth: 0.35, own: 0.05 } },
+        { label: 'Gezielte Hilfen', hint: '8 Mrd. € für Investitionen und Kurzarbeit', fx: { budget: 8, growth: 0.18, unemp: -0.1 } },
+        { label: 'Solide bleiben', hint: 'Keine neuen Schulden – die Krise dauert länger', fx: { growth: -0.05, own: -0.08 } }
+      ],
+      choices: [
+        { label: 'Ein eigenes Konjunkturprogramm vorlegen', hint: 'Kompetenz Wirtschaft', fx: { comp: { wirtschaft: 3 }, own: 0.05 } },
+        { label: 'Die Regierung für die Krise verantwortlich machen', hint: 'Zuspitzung', fx: { own: 0.08, chanc: -0.1 } }
+      ] },
+    { id: 'inflation', req: 'highInfl', cat: 'wirtschaft', roles: ['gov', 'opp', 'apo'], w: 2, title: 'Die Preise galoppieren', text: 'Lebensmittel, Mieten, Energie – die Inflation liegt deutlich über dem Ziel der EZB. Viele Menschen kommen nicht mehr über die Runden.',
+      gov: [
+        { label: 'Entlastungspaket', hint: '12 Mrd. € – Einmalzahlung und Energiepreisbremse', fx: { budget: 12, own: 0.08, infl: 0.1 } },
+        { label: 'Mehrwertsteuer auf Lebensmittel senken', hint: '6 Mrd. € im Jahr', fx: { budget: 6, own: 0.06, infl: -0.1 } },
+        { label: 'Auf die EZB verweisen', hint: 'Ehrlich, aber kalt', fx: { own: -0.08 } }
+      ],
+      choices: [
+        { label: 'Preisdeckel fordern', hint: 'Populär', fx: { own: 0.08 } },
+        { label: 'Mehr Wettbewerb im Handel fordern', hint: 'Sachlich', fx: { comp: { wirtschaft: 2 } } }
+      ] },
+    { id: 'fachkraefte', cat: 'wirtschaft', roles: ['gov', 'opp'], w: 1, title: 'Fachkräfte fehlen überall', text: 'Handwerk, Pflege, Kitas: 600.000 Stellen sind unbesetzt. Die Wirtschaft fordert schnellere Visa, andere wollen erst inländische Potenziale heben.',
+      gov: [
+        { label: 'Einwanderung von Fachkräften erleichtern', hint: 'Wirtschaft zufrieden, Migration wird Thema', fx: { growth: 0.05, sal: { migration: 0.01 } } },
+        { label: 'Ausbildungsoffensive', hint: '2 Mrd. € – wirkt langsam', fx: { budget: 2, unemp: -0.05 } }
+      ],
+      choices: [
+        { label: 'Bessere Löhne statt Anwerbung', hint: 'Bei Arbeitnehmern beliebt', fx: { own: 0.06 } },
+        { label: 'Fachkräfteeinwanderung unterstützen', hint: 'Bei der Wirtschaft beliebt', fx: { own: 0.04 } }
+      ] },
+    { id: 'energiepreise', cat: 'wirtschaft', roles: ['gov', 'opp', 'apo'], w: 1, title: 'Strompreise auf Rekordniveau', text: 'Netzentgelte und CO₂-Preis treiben die Stromrechnung. Mittelständler drohen mit Abwanderung.',
+      gov: [
+        { label: 'Netzentgelte bezuschussen', hint: '6 Mrd. €', fx: { budget: 6, growth: 0.05, own: 0.05 } },
+        { label: 'Stromsteuer für alle senken', hint: '7 Mrd. € im Jahr', fx: { budget: 7, own: 0.07 } },
+        { label: 'Auf den Ausbau der Erneuerbaren setzen', hint: 'Langfristig günstiger', fx: { sal: { klima: 0.01 } } }
+      ],
+      choices: [
+        { label: 'Sofortige Entlastung fordern', hint: 'Populär', fx: { own: 0.07 } },
+        { label: 'Eigenes Energiekonzept vorlegen', hint: 'Kompetenz', fx: { comp: { klima: 2 } } }
+      ] },
+    { id: 'werksrettung', cat: 'wirtschaft', roles: ['gov'], w: 1, title: 'Rettung in letzter Minute?', text: '{firma} steht vor der Insolvenz. In {stadt} hängen 4.000 Arbeitsplätze daran. Die Belegschaft demonstriert vor dem Werkstor.',
+      choices: [
+        { label: 'Staatsbeteiligung', hint: '1,5 Mrd. € – Jobs gerettet, Ordnungspolitiker empört', fx: { budget: 1.5, unemp: -0.03, own: 0.06 }, chance: 0.7, fail: { own: -0.1 }, okText: 'Das Werk ist gerettet – vorerst.', failText: 'Trotz Staatsgeld schließt das Werk ein Jahr später.' },
+        { label: 'Transfergesellschaft finanzieren', hint: '0,3 Mrd. € – Umschulung statt Rettung', fx: { budget: 0.3 } },
+        { label: 'Der Markt muss entscheiden', hint: 'Prinzipientreu – die Region ist wütend', fx: { own: -0.06, unemp: 0.02 } }
+      ] },
+    // ---------- Lageabhängige Ereignisse ----------
+    { id: 'minderheit_preis', req: 'minority', cat: 'parlament', roles: ['gov'], w: 2.5, title: 'Der Preis der Minderheitsregierung', text: 'Ohne eigene Mehrheit braucht ihr für jedes Gesetz Stimmen aus der Opposition. Eine Fraktion stellt Bedingungen für ihre Unterstützung.',
+      choices: [
+        { label: 'Auf die Bedingungen eingehen', hint: '3 Mrd. € für deren Projekte – Ruhe für ein Jahr', fx: { budget: 3, mood: 3 } },
+        { label: 'Wechselnde Mehrheiten suchen', hint: 'Mühsam, aber unabhängig', fx: { unity: 2, own: -0.03 } },
+        { label: 'Mit Neuwahl drohen', hint: 'Riskant', fx: {}, chance: 0.5, fx2: { own: 0.08 }, fail: { own: -0.1, unity: -3 }, okText: 'Die Drohung wirkt – die Opposition lenkt ein.', failText: 'Die Opposition lacht: „Nur zu!“' }
+      ] },
+    { id: 'afd_rekord', req: 'afdHigh', cat: 'inland', roles: ['gov', 'opp', 'apo'], notParty: ['afd'], w: 2, title: 'Die AfD über 30 Prozent', text: 'In bundesweiten Umfragen liegt die AfD erstmals über 30 Prozent. Kommentatoren sprechen von einer Zäsur. Wie reagiert ihr?',
+      choices: [
+        { label: 'Probleme lösen statt über die AfD reden', hint: 'Sachlich', fx: { own: 0.03 } },
+        { label: 'Klare Kante: Demokratie verteidigen', hint: 'Mobilisiert die eigene Basis', fx: { unity: 3, own: 0.04 } },
+        { label: 'Themen der AfD übernehmen', hint: 'Riskant – das Original wird gewählt', fx: { own: -0.04, unity: -3 } }
+      ] },
+    { id: 'dreier_streit', req: 'threeParty', cat: 'koalition', roles: ['gov'], w: 1.8, title: 'Drei Partner, drei Meinungen', text: 'In der Dreierkoalition zieht jeder in eine andere Richtung. Ein Partner gibt Interviews gegen die gemeinsame Linie.',
+      choices: [
+        { label: 'Koalitionsausschuss bis zum Morgengrauen', hint: 'Klima besser, Image angekratzt', fx: { mood: 6, own: -0.03 } },
+        { label: 'Öffentlich zur Ordnung rufen', hint: 'Führungsstärke – der Partner schäumt', fx: { mood: -5, like: 0.05 } },
+        { label: 'Laufen lassen', hint: 'Der Streit schwelt weiter', fx: { mood: -3 } }
+      ] },
+    { id: 'arbeitslos', req: 'highUnemp', cat: 'wirtschaft', roles: ['gov', 'opp', 'apo'], w: 2, title: 'Drei Millionen Arbeitslose', text: 'Die Bundesagentur meldet erstmals seit Langem wieder mehr als drei Millionen Arbeitslose.',
+      gov: [
+        { label: 'Kurzarbeit verlängern', hint: '2 Mrd. €', fx: { budget: 2, unemp: -0.1 } },
+        { label: 'Arbeitsmarktreform ankündigen', hint: 'Mutig – die Gewerkschaften protestieren', fx: { growth: 0.05, unity: -2 } }
+      ],
+      choices: [
+        { label: 'Ein Jobprogramm fordern', hint: 'Populär', fx: { own: 0.07 } },
+        { label: 'Die Regierung angreifen', hint: 'Zuspitzung', fx: { own: 0.05, chanc: -0.08 } }
+      ] },
+    { id: 'umfragetief', req: 'lowPoll', cat: 'partei', roles: ['gov', 'opp', 'apo'], w: 1.8, title: 'Krisensitzung im Parteivorstand', text: 'Die Umfragen sind eingebrochen. In der Parteizentrale wird nervös über Kurs und Köpfe diskutiert.',
+      choices: [
+        { label: 'Kurs halten', hint: 'Geschlossenheit – oder Starrsinn?', fx: { unity: 2 } },
+        { label: 'Neues Personal nach vorn', hint: 'Frischer Wind, Unruhe', fx: { like: 0.1, unity: -3 } },
+        { label: 'Programmatische Kehrtwende', hint: 'Riskant', fx: {}, chance: 0.45, fx2: { own: 0.15 }, fail: { own: -0.08, unity: -4 }, okText: 'Die Kehrtwende überzeugt.', failText: 'Die Kehrtwende wirkt beliebig.' }
+      ] },
+    { id: 'umfragehoch', req: 'highPoll', cat: 'partei', roles: ['gov', 'opp', 'apo'], w: 1.5, title: 'Höhenflug in den Umfragen', text: 'Eure Partei liegt deutlich über dem Wahlergebnis. Erste Stimmen fordern, jetzt Ansprüche anzumelden.',
+      choices: [
+        { label: 'Demütig bleiben', hint: 'Klug', fx: { like: 0.05 } },
+        { label: 'Ansprüche anmelden', hint: 'Selbstbewusst – kann überheblich wirken', fx: { unity: 3, own: -0.03 } }
+      ] },
+    // ---------- Weitere Ereignisse ----------
+    { id: 'bruecke', cat: 'inland', roles: ['gov', 'opp'], w: 1, title: 'Brücke eingestürzt', text: 'In {stadt} ist nachts eine Brücke eingestürzt – zum Glück wurde niemand verletzt. Gutachter warnen: Tausende Brücken sind marode.',
+      gov: [
+        { label: 'Sanierungsprogramm Brücken', hint: '4 Mrd. €', fx: { budget: 4, own: 0.06, sal: { verkehr: 0.02 } } },
+        { label: 'Länder und Kommunen in die Pflicht nehmen', hint: 'Kostet nichts – wirkt kleinlich', fx: { own: -0.04 } }
+      ],
+      choices: [
+        { label: 'Investitionsstau anprangern', hint: 'Zuspitzung', fx: { own: 0.06, sal: { verkehr: 0.02 } } },
+        { label: 'Eigenes Infrastrukturkonzept', hint: 'Kompetenz Verkehr', fx: { comp: { verkehr: 3 } } }
+      ] },
+    { id: 'beschaffung', cat: 'inland', roles: ['gov', 'opp'], w: 0.9, title: 'Pannen bei der Bundeswehr-Beschaffung', text: 'Neue Hubschrauber sind nur zu 30 % einsatzbereit, ein Rüstungsprojekt kostet doppelt so viel wie geplant.',
+      gov: [
+        { label: 'Beschaffungsamt reformieren', hint: 'Wirkt langsam', fx: { comp: { verteidigung: 2 } } },
+        { label: 'Verantwortliche entlassen', hint: 'Durchgreifen', fx: { like: 0.05, unity: -1 } }
+      ],
+      choices: [
+        { label: 'Untersuchung fordern', hint: 'Druck auf die Regierung', fx: { own: 0.05, chanc: -0.05 } },
+        { label: 'Mehr Geld für die Truppe fordern', hint: 'Bei Sicherheitsbewussten beliebt', fx: { own: 0.03 } }
+      ] },
+    { id: 'steuerskandal', cat: 'skandal', roles: ['gov', 'opp', 'apo'], w: 0.9, title: 'Milliardenbetrug mit Steuern', text: 'Recherchen decken einen Steuerbetrug von Banken und Fonds auf – der Staat hat über Jahre Milliarden verloren.',
+      gov: [
+        { label: 'Steuerfahndung massiv verstärken', hint: '0,5 Mrd. € – bringt langfristig mehr', fx: { budget: 0.5, own: 0.05 } },
+        { label: 'Auf die Länder verweisen', hint: 'Zuständig sind die Finanzämter', fx: { own: -0.05 } }
+      ],
+      choices: [
+        { label: 'Härtere Strafen fordern', hint: 'Populär', fx: { own: 0.08 } },
+        { label: 'Untersuchungsausschuss ins Spiel bringen', hint: 'Druck auf die Regierung', fx: { own: 0.05, chanc: -0.05 } }
+      ] },
+    { id: 'ki_jobs', cat: 'wirtschaft', roles: ['gov', 'opp', 'apo'], w: 0.9, title: 'KI ersetzt Bürojobs', text: 'Eine Versicherung kündigt an, 3.000 Stellen in der Sachbearbeitung durch KI zu ersetzen. Gewerkschaften sprechen von einem Dammbruch.',
+      gov: [
+        { label: 'Weiterbildungsgarantie', hint: '2 Mrd. €', fx: { budget: 2, own: 0.05, sal: { digitales: 0.02 } } },
+        { label: 'Innovation nicht bremsen', hint: 'Wirtschaft zufrieden', fx: { growth: 0.03 } }
+      ],
+      choices: [
+        { label: 'Schutz der Beschäftigten fordern', hint: 'Bei Arbeitnehmern beliebt', fx: { own: 0.07 } },
+        { label: 'Chancen der KI betonen', hint: 'Bei Jungen beliebt', fx: { own: 0.04, comp: { digitales: 2 } } }
+      ] },
+    { id: 'klimaprotest', cat: 'inland', roles: ['gov', 'opp', 'apo'], w: 0.9, title: 'Klimaprotest legt Flughafen lahm', text: 'Aktivisten haben sich am Flughafen {stadt} festgeklebt – Hunderte Flüge fallen aus.',
+      choices: [
+        { label: 'Härtere Strafen für Blockaden', hint: 'Bei vielen beliebt, Junge verärgert', fx: { own: 0.05 } },
+        { label: 'Anliegen ernst nehmen, Form kritisieren', hint: 'Ausgewogen', fx: { like: 0.03 } },
+        { label: 'Solidarität mit dem Protest', hint: 'Bei Jungen beliebt, sonst unbeliebt', fx: { own: -0.03, unity: 2 } }
+      ] },
+    { id: 'influencer', cat: 'partei', roles: ['opp', 'apo', 'gov'], w: 0.8, title: 'Ein Influencer rechnet mit euch ab', text: 'Ein Social-Media-Star mit drei Millionen Followern nimmt eure Politik in einem Video auseinander. Es geht viral.',
+      choices: [
+        { label: 'Im Video-Duell antworten', hint: 'Riskant – kann viral gehen', fx: {}, chance: 0.5, fx2: { own: 0.12, like: 0.1 }, fail: { like: -0.1 }, okText: 'Eure Antwort wird zum Hit.', failText: 'Die Antwort wirkt bemüht – noch mehr Spott.' },
+        { label: 'Ignorieren', hint: 'Geht von allein vorbei', fx: {} }
+      ] },
+    { id: 'cyber_bt', cat: 'inland', roles: ['gov', 'opp', 'apo'], w: 0.6, title: 'Hackerangriff auf den Bundestag', text: 'E-Mails von Abgeordneten aller Fraktionen sind im Netz aufgetaucht – darunter interne Strategiepapiere.',
+      gov: [
+        { label: 'Cyberabwehr massiv ausbauen', hint: '1 Mrd. €', fx: { budget: 1, comp: { digitales: 2 } } },
+        { label: 'Diplomatische Konsequenzen', hint: 'Botschafter ausweisen', fx: { intl: -2, own: 0.04 } }
+      ],
+      choices: [
+        { label: 'Aufklärung fordern', hint: 'Sachlich', fx: { comp: { digitales: 1 } } },
+        { label: 'Peinliche Papiere der anderen genüsslich zitieren', hint: 'Unfair, aber wirksam', fx: { own: 0.05, like: -0.05 } }
+      ] },
+    // ---------- Opposition und außerparlamentarische Opposition ----------
+    { id: 'opp_fuehrung', cat: 'parlament', roles: ['opposition'], w: 1.4, title: 'Wer führt die Opposition?', text: 'Die Medien vergleichen die Oppositionsparteien: Wer stellt die Regierung wirklich, wer ist nur laut?',
+      choices: [
+        { label: 'Als seriöse Regierung im Wartestand auftreten', hint: 'Kompetenz und Ansehen', fx: { like: 0.08, comp: { wirtschaft: 1 } } },
+        { label: 'Lauteste Stimme gegen die Regierung sein', hint: 'Mobilisiert', fx: { own: 0.08, chanc: -0.05 } },
+        { label: 'Die andere Opposition angreifen', hint: 'Riskant', fx: {}, chance: 0.5, fx2: { own: 0.1 }, fail: { own: -0.05 }, okText: 'Ihr setzt euch als Oppositionsführung durch.', failText: 'Der Streit nützt nur der Regierung.' }
+      ] },
+    { id: 'kommunalwahl', cat: 'partei', roles: ['gov', 'opp', 'apo'], w: 1, title: 'Kommunalwahlen in {land}', text: 'In {land} werden Gemeinderäte und Bürgermeister gewählt. Wie stark engagiert sich die Bundespartei?',
+      choices: [
+        { label: 'Bundesprominenz auf Marktplätze schicken', hint: 'Sichtbar – und Mitglieder gewinnen', fx: { members: 0.5, lv: -6, cash: -0.1 }, chance: 0.6, fx2: { own: 0.06 }, okText: 'Achtungserfolge in vielen Rathäusern.', failText: 'Enttäuschende Ergebnisse vor Ort.' },
+        { label: 'Den Ortsverbänden vertrauen', hint: 'Der Landesverband dankt es', fx: { lv: -4 } }
+      ] },
+    { id: 'apo_landtag', cat: 'partei', roles: ['apo'], w: 1, title: 'Die Landtagsfraktion als Bühne', text: 'Ohne Bundestagsfraktion bleibt euch die Bühne der Landtage. Eure stärkste Landtagsfraktion bietet an, bundespolitische Themen zu setzen.',
+      choices: [
+        { label: 'Landtag zur Bühne machen', hint: 'Mehr Aufmerksamkeit', fx: { own: 0.04, lv: -5 } },
+        { label: 'Auf Landesthemen konzentrieren', hint: 'Bodenständig', fx: { unity: 3 } }
+      ] },
+    { id: 'apo_comeback', req: 'nearHurdle', cat: 'partei', roles: ['apo'], w: 1.2, title: 'Das Comeback in Reichweite', text: 'Eine Umfrage sieht euch knapp an der Fünfprozenthürde. Mitglieder und Spender schöpfen Hoffnung.',
+      choices: [
+        { label: 'Comeback-Tour durchs Land', hint: 'Mitglieder und Spenden', fx: { members: 2, cash: 0.2, own: 0.03 } },
+        { label: 'Ruhig weiterarbeiten', hint: 'Keine falschen Hoffnungen', fx: { unity: 2 } }
       ] }
   ];
 
@@ -689,7 +901,17 @@
     '{minister} soll Freunden aus der Heimatstadt Posten im {ministry} verschafft haben.',
     'Interne Chats von {minister} mit abfälligen Bemerkungen über die eigene Koalition sind aufgetaucht.',
     '{minister} hat einen Flug mit der Flugbereitschaft für einen privaten Urlaub genutzt.',
-    'Im {ministry} wurden Warnungen vor einem Milliardenschaden monatelang ignoriert. Hat {minister} davon gewusst?'
+    'Im {ministry} wurden Warnungen vor einem Milliardenschaden monatelang ignoriert. Hat {minister} davon gewusst?',
+    'Ein Plagiatsjäger findet in der Doktorarbeit von {minister} zahlreiche Stellen ohne Quellenangabe.',
+    'Das {ministry} hat Aufträge an eine Firma vergeben, an der der Schwager von {minister} beteiligt ist.',
+    '{minister} hat einen Lobbyisten ohne Eintrag im Lobbyregister zu vertraulichen Gesprächen empfangen.',
+    'Ein Nebeneinkommen von {minister} aus Vorträgen wurde dem Bundestag nicht gemeldet.',
+    'Im {ministry} ist ein vertrauliches Papier verschwunden – es taucht in einer Zeitung auf. {minister} wusste seit Wochen davon.',
+    '{minister} hat in einer Talkshow falsche Zahlen genannt und sie trotz Hinweisen nicht korrigiert.',
+    'Eine Mitarbeiterin wirft {minister} einen herabwürdigenden Umgang im {ministry} vor.',
+    'Der Dienstwagen von {minister} wurde für Wahlkampftermine der eigenen Partei genutzt.',
+    'Das {ministry} hat eine teure Imagekampagne mit Fotos von {minister} bezahlt – kurz vor einer Landtagswahl.',
+    '{minister} soll Aktien eines Unternehmens gehandelt haben, über das im {ministry} entschieden wurde.'
   ];
 
   var TD = {
