@@ -722,7 +722,7 @@ test('Koalitionsverhandlungen: Klima entscheidet, Erfolg bringt Punkte, Scheiter
   h.result.neg.mood = 40;
   while (!h.result.neg.done) E.negotiate(h, h.result.neg.step < h.result.neg.topics.length ? 'hart' : 'finanzen');
   assert.strictEqual(h.result.neg.success, false);
-  assert.ok(h.result.awaitingChoice || h.phase === 'done');
+  assert.ok(h.result.awaitingChoice || h.phase === 'done' || (h.result.hung && h.result.hung.step === 'strategy'));
 });
 
 // ---------- Legislaturperiode ----------
@@ -735,6 +735,7 @@ function electedGameFrom(party, next) {
   for (let z = 0; z < 6 && g.phase !== 'done'; z++) {
     if (g.result.awaitingChoice) E.chooseCoalition(g, 0);
     while (g.result.neg && !g.result.neg.done) E.negotiate(g, g.result.neg.step < g.result.neg.topics.length ? 'nachgeben' : 'x');
+    while (g.result.hung && !g.result.hung.done) { const h = g.result.hung; const free = h.tolerators.filter(p => h.tried.indexOf(p) === -1); E.hungChoice(g, h.step === 'ask' ? 'dulden' : free.length ? 'duldung' : 'minderheit', free[0]); }
   }
   return g;
 }
@@ -747,6 +748,7 @@ function electedGame(party, seed, boost) {
   for (let z = 0; z < 6 && g.phase !== 'done'; z++) {
     if (g.result.awaitingChoice) E.chooseCoalition(g, g.result.options.findIndex(o => o.members.length > 1 && !o.tolerated) >= 0 ? g.result.options.findIndex(o => o.members.length > 1 && !o.tolerated) : 0);
     while (g.result.neg && !g.result.neg.done) E.negotiate(g, g.result.neg.step < g.result.neg.topics.length ? 'nachgeben' : 'x');
+    while (g.result.hung && !g.result.hung.done) { const h = g.result.hung; const free = h.tolerators.filter(p => h.tried.indexOf(p) === -1); E.hungChoice(g, h.step === 'ask' ? 'dulden' : free.length ? 'duldung' : 'minderheit', free[0]); }
   }
   return g;
 }
@@ -1388,4 +1390,68 @@ test('Megatrends und Medien: Themengewichte verschieben sich über Jahrzehnte, I
   assert.ok(T.media(g).leit > before);
   T.endQuarter(g);
   assert.ok(t.news.some(n => /Presseschau/.test(n.text)));
+});
+
+// Ein Wahlergebnis ohne jede Koalitionsmehrheit herstellen (Sitze gesetzt, Koalitionen neu berechnet).
+function hungGame(party, seats, seed) {
+  const g = E.newGame(party, 'Test', seed || 5);
+  g.week = g.maxWeeks; g.duelDone = true;
+  while (g.pendingEvent) E.resolveEvent(g, 0);
+  E.endWeek(g);
+  const r = g.result;
+  delete r.neg; delete r.outcome; r.government = null;
+  Object.keys(r.seats).forEach(p => { r.seats[p] = seats[p] || 0; });
+  r.coalitions = []; r.options = [];
+  E.startHung(g);
+  return g;
+}
+const HUNG = { union: 180, afd: 170, spd: 110, gruene: 70, linke: 50, bsw: 30, fdp: 20 };
+
+test('Ohne Mehrheit: Duldung, Kanzlerwahl in drei Phasen und Ernennung durch den Bundespräsidenten', () => {
+  const g = hungGame('union', HUNG);
+  const h = g.result.hung;
+  assert.strictEqual(h.lead, 'union');
+  assert.strictEqual(h.step, 'strategy');
+  assert.ok(h.tolerators.indexOf('linke') === -1, 'Union und Linke sind unvereinbar');
+  E.hungChoice(g, 'minderheit');
+  assert.ok(h.done && g.phase === 'done');
+  assert.strictEqual(h.votes.length, 2);
+  assert.ok(h.phase3 && h.log.some(x => /3\. Wahlphase/.test(x)));
+  // 180 Sitze = 28,6 % – ohne Duldung löst der Bundespräsident auf
+  assert.ok(g.result.neuwahl);
+  const next = E.neuwahlCampaign(g);
+  assert.ok(next && next.carry.neuwahl && next.carry.year === (g.year || 2029));
+  const g2 = E.newGame('union', 'Test', 9, next.program, next.carry);
+  assert.ok(g2.neuwahl && g2.log.some(x => /Neuwahl/.test(x.text)));
+});
+
+test('Ohne Mehrheit: Die Duldung durch die SPD ergibt eine Minderheitsregierung mit Zugeständnis', () => {
+  let ok = null;
+  for (let seed = 1; seed < 20 && !ok; seed++) {
+    const g = hungGame('union', HUNG, seed);
+    E.hungChoice(g, 'duldung', 'spd');
+    if (g.result.hung.duldung === 'spd') ok = g;
+  }
+  assert.ok(ok, 'Duldung kommt zustande');
+  const r = ok.result;
+  assert.deepStrictEqual(r.government, ['union']);
+  assert.ok(r.hung.concession);
+  T.startTerm(ok);
+  const t = ok.term;
+  assert.strictEqual(t.duldung, 'spd');
+  assert.ok(t.tolerated);
+  assert.ok(t.laws.some(l => l.duldung && l.topic === r.hung.concession.topic));
+});
+
+test('Ohne Mehrheit: Die Wahlsiegerin bittet euch um eine Duldung', () => {
+  const g = hungGame('spd', HUNG);
+  const h = g.result.hung;
+  if (h.step === 'ask') {
+    E.hungChoice(g, 'dulden');
+    assert.strictEqual(h.duldung, 'spd');
+    assert.ok(h.done);
+    T.startTerm(g);
+    assert.strictEqual(g.term.role, 'opposition');
+    assert.strictEqual(g.term.duldung, 'spd');
+  } else assert.ok(h.done); // die Union hat zuerst eine andere Partei gefragt
 });

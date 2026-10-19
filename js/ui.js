@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261018-214311';
+  const APP_VERSION = '20261019-222313';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -1850,7 +1850,7 @@
     document.querySelectorAll('#wk-card path.wk.pending').forEach(p => p.classList.remove('pending'));
     $('btn-el-skip').hidden = true;
     if (scroll) {
-      const target = g.result.awaitingChoice || (g.result.neg && !g.result.neg.done) ? $('coalition-card') : $('outcome-card');
+      const target = g.result.awaitingChoice || (g.result.neg && !g.result.neg.done) || (g.result.hung && !g.result.hung.done) ? $('coalition-card') : $('outcome-card');
       if (target && !target.hidden) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }
@@ -1986,10 +1986,41 @@
     box.querySelectorAll('.neg-btn').forEach(b => b.addEventListener('click', () => { E.negotiate(g, b.dataset.c); save(); renderElection(false); }));
   }
 
+  // Keine Mehrheit: Strategie, Duldung und Kanzlerwahl nach Art. 63 GG.
+  function hungLog(h) {
+    return h.log.length ? '<ol class="hung-log">' + h.log.map(x => '<li>' + esc(x) + '</li>').join('') + '</ol>' : '';
+  }
+  function renderHung(box) {
+    const r = g.result;
+    const h = r.hung;
+    const btn = (label, hint, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn coalition-option choice'; b.innerHTML = '<strong>' + esc(label) + '</strong><span class="hint">' + esc(hint) + '</span>'; b.addEventListener('click', () => { fn(); save(); renderElection(false); }); box.appendChild(b); };
+    const own = r.seats[h.lead] || 0;
+    let html = '<p><strong>Keine Koalition hat eine Mehrheit.</strong> Nach Art. 63 GG schlägt der Bundespräsident die Spitze der stärksten Fraktion zur Kanzlerwahl vor: ' +
+      esc(h.lead === g.party ? g.candidate : E.rivalName(g, h.lead)) + ' (' + esc(E.party(h.lead).short) + ', ' + own + ' Sitze, nötig: ' + E.MAJORITY + ').</p>' + hungLog(h);
+    if (h.step === 'strategy') {
+      html += '<p class="small">Im 1. und 2. Wahlgang braucht ihr die Kanzlermehrheit, in der 3. Wahlphase genügen die meisten Stimmen. Dann entscheidet der Bundespräsident: ernennen oder den Bundestag auflösen. Er ernennt eher, wenn eine Duldung steht oder die Regierung auf rund ' + Math.ceil(0.38 * D.SEATS) + ' Stimmen kommt (Annahme des Spiels).</p>';
+      box.innerHTML = html;
+      btn('Minderheitsregierung wagen', 'Mit wechselnden Mehrheiten regieren – jedes Gesetz braucht Stimmen der Opposition', () => E.hungChoice(g, 'minderheit'));
+      h.tolerators.filter(p => h.tried.indexOf(p) === -1).forEach(p => btn('Duldung durch ' + E.party(p).short + ' aushandeln',
+        (r.seats[p] || 0) + ' Sitze · gemeinsam ' + (own + (r.seats[p] || 0)) + ' · Preis: eine ihrer Forderungen wird Gesetz', () => E.hungChoice(g, 'duldung', p)));
+      btn('Auf Neuwahl setzen', 'Ohne Mehrheit nicht regieren – der Bundespräsident soll den Bundestag auflösen', () => E.hungChoice(g, 'neuwahl'));
+      return;
+    }
+    if (h.step === 'ask') {
+      html += '<p><strong>' + esc(E.party(h.lead).short) + ' bittet euch um eine Duldung:</strong> Ihr wählt die Kanzlerin bzw. den Kanzler mit und stützt Haushalt und Gesetze, ohne in die Regierung einzutreten. Im Gegenzug wird eine eurer Kernforderungen Gesetz.</p>';
+      box.innerHTML = html;
+      btn('Duldung zusagen', 'Staatspolitische Verantwortung – eure Forderung kommt als Gesetz', () => E.hungChoice(g, 'dulden'));
+      btn('Ablehnen', 'Die Wahlsiegerin sucht andere Wege – notfalls Neuwahl', () => E.hungChoice(g, 'ablehnen'));
+      return;
+    }
+    box.innerHTML = html;
+  }
+
   function renderCoalition() {
     const r = g.result;
     const box = $('coalition');
     if (r.neg && !r.neg.done) { renderNegotiation(box); return; }
+    if (r.hung && !r.hung.done) { renderHung(box); return; }
     if (r.awaitingChoice) {
       box.innerHTML = (r.neg && r.neg.done && !r.neg.success ? '<p class="fw-note">💥 Die Verhandlungen mit ' + esc(r.neg.members.filter(p => p !== g.party).map(p => E.party(p).short).join(' und ')) + ' sind gescheitert. Versucht es mit anderen Partnern.</p>' : '') +
         '<p><strong>' + (r.strongest === g.party ? 'Ihr seid stärkste Kraft und habt den Auftrag zur Regierungsbildung!'
@@ -2008,6 +2039,12 @@
       return;
     }
     let html;
+    if (r.hung) {
+      html = '<h3>Kanzlerwahl ohne Mehrheit</h3>' + hungLog(r.hung) + (r.neuwahl ? '<p class="fw-note">🗳️ Der Bundestag ist aufgelöst. Die Neuwahl findet binnen 60 Tagen statt (Art. 39 GG).</p>' :
+        '<p>Neue Bundesregierung: ' + pills(r.government) + ' – Minderheitsregierung' + (r.hung.duldung ? ', geduldet von ' + esc(E.party(r.hung.duldung).short) : '') + '.</p>');
+      box.innerHTML = html;
+      return;
+    }
     if (r.government) {
       const seats = r.government.reduce((s, p) => s + r.seats[p], 0);
       const tol = r.coalitions.some(c => c.tolerated && c.members.join() === r.government.join());
@@ -2073,6 +2110,7 @@
       opposition: '🪑 Ihr geht in die Opposition.',
       raus: '🚪 An der 5-%-Hürde gescheitert – ihr seid nicht im Bundestag.'
     }[o.status];
+    $('btn-term').textContent = r.neuwahl ? 'Weiter: Wahlkampf für die Neuwahl' : 'Weiter: Die Legislaturperiode beginnt';
     $('outcome').innerHTML =
       '<p class="eyebrow">Euer Wahlabend</p><h2>' + esc(o.rating) + '</h2>' +
       '<div class="score">' + o.score + '</div><p class="muted small">Punkte</p>' +
@@ -2080,7 +2118,7 @@
       (r.turnout ? '<p class="muted small">Wahlbeteiligung: ' + pct(r.turnout) + (prevTurnout() ? ' (' + prevYear() + ': ' + pct(prevTurnout()) + ')' : '') + '</p>' : '') +
       (r.lastPoll ? '<p class="muted small">Letzte Umfrage: ' + pct(r.lastPoll[g.party]) + ' ± ' + E.POLL_RANGE + ' – das echte Ergebnis lag ' +
         (Math.abs(r.shares[g.party] - r.lastPoll[g.party]) < 0.3 ? 'fast genau darauf.' : signed(r.shares[g.party] - r.lastPoll[g.party]) + ' Punkte daneben.') + '</p>' : '') +
-      '<p>' + esc(statusText) + '</p>' +
+      '<p>' + esc(r.neuwahl ? '🗳️ Keine Regierung: Der Bundestag ist aufgelöst – es gibt eine Neuwahl.' : statusText) + '</p>' +
       (o.firewall ? '<p class="fw-note">🧱 Ihr habt die Brandmauer eingerissen. Proteste im ganzen Land (−25 Punkte).</p>' : '') +
       '<p>' + (o.goal ? '✅ Wahlziel erreicht: ' : '❌ Wahlziel verfehlt: ') + esc(p.goalText) + '</p>' +
       '<div class="mob-bars flows result-flows"><span class="mob-label">Wählerwanderung seit Wahlkampfstart (Prozentpunkte)</span>' + flowBarsHtml(E.flowSummary(g, g.party), g.party) + '</div>';
@@ -2090,6 +2128,7 @@
   // Nach dem Wahlabend: weiter in die Legislaturperiode.
   $('btn-term').addEventListener('click', () => {
     if (!g || !g.result || !g.result.outcome || !window.BTW_TERM) return;
+    if (g.result.neuwahl) { window.BTW_UI.startNextCampaign(E.neuwahlCampaign(g)); return; }
     window.BTW_TERM.startTerm(g);
     save();
     window.BTW_TERMUI.start(g);

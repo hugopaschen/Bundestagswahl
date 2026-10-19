@@ -30,6 +30,7 @@ function elect(p, seed) {
   for (let z = 0; z < 6 && g.phase !== 'done'; z++) {
     if (g.result.awaitingChoice) E.chooseCoalition(g, Math.max(0, g.result.options.findIndex(o => o.members.length > 1)));
     while (g.result.neg && !g.result.neg.done) E.negotiate(g, g.result.neg.step < g.result.neg.topics.length ? 'kompromiss' : 'x');
+    while (g.result.hung && !g.result.hung.done) { const h = g.result.hung; const free = h.tolerators.filter(p => h.tried.indexOf(p) === -1); E.hungChoice(g, h.step === 'ask' ? 'dulden' : free.length ? 'duldung' : 'minderheit', free[0]); }
   }
   return g;
 }

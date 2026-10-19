@@ -2253,3 +2253,4 @@ details.t-law[open] > summary { border-bottom: 1px solid var(--border); }
 .wc-item.now { background: var(--accent); color: var(--accent-ink); }
 .t-team { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
 .t-team li { display: flex; flex-direction: column; }
+.hung-log { margin: 8px 0 12px; padding-left: 1.3em; display: grid; gap: 4px; font-size: .92rem; }

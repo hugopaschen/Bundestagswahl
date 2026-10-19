@@ -444,6 +444,14 @@
     g.phase = 'term';
     const govText = gov.map(sname).join('-') + (t.tolerated ? '-Minderheitsregierung' : '-Koalition');
     news(g, 'Die ' + (t.n === 1 ? '' : t.n + '. ') + 'Legislaturperiode beginnt. ' + t.chancellor.name + ' (' + sname(t.chanc) + ') wird zur Kanzlerin/zum Kanzler gewählt – ' + govText + '.', 'big');
+    // Ohne Mehrheit gewählt: Duldung durch eine Oppositionspartei (Zugeständnis als erstes Gesetz) oder wechselnde Mehrheiten.
+    const H = r.hung;
+    t.duldung = H && H.duldung && gov.length === 1 && gov[0] === H.lead ? H.duldung : null;
+    if (H && !H.majority) news(g, 'Gewählt in der 3. Wahlphase ohne Kanzlermehrheit – der Bundespräsident hat ernannt (Art. 63 Abs. 4 GG).', 'warn');
+    if (t.duldung) {
+      news(g, '🤝 Duldung: ' + sname(t.duldung) + ' stützt die Minderheitsregierung bei Haushalt und Gesetzen, ohne Ministerien zu übernehmen.', 'info');
+      if (H.concession && t.policy[H.concession.topic] !== H.concession.opt) makeLaw(g, { kind: 'topic', topic: H.concession.topic, opt: H.concession.opt }, t.chanc).duldung = true;
+    } else if (t.tolerated && !gov.every(p => E.fwLevel(g, p) >= 2)) news(g, 'Minderheitsregierung: Für jedes Gesetz und jeden Haushalt muss die Regierung Stimmen in der Opposition suchen.', 'warn');
     const kw = r.neg && r.neg.success && r.neg.kanzler;
     if (kw && kw.length > 1) {
       // Fehlstart wie im Mai 2025: Abweichler im 1. Wahlgang belasten das Klima von Anfang an.
@@ -998,6 +1006,8 @@
       } else if (fails > 0 && p !== 'afd' && Math.abs(leanOf(g, p, 'finanzen') - leanOf(g, t.chanc, 'finanzen')) <= 1 && rand(g) < Math.min(0.8, 0.3 * fails + (t.budget.talks ? 0.3 : 0))) {
         // Nach einem gescheiterten Haushalt verhandelt die Regierung: Gemäßigte Opposition enthält sich gegen Zugeständnisse.
         a = s; t.budget.oneoff += 2; deals.push(p);
+      } else if (t.duldung === p) {
+        y = s; // Duldung
       } else if (t.tolerated && p === 'afd' && t.gov.every(q => E.fwLevel(g, q) >= 2)) {
         y = s; // Tolerierung
       } else if (t.tolerated && rand(g) < 0.5 && Math.abs(leanOf(g, p, 'finanzen') - leanOf(g, t.chanc, 'finanzen')) <= 1 && p !== 'afd') {
@@ -1118,6 +1128,7 @@
       const no = Math.max(0, Math.round(s * rate) - ((law.conv && law.conv[p]) || 0)); // umgestimmte Abweichler
       return { yes: s - no, abst: 0, no };
     }
+    if (t.duldung === p && t.gov.indexOf(law.by) !== -1 && d <= 1) return { yes: s, abst: 0, no: 0 }; // Duldung
     if (d === 0) return { yes: Math.round(s * 0.92), abst: s - Math.round(s * 0.92), no: 0 };
     if (d === 1) return { yes: 0, abst: Math.round(s * 0.5), no: s - Math.round(s * 0.5) };
     return { yes: 0, abst: 0, no: s };

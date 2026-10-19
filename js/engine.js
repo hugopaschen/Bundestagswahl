@@ -486,6 +486,7 @@
       if (carry.prevTurnout) g.prevTurnout = JSON.parse(JSON.stringify(carry.prevTurnout));
       if (carry.prevShares) g.prevShares = Object.assign({}, carry.prevShares);
       if (carry.lobby) g.lobby = JSON.parse(JSON.stringify(carry.lobby));
+      if (carry.neuwahl) g.neuwahl = true;
     }
     applyYear(g.year || YEAR0);
     if (!g.cand) g.cand = Object.assign({}, candStart(partyId));
@@ -505,7 +506,7 @@
     // Startpunkt ist die aktuelle Sonntagsfrage, das Programm wirkt ab der ersten Umfrage.
     g.startShares = nationalShares(g);
     g.history.push({ week: 0, shares: g.startShares, real: g.startShares });
-    addLog(g, 'start', 'Der Wahlkampf beginnt! Noch ' + MAX_WEEKS + ' Wochen bis zur Bundestagswahl ' + (g.year || YEAR0) + '.');
+    addLog(g, 'start', (g.neuwahl ? 'Der Bundestag ist aufgelöst – Neuwahl! ' : 'Der Wahlkampf beginnt! ') + 'Noch ' + MAX_WEEKS + ' Wochen bis zur Bundestagswahl ' + (g.year || YEAR0) + '.');
     applyProgram(g, program);
     if (LB) LB.init(g);
     g.grpStart = {};
@@ -3153,9 +3154,12 @@
       // Der Wahlsieger lädt euch zu Koalitionsverhandlungen ein.
       g.result = result;
       startNegotiation(g, gov.options[0].members, gov.formateur);
-    } else {
-      result.government = gov.options.length ? gov.options[0].members : null;
+    } else if (gov.options.length) {
+      result.government = gov.options[0].members;
       finalizeOutcome(g, result);
+    } else {
+      g.result = result;
+      startHung(g);
     }
     return result;
   }
@@ -3411,14 +3415,166 @@
     if (n.lead === g.party) {
       r.options = (r.options || []).filter(o => r.failedTalks.indexOf(o.members.slice().sort().join()) === -1);
       if (r.options.length) { r.awaitingChoice = true; return; }
-      r.government = null;
+      startHung(g);
+      return;
     } else {
       // Der Wahlsieger verhandelt mit anderen Partnern weiter – ohne euch.
       const other = left.filter(c => c.members.indexOf(n.lead) !== -1 && c.members.indexOf(g.party) === -1)
         .sort((a, b) => a.members.length - b.members.length || a.seats - b.seats)[0];
-      r.government = other ? other.members : null;
+      if (!other) { startHung(g); return; }
+      r.government = other.members;
     }
     finalizeOutcome(g, r);
+  }
+
+  // ---------- Keine Mehrheit: Kanzlerwahl nach Art. 63 GG ----------
+  // Findet sich keine Koalition, schlägt der Bundespräsident die Spitze der stärksten Partei (ohne AfD) vor.
+  // 1. und 2. Wahlphase: Kanzlermehrheit nötig. 3. Wahlphase (Art. 63 Abs. 4): Gewählt ist, wer die meisten
+  // Stimmen erhält. Ohne Kanzlermehrheit ernennt der Bundespräsident binnen sieben Tagen – oder löst den
+  // Bundestag auf; dann wird binnen 60 Tagen neu gewählt (Art. 39 GG). Vorbild für eine Duldung: das
+  // „Magdeburger Modell“ (SPD-Grüne in Sachsen-Anhalt, 1994–2002, geduldet von der PDS).
+  const leanE = (g, p, t) => (p === g.party && g.program && D.PROGRAM[t][g.program.positions[t]] ? D.PROGRAM[t][g.program.positions[t]].lean : ((party(p) && party(p).lean) ? party(p).lean[t] : 0));
+  const partyDist = (g, a, b) => TOPIC_IDS.reduce((s, t) => s + Math.abs(leanE(g, a, t) - leanE(g, b, t)), 0);
+  function startHung(g) {
+    const r = g.result;
+    const order = CONTEST_IDS.filter(p => r.seats[p] > 0 && p !== 'afd').sort((a, b) => r.seats[b] - r.seats[a]);
+    const lead = order[0] || r.strongest;
+    // Gefragt werden zuerst Parteien, die viele Stimmen bringen; bei Gleichstand die programmatisch nächsten.
+    const tolerators = order.filter(p => p !== lead && coalitionViable([lead, p], g)).sort((a, b) => r.seats[b] - r.seats[a] || partyDist(g, lead, a) - partyDist(g, lead, b));
+    r.hung = { lead, tolerators, tried: [], log: [], votes: [], duldung: null, done: false };
+    r.awaitingChoice = false;
+    g.phase = 'election';
+    if (lead === g.party) { r.hung.step = 'strategy'; return; }
+    aiHung(g);
+  }
+  // Die Wahlsiegerin ohne Mehrheit sucht eine Duldung – fragt sie euch, entscheidet ihr.
+  function aiHung(g) {
+    const r = g.result;
+    const h = r.hung;
+    for (const cand of h.tolerators.filter(p => h.tried.indexOf(p) === -1)) {
+      if (cand === g.party) { h.step = 'ask'; return; }
+      if (rand(g) < duldungChance(g, h.lead, cand)) {
+        h.duldung = cand;
+        h.log.push(party(h.lead).short + ' und ' + party(cand).short + ' vereinbaren eine Duldung: ' + party(cand).short + ' wählt mit und stützt die Regierung bei Haushalt und Gesetzen.');
+        chancellorVote(g);
+        return;
+      }
+      h.tried.push(cand);
+      h.log.push('Gespräche über eine Duldung durch ' + party(cand).short + ' scheitern.');
+    }
+    h.log.push(party(h.lead).short + ' versucht es als Minderheitsregierung.');
+    chancellorVote(g);
+  }
+  function duldungChance(g, lead, p) {
+    return Math.max(0.2, Math.min(0.85, 0.85 - 0.025 * partyDist(g, lead, p)));
+  }
+  // Wo der Duldungspartner am weitesten von der Regierung entfernt ist, setzt er sein Anliegen durch.
+  function concessionFor(g, lead, p) {
+    const core = p === g.party && g.program && g.program.core.length ? g.program.core : TOPIC_IDS;
+    const gap = t => Math.abs(leanE(g, p, t) - leanE(g, lead, t));
+    const topic = core.slice().sort((a, b) => gap(b) - gap(a))[0];
+    const lean = leanE(g, p, topic);
+    return { topic, opt: Math.max(0, D.PROGRAM[topic].findIndex(o => o.lean === lean)) };
+  }
+  // Entscheidungen der Spielerpartei: strategy → 'minderheit' | 'duldung' (+ Partner) | 'neuwahl'; ask → 'dulden' | 'ablehnen'.
+  function hungChoice(g, action, partner) {
+    const r = g.result;
+    const h = r && r.hung;
+    if (!h || h.done) return { ok: false };
+    if (h.step === 'strategy') {
+      if (action === 'duldung') {
+        const p = partner || h.tolerators.filter(x => h.tried.indexOf(x) === -1)[0];
+        if (!p || h.tried.indexOf(p) !== -1 || h.tolerators.indexOf(p) === -1) return { ok: false };
+        if (rand(g) < duldungChance(g, g.party, p)) {
+          h.duldung = p;
+          h.concession = concessionFor(g, g.party, p);
+          h.log.push(party(p).short + ' sagt die Duldung zu. Der Preis: „' + D.PROGRAM[h.concession.topic][h.concession.opt].label + '“ kommt als Gesetz.');
+          return chancellorVote(g);
+        }
+        h.tried.push(p);
+        h.log.push(party(p).short + ' lehnt eine Duldung ab.');
+        return { ok: true };
+      }
+      if (action === 'neuwahl') { h.wantNew = true; h.log.push(party(g.party).short + ' strebt Neuwahlen an und bittet den Bundespräsidenten, den Bundestag aufzulösen.'); }
+      else h.log.push(party(g.party).short + ' wagt die Minderheitsregierung.');
+      return chancellorVote(g);
+    }
+    if (h.step === 'ask') {
+      if (action === 'dulden') {
+        h.duldung = g.party;
+        h.concession = concessionFor(g, h.lead, g.party);
+        h.log.push('Ihr duldet die Minderheitsregierung von ' + party(h.lead).short + '. Euer Preis: „' + D.PROGRAM[h.concession.topic][h.concession.opt].label + '“ kommt als Gesetz.');
+        return chancellorVote(g);
+      }
+      h.tried.push(g.party);
+      h.log.push('Ihr lehnt eine Duldung ab.');
+      aiHung(g);
+      return { ok: true };
+    }
+    return { ok: false };
+  }
+  function chancellorVote(g) {
+    const r = g.result;
+    const h = r.hung;
+    h.step = 'vote';
+    const cand = h.lead === g.party ? g.candidate : rivalName(g, h.lead);
+    const base = (r.seats[h.lead] || 0) + (h.duldung ? r.seats[h.duldung] || 0 : 0);
+    for (let round = 1; round <= 2; round++) {
+      const yes = base - Math.round(base * between(g, 0, 0.02));
+      h.votes.push({ round, yes, need: MAJORITY });
+      if (yes >= MAJORITY) { h.log.push(round + '. Wahlphase: ' + cand + ' ist mit ' + yes + ' Stimmen gewählt (Kanzlermehrheit ' + MAJORITY + ').'); return appointHung(g, true); }
+      h.log.push(round + '. Wahlphase: ' + cand + ' erhält ' + yes + ' Stimmen – nötig wären ' + MAJORITY + '.');
+    }
+    // 3. Wahlphase: Gegenkandidaturen. Droht eine relative Mehrheit der AfD, stimmen die anderen für die Vorgeschlagene.
+    const others = CONTEST_IDS.filter(p => r.seats[p] > 0 && p !== h.lead && p !== h.duldung);
+    const rival = others.filter(p => p !== 'afd').sort((a, b) => r.seats[b] - r.seats[a])[0];
+    let yes = base;
+    const afd = r.seats.afd || 0;
+    if (afd >= yes) { yes = CONTEST_IDS.filter(p => p !== 'afd').reduce((s, p) => s + (r.seats[p] || 0), 0); h.log.push('Um einen Kanzler der AfD zu verhindern, stimmen auch andere Fraktionen mit.'); }
+    const rivalYes = rival ? r.seats[rival] : 0;
+    h.phase3 = { yes, rival: rival || null, rivalYes, afd };
+    h.log.push('3. Wahlphase: ' + cand + ' ' + yes + ' Stimmen' + (rival ? ', ' + party(rival).short + ' ' + rivalYes : '') + (afd ? ', AfD ' + afd : '') + '. Die meisten Stimmen genügen – ' + cand + ' ist gewählt.');
+    if (yes >= MAJORITY) return appointHung(g, true);
+    // Art. 63 Abs. 4 GG: Ohne Kanzlermehrheit entscheidet der Bundespräsident.
+    const appoint = !h.wantNew && (h.duldung || yes / D.SEATS >= 0.38);
+    if (appoint) { h.log.push('Der Bundespräsident ernennt ' + cand + (h.duldung ? ' – die Duldung verspricht Stabilität.' : ' trotz fehlender Mehrheit zur Regierungschefin bzw. zum Regierungschef.')); return appointHung(g, false); }
+    h.log.push('Der Bundespräsident ernennt niemanden und löst den Bundestag auf (Art. 63 Abs. 4 GG). Binnen 60 Tagen wird neu gewählt.');
+    h.done = true;
+    h.step = 'done';
+    r.neuwahl = true;
+    r.government = null;
+    finalizeOutcome(g, r);
+    return { ok: true };
+  }
+  function appointHung(g, majority) {
+    const r = g.result;
+    const h = r.hung;
+    h.done = true;
+    h.step = 'done';
+    h.majority = majority;
+    r.government = [h.lead];
+    finalizeOutcome(g, r);
+    return { ok: true };
+  }
+  // Neuwahl nach Auflösung: gleicher Wahltermin-Jahrgang, Stimmung vom Wahlabend, halbe Wahlkampfkasse
+  // (die Erstattung der Wahlkampfkosten kommt erst später; Schätzung).
+  function neuwahlCampaign(g) {
+    const r = g.result;
+    if (!r || !r.neuwahl) return null;
+    const base = {};
+    D.STATES.forEach(st => { base[st.id] = stateShares(g, st.id); });
+    return {
+      party: g.party,
+      candidate: g.candidate,
+      program: g.program ? JSON.parse(JSON.stringify(g.program)) : null,
+      carry: { base, nameSeed: ((g.nameSeed || 1) * 31 + 104729) % 2147483647 || 1, career: g.career ? JSON.parse(JSON.stringify(g.career)) : undefined,
+        firewall: Object.assign({}, g.firewall || {}), year: g.year || YEAR0, prevYear: g.prevYear, shown: Object.assign({}, g.shown || {}),
+        money: Math.round(party(g.party).budget * 0.5 * 10) / 10, cand: g.cand ? Object.assign({}, g.cand) : undefined,
+        world: g.world ? JSON.parse(JSON.stringify(g.world)) : undefined, prevSeats: Object.assign({}, r.seats), prevShares: Object.assign({}, r.shares),
+        lobby: g.lobby ? Object.assign(JSON.parse(JSON.stringify(g.lobby)), { asked: [] }) : null, rivals: JSON.parse(JSON.stringify(g.rivals || {})),
+        prevWk: (() => { const o = {}; (r.wk || []).forEach(w => { o[w.nr] = w.win; }); return o; })(),
+        prevTurnout: { DE: r.turnout, states: r.turnoutStates || {} }, neuwahl: true }
+    };
   }
 
   // Wahlziel der Partei: Mindestanteil, stärkste Kraft, eigene absolute Mehrheit
@@ -3541,7 +3697,7 @@
     publishedShares, publishedStateShares, groupShares, pollShares, pollStateShares, pollGroupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
     POLL_RANGE, GROUP_IDS, RIVAL_STYLES, rivalName, rivalLabel, rivalStyle, wkCandidate, newPerson, candBonus, chancellorPoll, MINOR_IDS, CONTEST_IDS, isShown, shownIds, mergeShares, WK_LIST, WK_BY_STATE, wkByNr, wkShares, wkProjection, directCounts, GRUNDMANDATE, FW_LEVELS, fwLevel, openFirewall, closeFirewall, firewallOptions, breakFirewall, flowSummary, steerVotes, stateFlows, regionFactor, nationalFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
-    drawEvent, resolveEvent,
+    drawEvent, resolveEvent, hungChoice, neuwahlCampaign, startHung,
     startDuel, duelAnswer,
     endWeek, duelClosing, sainteLague, findCoalitions, coalitionViable, chooseCoalition, negotiate, MINISTRIES, NEG_MIN, ministryById, ministryWish, draftOrder,
     serialize, deserialize, applyYear, YEAR0, lobbyPruefstein, lobbyAnswer, LB
