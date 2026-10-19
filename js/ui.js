@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261019-222313';
+  const APP_VERSION = '20261019-223017';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -1998,11 +1998,11 @@
     let html = '<p><strong>Keine Koalition hat eine Mehrheit.</strong> Nach Art. 63 GG schlägt der Bundespräsident die Spitze der stärksten Fraktion zur Kanzlerwahl vor: ' +
       esc(h.lead === g.party ? g.candidate : E.rivalName(g, h.lead)) + ' (' + esc(E.party(h.lead).short) + ', ' + own + ' Sitze, nötig: ' + E.MAJORITY + ').</p>' + hungLog(h);
     if (h.step === 'strategy') {
-      html += '<p class="small">Im 1. und 2. Wahlgang braucht ihr die Kanzlermehrheit, in der 3. Wahlphase genügen die meisten Stimmen. Dann entscheidet der Bundespräsident: ernennen oder den Bundestag auflösen. Er ernennt eher, wenn eine Duldung steht oder die Regierung auf rund ' + Math.ceil(0.38 * D.SEATS) + ' Stimmen kommt (Annahme des Spiels).</p>';
+      html += '<p class="small">Es gibt drei Wahlphasen. Erreicht eure Kandidatur auch in der 3. Wahlphase nicht die Kanzlermehrheit von ' + E.MAJORITY + ' Stimmen, löst der Bundespräsident den Bundestag auf – es gibt eine Neuwahl.</p>';
       box.innerHTML = html;
-      btn('Minderheitsregierung wagen', 'Mit wechselnden Mehrheiten regieren – jedes Gesetz braucht Stimmen der Opposition', () => E.hungChoice(g, 'minderheit'));
+      btn('Ohne Partner zur Wahl stellen', own >= E.MAJORITY ? 'Eure Stimmen reichen für die Kanzlermehrheit' : 'Nur ' + own + ' eigene Stimmen – ohne Kanzlermehrheit folgt die Neuwahl', () => E.hungChoice(g, 'minderheit'));
       h.tolerators.filter(p => h.tried.indexOf(p) === -1).forEach(p => btn('Duldung durch ' + E.party(p).short + ' aushandeln',
-        (r.seats[p] || 0) + ' Sitze · gemeinsam ' + (own + (r.seats[p] || 0)) + ' · Preis: eine ihrer Forderungen wird Gesetz', () => E.hungChoice(g, 'duldung', p)));
+        (r.seats[p] || 0) + ' Sitze · gemeinsam ' + (own + (r.seats[p] || 0)) + (own + (r.seats[p] || 0) >= E.MAJORITY ? ' – Kanzlermehrheit' : ' – reicht nicht für die Kanzlermehrheit') + ' · Preis: eine ihrer Forderungen wird Gesetz', () => E.hungChoice(g, 'duldung', p)));
       btn('Auf Neuwahl setzen', 'Ohne Mehrheit nicht regieren – der Bundespräsident soll den Bundestag auflösen', () => E.hungChoice(g, 'neuwahl'));
       return;
     }
@@ -2010,7 +2010,7 @@
       html += '<p><strong>' + esc(E.party(h.lead).short) + ' bittet euch um eine Duldung:</strong> Ihr wählt die Kanzlerin bzw. den Kanzler mit und stützt Haushalt und Gesetze, ohne in die Regierung einzutreten. Im Gegenzug wird eine eurer Kernforderungen Gesetz.</p>';
       box.innerHTML = html;
       btn('Duldung zusagen', 'Staatspolitische Verantwortung – eure Forderung kommt als Gesetz', () => E.hungChoice(g, 'dulden'));
-      btn('Ablehnen', 'Die Wahlsiegerin sucht andere Wege – notfalls Neuwahl', () => E.hungChoice(g, 'ablehnen'));
+      btn('Ablehnen', 'Ohne eure Stimmen droht die Neuwahl', () => E.hungChoice(g, 'ablehnen'));
       return;
     }
     box.innerHTML = html;

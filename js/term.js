@@ -447,7 +447,6 @@
     // Ohne Mehrheit gewählt: Duldung durch eine Oppositionspartei (Zugeständnis als erstes Gesetz) oder wechselnde Mehrheiten.
     const H = r.hung;
     t.duldung = H && H.duldung && gov.length === 1 && gov[0] === H.lead ? H.duldung : null;
-    if (H && !H.majority) news(g, 'Gewählt in der 3. Wahlphase ohne Kanzlermehrheit – der Bundespräsident hat ernannt (Art. 63 Abs. 4 GG).', 'warn');
     if (t.duldung) {
       news(g, '🤝 Duldung: ' + sname(t.duldung) + ' stützt die Minderheitsregierung bei Haushalt und Gesetzen, ohne Ministerien zu übernehmen.', 'info');
       if (H.concession && t.policy[H.concession.topic] !== H.concession.opt) makeLaw(g, { kind: 'topic', topic: H.concession.topic, opt: H.concession.opt }, t.chanc).duldung = true;

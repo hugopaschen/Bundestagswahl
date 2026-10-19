@@ -3430,8 +3430,8 @@
   // ---------- Keine Mehrheit: Kanzlerwahl nach Art. 63 GG ----------
   // Findet sich keine Koalition, schlägt der Bundespräsident die Spitze der stärksten Partei (ohne AfD) vor.
   // 1. und 2. Wahlphase: Kanzlermehrheit nötig. 3. Wahlphase (Art. 63 Abs. 4): Gewählt ist, wer die meisten
-  // Stimmen erhält. Ohne Kanzlermehrheit ernennt der Bundespräsident binnen sieben Tagen – oder löst den
-  // Bundestag auf; dann wird binnen 60 Tagen neu gewählt (Art. 39 GG). Vorbild für eine Duldung: das
+  // Stimmen erhält. Ohne Kanzlermehrheit könnte der Bundespräsident ernennen; im Spiel löst er dann immer den
+  // Bundestag auf, und binnen 60 Tagen wird neu gewählt (Art. 39 GG). Vorbild für eine Duldung: das
   // „Magdeburger Modell“ (SPD-Grüne in Sachsen-Anhalt, 1994–2002, geduldet von der PDS).
   const leanE = (g, p, t) => (p === g.party && g.program && D.PROGRAM[t][g.program.positions[t]] ? D.PROGRAM[t][g.program.positions[t]].lean : ((party(p) && party(p).lean) ? party(p).lean[t] : 0));
   const partyDist = (g, a, b) => TOPIC_IDS.reduce((s, t) => s + Math.abs(leanE(g, a, t) - leanE(g, b, t)), 0);
@@ -3533,12 +3533,10 @@
     if (afd >= yes) { yes = CONTEST_IDS.filter(p => p !== 'afd').reduce((s, p) => s + (r.seats[p] || 0), 0); h.log.push('Um einen Kanzler der AfD zu verhindern, stimmen auch andere Fraktionen mit.'); }
     const rivalYes = rival ? r.seats[rival] : 0;
     h.phase3 = { yes, rival: rival || null, rivalYes, afd };
-    h.log.push('3. Wahlphase: ' + cand + ' ' + yes + ' Stimmen' + (rival ? ', ' + party(rival).short + ' ' + rivalYes : '') + (afd ? ', AfD ' + afd : '') + '. Die meisten Stimmen genügen – ' + cand + ' ist gewählt.');
+    h.log.push('3. Wahlphase: ' + cand + ' ' + yes + ' Stimmen' + (rival ? ', ' + party(rival).short + ' ' + rivalYes : '') + (afd ? ', AfD ' + afd : '') + '. ' + (yes >= MAJORITY ? 'Damit ist ' + cand + ' mit Kanzlermehrheit gewählt.' : 'Die Kanzlermehrheit wird wieder verfehlt.'));
     if (yes >= MAJORITY) return appointHung(g, true);
-    // Art. 63 Abs. 4 GG: Ohne Kanzlermehrheit entscheidet der Bundespräsident.
-    const appoint = !h.wantNew && (h.duldung || yes / D.SEATS >= 0.38);
-    if (appoint) { h.log.push('Der Bundespräsident ernennt ' + cand + (h.duldung ? ' – die Duldung verspricht Stabilität.' : ' trotz fehlender Mehrheit zur Regierungschefin bzw. zum Regierungschef.')); return appointHung(g, false); }
-    h.log.push('Der Bundespräsident ernennt niemanden und löst den Bundestag auf (Art. 63 Abs. 4 GG). Binnen 60 Tagen wird neu gewählt.');
+    // Art. 63 Abs. 4 GG lässt dem Bundespräsidenten die Wahl; im Spiel löst er ohne Kanzlermehrheit immer auf.
+    h.log.push('Ohne Kanzlermehrheit ernennt der Bundespräsident niemanden und löst den Bundestag auf (Art. 63 Abs. 4 GG). Binnen 60 Tagen wird neu gewählt.');
     h.done = true;
     h.step = 'done';
     r.neuwahl = true;

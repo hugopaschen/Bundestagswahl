@@ -1406,8 +1406,10 @@ function hungGame(party, seats, seed) {
   return g;
 }
 const HUNG = { union: 180, afd: 170, spd: 110, gruene: 70, linke: 50, bsw: 30, fdp: 20 };
+// Union und SPD kommen zusammen auf 320 Sitze – die Duldung bringt die Kanzlermehrheit.
+const HUNG2 = { union: 200, afd: 150, spd: 120, gruene: 60, linke: 50, bsw: 30, fdp: 20 };
 
-test('Ohne Mehrheit: Duldung, Kanzlerwahl in drei Phasen und Ernennung durch den Bundespräsidenten', () => {
+test('Ohne Mehrheit: Kanzlerwahl in drei Phasen, ohne Kanzlermehrheit löst der Bundespräsident auf', () => {
   const g = hungGame('union', HUNG);
   const h = g.result.hung;
   assert.strictEqual(h.lead, 'union');
@@ -1417,7 +1419,6 @@ test('Ohne Mehrheit: Duldung, Kanzlerwahl in drei Phasen und Ernennung durch den
   assert.ok(h.done && g.phase === 'done');
   assert.strictEqual(h.votes.length, 2);
   assert.ok(h.phase3 && h.log.some(x => /3\. Wahlphase/.test(x)));
-  // 180 Sitze = 28,6 % – ohne Duldung löst der Bundespräsident auf
   assert.ok(g.result.neuwahl);
   const next = E.neuwahlCampaign(g);
   assert.ok(next && next.carry.neuwahl && next.carry.year === (g.year || 2029));
@@ -1428,13 +1429,14 @@ test('Ohne Mehrheit: Duldung, Kanzlerwahl in drei Phasen und Ernennung durch den
 test('Ohne Mehrheit: Die Duldung durch die SPD ergibt eine Minderheitsregierung mit Zugeständnis', () => {
   let ok = null;
   for (let seed = 1; seed < 20 && !ok; seed++) {
-    const g = hungGame('union', HUNG, seed);
+    const g = hungGame('union', HUNG2, seed);
     E.hungChoice(g, 'duldung', 'spd');
     if (g.result.hung.duldung === 'spd') ok = g;
   }
   assert.ok(ok, 'Duldung kommt zustande');
   const r = ok.result;
   assert.deepStrictEqual(r.government, ['union']);
+  assert.ok(!r.neuwahl, 'Mit Kanzlermehrheit wird ernannt');
   assert.ok(r.hung.concession);
   T.startTerm(ok);
   const t = ok.term;
@@ -1444,7 +1446,7 @@ test('Ohne Mehrheit: Die Duldung durch die SPD ergibt eine Minderheitsregierung 
 });
 
 test('Ohne Mehrheit: Die Wahlsiegerin bittet euch um eine Duldung', () => {
-  const g = hungGame('spd', HUNG);
+  const g = hungGame('spd', HUNG2);
   const h = g.result.hung;
   if (h.step === 'ask') {
     E.hungChoice(g, 'dulden');
@@ -1454,4 +1456,16 @@ test('Ohne Mehrheit: Die Wahlsiegerin bittet euch um eine Duldung', () => {
     assert.strictEqual(g.term.role, 'opposition');
     assert.strictEqual(g.term.duldung, 'spd');
   } else assert.ok(h.done); // die Union hat zuerst eine andere Partei gefragt
+});
+
+test('Ohne Mehrheit: Auch mit Duldung löst der Bundespräsident auf, wenn die Kanzlermehrheit fehlt', () => {
+  let g = null;
+  for (let seed = 1; seed < 20 && !g; seed++) {
+    const h = hungGame('union', HUNG, seed);
+    E.hungChoice(h, 'duldung', 'spd');
+    if (h.result.hung.duldung === 'spd') g = h;
+  }
+  assert.ok(g, 'Duldung kommt zustande');
+  assert.ok(g.result.hung.done && g.result.neuwahl, '290 Stimmen reichen nicht: Neuwahl');
+  assert.strictEqual(g.result.government, null);
 });
