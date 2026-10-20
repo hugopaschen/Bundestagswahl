@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261020-222715';
+  const APP_VERSION = '20261020-223525';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -2919,7 +2919,24 @@
     try { localStorage.setItem(TOUR_KEY, '1'); } catch (e) { /* optional */ }
     startGame(g);
     if (want) startTour();
+    else showRecord(g);
   });
+  // Die Bilanz der Legislatur zieht mit in den Wahlkampf.
+  function showRecord(game) {
+    const R = game.record;
+    if (!R || game.recordSeen) return;
+    game.recordSeen = true;
+    save();
+    const gov = R.role === 'kanzler' || R.role === 'junior';
+    const li = [];
+    if (R.laws.length) li.push('📜 ' + R.laws.length + ' Gesetze ' + (gov ? 'aus eurer Regierungszeit' : 'mitgetragen') + (R.promises ? ', davon ' + R.promises + ' Wahlversprechen' : '') + ': ' + R.laws.slice(-3).map(l => '„' + esc(l.title) + '“').join(', ') + '.');
+    if (R.broken.length) li.push('⚠️ Nicht umgesetzt: ' + R.broken.map(t => esc(E.topicById(t).name)).join(', ') + ' – die Konkurrenz wird daran erinnern.');
+    R.lage.forEach(x => li.push((x.imp > 0 ? '📈 ' : '📉 ') + esc(x.name) + (x.imp > 0 ? ' hat sich verbessert' : ' hat sich verschlechtert') + (gov ? ' – das wird euch zugerechnet.' : ' – unter der damaligen Regierung.')));
+    if (R.votes.length) li.push('🗳️ Abstimmungen, die man euch vorhalten kann: ' + R.votes.map(v => '„' + esc(v.title) + '“').join(', ') + '.');
+    li.push('🤝 Glaubwürdigkeit: ' + R.cred + '/100 – ' + (R.cred >= 60 ? 'das stärkt eure Spitze.' : R.cred < 45 ? 'das hängt eurer Spitze nach.' : 'neutral.'));
+    openModal('Bundestagswahl ' + (game.year || ''), 'Eure Bilanz zieht mit', '<p>Der Wahlkampf beginnt nicht bei null. Was ihr in der Legislatur getan habt, prägt Themen, Kompetenzen und Angriffe der Konkurrenz.</p><ul class="t-sum">' + li.map(x => '<li>' + x + '</li>').join('') + '</ul>',
+      [{ label: 'Los geht’s', primary: true, onClick: closeModal }]);
+  }
 
   // ---------- Einführung ----------
   // Schritt für Schritt durch den ersten Wahlkampftag: Bereich hervorheben, kurz erklären.
@@ -3089,7 +3106,7 @@
 
   // Schnittstelle für die Legislaturperiode (js/termui.js).
   window.BTW_UI = {
-    setGame: x => { g = x; }, show, applyPartyTheme, save, saveHall, toast,
+    setGame: x => { g = x; }, show, applyPartyTheme, save, saveHall, toast, showRecord: () => g && showRecord(g),
     runAction: (id, target, done) => runAction(E.ACTIONS.find(x => x.id === id), target || {}, done), confirmOnButton, openModal, closeModal,
     esc, col, onCol, num1, pct, signed, short, money, pollColumnsHtml, pollCalcHtml, pollSeats, hemicycle, seatLegend, pills,
     // Nach der Legislaturperiode: Programmparteitag für den nächsten Wahlkampf mit dem Stand von heute.

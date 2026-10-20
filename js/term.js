@@ -465,6 +465,7 @@
     flushLtwNight(g);
     t.doneAbs = t.abs0 - 1;
     ensureLage(g);
+    t.comp0 = g.competence ? Object.assign({}, g.competence) : null; // Kompetenz zu Beginn, für die Bilanz
     beginQuarter(g, true);
     return { ok: true, role: t.role };
   }
@@ -1133,6 +1134,35 @@
     }
     t.wk.care = clamp(t.wk.care - 10, 0, 100);
     return 'Berlin geht vor. In ' + w.name + ' fragt man sich, wofür man euch gewählt hat.';
+  }
+
+  // ---------- Bilanz für den nächsten Wahlkampf ----------
+  // Was eure Partei in der Legislatur getan hat, zieht mit in den Wahlkampf: beschlossene Gesetze, gehaltene und
+  // gebrochene Versprechen, umstrittene Abstimmungen, Glaubwürdigkeit und – für Regierungsparteien – die Lage im Land.
+  function termRecord(g) {
+    const t = g.term;
+    ensureLage(g);
+    const inGov = isGov(t.role);
+    // Titel ohne Symbol und Anführungszeichen.
+    const clean = x => String(x).replace(/^Abstimmung über /, '').replace(/^[„“"]+|[„“"]+$/g, '').replace(/^[^A-Za-zÄÖÜäöü0-9§]+/, '').trim();
+    const laws = t.laws.filter(l => l.stage === 'inkraft' && (l.by === g.party || (inGov && t.gov.indexOf(l.by) !== -1)))
+      .map(l => ({ title: clean(lawName(l)), topic: lawTopic(l), mine: l.by === g.party, promise: !!l.promise, popular: lawPop(l) > 0 })).slice(-12);
+    const broken = inGov && g.program ? g.program.core.filter(tp => t.policy[tp] !== g.program.positions[tp]) : [];
+    // Jede Abstimmung nur einmal.
+    const seenV = {};
+    const votes = (t.voteLog || []).filter(v => v.decisive || v.gewissen).map(v => ({ title: clean(v.title), my: v.my }))
+      .concat((t.memory || []).filter(m => m.title && /Abstimmung/.test(m.title) && m.ok === false).map(m => ({ title: clean(m.title), my: /Ja/.test(m.label) ? 'ja' : /Nein/.test(m.label) ? 'nein' : 'enthaltung', against: true })))
+      .filter(v => (seenV[v.title] ? false : (seenV[v.title] = true))).slice(0, 3);
+    const lage = lageBilanz(g).filter(x => Math.abs(x.imp) >= 0.5).sort((a, b) => Math.abs(b.imp) - Math.abs(a.imp)).slice(0, 4).map(x => ({ id: x.id, name: x.name, imp: r2(x.imp) }));
+    // Kompetenz: Was die Partei in der Legislatur dazugewonnen hat (Ressortarbeit, Schattenkabinett, Konzepte),
+    // und für Regierungsparteien die Bilanz in der Sache.
+    const comp = {};
+    if (g.competence && t.comp0) A.TOPIC_IDS.forEach(tp => { const d = (g.competence[tp] || 0) - (t.comp0[tp] || 0); if (Math.abs(d) >= 1) comp[tp] = Math.round(d); });
+    // Die Regierungsparteien werden in der Sache gemessen – auch wenn ihr selbst in der Opposition wart.
+    const govComp = {};
+    lageBilanz(g).forEach(x => { if (Math.abs(x.imp) >= 0.3) govComp[x.id] = clamp(Math.round(2 * x.imp), -6, 6); });
+    return { role: t.role, year: t.year0, gov: t.gov.slice(), laws, promises: t.stats.promises, broken, votes, lage, cred: Math.round(t.cred === undefined ? 55 : t.cred),
+      scandals: t.stats.scandals, comp, govComp, salience: Object.assign({}, g.salience) };
   }
 
   // ---------- Wirtschaft und Haushalt ----------
@@ -3725,7 +3755,7 @@
         rivals: nextRivals(g, electionAbs),
         prevWk: (() => { const o = {}; ((g.result && g.result.wk) || []).forEach(w => { o[w.nr] = w.win; }); return o; })(),
         prevTurnout: g.result ? { DE: g.result.turnout, states: g.result.turnoutStates || {} } : null,
-        homeWk: g.homeWk || null, wkCare: t.wk ? t.wk.care : null }
+        homeWk: g.homeWk || null, wkCare: t.wk ? t.wk.care : null, record: termRecord(g) }
     };
   }
 
@@ -3766,7 +3796,7 @@
   }
 
   const TERM = {
-    QUARTERS, ACTIONS, LAW_STEPS, forecast, lageBilanz, lawEffects, ensureLage, SOFORT, SHADOW_SETS, comebackBarometer, wkStatus, homeWk, WOBBLE, brAligned, landGovernment, dueVotes, GEWISSEN, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
+    QUARTERS, ACTIONS, LAW_STEPS, forecast, lageBilanz, lawEffects, ensureLage, SOFORT, SHADOW_SETS, comebackBarometer, wkStatus, homeWk, termRecord, WOBBLE, brAligned, landGovernment, dueVotes, GEWISSEN, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
     lawOptions, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, cal,
     lawName, lawTitle, leanOf, quorum, eventChoices, fillText, eventById, ministryById, taxById, areaById, nextCampaign, summary,
     MEDIA, media, actionCash, govSeats, isGov, legacy, LB, careerSnapshot, chooseLeader, leaderAge, currentLeader, MAX_AGE, sqForces, absCal, FX_NAMES, ministerFor, eventMinister, ownMinistries, endTerm, defaultVote, partyVote, mandateVote

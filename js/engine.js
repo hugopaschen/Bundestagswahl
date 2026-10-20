@@ -488,9 +488,22 @@
       if (carry.prevShares) g.prevShares = Object.assign({}, carry.prevShares);
       if (carry.lobby) g.lobby = JSON.parse(JSON.stringify(carry.lobby));
       if (carry.neuwahl) g.neuwahl = true;
+      // Bilanz der Legislatur: Die Probleme vom Ende der Legislatur bestimmen den Wahlkampf mit.
+      if (carry.record) {
+        g.record = JSON.parse(JSON.stringify(carry.record));
+        const rs = g.record.salience;
+        if (rs) {
+          const base = salienceBase(g.year);
+          TOPIC_IDS.forEach(t => { g.salience[t] = 0.7 * (rs[t] || base[t]) + 0.3 * base[t]; });
+          const sum = TOPIC_IDS.reduce((s, t) => s + g.salience[t], 0);
+          TOPIC_IDS.forEach(t => { g.salience[t] /= sum; });
+        }
+      }
     }
     applyYear(g.year || YEAR0);
     if (!g.cand) g.cand = Object.assign({}, candStart(partyId));
+    // Glaubwürdigkeit aus der Legislatur färbt auf die Spitze ab (geschätzt: ±0,5 auf der Skala −5 … +5).
+    if (g.record) g.cand.like = Math.max(-5, Math.min(5, g.cand.like + Math.max(-0.5, Math.min(0.5, (g.record.cred - 55) / 40))));
     g.aiLike = {};
     CONTEST_IDS.forEach(p => { g.aiLike[p] = candStart(p).like; });
     g.rivals = carry && carry.rivals ? JSON.parse(JSON.stringify(carry.rivals)) : {};
@@ -514,6 +527,7 @@
     g.history.push({ week: 0, shares: g.startShares, real: g.startShares });
     addLog(g, 'start', (g.neuwahl ? 'Der Bundestag ist aufgelöst – Neuwahl! ' : 'Der Wahlkampf beginnt! ') + 'Noch ' + MAX_WEEKS + ' Wochen bis zur Bundestagswahl ' + (g.year || YEAR0) + '.');
     applyProgram(g, program);
+    applyRecord(g);
     if (LB) LB.init(g);
     g.grpStart = {};
     GROUP_IDS.forEach(k => { g.grpStart[k] = groupShares(g, k)[partyId]; });
@@ -1975,6 +1989,63 @@
     }
   );
 
+  // Bilanz-Ereignisse: Was in der Legislatur geschah, holt euch im Wahlkampf ein (nur mit Bilanz aus einer Legislatur).
+  const recRival = g => (g.record && g.rivals ? Object.keys(g.rivals).filter(p => isShown(g, p) && p !== g.party).sort((a, b) => (g.rivals[b].feud || 0) - (g.rivals[a].feud || 0))[0] : null) || otherParty(g);
+  const wasGov = g => g.record && (g.record.role === 'kanzler' || g.record.role === 'junior');
+  EVENTS.push(
+    {
+      id: 'bilanz_wortbruch', title: 'Versprochen – gebrochen?',
+      text: g => { const r = recRival(g); return rivalLabel(g, r) + ' lässt Plakate kleben: „Versprochen – gebrochen!“ Darauf eure Kernthemen aus dem letzten Wahlkampf, die in der Regierung nicht umgesetzt wurden: ' + g.record.broken.map(t => topicById(t).name).join(', ') + '.'; },
+      cond: g => wasGov(g) && g.record.broken.length > 0 && g.week >= 2,
+      choices: [
+        { label: 'Ehrlich erklären: Regieren heißt Kompromisse', hint: 'Kleiner Verlust, wirkt aufrichtig',
+          apply: g => { g.nat[g.party] -= 0.1; candAdjust(g, 0.15, 0); return 'Eure Offenheit wird respektiert (−0.1).'; } },
+        { label: 'Gegenangriff: Was hat die Konkurrenz geschafft?', hint: 'Riskant',
+          apply: g => { if (rand(g) < 0.5) { g.nat[g.party] += 0.3; return 'Der Konter sitzt (+0.3).'; } g.nat[g.party] -= 0.5; return 'Das wirkt wie Ablenkung (−0.5).'; } },
+        { label: 'Diesmal wirklich: neues Versprechen', hint: 'Mobilisiert die eigenen Leute – Wechselwähler zweifeln',
+          apply: g => { mobilize(g, g.party, 0.01); g.nat[g.party] -= 0.15; return 'Die Basis jubelt, die Kommentare sind skeptisch (−0.2).'; } }
+      ]
+    },
+    {
+      id: 'bilanz_erfolg', title: 'Eure Bilanz in Zahlen',
+      text: g => { const x = g.record.lage.filter(y => y.imp > 0)[0]; return 'Die Wahlkampfzentrale hat die Zahlen: ' + x.name + ' hat sich in eurer Regierungszeit deutlich verbessert. Wie nutzt ihr das?'; },
+      cond: g => wasGov(g) && g.record.lage.some(y => y.imp > 0) && g.week >= 2,
+      choices: [
+        { label: 'Bilanzkampagne: „Das haben wir geschafft“', hint: 'Wirkt je nach Größe des Erfolgs',
+          apply: g => { const x = g.record.lage.filter(y => y.imp > 0)[0]; const d = 0.2 + 0.15 * Math.min(3, x.imp); g.nat[g.party] += d; changeSalience(g, x.id, 0.01); return 'Plakate mit euren Erfolgen hängen im ganzen Land (' + fmt(d) + ').'; } },
+        { label: 'Lieber nach vorn schauen', hint: 'Wahlen gewinnt man mit Zukunft',
+          apply: g => { g.nat[g.party] += 0.1; return 'Ihr redet über das, was kommt (+0.1).'; } }
+      ]
+    },
+    {
+      id: 'bilanz_lage', title: 'Die Konkurrenz macht eure Bilanz zum Thema',
+      text: g => { const x = g.record.lage.filter(y => y.imp < 0)[0]; return rivalLabel(g, recRival(g)) + ': „' + x.name + ' – unter dieser Regierung ist es schlechter geworden. Das ist eure Bilanz!“'; },
+      cond: g => wasGov(g) && g.record.lage.some(y => y.imp < 0) && g.week >= 2,
+      before: g => { const x = g.record.lage.filter(y => y.imp < 0)[0]; changeSalience(g, x.id, 0.03); },
+      choices: [
+        { label: 'Fehler eingestehen und einen Plan vorlegen', hint: 'Kostet erst, wirkt glaubwürdig',
+          apply: g => { g.nat[g.party] -= 0.1; candAdjust(g, 0.2, 0); return 'Ungewöhnlich ehrlich – das bleibt hängen (−0.1).'; } },
+        { label: 'Die Zahlen in Zweifel ziehen', hint: 'Riskant – Faktenchecker prüfen',
+          apply: g => { if (rand(g) < 0.35) { g.nat[g.party] += 0.2; return 'Die Debatte versandet (+0.2).'; } g.nat[g.party] -= 0.6; return 'Der Faktencheck gibt der Konkurrenz recht (−0.6).'; } },
+        { label: 'Auf die Weltlage verweisen', hint: 'Klingt nach Ausrede',
+          apply: g => { g.nat[g.party] -= 0.3; return '„Die anderen sind schuld“ überzeugt nicht (−0.3).'; } }
+      ]
+    },
+    {
+      id: 'bilanz_abstimmung', title: 'Eure Abstimmung holt euch ein',
+      text: g => { const v = g.record.votes[0]; return 'Im Fernsehduell der Generalsekretäre: „Sie haben bei „' + v.title + '“ mit ' + ({ ja: 'Ja', nein: 'Nein', enthaltung: 'Enthaltung' }[v.my] || v.my) + ' gestimmt – und erzählen jetzt etwas anderes!“'; },
+      cond: g => g.record && g.record.votes.length > 0 && g.week >= 3,
+      choices: [
+        { label: 'Dazu stehen', hint: 'Klare Haltung',
+          apply: g => { candAdjust(g, 0.15, 0); g.nat[g.party] += 0.05; return 'Ihr steht zu eurer Entscheidung (+0.1).'; } },
+        { label: 'Die Umstände erklären', hint: 'Kompliziert',
+          apply: g => { g.nat[g.party] -= 0.1; return 'Die Erklärung ist richtig, aber lang (−0.1).'; } },
+        { label: 'Das Thema wechseln', hint: 'Riskant',
+          apply: g => { if (rand(g) < 0.5) return 'Es fällt niemandem auf.'; g.nat[g.party] -= 0.4; return '„Ausweichend“, urteilen die Kommentatoren (−0.4).'; } }
+      ]
+    }
+  );
+
   // Spätfolgen – werden nie zufällig gezogen, sondern nur durch frühere Entscheidungen ausgelöst.
   EVENTS.push(
     // ---- Leihstimmen ----
@@ -2211,6 +2282,24 @@
       ]
     }
   );
+
+  // Kompetenz nach der Legislatur: eigene Zugewinne (Ressorts, Schattenkabinett) und die Lage im Land für die
+  // damaligen Regierungsparteien. Dazu Meldungen, mit denen der Wahlkampf beginnt.
+  function applyRecord(g) {
+    const R = g.record;
+    if (!R) return;
+    Object.keys(R.comp || {}).forEach(t => { if (g.competence && t in g.competence) g.competence[t] = Math.max(5, Math.min(95, g.competence[t] + R.comp[t])); });
+    (R.gov || []).forEach(p => Object.keys(R.govComp || {}).forEach(t => {
+      if (p === g.party) { if (g.competence) g.competence[t] = Math.max(5, Math.min(95, g.competence[t] + R.govComp[t])); }
+      else if (g.compAdj && g.compAdj[p]) g.compAdj[p][t] = Math.max(-8, Math.min(8, (g.compAdj[p][t] || 0) + R.govComp[t]));
+    }));
+    const lines = [];
+    if (R.laws.length) lines.push('Eure Bilanz: ' + R.laws.length + ' Gesetze ' + (R.role === 'kanzler' || R.role === 'junior' ? 'als Regierungspartei' : 'mitgetragen') + (R.promises ? ', ' + R.promises + ' Wahlversprechen umgesetzt' : '') + '.');
+    if (R.broken.length) lines.push('Nicht umgesetzt: ' + R.broken.map(t => topicById(t).name).join(', ') + ' – die Konkurrenz wird daran erinnern.');
+    R.lage.forEach(x => lines.push('Lage im Land: ' + x.name + (x.imp > 0 ? ' hat sich verbessert.' : ' hat sich verschlechtert.')));
+    lines.push('Glaubwürdigkeit nach der Legislatur: ' + R.cred + '/100.');
+    lines.reverse().forEach(x => addLog(g, 'start', x));
+  }
 
   function dueMilestone(g) {
     const ev = EVENTS.find(e => e.milestone === g.week && g.usedEvents.indexOf(e.id) === -1);
@@ -2789,6 +2878,17 @@
 
   // Die Konkurrenz macht echten Wahlkampf: Sie setzt ihre Themen, kämpft in knappen Ländern
   // und reagiert auf euch – mit Gegenkampagnen und indem sie eure Kernthemen besetzt.
+  // Angriffe mit eurer Bilanz: gebrochene Versprechen, verschlechterte Lage, unpopuläre Gesetze (ohne Zufall – die Auswahl folgt der Woche).
+  function recordJab(g) {
+    const R = g.record;
+    if (!R || g.week % 2) return null;
+    const jabs = [];
+    if (R.broken && R.broken.length) jabs.push('„Versprochen, gebrochen: ' + topicById(R.broken[0]).name + '!“');
+    (R.lage || []).filter(x => x.imp < 0).forEach(x => jabs.push('„' + x.name + ': Unter euch ist es schlechter geworden!“'));
+    (R.laws || []).filter(l => l.mine && !l.popular).forEach(l => jabs.push('„Wer „' + l.title + '“ beschlossen hat, sollte nicht mehr regieren!“'));
+    return jabs.length ? jabs[g.week % jabs.length] : null;
+  }
+
   function aiTurn(g) {
     const me = g.party;
     const shares = nationalShares(g);
@@ -2819,7 +2919,7 @@
         g.nat[p] += 0.1;
         attacks++;
         actions--;
-        news.push({ prio: 2, text: (rv ? rivalLabel(g, p) + (rv.feud >= 2 ? ', euer Dauerrivale,' : '') + ' greift euch an – ' + pick(g, ['„Die können es nicht!“', 'eine Negativkampagne läuft', 'Anzeigen gegen euer Programm', 'ein scharfes Interview']) : name + ' startet eine Negativkampagne gegen euch') + ' (' + fmt(-d) + ').' });
+        news.push({ prio: 2, text: (rv ? rivalLabel(g, p) + (rv.feud >= 2 ? ', euer Dauerrivale,' : '') + ' greift euch an – ' + (recordJab(g) || pick(g, ['„Die können es nicht!“', 'eine Negativkampagne läuft', 'Anzeigen gegen euer Programm', 'ein scharfes Interview'])) : name + ' startet eine Negativkampagne gegen euch') + ' (' + fmt(-d) + ').' });
       }
 
       // Reaktion 2: Themenklau – eines eurer Kernthemen wird besetzt.

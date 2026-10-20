@@ -1618,3 +1618,31 @@ test('Eigener Wahlkreis: Sprechstunde, Pflege und Vorsprung im nächsten Wahlkam
   const g2 = E.newGame('spd', 'Test', 3, next.program, next.carry);
   assert.strictEqual(g2.homeWk, g.homeWk);
 });
+
+test('Bilanz der Legislatur prägt den nächsten Wahlkampf: Themen, Kompetenz, Ansehen und Bilanz-Ereignisse', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  T.autoNames(g);
+  const t = g.term;
+  let k = 0;
+  while (!t.over && k++ < 30) {
+    while (t.pending.length) T.resolvePending(g, 0);
+    if (T.canAct(g, 'gesetz').ok) { const o = T.lawOptions(g); const tp = o.topics.find(x => x.contract !== undefined && x.contract !== x.current); if (tp) T.performAction(g, 'gesetz', { topic: tp.topic, opt: tp.contract }); }
+    while (t.pending.length) T.resolvePending(g, 0);
+    T.endQuarter(g);
+  }
+  t.lage.wohnen = t.lage0.wohnen - 90; // deutlich weniger Neubau als zu Beginn
+  const next = T.nextCampaign(g);
+  const R = next.carry.record;
+  assert.ok(R && R.role === 'kanzler' && Array.isArray(R.laws) && R.laws.length > 0);
+  assert.ok(R.lage.some(x => x.id === 'wohnen' && x.imp < 0));
+  const g2 = E.newGame('union', 'Test', 9, next.program, next.carry);
+  assert.ok(g2.record && g2.log.some(l => /Bilanz|Lage im Land|Glaubwürdigkeit/.test(l.text)));
+  // Die Regierungspartei wird an der Lage gemessen: Wohnen verliert an Kompetenz.
+  const plain = E.newGame('union', 'Test', 9, next.program);
+  assert.ok(g2.competence.wohnen < plain.competence.wohnen);
+  const ev = E.EVENTS.find(e => e.id === 'bilanz_lage');
+  g2.week = 3;
+  assert.ok(ev.cond(g2), 'Die Konkurrenz kann die Bilanz zum Thema machen');
+  assert.ok(/schlechter/.test(E.eventText(g2, ev)));
+});
