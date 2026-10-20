@@ -218,6 +218,7 @@
       chip('Inflation', num1(e.infl) + ' %', e.infl > 3) + chip('Schuldenquote', num1(e.debt) + ' %') + chip('Haushalt', (b.gap > 0 ? 'Schuldenbremse −' : 'Spielraum ') + mrd(Math.abs(b.gap)), b.gap > 0) +
       (T.isGov(t.role) && t.gov.length > 1 ? chip('Beliebtheit Spitze', (t.party.leader.like >= 0 ? '+' : '−') + num1(Math.abs(t.party.leader.like))) : '') +
       (T.isGov(t.role) ? chip('Ansehen in der Welt', Math.round(t.intl) + '/100') : '') + '</div>';
+    if (t.role === 'apo') { const cb = T.comebackBarometer(g); html += '<h3>📈 Comeback-Barometer</h3><div class="t-kpis">' + kpi('Chance auf den Wiedereinzug', cb.score + '/100', bar(cb.score, 100, cb.score >= 60 ? 'good' : cb.score >= 35 ? 'mid' : 'bad') + ' ' + esc(cb.label)) + kpi('Umfrage', pct(cb.poll), cb.poll >= 5 ? 'über der Hürde' : 'unter der Hürde') + kpi('In Landtagen', String(cb.landtage), 'Länder mit mindestens 5 %') + kpi('Mitglieder', Math.round(cb.members * 100) + ' %', 'im Vergleich zur Wahl') + '</div>'; }
     html += lageHtml();
     html += voicesHtml(3);
     // Sitzungswoche: Abstimmungen am Ende dieses Quartals mit Prognose
@@ -739,7 +740,7 @@
       '<li><span class="muted small">Vorsitz</span> ' + esc(P.leader.name) + (P.lastVote ? ' <span class="muted small">(' + String(P.lastVote.pct.toFixed(1)).replace('.', ',') + ' % beim Parteitag ' + P.lastVote.year + ')</span>' : '') + '</li>' +
       (team.gs ? '<li><span class="muted small">Generalsekretariat</span> ' + esc(team.gs) + '</li>' : '') +
       (team.fv && (t.seats[g.party] || 0) > 0 ? '<li><span class="muted small">Fraktionsvorsitz</span> ' + esc(team.fv) + '</li>' : '') +
-      (P.crown ? '<li><span class="muted small">Gilt als Nachfolge</span> ' + esc(P.crown) + '</li>' : '') + '</ul></div>' +
+      (P.crown ? '<li><span class="muted small">Gilt als Nachfolge</span> ' + esc(P.crown) + '</li>' : '') + (t.shadow ? t.shadow.map(x => '<li><span class="muted small">Schattenministerium ' + esc(E.topicById(x.topic).name) + '</span> ' + esc(x.name) + '</li>').join('') : '') + '</ul></div>' +
       '<div><h4>Stimmung der Flügel</h4><div class="t-lv">' + Wn.map((n, i) => { const w = Math.round(wings[i]); return '<div class="t-lv-row"><span>' + esc(n) + '</span>' + bar(w, 100, w < 40 ? 'bad' : w < 55 ? 'mid' : 'good') + '<span class="num">' + w + '</span></div>'; }).join('') + '</div>' +
       '<p class="muted small">Eure Gesetze rechts der Mitte freuen „' + esc(Wn[0]) + '“, Gesetze links der Mitte „' + esc(Wn[1]) + '“. Ein verärgerter Flügel kostet Geschlossenheit. Ordentliche Parteitage alle zwei Jahre.</p></div></div>';
     const M = t.media || { boulevard: 50, leit: 50, oer: 50, social: 50 };
@@ -1135,6 +1136,15 @@
       U.openModal(eyebrow + ' · 🔥 Lobbyaffäre', 'Bezahlte Nebentätigkeit?', '<p>Recherchen zeigen: Ein Abgeordneter eurer Fraktion hat für ' + esc(l.short) + ' gut bezahlte „Beratungsleistungen“ erbracht – und sich zugleich im Ausschuss für dessen Anliegen eingesetzt.</p>',
         [{ label: 'Alles offenlegen und Konsequenzen ziehen', hint: 'Kostet, aber begrenzt den Schaden', onClick: () => choose(0) },
           { label: 'Aussitzen', hint: 'Riskant – wie bei Amthor oder der Maskenaffäre', onClick: () => choose(1) }]);
+    } else if (it.type === 'kabinettstop') {
+      const L = T.lageBilanz(g);
+      U.openModal(eyebrow + ' · 🏛️ ' + (it.junior ? 'Ressortbesprechung' : 'Kabinettssitzung'), it.junior ? 'Was packen eure Ressorts an?' : 'Die Tagesordnung', '<p>' + (it.junior ? 'Eure Ministerinnen und Minister wollen ein Sofortprogramm in ihrem Zuständigkeitsbereich anstoßen.' : 'Mittwochmorgen, Kabinettssaal im Kanzleramt. Für die heutige Sitzung könnt ihr ein Sofortprogramm auf die Tagesordnung setzen.') + ' Kosten: 2 Mrd. €, Wirkung über vier Quartale.</p>' +
+        '<p class="small muted">Vorschläge nach den drängendsten Problemen im Land.</p>',
+        it.tops.map((id, i) => { const x = L.find(y => y.id === id); return { label: T.SOFORT[id], hint: x.name + ': ' + fmtVal(x.to, x.dec) + ' ' + x.unit + ' (seit der Wahl ' + (x.to - x.from >= 0 ? '+' : '−') + fmtVal(Math.abs(x.to - x.from), x.dec) + ')', onClick: () => choose(i) }; })
+          .concat([{ label: 'Kein Sofortprogramm', hint: 'Geld sparen – die Probleme bleiben', onClick: () => choose(it.tops.length) }]));
+    } else if (it.type === 'schattenkabinett') {
+      U.openModal(eyebrow + ' · 🧭 Opposition', 'Ein Schattenkabinett aufstellen', '<p>Eine starke Opposition zeigt, wer regieren könnte. Für welche Themen stellt ihr Köpfe auf? Dort wächst eure Kompetenz jedes Quartal, und ihr habt Gesichter für die Talkshows.</p>',
+        T.SHADOW_SETS.map((set, i) => ({ label: set.map(tp => E.topicById(tp).name).join(' · '), hint: 'Wichtigkeit heute: ' + set.map(tp => Math.round(g.salience[tp] * 100) + ' %').join(' / '), onClick: () => choose(i) })));
     } else if (it.type === 'parteitag_o') {
       const P = t.party;
       U.openModal(eyebrow + ' · 🎪 Partei', 'Ordentlicher Parteitag', '<p>Alle zwei Jahre wählen die Delegierten die Parteispitze neu. ' + esc(P.leader.name) + ' stellt sich zur Wiederwahl. Geschlossenheit: ' + Math.round(P.unity) + '/100 · Flügel: ' + esc(TD.WINGS[g.party][0]) + ' ' + Math.round((P.wings || [55])[0]) + ', ' + esc(TD.WINGS[g.party][1]) + ' ' + Math.round((P.wings || [55, 55])[1]) + '.</p><p class="muted small">Womit tritt ' + esc(P.leader.name) + ' ans Rednerpult?</p>',

@@ -1,6 +1,7 @@
 /*
  * Szenen für Aktionen in der Legislatur: Regierungserklärung mit Zwischenrufen, Nachtsitzung im Koalitionsausschuss,
- * Gipfelverhandlung, Zeugenbefragung im Untersuchungsausschuss, Bundestagsdebatte, Regierungsbefragung, Demonstration.
+ * Gipfelverhandlung, Zeugenbefragung im Untersuchungsausschuss, Bundestagsdebatte, Regierungsbefragung, Demonstration,
+ * Krisentelefon, Spendenkampagne und Pressekonferenz zum Alternativkonzept.
  * Gleiches Format wie scenes.js: { intro, meter, meter0, steps, result(S) }. Ohne DOM; termui.js spielt die Schritte ab.
  * Wirkung: S.q (−3 … 3) verstärkt oder schwächt die Aktion; S.fx = { mood, like, unity, cred, intl, gov } wirkt zusätzlich.
  * Abläufe nach der Geschäftsordnung des Bundestages (GOBT): Zwischenfragen § 27, Aktuelle Stunde § 106,
@@ -231,7 +232,76 @@
     };
   }
 
-  const BUILDERS = { regerkl, presse: regerkl, koaausschuss, reise, ua, antrag: debatte, aktuelle: debatte, befragung, protest };
+  // ---------- ☎️ Krisenstab: das Krisentelefon ----------
+  function krisenstab(ctx) {
+    const h = helpers(ctx);
+    const crisis = pickR(['Ein Cyberangriff legt die Systeme mehrerer Krankenhäuser lahm.', 'Ein Sturm hat das Stromnetz in drei Ländern beschädigt.', 'An einem Grenzübergang staut sich der Güterverkehr über 60 Kilometer.', 'Eine Chemiefabrik meldet einen Störfall – die Anwohner sind verunsichert.']);
+    return {
+      intro: '02:40 Uhr, das Telefon klingelt. Lagezentrum: ' + crisis + ' ' + h.leader + ' beruft den Krisenstab ein.',
+      meter: 'Vertrauen in das Krisenmanagement', meter0: 45,
+      steps: [
+        { title: 'Die erste Stunde', text: 'Die Ministerien liefern widersprüchliche Lagebilder. Was zuerst?', options: [
+          { label: 'Die Länder und Kommunen sofort zusammenschalten', hint: 'Koordination vor Kommunikation', m: 12, q: 1, reply: 'Die Ministerpräsidenten sind in 20 Minuten in der Leitung.' },
+          { label: 'Sofort eine Erklärung abgeben', hint: 'Schnell – aber ohne gesichertes Lagebild', roll: { p: 0.5, win: { m: 14, q: 1, reply: 'Die Botschaft beruhigt.' }, lose: { m: -10, q: -1, reply: 'Zwei Zahlen in der Erklärung stimmen nicht. Die Opposition hakt nach.' } } },
+          { label: 'Erst die Fakten abwarten', hint: 'Sorgfältig, aber still', m: 4, q: 0, reply: 'Stundenlang Funkstille aus Berlin. Die Sender spekulieren.' }
+        ] },
+        { title: 'Vor Ort', text: 'Am Morgen: Fahrt ins betroffene Gebiet?', options: [
+          { label: 'Hinfahren und zuhören', hint: 'Bilder der Nähe', m: 10, q: 1, fx: { like: 0.1 }, reply: 'Gummistiefel, Gespräche mit Helfern – die Bilder gehen um die Welt.' },
+          { label: 'In Berlin bleiben und führen', hint: 'Seriös, aber fern', m: 4, q: 0, reply: 'Man sieht euch nur im Lagezentrum.' }
+        ] },
+        { title: 'Die Hilfe', text: 'Die Betroffenen brauchen schnelle Unterstützung.', options: [
+          { label: 'Soforthilfe aus dem Bundeshaushalt', hint: 'Kostet, wirkt', m: 12, q: 1, fx: { gov: 0.3 }, reply: 'Die Soforthilfe ist binnen Tagen auf den Konten.' },
+          { label: 'Auf Versicherungen und Länder verweisen', hint: 'Spart Geld – wirkt kalt', m: -8, q: -1, reply: '„Im Stich gelassen“, titeln die Zeitungen.' }
+        ] }
+      ],
+      result(S) { return { rows: [['Krisenmanagement', S.meter >= 60 ? 'überzeugend' : S.meter >= 40 ? 'ordentlich' : 'holprig']], headline: S.meter >= 60 ? 'Die Regierung hat die Lage im Griff' : 'Kritik am Krisenmanagement' }; }
+    };
+  }
+
+  // ---------- 💶 Spendenkampagne ----------
+  function spenden(ctx) {
+    const h = helpers(ctx);
+    return {
+      intro: 'Die Parteikasse ist knapp. Die Bundesgeschäftsstelle plant eine Spendenkampagne. Wie soll sie aussehen?',
+      meter: 'Spendenbereitschaft', meter0: 35,
+      steps: [
+        { title: 'Der Aufhänger', text: 'Womit bittet ihr um Geld?', options: [
+          { label: 'Mit einem Kernthema: ' + h.tName, hint: 'Wirkt bei Überzeugten', m: 12, q: 1, reply: 'Die Mails werden geöffnet und weitergeleitet.' },
+          { label: 'Mit Empörung über die Konkurrenz', hint: 'Bringt Klicks, kann abstoßen', roll: { p: 0.55, win: { m: 18, q: 1, reply: 'Die Spenden schießen hoch.' }, lose: { m: -4, q: -1, fx: { cred: -1 }, reply: 'Der Ton kommt schlecht an – Austritte statt Spenden.' } } },
+          { label: 'Mit einem Dankeschön an die Mitglieder', hint: 'Leise, verlässlich', m: 6, q: 0, fx: { unity: 1 }, reply: 'Viele kleine Beträge kommen zusammen.' }
+        ] },
+        { title: 'Der Kanal', text: 'Wo erreicht ihr die Menschen?', options: [
+          { label: 'Live-Stream mit ' + h.leader, hint: 'Persönlich – wenn man die Spitze mag', m: h.like > 0 ? 14 : 4, q: h.like > 0 ? 1 : 0, reply: h.like > 0 ? 'Der Stream läuft drei Stunden, die Kommentare sind herzlich.' : 'Der Stream bleibt überschaubar.' },
+          { label: 'Gala-Abend mit Unternehmern', hint: 'Große Beträge – Lobbyverdacht', m: 16, q: 1, fx: { cred: -1 }, reply: 'Ein Abend, ein sechsstelliger Betrag – und eine Frage im Lobbyregister.' },
+          { label: 'Infostände in der Fußgängerzone', hint: 'Bodenständig', m: 8, q: 0, fx: { unity: 1 }, reply: 'Viele Gespräche, ein paar Spenden.' }
+        ] }
+      ],
+      result(S) { return { rows: [['Ergebnis', S.meter >= 55 ? 'Rekord' : S.meter >= 35 ? 'ordentlich' : 'mager']], headline: S.meter >= 55 ? 'Spendenrekord für die Partei' : 'Spendenkampagne läuft an' }; }
+    };
+  }
+
+  // ---------- 🧭 Alternativkonzept: Pressekonferenz des Schattenkabinetts ----------
+  function schatten(ctx) {
+    const h = helpers(ctx);
+    return {
+      intro: 'Bundespressekonferenz: Euer Alternativkonzept zum Thema ' + h.tName + '. Auf dem Podium: ' + h.leader + ' und eure Fachpolitikerin.',
+      meter: 'Überzeugungskraft', meter0: 35,
+      steps: [
+        { title: 'Die Präsentation', text: 'Womit beginnt ihr?', options: [
+          { label: 'Mit einer durchgerechneten Finanzierung', hint: 'Seriös', m: h.comp >= 45 ? 14 : 6, q: 1, reply: h.comp >= 45 ? 'Die Zahlen halten den ersten Nachfragen stand.' : 'An zwei Stellen hakt die Rechnung.' },
+          { label: 'Mit einer Betroffenen, die erzählt', hint: 'Emotional', m: 10, q: 1, reply: 'Die Geschichte geht unter die Haut.' },
+          { label: 'Mit einem Angriff auf die Regierung', hint: 'Laut', roll: { p: 0.5, win: { m: 12, q: 1, reply: 'Die Kameras lieben es.' }, lose: { m: -6, q: -1, reply: '„Und Ihr eigener Plan?“, fragt ein Journalist trocken.' } } }
+        ] },
+        { title: 'Die kritische Frage', text: 'Ein Wirtschaftsjournalist: „Ist das nicht Wunschdenken?“', options: [
+          { label: 'Mit Gutachten antworten', hint: 'Fakten', m: 8, q: 0, fx: { cred: 1 }, reply: 'Ihr verweist auf zwei Institute – überzeugend.' },
+          { label: 'Gegenfrage zur Regierungsbilanz', hint: 'Ausweichend', m: 2, q: 0, reply: 'Geschickt, aber nicht beantwortet.' }
+        ] }
+      ],
+      result(S) { return { rows: [['Echo', S.meter >= 55 ? 'groß' : S.meter >= 35 ? 'solide' : 'verhalten']], headline: S.meter >= 55 ? 'Opposition legt überzeugendes Konzept vor' : 'Alternativkonzept vorgestellt' }; }
+    };
+  }
+
+  const BUILDERS = { regerkl, presse: regerkl, koaausschuss, reise, ua, antrag: debatte, aktuelle: debatte, befragung, protest, krisenstab, spenden, schatten };
   function build(id, ctx) {
     const b = BUILDERS[id];
     return b ? b(Object.assign({ id }, ctx)) : null;

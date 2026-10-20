@@ -896,6 +896,10 @@
       const rel = ((t.budget.plan && t.budget.plan[a]) || 0) / 100 + (a === 'verteidigung' ? (t.budget.def || 0) / 80 : 0);
       Object.keys(TD.LAGE_BUDGET[a]).forEach(id => { if (id in d) d[id] += rel * TD.LAGE_BUDGET[a][id]; });
     });
+    // Sofortprogramme aus der Kabinettssitzung wirken vier Quartale.
+    Object.keys(t.lageBoost || {}).forEach(id => { const b = t.lageBoost[id]; if (id in d) d[id] += b.d; b.left -= 1; if (b.left <= 0) delete t.lageBoost[id]; });
+    // Schattenkabinett: In seinen Themen wächst die Kompetenz der Partei.
+    (t.shadow || []).forEach(s => { if (g.competence) g.competence[s.topic] = clamp(g.competence[s.topic] + 1, 5, 95); });
     // Streit, vorläufige Haushaltsführung und Affären kosten Vertrauen in die Demokratie; die Arbeitslosigkeit treibt die Armut.
     if (t.gov.length > 1 && t.mood < 35) d.demokratie -= 0.4;
     if (t.budget.status === 'vorlaeufig') d.demokratie -= 0.3;
@@ -1013,6 +1017,69 @@
       leit: second ? { head: head(second.text), sub: rest(second.text) || (moved && Math.abs(moved.d) > 0.05 ? 'Im Blick: ' + moved.x.name + (moved.d > 0 ? ' entwickelt sich besser' : ' entwickelt sich schlechter') + '.' : '') } : { head: 'Die Republik im Stillstand?', sub: '' },
       poll: own !== null ? sname(g.party) + ' in der Sonntagsfrage: ' + (Math.round(own * 10) / 10).toString().replace('.', ',') + ' %' : ''
     };
+  }
+
+  // ---------- Szenen je Rolle ----------
+  // Regierung: In der Kabinettssitzung setzt die Kanzlerin/der Kanzler (bzw. der Juniorpartner in seinen Ressorts) ein
+  // Sofortprogramm gegen eines der drängendsten Probleme auf die Tagesordnung – es kostet Geld und wirkt vier Quartale.
+  // Opposition: Ein Schattenkabinett gibt der Partei Gesichter für drei Themen und baut dort Kompetenz auf.
+  const SOFORT = { migration: 'Rückführungsoffensive und schnellere Verfahren', soziales: 'Entlastungspaket für Geringverdiener', klima: 'Förderprogramm Wärmepumpe und Netze',
+    sicherheit: 'Mehr Personal für Polizei und Justiz', bildung: 'Startchancen-Programm für Brennpunktschulen', digitales: 'Glasfaser-Turbo für ländliche Räume',
+    wohnen: 'Bau-Turbo: schnellere Genehmigungen', verteidigung: 'Beschaffungsoffensive Bundeswehr', gesundheit: 'Stabilisierungszuschuss für die Kassen',
+    verkehr: 'Sanierungsprogramm Schiene', europa: 'Europa-Initiative mit Paris und Warschau', familie: 'Kita-Ausbauprogramm', land: 'Zukunftsprogramm Landwirtschaft',
+    demokratie: 'Bürgerräte und Demokratieförderung', wirtschaft: 'Konjunktur- und Standortpaket', finanzen: 'Ausgabenüberprüfung (Spending Review)' };
+  function topProblems(g, n) {
+    const t = g.term;
+    ensureLage(g);
+    return TD.LAGE.map(x => ({ id: x.id, x, s: g.salience[x.id] / D.SALIENCE0[x.id] - 0.3 * lageImp(t, x, t.lage0) }))
+      .filter(y => !(t.lageBoost && t.lageBoost[y.id])).sort((a, b) => b.s - a.s).slice(0, n || 3);
+  }
+  function roleQuarter(g, c) {
+    const t = g.term;
+    const has = type => t.pending.some(it => it.type === type);
+    if (t.role === 'kanzler' && t.q % 2 === 1 && !has('kabinettstop')) t.pending.push({ type: 'kabinettstop', tops: topProblems(g, 3).map(y => y.id) });
+    if (t.role === 'junior' && t.q % 4 === 2 && !has('kabinettstop')) {
+      const own = ownMinistries(t, g.party).map(m => ministryById(m).topics || []).reduce((a, b) => a.concat(b), []);
+      const tops = topProblems(g, 16).filter(y => own.indexOf(y.id) !== -1).slice(0, 3).map(y => y.id);
+      if (tops.length) t.pending.push({ type: 'kabinettstop', tops, junior: true });
+    }
+    if (t.role === 'opposition' && !t.shadow && t.q >= 1 && !has('schattenkabinett')) t.pending.push({ type: 'schattenkabinett' });
+  }
+  const SHADOW_SETS = [['wirtschaft', 'finanzen', 'digitales'], ['soziales', 'gesundheit', 'wohnen'], ['migration', 'sicherheit', 'verteidigung'], ['klima', 'verkehr', 'land']];
+  function resolveRoleScene(g, item, choice) {
+    const t = g.term;
+    if (item.type === 'kabinettstop') {
+      const id = item.tops[choice];
+      if (!id) return 'Die Tagesordnung bleibt ohne Sofortprogramm. ' + (item.junior ? 'Eure Ressorts arbeiten im Normalbetrieb.' : 'Das Kabinett arbeitet die Routine ab.');
+      const x = lageDef(id);
+      t.lageBoost = t.lageBoost || {};
+      t.lageBoost[id] = { left: 4, d: x.better * x.scale * 0.18 };
+      t.budget.oneoff += 2;
+      cat('aktion');
+      t.gov.forEach(p => addNat(g, p, p === g.party ? 0.06 : 0.03));
+      news(g, '🏛️ Kabinett beschließt „' + SOFORT[id] + '“ (2 Mrd. €).', 'info');
+      return 'Das Kabinett beschließt „' + SOFORT[id] + '“. Kosten: 2 Mrd. €. Wirkung auf „' + x.name + '“ über die nächsten vier Quartale.';
+    }
+    if (item.type === 'schattenkabinett') {
+      const set = SHADOW_SETS[choice] || SHADOW_SETS[0];
+      t.shadow = set.map(tp => ({ topic: tp, name: newPerson(g, g.party, weightedLand(g)).full }));
+      cat('aktion');
+      addNat(g, g.party, 0.08);
+      news(g, '🧭 ' + sname(g.party) + ' stellt ein Schattenkabinett vor: ' + t.shadow.map(s => s.name + ' (' + E.topicById(s.topic).name + ')').join(', ') + '.', 'info');
+      return 'Euer Schattenkabinett steht: ' + t.shadow.map(s => s.name + ' für ' + E.topicById(s.topic).name).join(', ') + '. In diesen Themen wächst eure Kompetenz jedes Quartal.';
+    }
+    return '';
+  }
+  // APO: Wie realistisch ist der Wiedereinzug? (Anzeige; Werte aus Umfrage, Landtagen, Mitgliedern und Kasse)
+  function comebackBarometer(g) {
+    const t = g.term;
+    const P0 = party(g.party);
+    const poll = (t.lastNat && t.lastNat[g.party]) || 0;
+    const landtage = Object.keys(t.landPrev || {}).filter(l => (t.landPrev[l] || 0) >= 5).length;
+    const members = t.party.members / ((P0 && P0.members) || t.party.members);
+    const cash = t.party.cash;
+    const score = clamp(Math.round(50 + (poll - 5) * 14 + (landtage - 3) * 3 + (members - 1) * 60 + Math.min(10, cash)), 1, 99);
+    return { score, poll, landtage, members, cash, label: score >= 70 ? 'Comeback in Reichweite' : score >= 45 ? 'Offenes Rennen' : score >= 25 ? 'Steiniger Weg' : 'Kaum Chancen' };
   }
 
   // ---------- Wirtschaft und Haushalt ----------
@@ -2322,7 +2389,12 @@
     const item = t.pending[0];
     if (!item) return { ok: false };
     let text = '';
-    cat({ scandal: 'skandal', vote: 'abstimmung', cabinet: 'kabinett', veto: 'kabinett', disloyal: 'kabinett', sq: 'statusquo', lobby: 'lobby', door: 'lobby', lobbyaffair: 'skandal', landkoa: 'wahlen', ltwcamp: 'wahlen', debatte: 'parlament', namentlich: 'parlament', haushaltskrise: 'haushalt', gewissen: 'abstimmung', memory: 'glaubw', eckwerte: 'haushalt', kbefragung: 'aktion', bereinigung: 'haushalt', brstell: 'parlament', anhoerung: 'parlament', whip: 'abstimmung', brwhip: 'parlament', parteitag_o: 'partei', fluegel: 'partei', machtkampf: 'partei', ruecktritt: 'kabinett', ehrgeiz: 'kabinett', halbzeit: 'kabinett' }[item.type] || 'ereignis');
+    cat({ scandal: 'skandal', vote: 'abstimmung', cabinet: 'kabinett', veto: 'kabinett', disloyal: 'kabinett', sq: 'statusquo', lobby: 'lobby', door: 'lobby', lobbyaffair: 'skandal', landkoa: 'wahlen', ltwcamp: 'wahlen', debatte: 'parlament', namentlich: 'parlament', haushaltskrise: 'haushalt', gewissen: 'abstimmung', memory: 'glaubw', eckwerte: 'haushalt', kbefragung: 'aktion', bereinigung: 'haushalt', brstell: 'parlament', anhoerung: 'parlament', whip: 'abstimmung', brwhip: 'parlament', kabinettstop: 'aktion', schattenkabinett: 'aktion', parteitag_o: 'partei', fluegel: 'partei', machtkampf: 'partei', ruecktritt: 'kabinett', ehrgeiz: 'kabinett', halbzeit: 'kabinett' }[item.type] || 'ereignis');
+    if (item.type === 'kabinettstop' || item.type === 'schattenkabinett') {
+      text = resolveRoleScene(g, item, choice);
+      t.pending.shift();
+      return { ok: true, text };
+    }
     if (['parteitag_o', 'fluegel', 'machtkampf', 'ruecktritt', 'ehrgeiz', 'halbzeit'].indexOf(item.type) !== -1) {
       text = resolvePartyLife(g, item, choice);
       t.pending.shift();
@@ -3209,6 +3281,7 @@
       if (c.qn === 3) sp('sommerinterview');
       if (c.qn === 4) { if ((t.seats[g.party] || 0) > 0) sp('generaldebatte'); sp('neujahr'); if (isGov(t.role) && rand(g) < 0.5) sp('herbstgipfel'); }
       partyQuarter(g, c);
+      roleQuarter(g, c);
     }
     // Regierungsbefragung: Die Kanzlerin/der Kanzler stellt sich dreimal im Jahr dem Plenum (§ 106 GOBT, seit 2018).
     if (!first && t.role === 'kanzler' && c.qn === 2) {
@@ -3632,7 +3705,7 @@
   }
 
   const TERM = {
-    QUARTERS, ACTIONS, LAW_STEPS, forecast, lageBilanz, lawEffects, ensureLage, WOBBLE, brAligned, landGovernment, dueVotes, GEWISSEN, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
+    QUARTERS, ACTIONS, LAW_STEPS, forecast, lageBilanz, lawEffects, ensureLage, SOFORT, SHADOW_SETS, comebackBarometer, WOBBLE, brAligned, landGovernment, dueVotes, GEWISSEN, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
     lawOptions, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, cal,
     lawName, lawTitle, leanOf, quorum, eventChoices, fillText, eventById, ministryById, taxById, areaById, nextCampaign, summary,
     MEDIA, media, actionCash, govSeats, isGov, legacy, LB, careerSnapshot, chooseLeader, leaderAge, currentLeader, MAX_AGE, sqForces, absCal, FX_NAMES, ministerFor, eventMinister, ownMinistries, endTerm, defaultVote, partyVote, mandateVote

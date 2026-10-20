@@ -1553,13 +1553,15 @@ test('Lage im Land: Gesetze verändern Indikatoren mit Verzögerung, die Problem
   assert.ok(fx.some(f => f.id === 'wohnen' && f.good && f.up));
   const w0 = h.term.lage.wohnen;
   const base0 = g.term.lage.wohnen;
-  for (let q = 0; q < 6; q++) { while (h.term.pending.length) T.resolvePending(h, 0); T.endQuarter(h); while (g.term.pending.length) T.resolvePending(g, 0); T.endQuarter(g); }
+  // Ohne Sofortprogramme aus der Kabinettssitzung, damit nur das Gesetz den Unterschied macht.
+  const clear = x => { while (x.term.pending.length) { const it = x.term.pending[0]; T.resolvePending(x, it.type === 'kabinettstop' ? it.tops.length : 0); } };
+  for (let q = 0; q < 6; q++) { clear(h); T.endQuarter(h); clear(g); T.endQuarter(g); }
   assert.ok(h.term.lage.wohnen - w0 > g.term.lage.wohnen - base0 + 10, 'Mehr Neubau als ohne Gesetz');
   // Wird es schlechter, wird das Thema wichtiger.
   const k = E.deserialize(E.serialize(g));
   k.term.lage.migration = 600;
   const before = k.salience.migration;
-  for (let q = 0; q < 3; q++) { while (k.term.pending.length) T.resolvePending(k, 0); T.endQuarter(k); }
+  for (let q = 0; q < 3; q++) { clear(k); T.endQuarter(k); }
   assert.ok(k.salience.migration > before, 'Mehr Asylanträge machen Migration wichtiger');
 });
 
@@ -1571,4 +1573,29 @@ test('Stimmen aus dem Land und Titelseiten entstehen jedes Quartal, ohne den Spi
   for (let q = 0; q < 3; q++) { while (t.pending.length) T.resolvePending(g, 0); T.endQuarter(g); }
   assert.ok(t.front && t.front.boulevard.head && t.front.leit.head);
   assert.ok((t.voices || []).length >= 1 && t.voices.every(v => /\(\d+\), .+ aus /.test(v.who) && v.text));
+});
+
+test('Szenen je Rolle: Kabinettssitzung mit Sofortprogramm, Schattenkabinett, Comeback-Barometer', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  T.autoNames(g);
+  const t = g.term;
+  while (t.pending.length) T.resolvePending(g, 0);
+  t.pending.push({ type: 'kabinettstop', tops: ['verkehr', 'wohnen'] });
+  const v0 = t.lage.verkehr;
+  const oneoff = t.budget.oneoff;
+  const r = T.resolvePending(g, 0);
+  assert.ok(/Sanierungsprogramm Schiene/.test(r.text) && t.budget.oneoff === oneoff + 2 && t.lageBoost.verkehr.left === 4);
+  T.endQuarter(g);
+  assert.ok(t.lage.verkehr > v0 - 0.5, 'Das Sofortprogramm stützt die Pünktlichkeit');
+  const o = electedGame('linke', 3);
+  T.startTerm(o);
+  o.term.pending.push({ type: 'schattenkabinett' });
+  while (o.term.pending.length && o.term.pending[0].type !== 'schattenkabinett') T.resolvePending(o, 0);
+  T.resolvePending(o, 1);
+  assert.strictEqual(o.term.shadow.length, 3);
+  const TS = require('../js/termscenes.js');
+  ['krisenstab', 'spenden', 'schatten'].forEach(id => assert.ok(TS.has(id) && TS.build(id, { g, t, E, D, T }).steps.length >= 2));
+  const cb = T.comebackBarometer(g);
+  assert.ok(cb.score >= 1 && cb.score <= 99 && cb.label);
 });
