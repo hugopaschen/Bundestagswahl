@@ -628,11 +628,10 @@ test('Abwerbung: Kompetenz bei einem fremden Thema holt Stimmen bei dessen Besit
   assert.strictEqual(from, 'gruene');
   const src = g.src.fdp;
   assert.ok(Object.keys(src).every(q => q === 'gruene' || src[q] < src.gruene));
-  // Ohne Kompetenz kein gezieltes Abwerben bei den Grünen.
+  // Klima ist Kernthema der Grünen: Auch mit wenig Kompetenz kommen die Stimmen vor allem von ihnen.
   const h = E.newGame('fdp', 'T', 4);
   h.competence.klima = 20;
-  E.steerVotes(h, 'fdp', 'klima', 'jung', 1);
-  assert.ok(!h.src || !h.src.fdp || !(h.src.fdp.gruene > 0));
+  assert.strictEqual(E.steerVotes(h, 'fdp', 'klima', 'jung', 1), 'gruene');
 });
 
 test('Brandmauer: Stufen verändern Koalitionsmöglichkeiten', () => {
@@ -1645,4 +1644,35 @@ test('Bilanz der Legislatur prägt den nächsten Wahlkampf: Themen, Kompetenz, A
   g2.week = 3;
   assert.ok(ev.cond(g2), 'Die Konkurrenz kann die Bilanz zum Thema machen');
   assert.ok(/schlechter/.test(E.eventText(g2, ev)));
+});
+
+test('Länderumfragen: unter 3 % im Land unter „Andere“, im Land Starke mit eigener Spalte', () => {
+  const g = E.newGame('spd', 'Test', 1);
+  ['BY', 'SN', 'HB', 'BE'].forEach(st => {
+    const raw = E.pollStateShares(g, st);
+    const s = E.mergeStateShares(g, raw);
+    Object.keys(s).filter(p => p !== 'sonstige' && p !== 'spd').forEach(p => assert.ok(s[p] >= 3, st + ': ' + p + ' ' + s[p]));
+    assert.ok('spd' in s);
+    assert.ok(Math.abs(Object.values(s).reduce((a, b) => a + b, 0) - Object.values(raw).reduce((a, b) => a + b, 0)) < 1e-9);
+  });
+});
+
+test('Themen der Konkurrenz: Eine Aktion zum Kernthema einer Partei holt die Stimmen im Land vor allem von ihr', () => {
+  const g = E.newGame('spd', 'Test', 3);
+  assert.deepStrictEqual(E.partyTopics(g, 'linke'), D.CAMPAIGN_TOPICS.linke);
+  const pre = E.steerPreview(g, 'wohnen', 'BE');
+  assert.strictEqual(pre[0].p, 'linke');
+  assert.ok(pre[0].core && pre[0].share >= 0.5);
+  // Haustür in Berlin zum Thema Wohnen: Der Gewinn kommt dort überwiegend von der Linken.
+  g.ap = 3; g.team = g.teamMax;
+  const before = E.stateShares(g, 'BE');
+  const res = E.performAction(g, 'haustuer', { state: 'BE', topic: 'wohnen' });
+  assert.ok(res.ok, res.text);
+  const after = E.stateShares(g, 'BE');
+  const losses = Object.keys(before).filter(p => p !== 'spd').map(p => ({ p, d: before[p] - after[p] })).sort((a, b) => b.d - a.d);
+  assert.strictEqual(losses[0].p, 'linke', JSON.stringify(losses.slice(0, 3)));
+  assert.ok(g.srcReg && g.srcReg.BE && g.srcReg.BE.spd.linke > 0);
+  // Die KI bespielt ihre Kernthemen.
+  for (let w = 0; w < 3; w++) { while (g.pendingEvent) E.resolveEvent(g, 0); E.endWeek(g); }
+  assert.ok(Object.keys(g.aiPush || {}).some(p => Object.keys(g.aiPush[p]).every(t => E.partyTopics(g, p).indexOf(t) !== -1)));
 });

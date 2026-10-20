@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261020-223525';
+  const APP_VERSION = '20261020-224624';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -483,11 +483,13 @@
 
   function renderStateDetail() {
     const st = E.stateById(selState);
-    const s = merged(E.pollStateShares(g, st.id));
+    const s = E.mergeStateShares(g, E.pollStateShares(g, st.id)); // unter 3 % im Land: „Andere“
     // Feste Skala für alle Länder (0–50 %), damit die 5-%-Linie beim Wechsel nicht springt; höhere Werte werden gekappt.
     const top = CHART_TOP;
     const box = $('state-detail');
-    const order = pollOrder();
+    const base = pollOrder().filter(p => p in s);
+    const extra = Object.keys(s).filter(p => p !== D.OTHER.id && base.indexOf(p) === -1); // im Land stark, bundesweit unter „Sonstige“
+    const order = base.filter(p => p !== D.OTHER.id).concat(extra, base.indexOf(D.OTHER.id) !== -1 ? [D.OTHER.id] : []);
     if (!box.querySelector('.col-chart') || order.join() !== CHART_ORDER.join()) { CHART_ORDER = order; buildStateChart(box); }
     box.querySelector('.cc-title').innerHTML = esc(st.name) + ' <span class="muted small">· ' + num1(st.voters) + ' Mio. Wahlberechtigte · erwartete Wahlbeteiligung ' + pct(E.turnout(g, st.id)) +
       (prevTurnout(st.id) ? ' (' + prevYear() + ': ' + pct(prevTurnout(st.id)) + ')' : '') + '</span>';
@@ -548,9 +550,40 @@
       g.steal[topic].until + ' um 30 % schwächer.</p>';
   }
 
+  // Wer bespielt welches Thema? Kernthemen der Konkurrenz (🔥 = in der letzten Woche aktiv gesetzt).
+  const pushingT = (p, t) => !!(g.aiPush && g.aiPush[p] && g.aiPush[p][t] >= g.week - 1);
+  function topicOwners(topic) {
+    return E.shownIds(g).filter(p => p !== g.party && E.partyTopics(g, p).indexOf(topic) !== -1);
+  }
+  function rivalTopicsHtml() {
+    const ids = E.shownIds(g).filter(p => p !== g.party);
+    return '<details class="rt-box" open><summary>🎯 Themen der Konkurrenz</summary><p class="muted small">Bespielt ihr das Kernthema einer Partei, holt ihr die Stimmen vor allem von ihr – bei Aktionen in einem Land dort, wo sie stark ist. 🔥 = hat das Thema letzte Woche bespielt.</p><div class="rt-rows">' +
+      ids.map(p => '<div class="rt-row"><span class="rt-party">' + pills([p]) + '</span><span class="rt-topics">' + E.partyTopics(g, p).map(t => '<button type="button" class="rt-chip" data-t="' + t + '">' + E.topicById(t).icon + ' ' + esc(E.topicById(t).name) + (pushingT(p, t) ? ' 🔥' : '') + '</button>').join('') + '</span></div>').join('') + '</div></details>';
+  }
+  // Von wem kämen die Stimmen? Bundesweit und im ausgewählten Land.
+  function steerLine(topic) {
+    const fmtP = list => list.map(x => '<b>' + esc(short(x.p)) + '</b> ' + Math.round(x.share * 100) + ' %' + (x.core ? ' 🎯' : '')).join(', ');
+    const nat = E.steerPreview(g, topic, null);
+    const land = E.steerPreview(g, topic, selState);
+    const owners = topicOwners(topic);
+    return '<p class="td-steer">' + (owners.length ? 'Kernthema von ' + owners.map(p => esc(short(p)) + (pushingT(p, topic) ? ' 🔥' : '')).join(', ') + '. ' : 'Keine andere Partei hat das als Kernthema. ') +
+      (nat.length ? 'Gewinnt ihr hier, holt ihr bundesweit vor allem von ' + fmtP(nat) + '.' : '') +
+      (land.length ? ' Bei Aktionen in ' + esc(E.stateById(selState).name) + ': ' + fmtP(land) + '.' : '') + '</p>';
+  }
+
   function renderTopics() {
     const list = $('topic-list');
     const detail = $('topic-detail');
+    const rt = $('rival-topics');
+    if (rt) {
+      rt.hidden = !!selTopic;
+      if (!selTopic) {
+        const wasOpen = !rt.querySelector('details') || rt.querySelector('details').open;
+        rt.innerHTML = rivalTopicsHtml();
+        rt.querySelector('details').open = wasOpen;
+        rt.querySelectorAll('.rt-chip').forEach(b => b.addEventListener('click', () => { selTopic = b.dataset.t; renderGame(); $('topic-detail').scrollIntoView({ block: 'nearest' }); }));
+      }
+    }
     $('topic-intro').hidden = !!selTopic;
     list.hidden = !!selTopic;
     detail.hidden = !selTopic;
@@ -562,7 +595,7 @@
         '<p class="td-name">' + esc(t.name) + (E.isCore(g, t.id) ? ' <span class="td-core">🎯 Kernthema · Aktionen +25 %</span>' : '') + '</p>' +
         '<p class="td-stats">Kompetenz <b>' + st.comp + '</b>/100 · Wählerinteresse <b>' + Math.round(st.now) + ' %</b> ' +
         '<span class="' + (st.trend > 0.5 ? 'pos' : st.trend < -0.5 ? 'neg' : 'muted') + '">' + (st.trend > 0.5 ? '▲' : st.trend < -0.5 ? '▼' : '•') + '</span></p>' +
-        '</div></div>' + topicGroupsLine(t.id) + stolenLine(t.id);
+        '</div></div>' + topicGroupsLine(t.id) + steerLine(t.id) + stolenLine(t.id);
       detail.querySelector('.td-back').addEventListener('click', () => { selTopic = null; renderGame(); $('topic-list').scrollIntoView({ block: 'nearest' }); });
       return;
     }
@@ -578,6 +611,7 @@
         (thief ? '<span class="tc-stolen" title="' + esc(E.party(thief).name) + ' macht euch das Thema streitig">⚠️ ' + esc(E.party(thief).short) + '</span>' : '') +
         '<span class="tc-icon" aria-hidden="true">' + t.icon + '</span>' +
         '<span class="tc-name">' + cardName(t.name) + '</span>' +
+        (owners => owners.length ? '<span class="tc-owners">' + owners.map(p => '<i style="background:' + col(p) + '" title="Kernthema von ' + esc(E.party(p).name) + '"></i>' + esc(short(p)) + (pushingT(p, t.id) ? '🔥' : '')).join(' ') + '</span>' : '')(topicOwners(t.id)) +
         '<span class="tc-meter"><span>Kompetenz <b>' + st.comp + '</b></span><span class="core-bar"><span style="width:' + st.comp + '%"></span></span></span>' +
         '<span class="tc-interest">Wählerinteresse <b>' + Math.round(st.now) + ' %</b> ' +
         '<span class="' + (st.trend > 0.5 ? 'pos' : st.trend < -0.5 ? 'neg' : 'muted') + '">' + (st.trend > 0.5 ? '▲' : st.trend < -0.5 ? '▼' : '') + '</span></span>';

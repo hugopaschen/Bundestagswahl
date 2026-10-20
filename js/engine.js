@@ -601,11 +601,14 @@
       const b = bonus[p];
       const t = {};
       taken[p] = t;
-      if (!b && !(g.src && g.src[p])) return;
+      if (!b && !(g.src && g.src[p]) && !(g.srcReg && g.srcReg[stateId] && g.srcReg[stateId][p])) return;
       let rest = b;
       // Gezielt abgeworbene Stimmen kommen immer von der getroffenen Partei; der Rest des
       // Bonus (auch ein negativer) verteilt sich über die Wanderungstabelle.
-      const src = g.src && g.src[p];
+      const srcN = g.src && g.src[p];
+      const srcR = g.srcReg && g.srcReg[stateId] && g.srcReg[stateId][p];
+      const src = srcR ? Object.assign({}, srcN || {}) : srcN;
+      if (srcR) Object.keys(srcR).forEach(q => { src[q] = (src[q] || 0) + srcR[q]; });
       if (src) {
         Object.keys(src).forEach(q => {
           if (!(src[q] > 0)) return;
@@ -673,36 +676,71 @@
   // erreicht, holt die Stimmen vor allem von der Partei, die das Thema sonst besetzt –
   // und die in dieser Gruppe stark ist.
   const STEER_MAX = 0.75;
-  function steerVotes(g, p, topic, groupId, amount) {
-    if (!(amount > 0) || !topicById(topic)) return null;
+  // Kernthemen einer Partei im Wahlkampf: euer Programm bzw. die Schwerpunkte der Konkurrenz (D.CAMPAIGN_TOPICS).
+  function partyTopics(g, p) {
+    if (p === g.party && g.program) return g.program.core.slice();
+    return (D.CAMPAIGN_TOPICS && D.CAMPAIGN_TOPICS[p]) || (party(p) && party(p).topics) || [];
+  }
+  // Wer bespielt das Thema gerade (in der letzten Woche im Wahlkampf gesetzt)?
+  const pushing = (g, q, topic) => !!(g.aiPush && g.aiPush[q] && g.aiPush[q][topic] >= g.week - 1);
+  // Gewichte der Abwerbung: Wer das Thema als Kernthema bespielt, verliert am meisten – im Land nur, wo die Partei Wähler hat.
+  function steerWeights(g, p, topic, groupId, stateId) {
     const mine = competenceOf(g, p)[topic];
     const k = groupId ? D.GROUPS.find(x => x.id === groupId) : null;
     const gs = k ? groupShares(g, k.id) : null;
     const pub = gs ? publishedShares(g) : null;
     const care = k ? Math.max(0.6, Math.min(1.6, topicPref(k, topic))) : 1;
+    const sts = stateId ? stateShares(g, stateId) : null;
     const w = {};
     let W = 0;
+    let coreW = 0;
     CONTEST_IDS.forEach(q => {
       if (q === p) return;
       const theirs = competenceOf(g, q)[topic];
-      const own = Math.max(0, theirs - MEAN_COMPETENCE[topic]);
-      const rel = Math.max(0, Math.min(1.2, 1 + (mine - theirs) / 40));
+      const core = partyTopics(g, q).indexOf(topic) !== -1;
+      const own = Math.max(core ? 12 : 0, theirs - MEAN_COMPETENCE[topic]);
+      // Bei einem Kernthema ist auch einer kompetenteren Partei etwas zu holen – nur schwerer.
+      const rel = Math.max(core ? 0.35 : 0, Math.min(1.2, 1 + (mine - theirs) / 40));
       const fit = gs && pub[q] > 0 ? Math.max(0.5, Math.min(2, gs[q] / pub[q])) : 1;
-      w[q] = own * rel * fit * care;
+      // Wählerpotenzial: Bei einer großen Partei ist mehr zu holen als bei einer kleinen (im Land: dortiger Anteil).
+      const pool = Math.sqrt(Math.max(0, sts ? sts[q] : nationalShares(g)[q]) / 10);
+      w[q] = own * rel * fit * care * pool * (core ? 4 : 1) * (pushing(g, q, topic) ? 1.3 : 1);
       W += w[q];
+      if (core) coreW += w[q];
     });
+    return { w, W, coreW };
+  }
+  // Gezielte Abwerbung: Wer bei einem Thema punktet, holt die Stimmen vor allem von der Partei, die das Thema besetzt.
+  // Mit Land (stateId) nur dort; sonst bundesweit. Ist es deren Kernthema, kommt der Großteil von ihr.
+  function steerVotes(g, p, topic, groupId, amount, stateId) {
+    if (!(amount > 0) || !topicById(topic)) return null;
+    const { w, W, coreW } = steerWeights(g, p, topic, groupId, stateId);
     if (W < 1) return null;
-    const steer = amount * Math.min(STEER_MAX, W / 30);
-    if (!g.src) g.src = {};
-    if (!g.src[p]) g.src[p] = {};
+    const steer = amount * (coreW >= 0.5 * W ? 0.9 : Math.min(STEER_MAX, W / 30));
+    let src;
+    if (stateId) {
+      g.srcReg = g.srcReg || {};
+      g.srcReg[stateId] = g.srcReg[stateId] || {};
+      src = g.srcReg[stateId][p] = g.srcReg[stateId][p] || {};
+    } else {
+      if (!g.src) g.src = {};
+      src = g.src[p] = g.src[p] || {};
+    }
     let best = null;
     Object.keys(w).forEach(q => {
       if (!w[q]) return;
-      g.src[p][q] = (g.src[p][q] || 0) + steer * w[q] / W;
+      src[q] = (src[q] || 0) + steer * w[q] / W;
       if (!best || w[q] > w[best]) best = q;
     });
     return best && W >= 5 && w[best] / W >= 0.35 ? best : null;
   }
+  // Vorschau: Von wem kämen die Stimmen bei diesem Thema (im Land)?
+  function steerPreview(g, topic, stateId) {
+    const { w, W } = steerWeights(g, g.party, topic, null, stateId);
+    return Object.keys(w).filter(q => w[q] > 0).sort((a, b) => w[b] - w[a]).slice(0, 3)
+      .map(q => ({ p: q, share: W ? w[q] / W : 0, core: partyTopics(g, q).indexOf(topic) !== -1 })).filter(x => x.share >= 0.08);
+  }
+
 
   // ---------- Mobilisierung und Wahlbeteiligung ----------
 
@@ -1519,8 +1557,10 @@
       }
     }
     if (steerTopic) {
-      const from = steerVotes(g, p, steerTopic, steerGroup, nationalShares(g)[p] - shareBefore);
-      if (from) text += ' Ihr holt dabei vor allem Wähler ' + partyGen(from) + '.';
+      // Aktion in einem Land: Die Stimmen kommen dort von der Partei, die das Thema besetzt.
+      const regional = st && action.scope === 'region';
+      const from = regional ? steerVotes(g, p, steerTopic, steerGroup, g.reg[st.id][p] - regBefore, st.id) : steerVotes(g, p, steerTopic, steerGroup, nationalShares(g)[p] - shareBefore);
+      if (from) text += ' Ihr holt dabei vor allem Wähler ' + partyGen(from) + (regional ? ' in ' + st.name : '') + (partyTopics(g, from).indexOf(steerTopic) !== -1 ? ' – ' + topicById(steerTopic).name + ' ist deren Kernthema' : '') + '.';
     }
     // Bürgerfragen beantwortet: Kompetenz im Thema steigt oder sinkt.
     if (target.cq && localTopic) {
@@ -2866,10 +2906,16 @@
   function shownIds(g) {
     return PARTY_IDS.filter(p => isShown(g, p)).concat(MINOR_IDS.filter(m => isShown(g, m)));
   }
-  function mergeShares(g, sh, extra) {
+  // Länderumfragen: Im Land zählt die Schwelle im Land – unter 3 % unter „Andere“, ab 3 % eigene Spalte, auch wenn die
+  // Partei bundesweit unter „Sonstige“ läuft (z. B. Freie Wähler in Bayern). Die eigene Partei bleibt immer sichtbar.
+  function mergeStateShares(g, sh) {
+    const lim = D.STATE_HIDE || 3;
+    return mergeShares(g, sh, m => (sh[m] || 0) >= lim, m => m !== g.party && (sh[m] || 0) < lim);
+  }
+  function mergeShares(g, sh, extra, fold) {
     const out = Object.assign({}, sh);
     PARTY_IDS.concat(MINOR_IDS).forEach(m => {
-      if (!(m in out) || isShown(g, m) || (extra && extra(m))) return;
+      if (!(m in out) || ((isShown(g, m) || (extra && extra(m))) && !(fold && fold(m)))) return;
       out[D.OTHER.id] = (out[D.OTHER.id] || 0) + (out[m] || 0);
       delete out[m];
     });
@@ -2961,8 +3007,11 @@
           }
         } else {
           // Eigene Themen setzen.
-          const best = TOPIC_IDS.slice().sort((a, b) => comp[b] - comp[a]).slice(0, 3);
+          // Die Konkurrenz bespielt ihre Kernthemen (Wahlkampf 2025) – sichtbar in der Themenübersicht.
+          const best = partyTopics(g, p).length ? partyTopics(g, p) : TOPIC_IDS.slice().sort((a, b) => comp[b] - comp[a]).slice(0, 3);
           const t = pick(g, best);
+          g.aiPush = g.aiPush || {};
+          (g.aiPush[p] = g.aiPush[p] || {})[t] = g.week;
           changeSalience(g, t, 0.01);
           const d = between(g, 0.02, 0.22) * sizeFactor(shares[p]);
           g.nat[p] += d;
@@ -3081,6 +3130,7 @@
       D.STATES.forEach(s => { g.mobReg[s.id][p] *= MOB_DECAY; });
     });
     if (g.src) Object.keys(g.src).forEach(p => Object.keys(g.src[p]).forEach(q => { g.src[p][q] *= BONUS_DECAY; }));
+    if (g.srcReg) Object.keys(g.srcReg).forEach(st => Object.keys(g.srcReg[st]).forEach(p => Object.keys(g.srcReg[st][p]).forEach(q => { g.srcReg[st][p][q] *= BONUS_DECAY; })));
     if (g.wk) Object.keys(g.wk).forEach(nr => Object.keys(g.wk[nr]).forEach(p => { g.wk[nr][p] *= BONUS_DECAY; }));
     if (g.cand) {
       const c0 = candStart(g.party);
@@ -3805,7 +3855,7 @@
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     publishedShares, publishedStateShares, groupShares, pollShares, pollStateShares, pollGroupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
-    POLL_RANGE, GROUP_IDS, RIVAL_STYLES, rivalName, rivalLabel, rivalStyle, wkCandidate, newPerson, candBonus, chancellorPoll, MINOR_IDS, CONTEST_IDS, isShown, shownIds, mergeShares, WK_LIST, WK_BY_STATE, wkByNr, wkShares, wkProjection, directCounts, GRUNDMANDATE, FW_LEVELS, fwLevel, openFirewall, closeFirewall, firewallOptions, breakFirewall, flowSummary, steerVotes, stateFlows, regionFactor, nationalFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
+    POLL_RANGE, GROUP_IDS, RIVAL_STYLES, rivalName, rivalLabel, rivalStyle, wkCandidate, newPerson, candBonus, chancellorPoll, MINOR_IDS, CONTEST_IDS, isShown, shownIds, mergeShares, mergeStateShares, partyTopics, steerPreview, WK_LIST, WK_BY_STATE, wkByNr, wkShares, wkProjection, directCounts, GRUNDMANDATE, FW_LEVELS, fwLevel, openFirewall, closeFirewall, firewallOptions, breakFirewall, flowSummary, steerVotes, stateFlows, regionFactor, nationalFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent, hungChoice, neuwahlCampaign, startHung,
     startDuel, duelAnswer,

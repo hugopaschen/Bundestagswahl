@@ -573,6 +573,7 @@
   ];
   var MINOR_SHOW = 3.5; // ab diesem Umfragewert eigenständig ausgewiesen
   var MINOR_HIDE = 2; // darunter unter „Sonstige“ (gilt für alle Parteien außer der eigenen)
+  var STATE_HIDE = 3; // in Länderumfragen: unter 3 % im Land unter „Andere“ (außer der eigenen Partei)
 
   // Konfrontationslinien im Wahlkampf 2025 (Hauptgegner, gegen die eine Partei sich profiliert):
   // Union ↔ AfD (Migration, „Brandmauer“), Union ↔ SPD (Kanzlerduell Merz–Scholz), Union ↔ Grüne,
@@ -586,6 +587,16 @@
     bsw: ['gruene', 'linke', 'union'],
     fdp: ['gruene', 'spd'],
     fw: ['union', 'afd'], volt: ['afd', 'union'], tierschutz: ['union', 'afd'] // Kleinparteien: geschätzt
+  };
+
+  // Kernthemen der Wahlkampagnen 2025 (Schwerpunkte auf Plakaten, in Spots und Wahlprogrammen; Einordnung geschätzt):
+  // Union „Wirtschaftswende“ und Migration, SPD Rente/Mindestlohn und Arbeitsplätze, Grüne Klima und Europa,
+  // Linke Mieten und Preise, AfD Migration und Energiepreise, BSW Frieden, FDP Wirtschaft und Schuldenbremse.
+  // Kleinparteien: ihre Themen aus MINORS.
+  var CAMPAIGN_TOPICS = {
+    union: ['wirtschaft', 'migration', 'sicherheit'], afd: ['migration', 'sicherheit', 'klima'], spd: ['soziales', 'wirtschaft', 'finanzen'],
+    gruene: ['klima', 'europa', 'demokratie'], linke: ['wohnen', 'soziales', 'finanzen'], bsw: ['verteidigung', 'migration', 'soziales'],
+    fdp: ['wirtschaft', 'finanzen', 'digitales']
   };
 
   var NONVOTER_POTENTIAL = { union: 0.92, afd: 1.48, spd: 0.76, gruene: 0.7, linke: 0.93, bsw: 1.41, fdp: 0.6,
@@ -642,7 +653,7 @@
     CAND_START: CAND_START,
     CHANCELLOR_RACE: CHANCELLOR_RACE,
     MINOR_SHOW: MINOR_SHOW,
-    MINOR_HIDE: MINOR_HIDE,
+    MINOR_HIDE: MINOR_HIDE, STATE_HIDE: STATE_HIDE, CAMPAIGN_TOPICS: CAMPAIGN_TOPICS,
     FIREWALL: FIREWALL,
     FLOWS: FLOWS,
     FLOW_PAIRS: FLOW_PAIRS,

@@ -1241,7 +1241,7 @@
       } else if (it.kind === 'ltwabend') {
         title = it.entries.length > 1 ? 'Superwahlabend: ' + it.entries.length + ' Landtagswahlen' : 'Wahlabend in ' + E.stateById(it.entries[0].land).name;
         body = it.entries.map(x => {
-          const ids = Object.keys(x.shares).filter(p => p !== 'sonstige' && x.shares[p] >= 2.5).sort((a, b) => x.shares[b] - x.shares[a]).slice(0, 7);
+          const ids = Object.keys(x.shares).filter(p => p !== 'sonstige' && (x.shares[p] >= (D.STATE_HIDE || 3) || p === g.party)).sort((a, b) => x.shares[b] - x.shares[a]).slice(0, 8);
           const max = Math.max.apply(null, ids.map(p => x.shares[p]));
           return '<h4>' + esc(E.stateById(x.land).name) + ' <span class="small ' + (x.diff >= 0 ? 'pos' : 'neg') + '">' + esc(short(g.party)) + ' ' + pct(x.shares[g.party]) + ' (' + signed(x.diff) + ')</span></h4>' +
             '<div class="t-ltw-bars">' + ids.map(p => '<div class="t-ltw-row' + (p === g.party ? ' me' : '') + '"><span>' + esc(short(p)) + '</span><i style="width:' + x.shares[p] / max * 100 + '%;background:' + col(p) + '"></i><b>' + pct(x.shares[p]) + '</b></div>').join('') + '</div>' +
