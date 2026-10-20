@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261020-221520';
+  const APP_VERSION = '20261020-222715';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -2121,6 +2121,7 @@
       '<p>' + esc(r.neuwahl ? '🗳️ Keine Regierung: Der Bundestag ist aufgelöst – es gibt eine Neuwahl.' : statusText) + '</p>' +
       (o.firewall ? '<p class="fw-note">🧱 Ihr habt die Brandmauer eingerissen. Proteste im ganzen Land (−25 Punkte).</p>' : '') +
       '<p>' + (o.goal ? '✅ Wahlziel erreicht: ' : '❌ Wahlziel verfehlt: ') + esc(p.goalText) + '</p>' +
+      (r.homeWk && (r.homeWk.won || r.homeWk.close) ? '<p>' + (r.homeWk.won ? '🏘️ ' + esc(g.candidate) + ' gewinnt den eigenen Wahlkreis ' + esc(r.homeWk.name) + ' direkt.' : '🏘️ Blamage im eigenen Wahlkreis: ' + esc(g.candidate) + ' verliert ' + esc(r.homeWk.name) + '.') + '</p>' : '') +
       '<div class="mob-bars flows result-flows"><span class="mob-label">Wählerwanderung seit Wahlkampfstart (Prozentpunkte)</span>' + flowBarsHtml(E.flowSummary(g, g.party), g.party) + '</div>';
     card.hidden = false;
   }

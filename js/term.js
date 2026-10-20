@@ -1053,10 +1053,8 @@
       if (!id) return 'Die Tagesordnung bleibt ohne Sofortprogramm. ' + (item.junior ? 'Eure Ressorts arbeiten im Normalbetrieb.' : 'Das Kabinett arbeitet die Routine ab.');
       const x = lageDef(id);
       t.lageBoost = t.lageBoost || {};
-      t.lageBoost[id] = { left: 4, d: x.better * x.scale * 0.18 };
-      t.budget.oneoff += 2;
-      cat('aktion');
-      t.gov.forEach(p => addNat(g, p, p === g.party ? 0.06 : 0.03));
+      t.lageBoost[id] = { left: 4, d: x.better * x.scale * 0.09 }; // 2 Mrd. € bewegen viel, aber nicht alles (geschätzt)
+      t.budget.oneoff += 2; // die Wirkung auf die Umfragen kommt über die Lage im Land
       news(g, '🏛️ Kabinett beschließt „' + SOFORT[id] + '“ (2 Mrd. €).', 'info');
       return 'Das Kabinett beschließt „' + SOFORT[id] + '“. Kosten: 2 Mrd. €. Wirkung auf „' + x.name + '“ über die nächsten vier Quartale.';
     }
@@ -1080,6 +1078,61 @@
     const cash = t.party.cash;
     const score = clamp(Math.round(50 + (poll - 5) * 14 + (landtage - 3) * 3 + (members - 1) * 60 + Math.min(10, cash)), 1, 99);
     return { score, poll, landtage, members, cash, label: score >= 70 ? 'Comeback in Reichweite' : score >= 45 ? 'Offenes Rennen' : score >= 25 ? 'Steiniger Weg' : 'Kaum Chancen' };
+  }
+
+  // ---------- Euer Wahlkreis ----------
+  // Die Spitze vertritt einen Wahlkreis – den, in dem die Partei am stärksten ist. Wer ihn pflegt (Bürgersprechstunde,
+  // lokale Konflikte), hat bei der nächsten Wahl einen Vorsprung bei den Erststimmen; wer ihn vernachlässigt, riskiert
+  // das Direktmandat. Die Wahlkreispflege (0–100) wird in den nächsten Wahlkampf übernommen.
+  function homeWk(g) {
+    const t = g.term;
+    if (!g.homeWk || !E.wkByNr(g.homeWk)) {
+      let best = null;
+      E.WK_LIST.forEach(w => { const s = E.wkShares(g, w.nr, false); if (s && (!best || s.shares[g.party] > best.v)) best = { nr: w.nr, v: s.shares[g.party] }; });
+      g.homeWk = best ? best.nr : E.WK_LIST[0].nr;
+    }
+    if (t && !t.wk) t.wk = { care: 55, cases: 0 };
+    return E.wkByNr(g.homeWk);
+  }
+  function wkStatus(g) {
+    const w = homeWk(g);
+    const s = E.wkShares(g, w.nr, true);
+    const mine = s.shares[g.party] || 0;
+    const rival = s.lead === g.party ? s.second : s.lead;
+    return { nr: w.nr, name: w.name, land: w.land, mine, rival, rivalShare: s.shares[rival] || 0, lead: s.lead === g.party, care: Math.round(g.term.wk.care) };
+  }
+  function wkQuarter(g) {
+    const t = g.term;
+    homeWk(g);
+    t.wk.care = clamp(t.wk.care - 2, 0, 100); // ohne Präsenz vergessen die Menschen
+    if (t.q > 0 && t.q % 2 === 0 && !t.pending.some(it => it.type === 'wkcase')) {
+      const pool = TD.WK_CASES.filter(c => c.topic !== t.wk.last);
+      const c = pool.slice().sort((a, b) => g.salience[b.topic] - g.salience[a.topic])[Math.floor(rand(g) * 3)];
+      t.wk.last = c.topic;
+      t.pending.push({ type: 'wkcase', topic: c.topic, text: c.text.replace(/\{wk\}/g, homeWk(g).name) });
+    }
+  }
+  function resolveWk(g, item, choice) {
+    const t = g.term;
+    const w = homeWk(g);
+    t.wk.cases += 1;
+    if (choice === 0) {
+      t.wk.care = clamp(t.wk.care + 15, 0, 100);
+      return 'Ihr fahrt hin, hört zu und vermittelt. Die Lokalzeitung in ' + w.name + ' berichtet ausführlich.';
+    }
+    if (choice === 1 && isGov(t.role)) {
+      t.wk.care = clamp(t.wk.care + 25, 0, 100);
+      t.budget.oneoff += 0.2;
+      if (rand(g) < 0.2) { addCred(g, -2, 'Förderprogramm für den eigenen Wahlkreis'); news(g, 'Kritik: Fördergeld fließt ausgerechnet in den Wahlkreis von ' + t.party.leader.name + '.', 'warn'); return 'Das Fördergeld kommt – und die Opposition spricht von Selbstbedienung.'; }
+      return 'Ein Förderprogramm des Bundes hilft vor Ort (0,2 Mrd. €). Man kennt euch hier.';
+    }
+    if (choice === 1) {
+      t.wk.care = clamp(t.wk.care + 10, 0, 100);
+      addNat(g, g.party, 0.02);
+      return 'Ihr bringt das Thema in den Bundestag. Vor Ort rechnet man euch das hoch an.';
+    }
+    t.wk.care = clamp(t.wk.care - 10, 0, 100);
+    return 'Berlin geht vor. In ' + w.name + ' fragt man sich, wofür man euch gewählt hat.';
   }
 
   // ---------- Wirtschaft und Haushalt ----------
@@ -2389,7 +2442,12 @@
     const item = t.pending[0];
     if (!item) return { ok: false };
     let text = '';
-    cat({ scandal: 'skandal', vote: 'abstimmung', cabinet: 'kabinett', veto: 'kabinett', disloyal: 'kabinett', sq: 'statusquo', lobby: 'lobby', door: 'lobby', lobbyaffair: 'skandal', landkoa: 'wahlen', ltwcamp: 'wahlen', debatte: 'parlament', namentlich: 'parlament', haushaltskrise: 'haushalt', gewissen: 'abstimmung', memory: 'glaubw', eckwerte: 'haushalt', kbefragung: 'aktion', bereinigung: 'haushalt', brstell: 'parlament', anhoerung: 'parlament', whip: 'abstimmung', brwhip: 'parlament', kabinettstop: 'aktion', schattenkabinett: 'aktion', parteitag_o: 'partei', fluegel: 'partei', machtkampf: 'partei', ruecktritt: 'kabinett', ehrgeiz: 'kabinett', halbzeit: 'kabinett' }[item.type] || 'ereignis');
+    cat({ scandal: 'skandal', vote: 'abstimmung', cabinet: 'kabinett', veto: 'kabinett', disloyal: 'kabinett', sq: 'statusquo', lobby: 'lobby', door: 'lobby', lobbyaffair: 'skandal', landkoa: 'wahlen', ltwcamp: 'wahlen', debatte: 'parlament', namentlich: 'parlament', haushaltskrise: 'haushalt', gewissen: 'abstimmung', memory: 'glaubw', eckwerte: 'haushalt', kbefragung: 'aktion', bereinigung: 'haushalt', brstell: 'parlament', anhoerung: 'parlament', whip: 'abstimmung', brwhip: 'parlament', kabinettstop: 'aktion', schattenkabinett: 'aktion', wkcase: 'aktion', parteitag_o: 'partei', fluegel: 'partei', machtkampf: 'partei', ruecktritt: 'kabinett', ehrgeiz: 'kabinett', halbzeit: 'kabinett' }[item.type] || 'ereignis');
+    if (item.type === 'wkcase') {
+      text = resolveWk(g, item, choice);
+      t.pending.shift();
+      return { ok: true, text };
+    }
     if (item.type === 'kabinettstop' || item.type === 'schattenkabinett') {
       text = resolveRoleScene(g, item, choice);
       t.pending.shift();
@@ -3206,7 +3264,8 @@
       const good = (target && typeof target === 'object' && target.right >= 2) || (scene && scene.q >= 2);
       const chance = (0.012 + (t.role === 'opposition' || t.role === 'apo' ? 0.01 : 0) + (good ? 0.02 : 0)) * f;
       if (rand(g) < chance) {
-        const amount = between(g, 1.5, 3.5);
+        // Regierende profitieren deutlich weniger: Wer regiert, wird an Ergebnissen gemessen, nicht an Clips.
+        const amount = between(g, 1.5, 3.5) * (isGov(t.role) ? 0.5 : 1);
         cat('viral');
         addNatT(g, g.party, amount / A.sizeFactor(shareOf(g, g.party)), 'hype');
         P.members = Math.round(P.members * 1.03);
@@ -3282,6 +3341,7 @@
       if (c.qn === 4) { if ((t.seats[g.party] || 0) > 0) sp('generaldebatte'); sp('neujahr'); if (isGov(t.role) && rand(g) < 0.5) sp('herbstgipfel'); }
       partyQuarter(g, c);
       roleQuarter(g, c);
+      wkQuarter(g);
     }
     // Regierungsbefragung: Die Kanzlerin/der Kanzler stellt sich dreimal im Jahr dem Plenum (§ 106 GOBT, seit 2018).
     if (!first && t.role === 'kanzler' && c.qn === 2) {
@@ -3401,7 +3461,7 @@
     // Regierungsverschleiß (Amtsmalus, wie GroKo 2013–17): Liefern dämpft ihn nur etwas; Stillstand kostet extra.
     const delivered = Math.min(2, t.qLaws || 0);
     const idle = t.q - (t.lastLawQ === undefined ? -1 : t.lastLawQ) >= 4 ? 0.06 : 0;
-    t.gov.forEach(p => { addNat(g, p, ((p === t.chanc ? -0.35 : -0.42) * (1 - 0.125 * delivered) - idle) + econ * (p === t.chanc ? 1 : 0.5)); });
+    t.gov.forEach(p => { addNat(g, p, ((p === t.chanc ? -0.5 : -0.44) * (1 - 0.125 * delivered) - idle) + econ * (p === t.chanc ? 1 : 0.5)); });
     if (t.gov.length > 1 && t.mood < 35) t.gov.forEach(p => addNat(g, p, -0.1));
     if (t.budget.status === 'vorlaeufig') t.gov.forEach(p => addNat(g, p, -0.12));
     if (t.ua) { t.gov.forEach(p => addNat(g, p, -0.1 * (t.ua.f || 1))); addNat(g, g.party, 0.04 * (t.ua.f || 1)); }
@@ -3664,7 +3724,8 @@
         lobby: g.lobby ? Object.assign(copy(g.lobby), { asked: [] }) : null,
         rivals: nextRivals(g, electionAbs),
         prevWk: (() => { const o = {}; ((g.result && g.result.wk) || []).forEach(w => { o[w.nr] = w.win; }); return o; })(),
-        prevTurnout: g.result ? { DE: g.result.turnout, states: g.result.turnoutStates || {} } : null }
+        prevTurnout: g.result ? { DE: g.result.turnout, states: g.result.turnoutStates || {} } : null,
+        homeWk: g.homeWk || null, wkCare: t.wk ? t.wk.care : null }
     };
   }
 
@@ -3705,7 +3766,7 @@
   }
 
   const TERM = {
-    QUARTERS, ACTIONS, LAW_STEPS, forecast, lageBilanz, lawEffects, ensureLage, SOFORT, SHADOW_SETS, comebackBarometer, WOBBLE, brAligned, landGovernment, dueVotes, GEWISSEN, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
+    QUARTERS, ACTIONS, LAW_STEPS, forecast, lageBilanz, lawEffects, ensureLage, SOFORT, SHADOW_SETS, comebackBarometer, wkStatus, homeWk, WOBBLE, brAligned, landGovernment, dueVotes, GEWISSEN, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
     lawOptions, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, cal,
     lawName, lawTitle, leanOf, quorum, eventChoices, fillText, eventById, ministryById, taxById, areaById, nextCampaign, summary,
     MEDIA, media, actionCash, govSeats, isGov, legacy, LB, careerSnapshot, chooseLeader, leaderAge, currentLeader, MAX_AGE, sqForces, absCal, FX_NAMES, ministerFor, eventMinister, ownMinistries, endTerm, defaultVote, partyVote, mandateVote

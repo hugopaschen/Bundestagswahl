@@ -1041,8 +1041,23 @@
     contra: ['„{law}“? Das geht an der Wirklichkeit völlig vorbei.', 'Wieder ein Gesetz gegen Leute wie mich. Danke, {party}.', 'Bei „{law}“ hat uns keiner gefragt. Das merke ich mir bei der Wahl.']
   };
 
+  // Lokale Konflikte in der Bürgersprechstunde des eigenen Wahlkreises ({wk} = Wahlkreis).
+  var WK_CASES = [
+    { topic: 'gesundheit', text: 'Die Geburtsstation des Kreiskrankenhauses in {wk} soll schließen. 3.000 Unterschriften liegen auf eurem Tisch.' },
+    { topic: 'verkehr', text: 'Die Ortsumgehung in {wk} wartet seit 20 Jahren. Heute blockieren Anwohner die Bundesstraße.' },
+    { topic: 'klima', text: 'Ein geplanter Windpark spaltet {wk}. Die eine Hälfte will Pacht, die andere ihre Aussicht.' },
+    { topic: 'wirtschaft', text: 'Der größte Arbeitgeber in {wk} kündigt an, 400 Stellen zu streichen.' },
+    { topic: 'bildung', text: 'In der Gesamtschule in {wk} regnet es durchs Dach. Die Eltern sammeln Spenden für Eimer.' },
+    { topic: 'digitales', text: 'Ganze Ortsteile von {wk} haben kein Mobilfunknetz. Die Feuerwehr kann im Notfall nicht telefonieren.' },
+    { topic: 'migration', text: 'In {wk} sollen 300 Geflüchtete in eine Turnhalle ziehen. Der Bürgermeister fühlt sich allein gelassen.' },
+    { topic: 'land', text: 'Drei Höfe in {wk} stehen vor dem Aus. Die Bauern kommen mit Traktoren zur Sprechstunde.' },
+    { topic: 'wohnen', text: 'Eine Wohnsiedlung in {wk} wurde an einen Finanzinvestor verkauft. Die Mieten sollen um 20 % steigen.' },
+    { topic: 'sicherheit', text: 'Nach einer Serie von Einbrüchen in {wk} gründet sich eine Bürgerwehr. Die Polizei ist besorgt.' },
+    { topic: 'familie', text: 'In {wk} fehlen 200 Kitaplätze. Junge Mütter berichten, dass sie ihre Stellen aufgeben mussten.' }
+  ];
+
   var TD = {
-    VOICE_PEOPLE: VOICE_PEOPLE, VOICE_TOWNS: VOICE_TOWNS, VOICES: VOICES, LAW_VOICES: LAW_VOICES,
+    WK_CASES: WK_CASES, VOICE_PEOPLE: VOICE_PEOPLE, VOICE_TOWNS: VOICE_TOWNS, VOICES: VOICES, LAW_VOICES: LAW_VOICES,
     WINGS: WINGS, LAGE: LAGE, LAGE_FX: LAGE_FX, LAGE_BUDGET: LAGE_BUDGET,
     MINISTRIES: MINISTRIES, KANZLERAMT: KANZLERAMT, TOPIC_MINISTRY: TOPIC_MINISTRY, WISH: WISH, MINISTER_KINDS: MINISTER_KINDS,
     LAENDER: LAENDER, BUNDESRAT_MAJ: BUNDESRAT_MAJ, LTW: LTW, EUROPAWAHL: EUROPAWAHL, BUNDESVERSAMMLUNG: BUNDESVERSAMMLUNG, LTW_BONUS: LTW_BONUS,

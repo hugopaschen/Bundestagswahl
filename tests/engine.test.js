@@ -1599,3 +1599,22 @@ test('Szenen je Rolle: Kabinettssitzung mit Sofortprogramm, Schattenkabinett, Co
   const cb = T.comebackBarometer(g);
   assert.ok(cb.score >= 1 && cb.score <= 99 && cb.label);
 });
+
+test('Eigener Wahlkreis: Sprechstunde, Pflege und Vorsprung im nächsten Wahlkampf', () => {
+  const g = electedGame('spd', 7);
+  T.startTerm(g);
+  T.autoNames(g);
+  const t = g.term;
+  const w = T.wkStatus(g);
+  assert.ok(w.name && w.care === 55);
+  t.pending.unshift({ type: 'wkcase', topic: 'verkehr', text: 'Test in ' + w.name });
+  T.resolvePending(g, 0);
+  assert.strictEqual(t.wk.care, 70);
+  t.wk.care = 95;
+  let k = 0;
+  while (!t.over && k++ < 30) { while (t.pending.length) T.resolvePending(g, 0); T.endQuarter(g); }
+  const next = T.nextCampaign(g);
+  assert.strictEqual(next.carry.homeWk, g.homeWk);
+  const g2 = E.newGame('spd', 'Test', 3, next.program, next.carry);
+  assert.strictEqual(g2.homeWk, g.homeWk);
+});

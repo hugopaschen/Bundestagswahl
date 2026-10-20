@@ -495,6 +495,11 @@
     CONTEST_IDS.forEach(p => { g.aiLike[p] = candStart(p).like; });
     g.rivals = carry && carry.rivals ? JSON.parse(JSON.stringify(carry.rivals)) : {};
     initRivals(g);
+    // Der eigene Wahlkreis: Wer ihn in der Legislatur gepflegt hat, startet mit einem Vorsprung bei den Erststimmen.
+    if (carry && carry.homeWk && WK_BY_NR[carry.homeWk]) {
+      g.homeWk = carry.homeWk;
+      if (typeof carry.wkCare === 'number') addWk(g, carry.homeWk, partyId, (carry.wkCare - 55) / 8);
+    }
     g.candHist = [{ w: 0, like: g.cand.like, known: g.cand.known }];
     g.journal = [];
     D.STATES.forEach(st => { g.mobReg[st.id] = {}; CONTEST_IDS.forEach(p => { g.mobReg[st.id][p] = 0; }); });
@@ -3110,6 +3115,7 @@
 
     const coalitions = findCoalitions(seats, g);
     const gov = formGovernment(seats, coalitions);
+    const home = g.homeWk && wks.find(x => x.nr === g.homeWk);
 
     const states = {};
     D.STATES.forEach(st => { states[st.id] = stateShares(g, st.id); });
@@ -3128,7 +3134,8 @@
       direct,
       grundmandat,
       turnout: Math.round(turnout(g) * 10) / 10,
-      turnoutStates: (() => { const o = {}; D.STATES.forEach(st => { o[st.id] = Math.round(turnout(g, st.id) * 10) / 10; }); return o; })()
+      turnoutStates: (() => { const o = {}; D.STATES.forEach(st => { o[st.id] = Math.round(turnout(g, st.id) * 10) / 10; }); return o; })(),
+      homeWk: home ? { nr: home.nr, name: WK_BY_NR[home.nr].name, won: home.win === g.party, close: home.second === g.party } : null
     };
 
     // Ist die Spielerpartei Wahlsiegerin mit Optionen, wählt sie selbst die Koalition.

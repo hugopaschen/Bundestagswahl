@@ -743,6 +743,10 @@
       (P.crown ? '<li><span class="muted small">Gilt als Nachfolge</span> ' + esc(P.crown) + '</li>' : '') + (t.shadow ? t.shadow.map(x => '<li><span class="muted small">Schattenministerium ' + esc(E.topicById(x.topic).name) + '</span> ' + esc(x.name) + '</li>').join('') : '') + '</ul></div>' +
       '<div><h4>Stimmung der Flügel</h4><div class="t-lv">' + Wn.map((n, i) => { const w = Math.round(wings[i]); return '<div class="t-lv-row"><span>' + esc(n) + '</span>' + bar(w, 100, w < 40 ? 'bad' : w < 55 ? 'mid' : 'good') + '<span class="num">' + w + '</span></div>'; }).join('') + '</div>' +
       '<p class="muted small">Eure Gesetze rechts der Mitte freuen „' + esc(Wn[0]) + '“, Gesetze links der Mitte „' + esc(Wn[1]) + '“. Ein verärgerter Flügel kostet Geschlossenheit. Ordentliche Parteitage alle zwei Jahre.</p></div></div>';
+    const wk = T.wkStatus(g);
+    html += '<h3>🏘️ Euer Wahlkreis</h3><div class="t-kpis">' + kpi('Wahlkreis', esc(wk.name), esc(E.stateById(wk.land).name) + ' · vertreten von ' + esc(P.leader.name)) +
+      kpi('Erststimme (Umfrage)', pct(wk.mine), wk.lead ? 'vorn – Vorsprung ' + num1(wk.mine - wk.rivalShare) + ' Punkte' : esc(short(wk.rival)) + ' vorn mit ' + pct(wk.rivalShare)) +
+      kpi('Wahlkreispflege', wk.care + '/100', bar(wk.care, 100, wk.care < 35 ? 'bad' : wk.care < 55 ? 'mid' : 'good') + ' wirkt bei der nächsten Wahl auf die Erststimmen') + '</div>';
     const M = t.media || { boulevard: 50, leit: 50, oer: 50, social: 50 };
     html += '<h3>🗞️ Medien</h3><div class="t-lv">' + T.MEDIA.map(m => { const r = Math.round(M[m.id]); return '<div class="t-lv-row"><span>' + m.icon + ' ' + esc(m.name) + '</span>' + bar(r, 100, r >= 62 ? 'good' : r < 40 ? 'bad' : 'mid') + '<span class="num">' + r + '</span></div>'; }).join('') + '</div>' +
       '<p class="muted small">Wer mit einem Medium spricht (Aktion „Exklusiv-Interview“), wird dort wohlwollender begleitet. Die Presseschau am Quartalsende zeigt den Ton.</p>';
@@ -1136,6 +1140,12 @@
       U.openModal(eyebrow + ' · 🔥 Lobbyaffäre', 'Bezahlte Nebentätigkeit?', '<p>Recherchen zeigen: Ein Abgeordneter eurer Fraktion hat für ' + esc(l.short) + ' gut bezahlte „Beratungsleistungen“ erbracht – und sich zugleich im Ausschuss für dessen Anliegen eingesetzt.</p>',
         [{ label: 'Alles offenlegen und Konsequenzen ziehen', hint: 'Kostet, aber begrenzt den Schaden', onClick: () => choose(0) },
           { label: 'Aussitzen', hint: 'Riskant – wie bei Amthor oder der Maskenaffäre', onClick: () => choose(1) }]);
+    } else if (it.type === 'wkcase') {
+      const w = T.wkStatus(g);
+      U.openModal(eyebrow + ' · 🏘️ Bürgersprechstunde', 'Im Wahlkreis ' + w.name, '<p>' + esc(it.text) + '</p><p class="small muted">Wahlkreispflege: ' + w.care + '/100 · Erststimme laut Umfragen: ' + pct(w.mine) + (w.lead ? ' – ihr liegt vorn' : ' – ' + esc(short(w.rival)) + ' liegt vorn mit ' + pct(w.rivalShare)) + '</p>',
+        [{ label: 'Hinfahren und vermitteln', hint: 'Präsenz zeigen – stärkt euren Rückhalt vor Ort', onClick: () => choose(0) },
+          T.isGov(term().role) ? { label: 'Förderprogramm für den Wahlkreis', hint: '0,2 Mrd. € – wirkt stark, kann als Selbstbedienung gelten', onClick: () => choose(1) } : { label: 'Das Thema in den Bundestag bringen', hint: 'Eine Anfrage, die man vor Ort mitbekommt', onClick: () => choose(1) },
+          { label: 'Keine Zeit – Berlin geht vor', hint: 'Der Rückhalt im Wahlkreis sinkt', onClick: () => choose(2) }]);
     } else if (it.type === 'kabinettstop') {
       const L = T.lageBilanz(g);
       U.openModal(eyebrow + ' · 🏛️ ' + (it.junior ? 'Ressortbesprechung' : 'Kabinettssitzung'), it.junior ? 'Was packen eure Ressorts an?' : 'Die Tagesordnung', '<p>' + (it.junior ? 'Eure Ministerinnen und Minister wollen ein Sofortprogramm in ihrem Zuständigkeitsbereich anstoßen.' : 'Mittwochmorgen, Kabinettssaal im Kanzleramt. Für die heutige Sitzung könnt ihr ein Sofortprogramm auf die Tagesordnung setzen.') + ' Kosten: 2 Mrd. €, Wirkung über vier Quartale.</p>' +
