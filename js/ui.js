@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261019-223017';
+  const APP_VERSION = '20261020-205833';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -943,7 +943,7 @@
     $('online-action').appendChild(actionButton(online, 'für ' + k.name + (tp ? ' · Thema ' + tp.name + (fav ? ' – Lieblingsthema der Gruppe 👍' : '') : ' · ohne Thema (oben wählbar)')));
 
     const rs = $('rival-party');
-    const rivals = MAIN_ORDER.filter(p => p !== g.party);
+    const rivals = E.shownIds(g).filter(p => p !== g.party); // alle ausgewiesenen Parteien, auch Kleinparteien
     if (!selRival || rivals.indexOf(selRival) === -1) selRival = rivals[0];
     const sh = E.nationalShares(g);
     rs.innerHTML = rivals.map(p => '<option value="' + p + '"' + (p === selRival ? ' selected' : '') + '>' + esc(E.party(p).name) + '</option>').join('');
@@ -1132,7 +1132,7 @@
     if (!box) return;
     const t = E.turnout(g);
     const base = (D.TURNOUT && D.TURNOUT.DE) || 82.5;
-    const ids = MAIN_ORDER.slice();
+    const ids = E.shownIds(g);
     const vals = ids.map(p => ({ p, v: (E.mobFactor(g, p) - 1) * 100 }));
     const max = Math.max(4, ...vals.map(x => Math.abs(x.v)));
     box.innerHTML = '<div class="mob-turnout"><span class="mob-label">Erwartete Wahlbeteiligung</span><span class="mob-big">' + pct(t) + '</span>' +
@@ -1208,7 +1208,7 @@
   function rivalsHtml() {
     if (!g.rivals) return '';
     const sh = E.nationalShares(g);
-    const ids = Object.keys(g.rivals).filter(p => E.party(p)).sort((a, b) => (g.rivals[b].feud || 0) - (g.rivals[a].feud || 0) || (sh[b] || 0) - (sh[a] || 0));
+    const ids = Object.keys(g.rivals).filter(p => E.party(p) && E.isShown(g, p)).sort((a, b) => (g.rivals[b].feud || 0) - (g.rivals[a].feud || 0) || (sh[b] || 0) - (sh[a] || 0));
     return '<details class="small"><summary class="muted">Die Konkurrenz</summary><ul class="rivals">' + ids.map(p => {
       const r = g.rivals[p];
       const st = E.rivalStyle(r);
@@ -1251,7 +1251,7 @@
   function renderFirewall() {
     const box = $('firewall');
     if (!box) return;
-    const ids = MAIN_ORDER.filter(p => p !== 'afd');
+    const ids = E.shownIds(g).filter(p => p !== 'afd');
     box.innerHTML = ids.map(p => {
       const lv = E.fwLevel(g, p);
       return '<div class="fw-row' + (p === g.party ? ' me' : '') + '"><span class="fw-party"><i style="background:' + col(p) + '"></i>' + short(p) + '</span>' +
@@ -2895,13 +2895,14 @@
     const me = game.party;
     const now = shares[me];
     const d = now - game.startShares[me];
-    const rank = MAIN_ORDER.slice().sort((a, b) => shares[b] - shares[a]).indexOf(me) + 1;
+    const ranked = E.shownIds(game).sort((a, b) => shares[b] - shares[a]);
+    const rank = ranked.indexOf(me) + 1;
     const mood = d >= 1.5 ? 'Der Parteitag war ein voller Erfolg!' : d >= 0.3 ? 'Rückenwind vom Parteitag.' : d > -0.3 ? 'Das Programm hat die Stimmung kaum bewegt.' : 'Der Parteitag kam nicht gut an.';
     $('reveal-suspense').textContent = '';
     const v = $('reveal-verdict');
     v.innerHTML = '<span class="rv-big">' + pct(now) + '<small> ± ' + E.POLL_RANGE + '</small></span>' +
       '<span class="rv-delta ' + (d >= 0 ? 'pos' : 'neg') + '">' + signed(d) + ' Punkte seit vor dem Parteitag</span>' +
-      '<span class="rv-mood">' + mood + ' Platz ' + rank + ' von ' + MAIN_ORDER.length + '.</span>';
+      '<span class="rv-mood">' + mood + ' Platz ' + rank + ' von ' + ranked.length + '.</span>';
     v.hidden = false;
     $('btn-reveal-skip').hidden = true;
     $('btn-reveal-go').hidden = false;

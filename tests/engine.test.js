@@ -1469,3 +1469,45 @@ test('Ohne Mehrheit: Auch mit Duldung löst der Bundespräsident auf, wenn die K
   assert.ok(g.result.hung.done && g.result.neuwahl, '290 Stimmen reichen nicht: Neuwahl');
   assert.strictEqual(g.result.government, null);
 });
+
+test('Kleinparteien sind voll im Spiel: Spitzenkandidatur, Wanderung, Gruppen, Angriff und eigener Wahlkampf', () => {
+  const g = E.newGame('spd', 'Test', 1);
+  E.MINOR_IDS.forEach(m => {
+    const P = E.party(m);
+    assert.ok(P.competence && P.lean && P.budget && P.goalText, m + ': Stammdaten');
+    assert.ok(g.rivals[m] && g.rivals[m].name, m + ': Spitzenkandidatur');
+  });
+  // Ausweisung erzwingen (wie nach einem Umfragehoch)
+  g.minor.volt.trend = 3;
+  E._api.takePoll(g);
+  E._api.updateMinorVisibility(g, true);
+  assert.ok(E.isShown(g, 'volt'));
+  // Gegenangriff auf Volt wirkt auf Volt
+  const before = E.nationalShares(g).volt;
+  g.ap = 3; g.team = g.teamMax;
+  const res = E.performAction(g, 'angriff', { rival: 'volt', topic: 'europa' });
+  assert.ok(res.ok, res.text);
+  assert.notStrictEqual(E.nationalShares(g).volt, before);
+  // Wählergruppen: Volt ist bei Jungen deutlich stärker als bei Älteren
+  assert.ok(E.groupShares(g, 'jung').volt > 2 * E.groupShares(g, 'aelter').volt);
+  // Wanderung: Wer bei Volt zulegt, holt Stimmen vor allem von den Grünen
+  g.nat.volt += 2;
+  const net = E.flowSummary(g, 'volt');
+  assert.ok(net.gruene > 0 && net.gruene >= net.union);
+  // Eigener Wahlkampf im KI-Zug
+  for (let w = 0; w < 3; w++) { while (g.pendingEvent) E.resolveEvent(g, 0); E.endWeek(g); }
+  assert.ok(g.log.some(l => /Volt/.test(l.text)), 'Volt taucht in den Meldungen auf');
+});
+
+test('Alte Spielstände: Sonderbonus der Kleinparteien wird übernommen, die Umfrage bleibt gleich', () => {
+  const g = E.newGame('union', 'Test', 2);
+  const s = JSON.parse(E.serialize(g));
+  // Format vor der Integration: Kleinparteien nur in g.minor
+  E.MINOR_IDS.forEach(m => { delete s.nat[m]; delete s.mob[m]; Object.keys(s.reg).forEach(st => { delete s.reg[st][m]; }); Object.keys(s.grp).forEach(k => { delete s.grp[k][m]; }); });
+  s.minor.fw.nat = 0.6;
+  s.minor.fw.reg = { BY: 1.2 };
+  const h = E.deserialize(JSON.stringify(s));
+  assert.ok(Math.abs(h.nat.fw - 0.6) < 1e-9 && Math.abs(h.reg.BY.fw - 1.2) < 1e-9);
+  assert.strictEqual(h.minor.fw.nat, 0);
+  assert.ok(E.nationalShares(h).fw > E.nationalShares(g).fw);
+});

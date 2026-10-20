@@ -283,67 +283,70 @@
   // Wahltagsbefragungen zur Bundestagswahl 2025 (Infratest dimap, Forschungsgruppe Wahlen);
   // z. B. Linke bei 18–29: rund 24 % statt 8,8 % → 2,7. Die Engine gleicht die Faktoren je
   // Dimension aus. topics = Lieblingsthemen (Faktor auf die Wirkung).
+  // Kleinparteien (fw, volt, tierschutz): in den Wahltagsbefragungen meist nur unter „Andere“ – Faktoren
+  // geschätzt nach ihrem bekannten Profil (Volt: jung, hochgebildet, städtisch; FW: ländlich, katholisch,
+  // Selbstständige; Tierschutzpartei: jüngere Frauen, mittlere Bildung).
   var GROUPS = [
     { id: 'jung', dim: 'alter', name: 'Junge Wähler (18–29)', short: 'Junge', icon: '🧑‍🎓', weight: 0.13,
       topics: { klima: 1.8, bildung: 1.8, digitales: 1.9, wohnen: 1.9, europa: 1.3 },
-      factor: { union: 0.54, afd: 1.0, spd: 0.76, gruene: 1.0, linke: 2.7, bsw: 1.2, fdp: 1.23 } },
+      factor: { union: 0.54, afd: 1.0, spd: 0.76, gruene: 1.0, linke: 2.7, bsw: 1.2, fdp: 1.23, fw: 0.7, volt: 2.6, tierschutz: 1.8 } },
     { id: 'mitte', dim: 'alter', name: 'Mittleres Alter (30–59)', short: '30–59', icon: '🧑‍💼', weight: 0.444,
       topics: { familie: 1.8, wirtschaft: 1.6, wohnen: 1.5, bildung: 1.4, finanzen: 1.3, migration: 1.2 },
-      factor: { union: 0.89, afd: 1.19, spd: 0.82, gruene: 1.09, linke: 0.89, bsw: 1.0, fdp: 1.0 } },
+      factor: { union: 0.89, afd: 1.19, spd: 0.82, gruene: 1.09, linke: 0.89, bsw: 1.0, fdp: 1.0, fw: 1.1, volt: 1.0, tierschutz: 1.1 } },
     { id: 'aelter', dim: 'alter', name: 'Ältere (60+)', short: 'Ältere', icon: '👵', weight: 0.426,
       topics: { soziales: 1.8, gesundheit: 1.9, sicherheit: 1.6, migration: 1.3, verteidigung: 1.3 },
-      factor: { union: 1.28, afd: 0.86, spd: 1.37, gruene: 0.74, linke: 0.55, bsw: 1.0, fdp: 1.0 } },
+      factor: { union: 1.28, afd: 0.86, spd: 1.37, gruene: 0.74, linke: 0.55, bsw: 1.0, fdp: 1.0, fw: 1.0, volt: 0.4, tierschutz: 0.6 } },
     { id: 'niedrig', dim: 'bildung', name: 'Niedrige Bildung', short: 'Niedrig', icon: '🛠️', weight: 0.162,
       topics: { soziales: 1.8, migration: 1.6, sicherheit: 1.5, gesundheit: 1.3, finanzen: 1.2 },
-      factor: { union: 1.15, afd: 1.3, spd: 1.35, gruene: 0.4, linke: 0.6, bsw: 1.2, fdp: 0.6 } },
+      factor: { union: 1.15, afd: 1.3, spd: 1.35, gruene: 0.4, linke: 0.6, bsw: 1.2, fdp: 0.6, fw: 0.9, volt: 0.3, tierschutz: 1.0 } },
     { id: 'mittel', dim: 'bildung', name: 'Mittlere Bildung', short: 'Mittel', icon: '👷', weight: 0.50,
       topics: { wirtschaft: 1.7, wohnen: 1.4, familie: 1.4, soziales: 1.3, verkehr: 1.2 },
-      factor: { union: 1.0, afd: 1.3, spd: 0.9, gruene: 0.6, linke: 0.8, bsw: 1.1, fdp: 0.85 } },
+      factor: { union: 1.0, afd: 1.3, spd: 0.9, gruene: 0.6, linke: 0.8, bsw: 1.1, fdp: 0.85, fw: 1.2, volt: 0.6, tierschutz: 1.3 } },
     { id: 'hoch', dim: 'bildung', name: 'Hohe Bildung', short: 'Hoch', icon: '🎓', weight: 0.338,
       topics: { klima: 1.6, bildung: 1.6, europa: 1.8, digitales: 1.5, demokratie: 1.7 },
-      factor: { union: 0.9, afd: 0.6, spd: 0.85, gruene: 1.65, linke: 1.35, bsw: 0.8, fdp: 1.3 } },
+      factor: { union: 0.9, afd: 0.6, spd: 0.85, gruene: 1.65, linke: 1.35, bsw: 0.8, fdp: 1.3, fw: 0.8, volt: 2.0, tierschutz: 0.7 } },
     { id: 'stadt', dim: 'ort', name: 'Großstädter', short: 'Stadt', icon: '🏙️', weight: 0.319,
       topics: { wohnen: 2.0, verkehr: 1.7, klima: 1.4, sicherheit: 1.3 },
-      factor: { union: 0.86, afd: 0.71, spd: 1.0, gruene: 1.52, linke: 1.57, bsw: 0.8, fdp: 1.23 } },
+      factor: { union: 0.86, afd: 0.71, spd: 1.0, gruene: 1.52, linke: 1.57, bsw: 0.8, fdp: 1.23, fw: 0.6, volt: 1.8, tierschutz: 0.9 } },
     { id: 'land', dim: 'ort', name: 'Kleinstadt & Land', short: 'Land', icon: '🌾', weight: 0.681,
       topics: { land: 2.2, verkehr: 1.5, migration: 1.4, familie: 1.4, wirtschaft: 1.2 },
-      factor: { union: 1.07, afd: 1.14, spd: 1.0, gruene: 0.74, linke: 0.77, bsw: 1.0, fdp: 1.0 } },
+      factor: { union: 1.07, afd: 1.14, spd: 1.0, gruene: 0.74, linke: 0.77, bsw: 1.0, fdp: 1.0, fw: 1.5, volt: 0.5, tierschutz: 1.1 } },
     { id: 'maenner', dim: 'geschlecht', name: 'Männer', short: 'Männer', icon: '👨', weight: 0.486,
       topics: { wirtschaft: 1.4, verteidigung: 1.5, migration: 1.3, verkehr: 1.3, digitales: 1.3 },
-      factor: { union: 1.02, afd: 1.15, spd: 0.91, gruene: 0.86, linke: 0.8, bsw: 1.0, fdp: 1.16 } },
+      factor: { union: 1.02, afd: 1.15, spd: 0.91, gruene: 0.86, linke: 0.8, bsw: 1.0, fdp: 1.16, fw: 1.2, volt: 1.0, tierschutz: 0.7 } },
     { id: 'frauen', dim: 'geschlecht', name: 'Frauen', short: 'Frauen', icon: '👩', weight: 0.514,
       topics: { familie: 1.6, gesundheit: 1.5, soziales: 1.4, bildung: 1.4, klima: 1.3 },
-      factor: { union: 0.98, afd: 0.85, spd: 1.1, gruene: 1.12, linke: 1.25, bsw: 1.0, fdp: 0.84 } },
+      factor: { union: 0.98, afd: 0.85, spd: 1.1, gruene: 1.12, linke: 1.25, bsw: 1.0, fdp: 0.84, fw: 0.8, volt: 1.0, tierschutz: 1.3 } },
     { id: 'kath', dim: 'konfession', name: 'Katholiken', short: 'Katholisch', icon: '⛪', weight: 0.23,
       topics: { familie: 1.5, soziales: 1.3, land: 1.3, migration: 1.2, sicherheit: 1.2 },
-      factor: { union: 1.37, afd: 0.87, spd: 0.91, gruene: 0.95, linke: 0.57, bsw: 0.6, fdp: 1.16 } },
+      factor: { union: 1.37, afd: 0.87, spd: 0.91, gruene: 0.95, linke: 0.57, bsw: 0.6, fdp: 1.16, fw: 1.6, volt: 0.8, tierschutz: 0.9 } },
     { id: 'evang', dim: 'konfession', name: 'Protestanten', short: 'Evangelisch', icon: '✝️', weight: 0.208,
       topics: { soziales: 1.4, gesundheit: 1.3, klima: 1.2, familie: 1.2, europa: 1.2 },
-      factor: { union: 1.02, afd: 0.96, spd: 1.22, gruene: 0.95, linke: 0.8, bsw: 0.8, fdp: 1.16 } },
+      factor: { union: 1.02, afd: 0.96, spd: 1.22, gruene: 0.95, linke: 0.8, bsw: 0.8, fdp: 1.16, fw: 0.9, volt: 0.9, tierschutz: 0.9 } },
     { id: 'konfl', dim: 'konfession', name: 'Konfessionslose & andere', short: 'Konfessionslos', icon: '🔹', weight: 0.562,
       topics: { wirtschaft: 1.2, wohnen: 1.3, digitales: 1.3, klima: 1.2, migration: 1.2 },
-      factor: { union: 0.77, afd: 1.15, spd: 0.85, gruene: 1.21, linke: 1.36, bsw: 1.2, fdp: 0.93 } },
+      factor: { union: 0.77, afd: 1.15, spd: 0.85, gruene: 1.21, linke: 1.36, bsw: 1.2, fdp: 0.93, fw: 0.7, volt: 1.2, tierschutz: 1.1 } },
     { id: 'arbeiter', dim: 'beruf', name: 'Arbeiter', short: 'Arbeiter', icon: '🔧', weight: 0.104,
       topics: { wirtschaft: 1.6, migration: 1.5, soziales: 1.4, finanzen: 1.2, verkehr: 1.2 },
-      factor: { union: 0.77, afd: 1.83, spd: 0.73, gruene: 0.43, linke: 0.91, bsw: 1.2, fdp: 0.7 } },
+      factor: { union: 0.77, afd: 1.83, spd: 0.73, gruene: 0.43, linke: 0.91, bsw: 1.2, fdp: 0.7, fw: 1.0, volt: 0.4, tierschutz: 1.2 } },
     { id: 'angest', dim: 'beruf', name: 'Angestellte', short: 'Angestellte', icon: '💼', weight: 0.403,
       topics: { wirtschaft: 1.3, wohnen: 1.3, bildung: 1.2, digitales: 1.2, familie: 1.2 },
-      factor: { union: 0.91, afd: 1.01, spd: 0.85, gruene: 1.29, linke: 1.02, bsw: 1.0, fdp: 0.93 } },
+      factor: { union: 0.91, afd: 1.01, spd: 0.85, gruene: 1.29, linke: 1.02, bsw: 1.0, fdp: 0.93, fw: 0.9, volt: 1.2, tierschutz: 1.0 } },
     { id: 'beamte', dim: 'beruf', name: 'Beamte', short: 'Beamte', icon: '🏛️', weight: 0.03,
       topics: { sicherheit: 1.4, bildung: 1.4, finanzen: 1.3, demokratie: 1.3, verteidigung: 1.2 },
-      factor: { union: 1.16, afd: 0.67, spd: 1.04, gruene: 1.47, linke: 0.8, bsw: 0.6, fdp: 0.93 } },
+      factor: { union: 1.16, afd: 0.67, spd: 1.04, gruene: 1.47, linke: 0.8, bsw: 0.6, fdp: 0.93, fw: 0.9, volt: 1.1, tierschutz: 0.7 } },
     { id: 'selbst', dim: 'beruf', name: 'Selbstständige', short: 'Selbstständige', icon: '🧾', weight: 0.053,
       topics: { wirtschaft: 1.8, finanzen: 1.6, digitales: 1.4, verkehr: 1.2 },
-      factor: { union: 1.23, afd: 0.91, spd: 0.55, gruene: 1.12, linke: 0.68, bsw: 0.8, fdp: 1.63 } },
+      factor: { union: 1.23, afd: 0.91, spd: 0.55, gruene: 1.12, linke: 0.68, bsw: 0.8, fdp: 1.63, fw: 1.8, volt: 1.2, tierschutz: 0.9 } },
     { id: 'rentner', dim: 'beruf', name: 'Rentner & Pensionäre', short: 'Rentner', icon: '🧓', weight: 0.288,
       topics: { soziales: 1.9, gesundheit: 1.8, sicherheit: 1.4, migration: 1.2 },
-      factor: { union: 1.37, afd: 0.72, spd: 1.46, gruene: 0.6, linke: 0.57, bsw: 0.8, fdp: 0.93 } },
+      factor: { union: 1.37, afd: 0.72, spd: 1.46, gruene: 0.6, linke: 0.57, bsw: 0.8, fdp: 0.93, fw: 0.9, volt: 0.3, tierschutz: 0.6 } },
     { id: 'arbeitslos', dim: 'beruf', name: 'Arbeitslose', short: 'Arbeitslose', icon: '📉', weight: 0.042,
       topics: { soziales: 2.0, wohnen: 1.5, wirtschaft: 1.4, migration: 1.2 },
-      factor: { union: 0.53, afd: 1.63, spd: 0.85, gruene: 0.6, linke: 1.48, bsw: 1.4, fdp: 0.47 } },
+      factor: { union: 0.53, afd: 1.63, spd: 0.85, gruene: 0.6, linke: 1.48, bsw: 1.4, fdp: 0.47, fw: 0.6, volt: 0.6, tierschutz: 1.4 } },
     { id: 'ausbild', dim: 'beruf', name: 'In Ausbildung & Sonstige', short: 'Ausbildung', icon: '📚', weight: 0.08,
       topics: { bildung: 1.8, wohnen: 1.6, klima: 1.5, digitales: 1.3 },
-      factor: { union: 0.53, afd: 0.82, spd: 0.73, gruene: 1.21, linke: 2.5, bsw: 1.0, fdp: 1.16 } }
+      factor: { union: 0.53, afd: 0.82, spd: 0.73, gruene: 1.21, linke: 2.5, bsw: 1.0, fdp: 1.16, fw: 0.7, volt: 2.5, tierschutz: 1.6 } }
   ];
 
   var GROUP_DIMS = [
@@ -478,7 +481,12 @@
     ['gruene', 'linke', 700], ['gruene', 'bsw', 150], ['fdp', 'gruene', 140], ['nw', 'gruene', 110],
     ['sonstige', 'linke', 310], ['nw', 'linke', 290], ['fdp', 'linke', 100], ['linke', 'bsw', 350],
     ['sonstige', 'bsw', 500], ['nw', 'bsw', 400], ['fdp', 'bsw', 260],
-    ['fdp', 'nw', 40]
+    ['fdp', 'nw', 40],
+    // Kleinparteien: in der Wanderungsbilanz unter „Sonstige“ – Austausch geschätzt nach den Verschiebungen
+    // 2021→2025 (FW 2,4 → 1,5 %, Volt 0,4 → 0,7 %, Tierschutzpartei 1,5 → 1,0 %).
+    ['fw', 'union', 200], ['fw', 'afd', 120], ['fw', 'fdp', 60], ['nw', 'fw', 60],
+    ['gruene', 'volt', 120], ['linke', 'volt', 40], ['spd', 'volt', 30], ['fdp', 'volt', 30],
+    ['tierschutz', 'linke', 80], ['tierschutz', 'gruene', 60], ['tierschutz', 'spd', 30], ['tierschutz', 'afd', 20], ['nw', 'tierschutz', 60]
   ];
   // Zweitstimmenergebnis 2025 (Bundeswahlleiterin, amtlich): Bezugsgröße für die Wanderungsdaten.
   var RESULT_2025 = { union: 28.5, afd: 20.8, spd: 16.4, gruene: 11.6, linke: 8.8, bsw: 4.98, fdp: 4.3, sonstige: 4.6 };
@@ -508,14 +516,15 @@
   var FIREWALL = {
     acceptance: {
       union: [0.61, 0.39, 0.19], spd: [0.11, 0.07, 0.02], gruene: [0.08, 0.07, 0.01],
-      linke: [0.08, 0.07, 0.02], fdp: [0.55, 0.35, 0.18], bsw: [0.5, 0.35, 0.2]
+      linke: [0.08, 0.07, 0.02], fdp: [0.55, 0.35, 0.18], bsw: [0.5, 0.35, 0.2],
+      fw: [0.45, 0.3, 0.15], volt: [0.03, 0.02, 0.01], tierschutz: [0.12, 0.08, 0.04] // Kleinparteien geschätzt
     },
     east: 0.16, // Ost-West-Unterschied in der Zustimmung (53 % vs. 37 %)
     groups: { maenner: 2, frauen: -2, kath: -1.5, evang: -1.5 },
-    mobilize: { linke: 1.5, gruene: 1.2, spd: 0.8, union: 0.4, fdp: 0.3, bsw: 0.3 },
+    mobilize: { linke: 1.5, gruene: 1.2, spd: 0.8, union: 0.4, fdp: 0.3, bsw: 0.3, fw: 0.3, volt: 1.2, tierschutz: 0.6 },
     youngLinke: 0.6, // Gegenmobilisierung der Jungen zur Linken (Punkte in der Gruppe je Stufe)
     // Neigung der KI-Parteien, unter Druck einen Schritt zu gehen (je Woche, vor Druckfaktor) – geschätzt.
-    ai: { union: 0.015, fdp: 0.01, bsw: 0.015, spd: 0.0005, gruene: 0.0003, linke: 0.0003 }
+    ai: { union: 0.015, fdp: 0.01, bsw: 0.015, spd: 0.0005, gruene: 0.0003, linke: 0.0003, fw: 0.008, volt: 0.0001, tierschutz: 0.0003 }
   };
 
   // Spitzenkandidaturen zu Beginn: Bekanntheit (%) und Beliebtheit auf der Politbarometer-Skala −5 … +5.
@@ -524,7 +533,9 @@
   var CAND_START = {
     union: { known: 85, like: 0.3 }, afd: { known: 80, like: -2.3 }, spd: { known: 82, like: 0.2 },
     gruene: { known: 80, like: 0.1 }, linke: { known: 55, like: 0.4 }, bsw: { known: 70, like: -0.6 },
-    fdp: { known: 70, like: -0.4 }
+    fdp: { known: 70, like: -0.4 },
+    // Kleinparteien (geschätzt): kaum bekannte Spitzen, außer bei den Freien Wählern
+    fw: { known: 45, like: -0.3 }, volt: { known: 15, like: 0.3 }, tierschutz: { known: 10, like: 0.2 }
   };
   var CHANCELLOR_RACE = ['union', 'spd', 'gruene', 'afd']; // Parteien mit Kanzlerkandidatur
 
@@ -532,10 +543,33 @@
   // sie eigenständig ausgewiesen und machen sichtbar Wahlkampf. Startwerte: Zweitstimmen 2025 je Land
   // (Bundeswahlleiterin, kerg2.csv: FW 1,5 %, Tierschutzpartei 1,0 %, Volt 0,7 %), hochgerechnet auf den
   // heutigen Anteil der Sonstigen. Themenprofil: grobe Einschätzung (für die Themenwahl der KI).
+  // Seit sie voll im Spiel sind, rechnen sie wie die großen Parteien (Wanderung, Mobilisierung, Gruppen, KI-Wahlkampf).
+  // Stammdaten wie bei den großen Parteien (alle Werte geschätzt, außer wo angegeben): Positionen nach den
+  // Wahlprogrammen 2025 und den Wahl-O-Mat-Antworten der Parteien; Kompetenzwerte niedrig, weil kaum jemand
+  // den Kleinparteien Lösungskompetenz zuschreibt (Ausnahme: ihre Kernthemen). Mitglieder: Angaben der
+  // Parteien (Stand 2024, gerundet); Wahlkampfbudget geschätzt.
   var MINORS = [
-    { id: 'fw', name: 'Freie Wähler', short: 'FW', plural: true, topics: ['land', 'wirtschaft', 'bildung'], home: 'BY' },
-    { id: 'volt', name: 'Volt', short: 'Volt', topics: ['europa', 'digitales', 'klima'] },
-    { id: 'tierschutz', name: 'Tierschutzpartei', short: 'Tierschutz', topics: ['klima', 'land', 'gesundheit'] }
+    { id: 'fw', name: 'Freie Wähler', short: 'FW', plural: true, topics: ['land', 'wirtschaft', 'demokratie'], home: 'BY',
+      fullName: 'Freie Wähler', ballot: 'FREIE WÄHLER', team: 2, members: 8000, budget: 1.5, goal: 5, goalEnter: true,
+      goalText: 'In den Bundestag einziehen (5 % oder drei Direktmandate)',
+      competence: { wirtschaft: 30, migration: 20, soziales: 20, klima: 15, sicherheit: 20, bildung: 30, digitales: 15, wohnen: 20,
+        verteidigung: 15, gesundheit: 25, verkehr: 25, europa: 15, familie: 25, land: 45, demokratie: 35, finanzen: 25 },
+      lean: { wirtschaft: 1, migration: 1, soziales: 0, klima: 1, sicherheit: 0, bildung: 1, digitales: 0, wohnen: 1,
+        verteidigung: 0, gesundheit: 0, verkehr: 1, europa: 0, familie: 0, land: 1, demokratie: 1, finanzen: 1 } },
+    { id: 'volt', name: 'Volt', short: 'Volt', topics: ['europa', 'digitales', 'klima'],
+      fullName: 'Volt Deutschland', ballot: 'Volt', team: 2, members: 8500, budget: 1.2, goal: 5, goalEnter: true,
+      goalText: 'In den Bundestag einziehen (5 % oder drei Direktmandate)',
+      competence: { wirtschaft: 20, migration: 20, soziales: 15, klima: 30, sicherheit: 10, bildung: 25, digitales: 40, wohnen: 15,
+        verteidigung: 20, gesundheit: 15, verkehr: 20, europa: 45, familie: 15, land: 10, demokratie: 30, finanzen: 15 },
+      lean: { wirtschaft: 0, migration: -1, soziales: 0, klima: -1, sicherheit: -1, bildung: 0, digitales: 1, wohnen: 0,
+        verteidigung: 0, gesundheit: -1, verkehr: -1, europa: -1, familie: -1, land: -1, demokratie: -1, finanzen: 0 } },
+    { id: 'tierschutz', name: 'Tierschutzpartei', short: 'Tierschutz', topics: ['land', 'klima', 'gesundheit'],
+      fullName: 'Partei Mensch Umwelt Tierschutz', ballot: 'Tierschutzpartei', team: 1, members: 1900, budget: 0.6, goal: 5, goalEnter: true,
+      goalText: 'In den Bundestag einziehen (5 % oder drei Direktmandate)',
+      competence: { wirtschaft: 10, migration: 10, soziales: 20, klima: 30, sicherheit: 10, bildung: 15, digitales: 10, wohnen: 15,
+        verteidigung: 10, gesundheit: 20, verkehr: 15, europa: 15, familie: 15, land: 45, demokratie: 15, finanzen: 10 },
+      lean: { wirtschaft: -1, migration: -1, soziales: -1, klima: -1, sicherheit: -1, bildung: -1, digitales: 0, wohnen: 0,
+        verteidigung: -1, gesundheit: -1, verkehr: -1, europa: 0, familie: -1, land: -1, demokratie: 1, finanzen: -1 } }
   ];
   var MINOR_SHOW = 3.5; // ab diesem Umfragewert eigenständig ausgewiesen
   var MINOR_HIDE = 2; // darunter unter „Sonstige“ (gilt für alle Parteien außer der eigenen)
@@ -550,10 +584,12 @@
     gruene: ['union', 'afd', 'fdp'],
     linke: ['union', 'afd', 'spd'],
     bsw: ['gruene', 'linke', 'union'],
-    fdp: ['gruene', 'spd']
+    fdp: ['gruene', 'spd'],
+    fw: ['union', 'afd'], volt: ['afd', 'union'], tierschutz: ['union', 'afd'] // Kleinparteien: geschätzt
   };
 
-  var NONVOTER_POTENTIAL = { union: 0.92, afd: 1.48, spd: 0.76, gruene: 0.7, linke: 0.93, bsw: 1.41, fdp: 0.6 };
+  var NONVOTER_POTENTIAL = { union: 0.92, afd: 1.48, spd: 0.76, gruene: 0.7, linke: 0.93, bsw: 1.41, fdp: 0.6,
+    fw: 1.0, volt: 0.7, tierschutz: 1.2 }; // Kleinparteien: geschätzt
 
   // Briefwahl 2025 (Anteil der Briefwähler an allen Wählern, %): Bund und Länder amtlich
   // (Bundeswahlleiterin, Landesämter). Gruppen: Alter und Geschlecht aus den Antragsquoten der

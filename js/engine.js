@@ -83,7 +83,7 @@
   // Faktor je Partei und Gruppe, je Dimension so ausgeglichen, dass der gewichtete Schnitt 1 ergibt.
   const FACTOR = {};
   D.GROUPS.forEach(k => { FACTOR[k.id] = {}; });
-  PARTY_IDS.forEach(p => {
+  CONTEST_IDS.forEach(p => {
     new Set(D.GROUPS.map(k => k.dim)).forEach(dim => {
       const ks = D.GROUPS.filter(k => k.dim === dim);
       const mean = ks.reduce((s, k) => s + k.weight * (k.factor[p] || 1), 0) / ks.reduce((s, k) => s + k.weight, 0);
@@ -107,7 +107,7 @@
     // Faktoren so ausgleichen, dass der Schnitt im Land wieder das Landesergebnis ergibt.
     FACTOR_STATE[st.id] = {};
     D.GROUPS.forEach(k => { FACTOR_STATE[st.id][k.id] = {}; });
-    PARTY_IDS.forEach(p => {
+    CONTEST_IDS.forEach(p => {
       new Set(D.GROUPS.map(k => k.dim)).forEach(dim => {
         const ks = D.GROUPS.filter(k => k.dim === dim && w[k.id] > 0);
         const mean = ks.reduce((s, k) => s + w[k.id] * (k.factor[p] || 1), 0) / ks.reduce((s, k) => s + w[k.id], 0);
@@ -155,6 +155,7 @@
   PARTY_IDS.forEach(p => {
     BASE_SHARE[p] = D.STATES.reduce((s, st) => s + st.result[p] * st.voters, 0) / TOTAL_VOTERS;
   });
+  MINOR_IDS.forEach(m => { BASE_SHARE[m] = MINOR_NAT[m]; });
   const POS_PREF = {};
   const POS_PREF_NAT = {};
   function prefOf(weightOf) {
@@ -465,7 +466,7 @@
       spendWeek: 0,
       rng: (seed === undefined ? Math.floor(Math.random() * 2 ** 31) : seed) | 0
     };
-    PARTY_IDS.forEach(p => { g.nat[p] = 0; g.compAdj[p] = {}; g.mob[p] = 0; });
+    CONTEST_IDS.forEach(p => { g.nat[p] = 0; g.compAdj[p] = {}; g.mob[p] = 0; });
     g.minor = {};
     MINOR_IDS.forEach(m => { g.minor[m] = { trend: 0, nat: 0, reg: {} }; });
     g.shown = {};
@@ -491,17 +492,17 @@
     applyYear(g.year || YEAR0);
     if (!g.cand) g.cand = Object.assign({}, candStart(partyId));
     g.aiLike = {};
-    PARTY_IDS.forEach(p => { g.aiLike[p] = candStart(p).like; });
+    CONTEST_IDS.forEach(p => { g.aiLike[p] = candStart(p).like; });
     g.rivals = carry && carry.rivals ? JSON.parse(JSON.stringify(carry.rivals)) : {};
     initRivals(g);
     g.candHist = [{ w: 0, like: g.cand.like, known: g.cand.known }];
     g.journal = [];
-    D.STATES.forEach(st => { g.mobReg[st.id] = {}; PARTY_IDS.forEach(p => { g.mobReg[st.id][p] = 0; }); });
+    D.STATES.forEach(st => { g.mobReg[st.id] = {}; CONTEST_IDS.forEach(p => { g.mobReg[st.id][p] = 0; }); });
     ALL_IDS.forEach(p => { g.pollErr[p] = 0; });
-    GROUP_IDS.forEach(k => { g.grp[k] = {}; PARTY_IDS.forEach(p => { g.grp[k][p] = 0; }); });
+    GROUP_IDS.forEach(k => { g.grp[k] = {}; CONTEST_IDS.forEach(p => { g.grp[k][p] = 0; }); });
     D.STATES.forEach(s => {
       g.reg[s.id] = {};
-      PARTY_IDS.forEach(p => { g.reg[s.id][p] = 0; });
+      CONTEST_IDS.forEach(p => { g.reg[s.id][p] = 0; });
     });
     // Startpunkt ist die aktuelle Sonntagsfrage, das Programm wirkt ab der ersten Umfrage.
     g.startShares = nationalShares(g);
@@ -550,7 +551,7 @@
   const FLOW_ROWS = {};
   [['w:', D.FLOWS], ['e:', D.FLOWS_EAST]].forEach(([pre, rows]) => {
     if (!rows) return;
-    PARTY_IDS.forEach(p => {
+    CONTEST_IDS.forEach(p => {
       // Austausch 2025, gewichtet mit der heutigen Größe des Wählerpools im Verhältnis zu 2025:
       // Ist eine Partei heute kleiner als 2025, gibt es bei ihr auch weniger zu holen.
       const r = {};
@@ -572,12 +573,12 @@
     const st = stateById(stateId);
     const bonus = {};
     const taken = {};
-    PARTY_IDS.forEach(p => {
+    CONTEST_IDS.forEach(p => {
       const prog = p === g.party && g.prog ? g.prog.nat + (st.east ? g.prog.east : 0) + programStateEffect(g.progGroups, stateId) +
         ((g.progState && g.progState[stateId]) || 0) : 0;
       bonus[p] = g.nat[p] + g.reg[stateId][p] + prog + issueEffect(g, p, stateId) + groupEffect(g, p) + (p === g.party ? candBonus(g) : 0);
     });
-    PARTY_IDS.forEach(p => {
+    CONTEST_IDS.forEach(p => {
       const b = bonus[p];
       const t = {};
       taken[p] = t;
@@ -607,22 +608,23 @@
     const B = (g.base && g.base[stateId]) || null;
     const lose = {};
     ALL_IDS.forEach(q => { lose[q] = 0; });
-    PARTY_IDS.forEach(p => { Object.keys(taken[p]).forEach(q => { if (q in lose) lose[q] += taken[p][q]; }); });
+    CONTEST_IDS.forEach(p => { Object.keys(taken[p]).forEach(q => { if (q in lose) lose[q] += taken[p][q]; }); });
     let other = 100;
     PARTY_IDS.forEach(p => {
       const b0 = B ? (B[p] || 0) : st.result[p];
       other -= b0;
       raw[p] = Math.max(0.2, b0 + bonus[p] - lose[p]) * mobFactor(g, p, stateId);
     });
-    // Kleinparteien: Startwert, eigener Trend (in Hochburgen stärker), Wahlkampf. Was die großen
-    // Parteien den „Sonstigen“ abnehmen, verlieren Kleinparteien und Rest anteilig.
+    // Kleinparteien: Startwert und eigener Trend (in Hochburgen stärker); Wahlkampf, Wanderung und
+    // Mobilisierung wie bei den großen Parteien. Was die großen Parteien den „Sonstigen“ abnehmen,
+    // verlieren Kleinparteien und Rest anteilig.
     let small = 0;
     MINOR_IDS.forEach(m => {
       const base = B ? Math.max(0.05, B[m] || 0) : MINOR_BASE[stateId][m];
       other -= base;
       const mi = (g.minor && g.minor[m]) || {};
       const home = base / Math.max(0.2, MINOR_NAT[m]);
-      raw[m] = Math.max(0.05, base + (mi.trend || 0) * Math.min(3, home) + (mi.nat || 0) + ((mi.reg && mi.reg[stateId]) || 0));
+      raw[m] = Math.max(0.05, base + (mi.trend || 0) * Math.min(3, home) + (bonus[m] || 0) - lose[m]) * mobFactor(g, m, stateId);
       small += raw[m];
     });
     const rest = Math.max(0.3, other + (g.otherSwing || 0));
@@ -643,7 +645,7 @@
       const w = st.voters / TOTAL_VOTERS;
       const { taken } = stateFlows(g, st.id);
       Object.keys(taken[p]).forEach(q => { if (q in net) net[q] += w * taken[p][q]; });
-      PARTY_IDS.forEach(q => { if (q !== p && taken[q][p]) net[q] -= w * taken[q][p]; });
+      CONTEST_IDS.forEach(q => { if (q !== p && taken[q][p]) net[q] -= w * taken[q][p]; });
     });
     return net;
   }
@@ -661,7 +663,7 @@
     const care = k ? Math.max(0.6, Math.min(1.6, topicPref(k, topic))) : 1;
     const w = {};
     let W = 0;
-    PARTY_IDS.forEach(q => {
+    CONTEST_IDS.forEach(q => {
       if (q === p) return;
       const theirs = competenceOf(g, q)[topic];
       const own = Math.max(0, theirs - MEAN_COMPETENCE[topic]);
@@ -712,8 +714,8 @@
     }
     const base = (D.TURNOUT && D.TURNOUT[stateId]) || (D.TURNOUT && D.TURNOUT.DE) || 82.5;
     const sh = stateShares(g, stateId);
-    let avg = (sh[D.OTHER.id] + MINOR_IDS.reduce((s, m) => s + (sh[m] || 0), 0)) / 100;
-    PARTY_IDS.forEach(p => { avg += sh[p] / 100 * mobFactor(g, p, stateId); });
+    let avg = sh[D.OTHER.id] / 100;
+    CONTEST_IDS.forEach(p => { avg += sh[p] / 100 * mobFactor(g, p, stateId); });
     return Math.min(95, base * avg);
   }
 
@@ -942,7 +944,7 @@
     const pub = stateId ? publishedStateShares(g, stateId) : publishedShares(g);
     const factor = stateId ? FACTOR_STATE[stateId][groupId] : FACTOR[groupId];
     const raw = {};
-    PARTY_IDS.forEach(p => {
+    CONTEST_IDS.forEach(p => {
       const comp = competenceOf(g, p);
       let topic = 0;
       TOPIC_IDS.forEach(t => {
@@ -953,10 +955,7 @@
     });
     // Ausgewiesene Kleinparteien erscheinen mit ihrem Anteil, die übrigen stecken in „Sonstige“.
     raw[D.OTHER.id] = pub[D.OTHER.id];
-    MINOR_IDS.forEach(m => {
-      if (isShown(g, m)) raw[m] = pub[m];
-      else { raw[m] = 0; raw[D.OTHER.id] += pub[m]; }
-    });
+    MINOR_IDS.forEach(m => { if (!isShown(g, m)) { raw[D.OTHER.id] += raw[m]; raw[m] = 0; } });
     return normalize(raw);
   }
 
@@ -992,7 +991,7 @@
   }
 
   function leader(shares) {
-    return PARTY_IDS.reduce((best, p) => (shares[p] > shares[best] ? p : best), PARTY_IDS[0]);
+    return CONTEST_IDS.reduce((best, p) => (shares[p] > shares[best] ? p : best), CONTEST_IDS[0]);
   }
 
   // ---------- Hilfsfunktionen für Effekte ----------
@@ -1525,7 +1524,7 @@
   // ---------- Ereignisse ----------
 
   function otherParty(g) {
-    return pick(g, PARTY_IDS.filter(p => p !== g.party));
+    return pick(g, shownIds(g).filter(p => p !== g.party));
   }
 
   const EVENTS = [
@@ -2324,7 +2323,8 @@
   function startDuel(g) {
     const topics = TOPIC_IDS.slice().sort((a, b) => g.salience[b] - g.salience[a]).slice(0, 3);
     const sh = nationalShares(g);
-    const order = PARTY_IDS.filter(p => isShown(g, p)).sort((a, b) => sh[b] - sh[a]);
+    // Eingeladen werden Parteien, die im Bundestag sitzen oder in den Umfragen über der Fünfprozenthürde liegen.
+    const order = shownIds(g).filter(p => p === g.party || sh[p] >= 5 || (g.prevSeats ? g.prevSeats[p] > 0 : PARTY_IDS.indexOf(p) !== -1)).sort((a, b) => sh[b] - sh[a]);
     const top = order.slice(0, 3);
     let format = 'elefantenrunde';
     if (top.slice(0, 2).indexOf(g.party) !== -1 && sh[top[1]] - sh[top[2]] > 4) format = 'duell';
@@ -2375,7 +2375,7 @@
     const delta = Math.round((score - 0.5) * 2.4 * 10) / 10;
     const verdict = delta >= 0.6 ? 'Klarer Punktsieg!' : delta > 0 ? 'Knapp gewonnen.' : delta > -0.6 ? 'Das lief nicht rund.' : 'Ein Desaster!';
     g.duel.points += delta;
-    g.duel.results.push({ topic, style: styleId, delta, verdict });
+    g.duel.results.push({ topic, style: styleId, delta: delta + 0, verdict }); // + 0 vermeidet −0 (geht beim Speichern verloren)
     g.duel.round += 1;
     const res = { ok: true, topic, delta, verdict, done: g.duel.round >= g.duel.topics.length };
     if (res.done) {
@@ -2560,7 +2560,7 @@
     D.STATES.forEach(st => { g.reg[st.id][p] += steps * f * (fw.east || 0) * (st.east ? 3 : -0.6); });
     if (fw.youngLinke && p !== 'linke' && fwLevel(g, 'linke') === 0 && g.grp.jung) g.grp.jung.linke += fw.youngLinke * steps;
     // Wer die Brandmauer hält, mobilisiert dagegen.
-    PARTY_IDS.forEach(q => {
+    CONTEST_IDS.forEach(q => {
       if (q === p || q === 'afd' || fwLevel(g, q) > 0) return;
       g.mobPerm[q] = (g.mobPerm[q] || 0) + 0.015 * steps * ((fw.mobilize && fw.mobilize[q]) || 0.5);
     });
@@ -2586,8 +2586,8 @@
   // KI-Parteien öffnen unter Druck: wenn die AfD sie überholt und Migration die Debatte bestimmt.
   function aiFirewall(g, me, shares, news) {
     const fw = FW();
-    PARTY_IDS.forEach(p => {
-      if (p === me || p === 'afd') return;
+    CONTEST_IDS.forEach(p => {
+      if (p === me || p === 'afd' || !isShown(g, p)) return;
       const lv = fwLevel(g, p);
       if (lv >= 3) return;
       const pressure = 1 + Math.max(0, (shares.afd - shares[p]) / 10) + 20 * Math.max(0, g.salience.migration - D.SALIENCE0.migration);
@@ -2608,7 +2608,7 @@
     const two = r.seats[p] + r.seats.afd;
     if (two >= MAJORITY) out.push({ members: ['afd', p], seats: two });
     else {
-      PARTY_IDS.forEach(q => {
+      CONTEST_IDS.forEach(q => {
         if (q === p || q === 'afd' || !(r.seats[q] > 0) || fwLevel(g, q) < 3) return;
         const t = two + r.seats[q];
         if (t >= MAJORITY) out.push({ members: ['afd', p, q], seats: t });
@@ -2654,7 +2654,7 @@
   function initRivals(g) {
     g.rivals = g.rivals || {};
     delete g.rivals[g.party];
-    PARTY_IDS.forEach(p => {
+    CONTEST_IDS.forEach(p => {
       if (p === g.party) return;
       if (!g.rivals[p]) g.rivals[p] = newRival(g, p);
       g.aiLike[p] = Math.max(-5, Math.min(5, g.aiLike[p] + rivalStyle(g.rivals[p]).like));
@@ -2721,28 +2721,13 @@
     return !!(g && g.shown && g.shown[m]);
   };
 
-  // Jede Woche: eigener Trend (Zufall, Protestwahl), und wer ausgewiesen wird, macht sichtbar Wahlkampf.
-  function minorTurn(g, shares, protest, news) {
+  // Jede Woche: eigener Trend der Kleinparteien (Zufall, Protestwahl). Ihren Wahlkampf führen sie – sobald sie
+  // ausgewiesen werden – wie die großen Parteien im KI-Zug (aiTurn).
+  function minorTurn(g, shares, protest) {
     if (!g.minor) return;
     MINORS.forEach(m => {
       const mi = g.minor[m.id];
-      mi.trend = Math.max(-1.2, Math.min(3.5, mi.trend + between(g, -0.34, 0.4) + 0.25 * protest));
-      if (!isShown(g, m.id)) return;
-      const t = pick(g, m.topics);
-      changeSalience(g, t, 0.004);
-      mi.nat += between(g, 0.05, 0.25) * sizeFactor(shares[m.id]);
-      if (m.home) mi.reg[m.home] = (mi.reg[m.home] || 0) + between(g, 0.2, 0.6);
-      // Kampf um Wahlkreise, in denen die Partei vorn oder knapp dahinter liegt.
-      if (WK_LIST.length) {
-        const hot = WK_LIST.filter(w => (!m.home || w.land === m.home)).map(w => Object.assign({ nr: w.nr }, wkShares(g, w.nr, false)))
-          .filter(x => x.shares[m.id] > 0 && (x.lead === m.id || x.shares[x.lead] - x.shares[m.id] < 6));
-        if (hot.length) {
-          const x = pick(g, hot);
-          addWk(g, x.nr, m.id, between(g, 0.5, 1.4));
-          if (rand(g) < 0.35) news.push({ prio: 1, text: m.name + (m.plural ? ' kämpfen' : ' kämpft') + ' um den Wahlkreis ' + WK_BY_NR[x.nr].name + '.' });
-        }
-      }
-      if (rand(g) < 0.3) news.push({ prio: 1, text: m.name + (m.plural ? ' setzen' : ' setzt') + ' im Wahlkampf auf das Thema ' + topicById(t).name + '.' });
+      mi.trend = Math.max(-1.2, Math.min(3.5, mi.trend + between(g, -0.37, 0.37) + 0.25 * protest));
     });
   }
 
@@ -2810,7 +2795,7 @@
     let attacks = 0;
     let steals = 0;
     // Wer euch am nächsten ist, reagiert zuerst.
-    const rivals = PARTY_IDS.filter(p => p !== me).sort((a, b) => Math.abs(shares[a] - shares[me]) - Math.abs(shares[b] - shares[me]));
+    const rivals = CONTEST_IDS.filter(p => p !== me).sort((a, b) => Math.abs(shares[a] - shares[me]) - Math.abs(shares[b] - shares[me]));
 
     rivals.forEach(p => {
       if (!isShown(g, p)) return; // unter „Sonstige“ geführt: keine eigenen Kampagnen
@@ -2857,7 +2842,7 @@
         const nearHurdle = shares[p] > 2.5 && shares[p] < 7.5;
         const close = D.STATES.filter(st => {
           const s = states[st.id];
-          const best = PARTY_IDS.filter(q => q !== p).reduce((a, b) => (s[b] > s[a] ? b : a));
+          const best = CONTEST_IDS.filter(q => q !== p).reduce((a, b) => (s[b] > s[a] ? b : a));
           return Math.abs(s[p] - s[best]) < 3;
         });
         if (rand(g) < (close.length ? 0.45 : 0.25) && !nearHurdle) {
@@ -2910,7 +2895,7 @@
       const push = between(g, 0.006, 0.02);
       changeSalience(g, t, push);
       if (push >= 0.012) {
-        const pc = PARTY_IDS.slice().sort((a, b) => competenceOf(g, b)[t] - competenceOf(g, a)[t]);
+        const pc = shownIds(g).sort((a, b) => competenceOf(g, b)[t] - competenceOf(g, a)[t]);
         news.push({ prio: 1, text: 'Nachrichtenlage: ' + topicById(t).name + ' beherrscht die Schlagzeilen – Rückenwind für ' + party(pc[0]).short + ' und ' + party(pc[1]).short + ', Gegenwind für ' + party(pc[pc.length - 1]).short + '.' });
       }
     }
@@ -2926,13 +2911,13 @@
     const protest = Math.max(-0.3, Math.min(0.4, 0.25 * bigLoss));
     const swing = between(g, -0.3, 0.3) + 0.5 * protest;
     g.otherSwing = Math.max(-2, Math.min(3, (g.otherSwing || 0) + swing));
-    minorTurn(g, shares, protest, news);
+    minorTurn(g, shares, protest);
 
     // Die Konkurrenz kämpft auch um knappe Wahlkreise.
     if (WK_LIST.length) {
       const proj = wkProjection(g, false);
-      PARTY_IDS.forEach(p => {
-        if (p === me) return;
+      CONTEST_IDS.forEach(p => {
+        if (p === me || !isShown(g, p)) return;
         const close = proj.filter(x => (x.lead === p || x.second === p) && x.margin < 4);
         if (!close.length || rand(g) >= 0.6) return;
         const x = pick(g, close);
@@ -2983,7 +2968,7 @@
     aiTurn(g);
     lobbyWeek(g);
     castPostal(g);
-    PARTY_IDS.forEach(p => {
+    CONTEST_IDS.forEach(p => {
       g.nat[p] *= BONUS_DECAY;
       D.STATES.forEach(s => { g.reg[s.id][p] *= BONUS_DECAY; });
       GROUP_IDS.forEach(k => { g.grp[k][p] *= BONUS_DECAY; });
@@ -2995,10 +2980,9 @@
     if (g.cand) {
       const c0 = candStart(g.party);
       g.cand.like = c0.like + (g.cand.like - c0.like) * 0.92; // Eindrücke verblassen
-      PARTY_IDS.forEach(q => { if (q !== g.party) g.aiLike[q] = Math.max(-5, Math.min(5, g.aiLike[q] + between(g, -0.12, 0.12))); });
+      CONTEST_IDS.forEach(q => { if (q !== g.party) g.aiLike[q] = Math.max(-5, Math.min(5, (g.aiLike[q] || 0) + between(g, -0.12, 0.12))); });
       g.candHist.push({ w: g.week, like: Math.round(g.cand.like * 100) / 100 + 0, known: Math.round(g.cand.known) }); // + 0 vermeidet −0
     }
-    if (g.minor) MINOR_IDS.forEach(m => { const mi = g.minor[m]; mi.nat *= BONUS_DECAY; Object.keys(mi.reg).forEach(k => { mi.reg[k] *= BONUS_DECAY; }); });
     g.otherSwing = (g.otherSwing || 0) * 0.92;
     if (g.sat) Object.keys(g.sat).forEach(c => Object.keys(g.sat[c]).forEach(k => { g.sat[c][k] *= BONUS_DECAY; })); // langsame Rückkehr zum Normalwert
     TOPIC_IDS.forEach(t => {
@@ -3666,6 +3650,27 @@
     if (!g.grudge) g.grudge = {};
     if (!g.mob) { g.mob = {}; PARTY_IDS.forEach(p => { g.mob[p] = 0; }); }
     if (!g.mobReg) { g.mobReg = {}; D.STATES.forEach(st => { g.mobReg[st.id] = {}; PARTY_IDS.forEach(p => { g.mobReg[st.id][p] = 0; }); }); }
+    // Kleinparteien voll im Spiel: fehlende Einträge ergänzen und ihren alten Sonderbonus (minor.nat/reg)
+    // in die gemeinsamen Größen übernehmen – die Umfragewerte bleiben dabei gleich.
+    MINOR_IDS.forEach(m => {
+      if (!(m in g.nat)) g.nat[m] = 0;
+      if (!(m in g.mob)) g.mob[m] = 0;
+      if (g.aiLike && !(m in g.aiLike)) g.aiLike[m] = candStart(m).like;
+      if (g.compAdj && !g.compAdj[m]) g.compAdj[m] = {};
+      GROUP_IDS.forEach(k => { if (!(m in g.grp[k])) g.grp[k][m] = 0; });
+      D.STATES.forEach(st => {
+        if (g.reg[st.id] && !(m in g.reg[st.id])) g.reg[st.id][m] = 0;
+        if (g.mobReg[st.id] && !(m in g.mobReg[st.id])) g.mobReg[st.id][m] = 0;
+      });
+      const mi = g.minor && g.minor[m];
+      if (mi && (mi.nat || (mi.reg && Object.keys(mi.reg).length))) {
+        g.nat[m] += mi.nat || 0;
+        Object.keys(mi.reg || {}).forEach(st => { if (g.reg[st]) g.reg[st][m] += mi.reg[st]; });
+        mi.nat = 0;
+        mi.reg = {};
+      }
+    });
+    if (g.rivals && g.aiLike && g.phase !== 'term' && MINOR_IDS.some(m => m !== g.party && !g.rivals[m])) initRivals(g);
     if (g.team === undefined) { g.teamMax = teamMaxFor(g.week, g.party); g.team = g.teamMax; }
     if (g.spendCount === undefined) { g.spendCount = 0; g.spendWeek = 0; }
     // In der Legislaturperiode wirkt das Wahlprogramm nicht mehr als Wahlkampf-Bonus.

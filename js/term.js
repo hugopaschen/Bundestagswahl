@@ -17,7 +17,7 @@
   const SQ0 = 60;            // Rückhalt des Status quo zu Beginn (0–100)         // Stärke der eigenen Aktionen auf die Umfragen
   const SEATS = D.SEATS;
   const MAJ = E.MAJORITY;
-  const PIDS = A.PARTY_IDS;
+  const PIDS = E.CONTEST_IDS; // alle Parteien einschließlich der Kleinparteien
   const MINOR = A.MINOR_IDS;
   const CONTEST = E.CONTEST_IDS;
   const OTHER = D.OTHER.id;
@@ -74,12 +74,10 @@
   }
 
   // ---------- Positionen ----------
-  const PROXY = { fw: 'union', volt: 'gruene', tierschutz: 'gruene' };
   function leanOf(g, p, topic) {
     if (p === g.party && g.program && D.PROGRAM[topic][g.program.positions[topic]]) return D.PROGRAM[topic][g.program.positions[topic]].lean;
     const P = party(p);
-    if (P && P.lean) return P.lean[topic];
-    return PROXY[p] ? party(PROXY[p]).lean[topic] : 0;
+    return P && P.lean ? P.lean[topic] : 0;
   }
   const optIndex = (topic, lean) => Math.max(0, D.PROGRAM[topic].findIndex(o => o.lean === lean));
   const lawTopic = law => (law.kind === 'tax' ? 'finanzen' : law.topic);
@@ -131,8 +129,7 @@
       if (CAT === 'krise' && d > 0 && tier === 'norm' && g.term && p === g.term.chanc) tier = 'fast'; // der Kanzlerbonus in der Krise verfliegt am schnellsten
       const b = bucket(g, tier, p);
       b[p] = (b[p] || 0) + d;
-    } else if (g.minor && g.minor[p]) g.minor[p].nat += d;
-    else return;
+    } else return;
     if (p === g.party) noteFx(g, CAT, d);
   }
   // Wirkung in einer bestimmten Stufe.
@@ -142,6 +139,8 @@
     const t = g.term;
     bucket(g, 'norm', g.party);
     const before = g.nat[g.party] || 0;
+    // Ältere Spielstände: Parteien ohne Eintrag in den Stufen übernehmen ihren bisherigen Stand.
+    PIDS.forEach(p => { if (!Object.keys(DECAY).some(k => p in t.bk[k])) t.bk.norm[p] = g.nat[p] || 0; });
     PIDS.forEach(p => {
       let sum = 0;
       Object.keys(DECAY).forEach(k => { t.bk[k][p] = (t.bk[k][p] || 0) * DECAY[k]; sum += t.bk[k][p]; });
@@ -2973,33 +2972,35 @@
 
   // Eigenständig ausgewiesene Kleinparteien handeln selbst: Kampagnen, Aktionen, Erfolge in den Kommunen.
   // Wer unter „Sonstige“ geführt wird, bleibt unsichtbar und hat keine eigenen Aktionen.
+  // Ausgewiesene Kleinparteien machen außerhalb des Bundestags von sich reden. Auf die Umfragen wirkt das nicht
+  // pauschal – dort zählen wie bei allen Parteien Gesetze, Ereignisse und die Stimmung.
   function minorActions(g) {
     (D.MINORS || []).forEach(m => {
-      if (!E.isShown(g, m.id)) return;
-      const mi = g.minor[m.id];
+      if (!E.isShown(g, m.id) || m.id === g.party) return;
       const tp = pick(g, m.topics);
       A.changeSalience(g, tp, 0.003);
-      mi.nat += between(g, 0.02, 0.1);
-      if (m.home) mi.reg[m.home] = (mi.reg[m.home] || 0) + between(g, 0.1, 0.3);
       if (rand(g) < 0.4) {
-        const pl = m.plural;
+        // Mit Spitzenkandidatur spricht die Person (Einzahl), sonst die Partei.
+        const rv = g.rivals && g.rivals[m.id];
+        const pl = !rv && m.plural;
         const what = pick(g, [
           (pl ? ' starten' : ' startet') + ' eine Kampagne zum Thema ' + E.topicById(tp).name + '.',
           (pl ? ' sammeln' : ' sammelt') + ' Unterschriften für ein Volksbegehren' + (m.home ? ' in ' + E.stateById(m.home).name : '') + '.',
-          (pl ? ' gewinnen' : ' gewinnt') + ' bei Kommunalwahlen mehrere Bürgermeisterposten.',
+          (pl ? ' feiern' : ' feiert') + ' Erfolge bei Kommunalwahlen.',
           (pl ? ' organisieren' : ' organisiert') + ' Proteste gegen die Politik der Bundesregierung.'
         ]);
-        news(g, m.name + what, 'info');
+        news(g, (rv ? rv.name + ' (' + m.short + ')' : m.name) + what, 'info');
       }
     });
   }
+
 
   function updatePolls(g) {
     const t = g.term;
     const e = t.econ;
     decayNat(g);
     D.STATES.forEach(st => { PIDS.forEach(p => { g.reg[st.id][p] *= 0.8; }); });
-    MINOR.forEach(m => { g.minor[m].nat *= NAT_DECAY; g.minor[m].trend = clamp(g.minor[m].trend + between(g, -0.12, 0.14), -1, 2.5); });
+    MINOR.forEach(m => { g.minor[m].trend = clamp(g.minor[m].trend + between(g, -0.13, 0.13), -1, 2.5); }); // Eigendynamik der Kleinparteien
     minorActions(g);
     // Regierungsverschleiß und Wirtschaftslage (geschätzt)
     cat('regierung');
