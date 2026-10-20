@@ -954,6 +954,67 @@
     }).filter(Boolean);
   }
 
+  // ---------- Stimmen aus dem Land und Titelseiten ----------
+  // Am Quartalsende: Menschen aus den betroffenen Gruppen reagieren auf neue Gesetze und die Lage; zwei Zeitungen
+  // machen mit der wichtigsten Geschichte auf. Eigener Zufall: Das verändert den Spielverlauf nicht.
+  function voicePerson(R, groupId) {
+    const list = TD.VOICE_PEOPLE[groupId] || TD.VOICE_PEOPLE.mitte;
+    const p = list[Math.floor(R() * list.length)];
+    const towns = TD.VOICE_TOWNS[groupId === 'land' ? 'land' : groupId === 'stadt' ? 'stadt' : 'mix'];
+    return p[0] + ' (' + p[1] + '), ' + p[2] + ' aus ' + towns[Math.floor(R() * towns.length)];
+  }
+  function quarterStories(g) {
+    const t = g.term;
+    const R = localRng(t.q * 9973 + (t.lawSeq || 0) * 31 + 7);
+    const pickR = arr => arr[Math.floor(R() * arr.length)];
+    const voices = [];
+    // Neue Gesetze: die Gruppe, die es am stärksten betrifft.
+    t.laws.filter(l => l.stage === 'inkraft' && l.q1 === t.q && l.kind === 'topic').slice(0, 2).forEach(l => {
+      const a1 = A.positionAppeal(l.topic, l.opt);
+      const prevOpt = l.prevOpt === undefined ? optIndex(l.topic, 0) : l.prevOpt;
+      const a0 = A.positionAppeal(l.topic, prevOpt);
+      const k = D.GROUPS.slice().sort((x, y) => Math.abs(a1[y.id] - a0[y.id]) - Math.abs(a1[x.id] - a0[x.id]))[0];
+      const pro = a1[k.id] >= a0[k.id];
+      voices.push({ q: t.q, who: voicePerson(R, k.id), mood: pro ? '+' : '-', text: pickR(TD.LAW_VOICES[pro ? 'pro' : 'contra']).replace('{law}', lawName(l)).replace('{party}', sname(l.by)) });
+    });
+    // Veränderungen der Lage in diesem Quartal.
+    const seen = {};
+    Object.keys(t.lageWhy || {}).filter(k => t.lageWhy[k].q === t.q).forEach(k => {
+      const w = t.lageWhy[k];
+      if (seen[w.id] || voices.length >= 4 || !TD.VOICES[w.id]) return;
+      seen[w.id] = true;
+      voices.push({ q: t.q, who: voicePerson(R, k), mood: w.d > 0 ? '+' : '-', text: pickR(TD.VOICES[w.id][w.d > 0 ? 'good' : 'bad']) });
+    });
+    // Sonst: das drängendste Problem.
+    if (!voices.length) {
+      const tp = A.TOPIC_IDS.slice().sort((a, b) => g.salience[b] - g.salience[a])[0];
+      const x = lageDef(tp);
+      if (x && TD.VOICES[tp]) {
+        const good = lageImp(t, x, t.lage0) > 0;
+        voices.push({ q: t.q, who: voicePerson(R, Object.keys(x.groups || { mitte: 1 })[0]), mood: good ? '+' : '-', text: pickR(TD.VOICES[tp][good ? 'good' : 'bad']) });
+      }
+    }
+    t.voices = voices.concat(t.voices || []).slice(0, 12);
+    // Titelseiten: die wichtigsten Meldungen dieses Quartals.
+    const rank = { big: 4, bad: 3, warn: 2, role: 0 };
+    const items = t.news.filter(n => n.q === t.q && !/Presseschau|Legislaturperiode beginnt/.test(n.text))
+      .map((n, i) => ({ n, s: (rank[n.kind] === undefined ? 1 : rank[n.kind]) - i * 0.01 })).sort((a, b) => b.s - a.s);
+    const clean = s => String(s).replace(/^[^A-Za-zÄÖÜäöü„0-9]+/, '').trim();
+    const head = s => { const c = clean(s); const m = c.split(/: |\s–\s/); return m[0].length >= 12 && m[0].length <= 70 ? m[0] : c.slice(0, 70).replace(/\s\S*$/, '') + (c.length > 70 ? ' …' : ''); };
+    const rest = s => { const c = clean(s); const i = c.search(/: |\s–\s/); return i > 0 ? c.slice(i + 2).trim() : ''; };
+    const top = items[0] && items[0].n;
+    const second = (items[1] && items[1].n) || top;
+    const kicker = { big: 'PAUKENSCHLAG', bad: 'BLAMAGE', warn: 'ÄRGER IN BERLIN', info: 'JETZT AMTLICH' };
+    const moved = TD.LAGE.map(x => ({ x, d: x.better * (lageVal(t, x) - ((t.lagePrev || {})[x.id] === undefined ? lageVal(t, x) : t.lagePrev[x.id])) / x.scale })).sort((a, b) => Math.abs(b.d) - Math.abs(a.d))[0];
+    const own = t.history.length ? t.history[t.history.length - 1].nat[g.party] : null;
+    t.front = {
+      q: t.q,
+      boulevard: top ? { kicker: kicker[top.kind] || 'NEU', head: head(top.text).toUpperCase(), sub: rest(top.text) } : { kicker: 'RUHIGE ZEITEN', head: 'BERLIN MACHT PAUSE', sub: 'Ein Quartal ohne große Schlagzeilen.' },
+      leit: second ? { head: head(second.text), sub: rest(second.text) || (moved && Math.abs(moved.d) > 0.05 ? 'Im Blick: ' + moved.x.name + (moved.d > 0 ? ' entwickelt sich besser' : ' entwickelt sich schlechter') + '.' : '') } : { head: 'Die Republik im Stillstand?', sub: '' },
+      poll: own !== null ? sname(g.party) + ' in der Sonntagsfrage: ' + (Math.round(own * 10) / 10).toString().replace('.', ',') + ' %' : ''
+    };
+  }
+
   // ---------- Wirtschaft und Haushalt ----------
   function budgetCalc(t, plan) {
     const e = t.econ;
@@ -1834,6 +1895,7 @@
       let mean = 0;
       D.GROUPS.forEach(k => { diff[k.id] = a1[k.id] - a0[k.id]; mean += (A.W[k.id] || 0) * diff[k.id]; });
       D.GROUPS.forEach(k => { if (!g.grp[k.id]) return; t.gov.forEach(p => { g.grp[k.id][p] = (g.grp[k.id][p] || 0) + 0.6 * (diff[k.id] - mean); }); });
+      law.prevOpt = prevOpt;
       t.policy[law.topic] = law.opt;
       (t.policyQ = t.policyQ || {})[law.topic] = t.q; // Wirkung auf die Lage im Land beginnt jetzt
       t.sq[law.topic] = 55; // die neue Regelung ist der neue Status quo
@@ -3350,6 +3412,7 @@
     flushLtwNight(g);
     if (dueIn(TD.EUROPAWAHL, c)) europawahl(g);
     t.doneAbs = c.abs;
+    quarterStories(g);
     t.q += 1;
     if (t.q >= QUARTERS) { endTerm(g, null); return { ok: true, over: true }; }
     beginQuarter(g, false);

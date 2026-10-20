@@ -987,7 +987,62 @@
   var LAGE_BUDGET = { verkehr: { verkehr: 4 }, familie: { familie: -30, bildung: -0.15 }, innen: { sicherheit: -0.08 }, forschung: { digitales: 3 },
     wohnen: { wohnen: 15 }, gesundheit: { gesundheit: -0.15 }, verteidigung: { verteidigung: 0.4 }, landwirtschaft: { land: 1 }, wirtschaft: { klima: -6 }, sozial: { soziales: -0.3 } };
 
+  // ---------- Stimmen aus dem Land ----------
+  // Fiktive Menschen aus den Wählergruppen (Vorname, Alter, Rolle) reagieren auf Gesetze und die Lage im Land.
+  var VOICE_PEOPLE = {
+    jung: [['Lena', 22, 'Studentin'], ['Jonas', 24, 'Azubi'], ['Aylin', 19, 'Schülerin'], ['Tim', 27, 'Pfleger']],
+    mitte: [['Sandra', 41, 'Erzieherin'], ['Markus', 46, 'Schichtleiter'], ['Nadine', 38, 'Steuerfachangestellte'], ['Thomas', 52, 'Handwerksmeister']],
+    aelter: [['Petra', 67, 'Rentnerin'], ['Günter', 72, 'Rentner'], ['Renate', 64, 'Verkäuferin kurz vor der Rente'], ['Wolfgang', 69, 'Rentner']],
+    niedrig: [['Dennis', 34, 'Lagerarbeiter'], ['Jacqueline', 39, 'Reinigungskraft'], ['Sergej', 44, 'Lkw-Fahrer']],
+    mittel: [['Katrin', 45, 'Bankkauffrau'], ['Stefan', 49, 'Elektriker'], ['Melanie', 36, 'Arzthelferin']],
+    hoch: [['Julia', 35, 'Ingenieurin'], ['Felix', 31, 'Softwareentwickler'], ['Miriam', 43, 'Ärztin']],
+    stadt: [['Sophie', 29, 'Grafikerin'], ['Can', 33, 'Kellner'], ['Anna', 37, 'alleinerziehende Mutter']],
+    land: [['Heinz', 58, 'Landwirt'], ['Monika', 55, 'Bäckereibesitzerin'], ['Florian', 30, 'Pendler']],
+    maenner: [['Michael', 48, 'Polizist'], ['Andreas', 54, 'Busfahrer']],
+    frauen: [['Claudia', 44, 'Lehrerin'], ['Sabine', 51, 'Pflegekraft']],
+    kath: [['Josef', 63, 'Kirchenpfleger'], ['Maria', 57, 'Hauswirtschafterin']],
+    evang: [['Ulrike', 60, 'Pfarrerin im Ruhestand'], ['Jürgen', 66, 'Rentner']],
+    konfl: [['Kevin', 32, 'Mechatroniker'], ['Mandy', 40, 'Friseurin']],
+    arbeiter: [['Uwe', 50, 'Schweißer'], ['Daniela', 42, 'Produktionshelferin']],
+    angest: [['Christian', 39, 'Sachbearbeiter'], ['Laura', 34, 'Projektmanagerin']],
+    beamte: [['Martin', 47, 'Lehrer'], ['Birgit', 53, 'Finanzbeamtin']],
+    selbst: [['Ralf', 51, 'Dachdeckermeister'], ['Yasemin', 38, 'Ladenbesitzerin']],
+    rentner: [['Erika', 74, 'Rentnerin'], ['Horst', 71, 'Rentner']],
+    arbeitslos: [['Marco', 45, 'seit einem Jahr arbeitslos'], ['Ines', 37, 'auf Jobsuche']],
+    ausbild: [['Leon', 18, 'Auszubildender'], ['Mia', 21, 'Studentin']]
+  };
+  var VOICE_TOWNS = {
+    stadt: ['Berlin-Neukölln', 'Hamburg-Wilhelmsburg', 'Köln', 'München', 'Leipzig', 'Frankfurt', 'Dortmund', 'Dresden', 'Bremen', 'Nürnberg'],
+    land: ['einem Dorf bei Cloppenburg', 'der Uckermark', 'Niederbayern', 'der Eifel', 'einem Dorf im Vogtland', 'Ostfriesland', 'der Altmark', 'dem Hunsrück'],
+    mix: ['Gera', 'Gelsenkirchen', 'Kassel', 'Rostock', 'Ulm', 'Cottbus', 'Saarbrücken', 'Kiel', 'Erfurt', 'Osnabrück']
+  };
+  // Reaktionen auf die Lage (good = besser geworden, bad = schlechter).
+  var VOICES = {
+    wirtschaft: { good: ['Bei uns im Betrieb wird wieder eingestellt. Das hatten wir lange nicht.'], bad: ['Unser Werk macht Kurzarbeit. Keiner weiß, wie es weitergeht.', 'Ich schreibe Bewerbung um Bewerbung – nichts.'] },
+    migration: { good: ['Die Turnhalle ist endlich wieder für den Sportunterricht da.'], bad: ['Unsere Gemeinde ist völlig überfordert mit der Unterbringung.', 'In der Grundschule meiner Tochter spricht die Hälfte kaum Deutsch – die Lehrer schaffen das nicht mehr.'] },
+    soziales: { good: ['Am Monatsende bleibt zum ersten Mal seit Langem etwas übrig.'], bad: ['Ich muss jeden Euro dreimal umdrehen. Die Tafel ist voll.', 'Mit meiner Rente komme ich nicht mehr hin.'] },
+    klima: { good: ['Man merkt, dass sich was bewegt – bei uns wird der Windpark gebaut.'], bad: ['Der Sommer war wieder unerträglich, und die Politik schaut zu.'] },
+    sicherheit: { good: ['Ich fühle mich abends im Park wieder sicherer.'], bad: ['In unserem Viertel wurde dreimal eingebrochen. Die Polizei kommt kaum noch.'] },
+    bildung: { good: ['Die Schule meines Sohnes ist endlich saniert.'], bad: ['Bei uns fällt jede dritte Stunde aus. So lernt doch keiner was.'] },
+    digitales: { good: ['Endlich Glasfaser! Homeoffice ohne Abbrüche.'], bad: ['Videokonferenz? Bei uns im Ort ruckelt schon das Telefonat.'] },
+    wohnen: { good: ['Wir haben endlich eine bezahlbare Wohnung gefunden – im Neubau.'], bad: ['Zur Besichtigung kamen 80 Leute. Für eine Zweizimmerwohnung.', 'Die Miete frisst die Hälfte meines Gehalts.'] },
+    verteidigung: { good: ['Es ist beruhigend, dass die Bundeswehr wieder einsatzbereit ist.'], bad: ['Mein Sohn ist Soldat. Die haben nicht mal genug Ausrüstung.'] },
+    gesundheit: { good: ['Ich habe in drei Wochen einen Facharzttermin bekommen. Unglaublich.'], bad: ['Schon wieder höhere Beiträge – und trotzdem monatelang auf einen Termin warten.'] },
+    verkehr: { good: ['Mein Zug war diese Woche jeden Tag pünktlich. Ich bin ehrlich überrascht.'], bad: ['Zug ausgefallen, Anschluss verpasst, zu spät zur Arbeit. Jeden zweiten Tag.'] },
+    europa: { good: ['Ich finde gut, dass Europa wieder enger zusammenrückt.'], bad: ['Was in Brüssel entschieden wird, versteht hier keiner mehr.'] },
+    familie: { good: ['Wir haben einen Kitaplatz! Ich kann wieder Vollzeit arbeiten.'], bad: ['Kein Kitaplatz in Sicht. Ich musste meine Stelle reduzieren.'] },
+    land: { good: ['Unser Hof hat wieder eine Zukunft. Mein Sohn will übernehmen.'], bad: ['Der Nachbarhof hat aufgegeben. Bald sind wir die Letzten im Dorf.'] },
+    demokratie: { good: ['Man hat das Gefühl, die in Berlin streiten wieder um Lösungen.'], bad: ['Die streiten nur noch. Ich weiß nicht, ob ich überhaupt noch wählen gehe.'] },
+    finanzen: { good: ['Gut, dass der Staat nicht auf Pump lebt.'], bad: ['Die Schulden zahlen am Ende unsere Kinder.'] }
+  };
+  // Reaktionen auf neue Gesetze ({law} = Name des Gesetzes, {party} = federführende Partei).
+  var LAW_VOICES = {
+    pro: ['„{law}“ – endlich hat mal jemand an Leute wie mich gedacht.', 'Ich hätte nicht gedacht, dass {party} das durchzieht. Respekt.', '„{law}“ hilft uns ganz konkret. Mal sehen, ob es auch ankommt.'],
+    contra: ['„{law}“? Das geht an der Wirklichkeit völlig vorbei.', 'Wieder ein Gesetz gegen Leute wie mich. Danke, {party}.', 'Bei „{law}“ hat uns keiner gefragt. Das merke ich mir bei der Wahl.']
+  };
+
   var TD = {
+    VOICE_PEOPLE: VOICE_PEOPLE, VOICE_TOWNS: VOICE_TOWNS, VOICES: VOICES, LAW_VOICES: LAW_VOICES,
     WINGS: WINGS, LAGE: LAGE, LAGE_FX: LAGE_FX, LAGE_BUDGET: LAGE_BUDGET,
     MINISTRIES: MINISTRIES, KANZLERAMT: KANZLERAMT, TOPIC_MINISTRY: TOPIC_MINISTRY, WISH: WISH, MINISTER_KINDS: MINISTER_KINDS,
     LAENDER: LAENDER, BUNDESRAT_MAJ: BUNDESRAT_MAJ, LTW: LTW, EUROPAWAHL: EUROPAWAHL, BUNDESVERSAMMLUNG: BUNDESVERSAMMLUNG, LTW_BONUS: LTW_BONUS,

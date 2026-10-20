@@ -2267,3 +2267,22 @@ details.t-law[open] > summary { border-bottom: 1px solid var(--border); }
 .t-grp-why { display: block; font-size: .72rem; }
 .t-sum li.pos { color: var(--good); }
 .t-sum li.neg { color: var(--bad); }
+/* Titelseiten und Stimmen aus dem Land */
+.t-front { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 8px 0; }
+@media (max-width: 560px) { .t-front { grid-template-columns: 1fr; } }
+.tf-paper { border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.tf-mast { font-weight: 900; letter-spacing: .04em; font-size: .85rem; border-bottom: 2px solid currentColor; padding-bottom: 4px; margin-bottom: 6px; }
+.tf-boul .tf-mast { color: #fff; background: #d00; padding: 4px 8px; border: 0; border-radius: 3px; font-size: 1rem; }
+.tf-kick { display: inline-block; background: #ffd400; color: #111; font-weight: 800; font-size: .72rem; padding: 1px 6px; margin-bottom: 4px; }
+.tf-boul .tf-head { font-weight: 900; font-size: 1.15rem; line-height: 1.15; }
+.tf-leit .tf-mast { font-family: Georgia, 'Times New Roman', serif; font-weight: 700; font-size: 1.05rem; text-align: center; }
+.tf-leit .tf-head { font-family: Georgia, 'Times New Roman', serif; font-size: 1.1rem; line-height: 1.25; font-weight: 700; }
+.tf-date { text-align: center; font-size: .72rem; color: var(--muted); margin-bottom: 6px; }
+.tf-sub { font-size: .85rem; margin-top: 6px; color: var(--text); }
+.tf-poll { font-size: .75rem; color: var(--muted); margin-top: 8px; border-top: 1px solid var(--border); padding-top: 4px; }
+.t-voices { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 8px 0; }
+.t-voice { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--surface-2); border-left: 4px solid var(--border); }
+.t-voice.pos { border-left-color: var(--good); }
+.t-voice.neg { border-left-color: var(--bad); }
+.t-voice p { margin: 0 0 6px; font-style: italic; color: var(--text); }
+.t-voice cite { font-size: .78rem; color: var(--muted); font-style: normal; }

@@ -175,6 +175,23 @@
     return html;
   }
 
+  // Titelseiten des Quartals (Boulevard und Leitmedium) und Stimmen aus dem Land.
+  function frontHtml(f) {
+    if (!f) return '';
+    const t = term();
+    return '<div class="t-front"><div class="tf-paper tf-boul"><div class="tf-mast">KRACHER</div><div class="tf-kick">' + esc(f.boulevard.kicker) + '</div><div class="tf-head">' + esc(f.boulevard.head) + '</div>' +
+      (f.boulevard.sub ? '<div class="tf-sub">' + esc(f.boulevard.sub) + '</div>' : '') + '</div>' +
+      '<div class="tf-paper tf-leit"><div class="tf-mast">Die Hauptstadt-Zeitung</div><div class="tf-date">' + esc(T.quarterLabel(t, Math.min(f.q, T.QUARTERS - 1))) + '</div><div class="tf-head">' + esc(f.leit.head) + '</div>' +
+      (f.leit.sub ? '<div class="tf-sub">' + esc(f.leit.sub) + '</div>' : '') + (f.poll ? '<div class="tf-poll">' + esc(f.poll) + '</div>' : '') + '</div></div>' +
+      '<p class="muted small">Fiktive Zeitungen: ein Boulevardblatt und eine überregionale Tageszeitung.</p>';
+  }
+  function voicesHtml(n) {
+    const t = term();
+    const v = (t.voices || []).slice(0, n || 3);
+    if (!v.length) return '';
+    return '<h3>🗣️ Stimmen aus dem Land</h3><div class="t-voices">' + v.map(x => '<blockquote class="t-voice ' + (x.mood === '+' ? 'pos' : 'neg') + '"><p>„' + esc(x.text.replace(/^„|“$/g, '')) + '“</p><cite>' + esc(x.who) + '</cite></blockquote>').join('') + '</div>';
+  }
+
   function renderLage() {
     const t = term();
     const e = t.econ;
@@ -202,6 +219,7 @@
       (T.isGov(t.role) && t.gov.length > 1 ? chip('Beliebtheit Spitze', (t.party.leader.like >= 0 ? '+' : '−') + num1(Math.abs(t.party.leader.like))) : '') +
       (T.isGov(t.role) ? chip('Ansehen in der Welt', Math.round(t.intl) + '/100') : '') + '</div>';
     html += lageHtml();
+    html += voicesHtml(3);
     // Sitzungswoche: Abstimmungen am Ende dieses Quartals mit Prognose
     const due = T.dueVotes(g);
     if (due.length) {
@@ -844,7 +862,7 @@
     newsSeen = t.news[0] || null;
     $('t-news-badge').hidden = true;
     const li = n => '<li class="t-n-' + n.kind + '"><span class="wk">' + esc(T.quarterLabel(t, Math.min(n.q, T.QUARTERS - 1)).replace('. Quartal ', '/')) + '</span><span>' + esc(n.text) + '</span></li>';
-    $('t-news').innerHTML = '<h3>📰 Letzte Meldungen</h3><ul class="news">' + t.news.slice(0, 4).map(li).join('') + '</ul>' +
+    $('t-news').innerHTML = (t.front ? '<details class="t-more"><summary>🗞️ Titelseiten zum ' + esc(T.quarterLabel(t, Math.min(t.front.q, T.QUARTERS - 1))) + '</summary>' + frontHtml(t.front) + '</details>' : '') + '<h3>📰 Letzte Meldungen</h3><ul class="news">' + t.news.slice(0, 4).map(li).join('') + '</ul>' +
       (t.news.length > 4 ? '<details class="t-more"><summary>Alle Nachrichten (' + t.news.length + ')</summary><ul class="news">' + t.news.slice(4).map(li).join('') + '</ul></details>' : '');
   }
 
@@ -1307,13 +1325,22 @@
     const topFx = lastFx ? fxRows(lastFx.fx).filter(c => c !== 'verblassen')[0] : null;
     const reels = (t.reel || []).slice();
     t.reel = [];
-    playReels(reels, () => {
+    playReels(reels, () => showFront(() => {
       U.closeModal();
       if (!t.over) U.toast(T.quarterLabel(t) + ' · Neue Umfrage: ' + pct(g.poll.nat[g.party]) + ' (' + signed(g.poll.nat[g.party] - before) + ')' +
         (topFx ? ' · größter Einfluss: ' + (T.FX_NAMES[topFx] || topFx).replace(/^\S+ /, '') + ' ' + signed(lastFx.fx[topFx]) : ''));
       checkPending();
-    });
+    }));
   });
+  function showFront(done) {
+    const t = term();
+    if (!t.front || t.over || t.frontSeen === t.front.q) { done(); return; }
+    t.frontSeen = t.front.q;
+    const v = (t.voices || []).filter(x => x.q === t.front.q).slice(0, 2);
+    U.openModal(T.quarterLabel(t, Math.min(t.front.q, T.QUARTERS - 1)) + ' · 🗞️ Am Kiosk', 'Die Titelseiten', frontHtml(t.front) +
+      (v.length ? '<div class="t-voices">' + v.map(x => '<blockquote class="t-voice ' + (x.mood === '+' ? 'pos' : 'neg') + '"><p>„' + esc(x.text.replace(/^„|“$/g, '')) + '“</p><cite>' + esc(x.who) + '</cite></blockquote>').join('') + '</div>' : ''),
+      [{ label: 'Weiter', primary: true, onClick: done }]);
+  }
   let resizeT = null;
   window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (g && !$('screen-term').hidden && tab === 'umfragen') drawTermChart(); }, 150); });
 

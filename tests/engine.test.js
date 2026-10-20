@@ -1562,3 +1562,13 @@ test('Lage im Land: Gesetze verändern Indikatoren mit Verzögerung, die Problem
   for (let q = 0; q < 3; q++) { while (k.term.pending.length) T.resolvePending(k, 0); T.endQuarter(k); }
   assert.ok(k.salience.migration > before, 'Mehr Asylanträge machen Migration wichtiger');
 });
+
+test('Stimmen aus dem Land und Titelseiten entstehen jedes Quartal, ohne den Spielzufall zu verändern', () => {
+  const g = electedGame('spd', 4, 6);
+  T.startTerm(g);
+  T.autoNames(g);
+  const t = g.term;
+  for (let q = 0; q < 3; q++) { while (t.pending.length) T.resolvePending(g, 0); T.endQuarter(g); }
+  assert.ok(t.front && t.front.boulevard.head && t.front.leit.head);
+  assert.ok((t.voices || []).length >= 1 && t.voices.every(v => /\(\d+\), .+ aus /.test(v.who) && v.text));
+});
