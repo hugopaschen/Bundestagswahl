@@ -1102,15 +1102,59 @@
   }
 
   // Wie viele Abgeordnete einer Partei zustimmen (Ja), sich enthalten oder ablehnen.
-  function partyVote(g, p, law) {
+  // ---------- Offene Abstimmungen ----------
+  // Die Prognose ist eine Schätzung der Fraktionsführungen; entschieden wird im Plenum. Dort fehlen Abgeordnete
+  // (bei namentlichen Abstimmungen im Bundestag fehlen meist 3–8 %), Einzelne weichen ab – mehr, wenn die eigene
+  // Partei in den Umfragen abstürzt oder im eigenen Land bald gewählt wird –, und die Opposition stimmt taktisch.
+  // Eine Ziehung (draw) enthält die Zufallsanteile einer echten Abstimmung; ohne Ziehung entsteht die Schätzung.
+  function gauss(R) { return (R() + R() + R() - 1.5) * 2; } // ≈ Normalverteilung
+  function makeDraw(g, R) {
+    const d = { bt: {}, br: {} };
+    CONTEST.forEach(p => { d.bt[p] = { z: gauss(R), abs: R(), tact: R() }; });
+    Object.keys(g.term.laender).forEach(l => { d.br[l] = R(); });
+    return d;
+  }
+  // Eigener Zufallsgenerator für Prognosen: Sie dürfen den Spielverlauf nicht verändern.
+  function localRng(seed) {
+    let a = seed >>> 0;
+    return () => {
+      a = (a + 0x6D2B79F5) | 0;
+      let x = Math.imul(a ^ (a >>> 15), 1 | a);
+      x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+      return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  // Wie beliebt ist die neue Regelung? (positiv = populär)
+  function lawPop(law) {
+    if (law.kind === 'tax') { const x = taxById(law.tax); return -((x.levels[law.level].rev || 0) - (x.levels[law.from === undefined ? law.level : law.from].rev || 0)) / 25; }
+    return D.PROGRAM[law.topic][law.opt].pop || 0;
+  }
+  // Rahmen einer Abstimmung: Wahlkampfnähe, bald wählende Länder, Beliebtheit.
+  function voteCtx(g, law) {
+    const t = g.term;
+    const soon = new Set();
+    for (let q = t.q; q <= Math.min(QUARTERS - 1, t.q + 1); q++) ltwDue(t, q).forEach(l => soon.add(l));
+    return { elect: t.q >= QUARTERS - 4, soon, pop: lawPop(law) };
+  }
+  function partyVote(g, p, law, draw, ctx) {
     const t = g.term;
     const s = t.seats[p] || 0;
-    if (!s) return { yes: 0, abst: 0, no: 0 };
+    if (!s) return { yes: 0, abst: 0, no: 0, absent: 0 };
+    const dr = draw && draw.bt[p];
+    const absent = dr ? Math.round(s * (0.02 + 0.05 * dr.abs)) : 0;
+    const n = s - absent;
+    const out = (yes, abst) => ({ yes, abst, no: n - yes - abst, absent });
+    const d = Math.abs(leanOf(g, p, lawTopic(law)) - lawLean(law));
     if (p === g.party && !isGov(t.role)) {
       const c = t.voteChoice[law.id] || defaultVote(g, law);
-      return c === 'ja' ? { yes: s, abst: 0, no: 0 } : c === 'enthaltung' ? { yes: 0, abst: s, no: 0 } : { yes: 0, abst: 0, no: s };
+      // Auch in der eigenen Fraktion gibt es Einzelne, die anders stimmen – mehr bei Streit und gegen die eigene Linie.
+      const off = c === 'ja' ? d : c === 'nein' ? 2 - d : 1;
+      const diss = dr ? Math.max(0, Math.round(n * (0.005 + 0.02 * off) * (1.3 - t.party.unity / 100) * (1 + dr.z * 0.6))) : 0;
+      if (c === 'ja') return out(n - diss, diss);
+      if (c === 'enthaltung') return out(0, n - diss);
+      return out(0, diss);
     }
-    const d = Math.abs(leanOf(g, p, lawTopic(law)) - lawLean(law));
+    const cx = ctx || voteCtx(g, law);
     if (t.gov.indexOf(p) !== -1) {
       let rate = d === 2 ? 0.15 : d === 1 ? 0.04 : 0.005;
       if (law.contract) rate /= 2;
@@ -1123,32 +1167,61 @@
       if (law.kind === 'topic') rate *= 0.6 + (t.sq[law.topic] === undefined ? SQ0 : t.sq[law.topic]) / 100; // starker Status quo = mehr Widerstand
       if (law.ghost || (law.backers && law.backers.length)) rate *= 0.6; // Verbände werben bei Abgeordneten
       if (law.foe && (t.lobbyCampaigns || []).some(c => c.law === law.id && c.left > 0)) rate *= 1.3;
-      const no = Math.max(0, Math.round(s * rate) - ((law.conv && law.conv[p]) || 0)); // umgestimmte Abweichler
-      return { yes: s - no, abst: 0, no };
+      // Nervöse Abgeordnete: Absturz in den Umfragen, unbeliebtes Gesetz vor einer Landtagswahl.
+      const drop = (t.start[p] || 0) - ((t.lastNat && t.lastNat[p]) || t.start[p] || 0);
+      if (drop > 3) rate *= Math.min(1.6, 1 + 0.08 * (drop - 3));
+      if (cx.pop < 0 && cx.soon.size) rate *= 1.25;
+      let no = n * rate;
+      if (dr) no += dr.z * Math.sqrt(n * rate * (1 - rate) + 1);
+      no = clamp(Math.round(no) - ((law.conv && law.conv[p]) || 0), 0, n); // umgestimmte Abweichler
+      return out(n - no, 0);
     }
-    if (t.duldung === p && t.gov.indexOf(law.by) !== -1 && d <= 1) return { yes: s, abst: 0, no: 0 }; // Duldung
-    if (d === 0) return { yes: Math.round(s * 0.92), abst: s - Math.round(s * 0.92), no: 0 };
-    if (d === 1) return { yes: 0, abst: Math.round(s * 0.5), no: s - Math.round(s * 0.5) };
-    return { yes: 0, abst: 0, no: s };
+    if (t.duldung === p && t.gov.indexOf(law.by) !== -1 && d <= 1) return out(n, 0); // Duldung
+    // Opposition: im Wahljahr auf Konfrontation, bei populären Sachfragen manchmal überraschend dafür.
+    const tact = dr ? dr.tact : 0.5;
+    if (d === 0) {
+      const sh = clamp(0.92 - (cx.elect ? 0.3 : 0) + (dr ? (tact - 0.5) * 0.3 : 0), 0.3, 1);
+      return out(Math.round(n * sh), n - Math.round(n * sh));
+    }
+    if (d === 1) {
+      if (dr && !cx.elect && cx.pop > 0.2 && tact > 0.88) { const y = Math.round(n * 0.7); return out(y, n - y); }
+      const a = Math.round(n * (dr ? 0.25 + 0.5 * tact : 0.5));
+      return out(0, a);
+    }
+    if (dr && cx.pop > 0.3 && tact > 0.95) return out(0, Math.round(n * 0.3));
+    return out(0, 0);
   }
   function defaultVote(g, law) {
     const d = Math.abs(leanOf(g, g.party, lawTopic(law)) - lawLean(law));
     return d === 0 ? 'ja' : d === 1 ? 'enthaltung' : 'nein';
   }
-  function bundestagVote(g, law) {
+  function bundestagVote(g, law, draw) {
     const t = g.term;
-    let yes = 0; let no = 0; let abst = 0;
+    let yes = 0; let no = 0; let abst = 0; let absent = 0;
     const detail = {};
+    const ctx = voteCtx(g, law);
     CONTEST.forEach(p => {
-      const v = partyVote(g, p, law);
+      const v = partyVote(g, p, law, draw, ctx);
       detail[p] = v;
-      yes += v.yes; no += v.no; abst += v.abst;
+      yes += v.yes; no += v.no; abst += v.abst; absent += v.absent;
     });
     const pass = yes > no;
     const afdYes = detail.afd ? detail.afd.yes : 0;
     const afdDecisive = pass && t.gov.indexOf('afd') === -1 && afdYes > 0 && yes - afdYes <= no + afdYes;
-    return { yes, no, abst, pass, detail, afdDecisive };
+    return { yes, no, abst, absent, pass, detail, afdDecisive };
   }
+  // Landesinteressen (geschätzt): Richtung, die ein Land bei einem Thema bevorzugt (+1/−1) – Kohle- und
+  // Industrieländer bremsen beim Klima, Agrarländer bei Auflagen, Autoländer beim Tempolimit, der Osten will
+  // weniger Zuwanderung, Stadtstaaten mehr Mieterschutz; Bildung ist Ländersache (Kulturhoheit).
+  const LAND_INTEREST = {
+    klima: { NW: 1, BB: 1, SN: 1, ST: 1, SL: 1 },
+    land: { NI: 1, BY: 1, MV: 1, ST: 1, BB: 1, SH: 1 },
+    verkehr: { BY: 1, BW: 1, NI: 1 },
+    migration: { SN: 1, TH: 1, ST: 1, MV: 1, BB: 1, BE: -1, HB: -1, HH: -1 },
+    wohnen: { BE: -1, HH: -1, HB: -1 },
+    bildung: { BW: 1, BY: 1, SN: 1, HE: 1, NW: 1, NI: 1, RP: 1, SL: 1, SH: 1, BE: 1, BB: 1, HB: 1, HH: 1, MV: 1, ST: 1, TH: 1 }
+  };
+  const POOR_LANDS = ['HB', 'SL', 'BE', 'MV', 'ST', 'TH', 'SN', 'BB'];
   // Ein Land stimmt nur zu, wenn alle Regierungsparteien dort einverstanden sind (sonst Enthaltung = Nein).
   function partyBackslaw(g, p, law) {
     const t = g.term;
@@ -1157,20 +1230,97 @@
     // Wankt der Status quo, geben Länder mit nur kleinen Bedenken nach.
     return d === 0 || (d === 1 && (law.brDeal || (law.kind === 'topic' && t.sq[law.topic] < 25)));
   }
-  function bundesratVote(g, law) {
+  // Warum ein Land von der Parteilinie abweicht (null = folgt ihr): Landesinteresse, Kosten, nahe Landtagswahl.
+  function landTwist(g, l, law, base, x, ctx) {
+    const topic = lawTopic(law);
+    const L = lawLean(law);
+    const want = (LAND_INTEREST[topic] || {})[l] || 0;
+    const cost = law.kind === 'topic' ? D.PROGRAM[topic][law.opt].cost || 0 : 0;
+    if (base) {
+      if (want && L && Math.sign(want) !== Math.sign(L) && x < 0.45) return { ok: false, why: 'Landesinteresse' };
+      if (law.zust && cost >= 2 && POOR_LANDS.indexOf(l) !== -1 && !law.brDeal && x < 0.3) return { ok: false, why: 'Kosten für das Land' };
+      if (ctx.soon.has(l) && ctx.pop < 0 && x < 0.4) return { ok: false, why: 'Landtagswahl steht bevor' };
+      return null;
+    }
+    if (want && L && Math.sign(want) === Math.sign(L) && x > 0.6) return { ok: true, why: 'Landesinteresse' };
+    return null;
+  }
+  function bundesratVote(g, law, draw) {
     const t = g.term;
     const lands = {};
     const votes = {};
+    const why = {};
+    const ctx = voteCtx(g, law);
     let yes = 0;
     Object.keys(t.laender).forEach(l => {
       const L = t.laender[l];
-      const ok = (law.bought && law.bought.indexOf(l) !== -1) || L.gov.every(p => partyBackslaw(g, p, law));
+      const bought = law.bought && law.bought.indexOf(l) !== -1;
+      let ok = bought || L.gov.every(p => partyBackslaw(g, p, law));
+      if (!bought) {
+        const tw = landTwist(g, l, law, ok, draw ? draw.br[l] : 0.5, ctx);
+        if (tw) { ok = tw.ok; why[l] = tw.why; }
+      }
       lands[l] = ok;
       // Uneinige Landeskoalitionen enthalten sich – im Bundesrat wirkt das wie ein Nein.
-      votes[l] = ok ? 'ja' : L.gov.some(p => partyBackslaw(g, p, law)) ? 'enth' : 'nein';
+      votes[l] = ok ? 'ja' : (why[l] || L.gov.some(p => partyBackslaw(g, p, law))) ? 'enth' : 'nein';
       if (ok) yes += L.votes;
     });
-    return { yes, pass: yes >= TD.BUNDESRAT_MAJ, lands, votes };
+    return { yes, pass: yes >= TD.BUNDESRAT_MAJ, lands, votes, why };
+  }
+  // Prognose mit Unsicherheit: viele mögliche Ausgänge durchgespielt (eigener Zufall, ohne Wirkung aufs Spiel).
+  function forecast(g, law, n) {
+    const t = g.term;
+    const N = n || 40;
+    const R = localRng(law.id * 7919 + t.q * 104729 + (law.stage === 'bundesrat' ? 31 : 17));
+    const est = bundestagVote(g, law);
+    const ys = [];
+    const ns = [];
+    let pass = 0;
+    let brPass = 0;
+    const brFlip = {};
+    const brBase = law.zust || law.stage === 'bundesrat' ? bundesratVote(g, law) : null;
+    const brOk = v => (law.zust ? v.pass : 69 - v.yes < TD.BUNDESRAT_MAJ);
+    for (let i = 0; i < N; i++) {
+      const dw = makeDraw(g, R);
+      const v = bundestagVote(g, law, dw);
+      ys.push(v.yes);
+      ns.push(v.no);
+      if (v.pass) pass += 1;
+      if (brBase) {
+        const b = bundesratVote(g, law, dw);
+        if (brOk(b)) brPass += 1;
+        Object.keys(b.lands).forEach(l => { if (b.lands[l] !== brBase.lands[l]) brFlip[l] = (brFlip[l] || 0) + 1; });
+      }
+    }
+    const pc = (arr, q) => arr.slice().sort((a, b) => a - b)[Math.min(arr.length - 1, Math.floor(q * arr.length))];
+    const govNo = t.gov.reduce((s, p) => s + ((est.detail[p] && est.detail[p].no) || 0), 0);
+    return {
+      yes: est.yes, no: est.no, abst: est.abst, yesLo: pc(ys, 0.1), yesHi: pc(ys, 0.9), noLo: pc(ns, 0.1), noHi: pc(ns, 0.9),
+      chance: pass / N, unsure: Math.max(govNo, pc(ys, 0.9) - pc(ys, 0.1)),
+      br: brBase ? { yes: brBase.yes, chance: brPass / N, wobbly: Object.keys(brFlip).filter(l => brFlip[l] >= N * 0.15) } : null
+    };
+  }
+  // Gründe für Abweichungen nach einer echten Abstimmung: für die Live-Auszählung und das Protokoll.
+  function voteReasons(g, law, v) {
+    const t = g.term;
+    const out = [];
+    if (v.absent) out.push(v.absent + ' Abgeordnete fehlen (krank, Termine im Wahlkreis, Dienstreise)');
+    const ctx = voteCtx(g, law);
+    t.gov.forEach(p => {
+      const x = v.detail[p];
+      if (!x || x.no < 2) return;
+      const drop = (t.start[p] || 0) - ((t.lastNat && t.lastNat[p]) || t.start[p] || 0);
+      const why = ctx.pop < 0 && ctx.soon.size ? 'Angst vor der Landtagswahl in ' + Array.from(ctx.soon).map(l => E.stateById(l).name).join(' und ') :
+        drop > 3 ? 'Nervosität nach dem Absturz in den Umfragen' : Math.abs(leanOf(g, p, lawTopic(law)) - lawLean(law)) === 2 ? 'das Gesetz widerspricht der Parteilinie' : 'Bedenken einzelner Abgeordneter';
+      out.push(x.no + ' Abweichler bei ' + sname(p) + ' – ' + why);
+    });
+    CONTEST.filter(p => t.gov.indexOf(p) === -1 && p !== g.party).forEach(p => {
+      const x = v.detail[p];
+      const d = Math.abs(leanOf(g, p, lawTopic(law)) - lawLean(law));
+      if (x && d === 1 && x.yes > 0) out.push(sname(p) + ' stimmt überraschend zu – „in der Sache richtig“');
+      else if (x && d === 0 && ctx.elect && x.abst > x.yes / 2) out.push(sname(p) + ' enthält sich trotz Nähe – es ist Wahljahr');
+    });
+    return out;
   }
   function predict(g, law) {
     if (law.stage === 'bundesrat' || law.stage === 'vermittlung') return { br: bundesratVote(g, law) };
@@ -1302,7 +1452,7 @@
     }
     law.log.push('Vor der Abstimmung: ' + who + ' – ' + text);
     item.i += 1;
-    if (item.i >= item.groups.length) { const v = bundestagVote(g, law); text += ' Neue Prognose: ' + v.yes + ' Ja, ' + v.no + ' Nein' + (v.abst ? ', ' + v.abst + ' Enthaltungen' : '') + '.'; }
+    if (item.i >= item.groups.length) { const f = forecast(g, law); text += ' Neue Schätzung der Fraktionsführung: ' + f.yesLo + '–' + f.yesHi + ' Ja, ' + f.noLo + '–' + f.noHi + ' Nein – Chance ' + Math.round(f.chance * 100) + ' %.'; }
     return text;
   }
   function resolveBrWhip(g, item, choice) {
@@ -1316,7 +1466,7 @@
     else text = name + ' bleibt bei seiner Haltung.';
     law.log.push('Vor dem Bundesrat: ' + text);
     item.i += 1;
-    if (item.i >= item.lands.length) text += ' Neue Prognose: ' + bundesratVote(g, law).yes + ' von 69 Stimmen.';
+    if (item.i >= item.lands.length) { const f = forecast(g, law); text += ' Neue Schätzung: ' + bundesratVote(g, law).yes + ' von 69 Stimmen' + (f.br ? ', Chance ' + Math.round(f.br.chance * 100) + ' %' : '') + '.'; }
     return text;
   }
 
@@ -1342,7 +1492,7 @@
       const keep = t.voteChoice[law.id];
       const mine = keep || defaultVote(g, law);
       t.voteChoice[law.id] = mine === 'ja' ? 'nein' : 'ja';
-      decisive = bundestagVote(g, law).pass !== v.pass;
+      decisive = bundestagVote(g, law, law.draw).pass !== v.pass;
       if (keep) t.voteChoice[law.id] = keep; else delete t.voteChoice[law.id];
     }
     // Abstimmungsform: Handzeichen, namentlich (auf Antrag) oder Hammelsprung, wenn das Präsidium uneins ist.
@@ -1358,7 +1508,9 @@
       if (law.namentlich && !isGov(t.role)) { t.mood = clamp(t.mood - 3, 0, 100); addNat(g, g.party, 0.03 * ACT_K); news(g, 'Auf euren Antrag namentliche Abstimmung: ' + dissent + ' Abgeordnete der Koalition stimmen gegen „' + lawName(law) + '“. Die Regierung ist blamiert.', 'info'); }
     }
     if (decisive) news(g, '⚖️ Zünglein an der Waage: Eure Fraktion entscheidet über „' + lawName(law) + '“.', 'big');
-    const rec = { kind: 'bt', title: lawTitle(law), law: law.id, detail: v.detail, yes: v.yes, no: v.no, abst: v.abst, pass: v.pass, method, decisive, names, afd: v.afdDecisive, my: myVote(g, law, v), q: t.q };
+    const reasons = voteReasons(g, law, v);
+    reasons.forEach(x => law.log.push('Im Plenum: ' + x + '.'));
+    const rec = { kind: 'bt', title: lawTitle(law), law: law.id, detail: v.detail, yes: v.yes, no: v.no, abst: v.abst, absent: v.absent || 0, reasons, pass: v.pass, method, decisive, names, afd: v.afdDecisive, my: myVote(g, law, v), q: t.q };
     archiveVote(g, rec, law);
     if (voteMatters(g, law, margin, decisive)) (t.reel = t.reel || []).push(rec);
     return rec;
@@ -1374,7 +1526,7 @@
       news(g, '🏛️ Eklat im Bundesrat: ' + E.stateById(l).name + ' stimmt uneinheitlich ab – die Stimmen sind ungültig. Der Ministerpräsident wird schwer kritisiert.', 'big');
       law.log.push('Bundesrat: uneinheitliche Stimmabgabe von ' + E.stateById(l).name + ' – ungültig (Art. 51 Abs. 3 GG).');
     }
-    const rec = { kind: 'br', title: lawTitle(law), law: law.id, votes: ids.map(l => ({ land: l, votes: t.laender[l].votes, v: v.votes[l], gov: t.laender[l].gov.slice() })), yes: v.yes, zust: law.zust, pass: law.zust ? v.pass : 69 - v.yes < TD.BUNDESRAT_MAJ, q: t.q };
+    const rec = { kind: 'br', title: lawTitle(law), law: law.id, votes: ids.map(l => ({ land: l, votes: t.laender[l].votes, v: v.votes[l], gov: t.laender[l].gov.slice(), why: (v.why && v.why[l]) || null })), yes: v.yes, zust: law.zust, pass: law.zust ? v.pass : 69 - v.yes < TD.BUNDESRAT_MAJ, q: t.q };
     if (law.by === g.party || (isGov(t.role) && t.gov.indexOf(law.by) !== -1) || Math.abs(v.yes - TD.BUNDESRAT_MAJ) <= 6) (t.reel = t.reel || []).push(rec);
     return rec;
   }
@@ -1454,9 +1606,12 @@
       if (law.delay) { law.delay = false; law.log.push('Der Ausschuss vertagt die Beschlussempfehlung – Nachbesserungen nach der Anhörung.'); return; }
       if (!law.fraktion) law.log.push('Bundesrat, 1. Durchgang: Stellungnahme' + (law.brDeal ? ' – die Bundesregierung übernimmt Änderungswünsche der Länder.' : '.'));
       law.log.push('1. Lesung, Überweisung an den Ausschuss' + (law.fixed ? ', Nachbesserungen nach der Anhörung.' : ', öffentliche Anhörung.'));
-      const v = bundestagVote(g, law);
-      law.bt = { yes: v.yes, no: v.no, abst: v.abst };
+      // Jetzt wird wirklich abgestimmt: Anwesenheit, Abweichler und Taktik entscheiden sich erst im Plenum.
+      law.draw = makeDraw(g, () => rand(g));
+      const v = bundestagVote(g, law, law.draw);
+      law.bt = { yes: v.yes, no: v.no, abst: v.abst, absent: v.absent };
       recordBt(g, law, v);
+      delete law.draw;
       if (!v.pass) {
         law.stage = 'gescheitert';
         law.log.push('2./3. Lesung: im Bundestag gescheitert – ' + v.yes + ' Ja, ' + v.no + ' Nein, ' + v.abst + ' Enthaltungen.');
@@ -1486,7 +1641,8 @@
       return;
     }
     if (law.stage === 'bundesrat') {
-      const v = bundesratVote(g, law);
+      const v = bundesratVote(g, law, makeDraw(g, () => rand(g)));
+      Object.keys(v.why).forEach(l => law.log.push('Bundesrat: ' + E.stateById(l).name + ' weicht ab – ' + v.why[l] + '.'));
       recordBr(g, law, v);
       law.br = { yes: v.yes };
       if (v.pass) { law.log.push('Bundesrat, 2. Durchgang: ' + (law.zust ? 'Zustimmung' : 'kein Einspruch') + ' (' + v.yes + ' von 69 Stimmen).'); finalize(g, law); return; }
@@ -1506,7 +1662,7 @@
       }
       if (!law.zust) {
         // Einspruchsgesetz: Der Bundestag kann den Einspruch mit der Mehrheit seiner Mitglieder zurückweisen (Art. 77 Abs. 4 GG).
-        const v = bundestagVote(g, law);
+        const v = bundestagVote(g, law, makeDraw(g, () => rand(g)));
         law.log.push('Kein Einigungsvorschlag – der Bundesrat legt Einspruch ein.');
         if (v.yes >= MAJ) { law.log.push('Der Bundestag weist den Einspruch mit Kanzlermehrheit zurück (' + v.yes + ' Stimmen).'); news(g, 'Bundestag überstimmt den Bundesrat: „' + lawName(law) + '“ kommt.', 'info'); finalize(g, law); return; }
         law.stage = 'gescheitert';
@@ -3308,7 +3464,7 @@
   }
 
   const TERM = {
-    QUARTERS, ACTIONS, LAW_STEPS, WOBBLE, brAligned, landGovernment, dueVotes, GEWISSEN, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
+    QUARTERS, ACTIONS, LAW_STEPS, forecast, WOBBLE, brAligned, landGovernment, dueVotes, GEWISSEN, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
     lawOptions, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, cal,
     lawName, lawTitle, leanOf, quorum, eventChoices, fillText, eventById, ministryById, taxById, areaById, nextCampaign, summary,
     MEDIA, media, actionCash, govSeats, isGov, legacy, LB, careerSnapshot, chooseLeader, leaderAge, currentLeader, MAX_AGE, sqForces, absCal, FX_NAMES, ministerFor, eventMinister, ownMinistries, endTerm, defaultVote, partyVote, mandateVote

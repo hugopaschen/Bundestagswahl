@@ -17,6 +17,9 @@
   const signed = U.signed;
   const short = U.short;
   const mio = x => num1(x) + ' Mio. €';
+  // Chance einer Abstimmung: gerundet, nie „100 %“ – im Plenum ist nichts sicher.
+  const pctChance = c => (c >= 0.98 ? 'fast sicher' : c <= 0.02 ? 'fast aussichtslos' : Math.round(c * 100) + ' %');
+  const chanceCls = c => (c >= 0.85 ? 'good' : c >= 0.5 ? 'mid' : 'bad');
   const mrd = x => num1(x) + ' Mrd. €';
   const MAIN = ['union', 'afd', 'spd', 'gruene', 'linke', 'bsw', 'fdp'];
   const STAGES = [['kabinett', 'Kabinett'], ['br1', 'Bundesrat (1.)'], ['bundestag', 'Bundestag'], ['bundesrat', 'Bundesrat (2.)'], ['vermittlung', 'Vermittlung'], ['inkraft', 'In Kraft']];
@@ -106,9 +109,9 @@
     else if (T.isGov(t.role) && b.gap > 0.5) out.push({ icon: '🏦', text: 'Der Haushalt reißt die Schuldenbremse um ' + mrd(b.gap) + ' – Karlsruhe droht.', go: 'haushalt', btn: 'Zum Haushalt', warn: true });
     (t.demands || []).filter(d => !d.done).forEach(d => out.push({ icon: '📌', text: 'Forderung von ' + short(d.p) + ': „' + D.PROGRAM[d.topic][d.opt].label + '“ bis ' + T.quarterLabel(t, d.due) + ' (Klima +8 / −10).', go: 'gesetze', btn: 'Gesetz einbringen', warn: true }));
     t.laws.filter(l => l.stage === 'bundestag').forEach(l => {
-      const v = T.predict(g, l).bt;
       const mine = t.gov.indexOf(l.by) !== -1 && T.isGov(t.role);
-      if (mine && (!v.pass || v.yes - v.no < 20)) out.push({ icon: '🗳️', text: 'Knappe Abstimmung zum Quartalsende: „' + T.lawName(l) + '“ (' + v.yes + ':' + v.no + ').', go: 'gesetze', btn: 'Ansehen', warn: !v.pass });
+      const f = mine ? T.forecast(g, l) : null;
+      if (f && f.chance < 0.85) out.push({ icon: '🗳️', text: 'Unsichere Abstimmung zum Quartalsende: „' + T.lawName(l) + '“ – Chance ' + pctChance(f.chance) + '.', go: 'gesetze', btn: 'Ansehen', warn: f.chance < 0.5 });
       if (t.role === 'opposition' && l.by !== g.party) out.push({ icon: '🗳️', text: 'Abstimmung im Bundestag: „' + T.lawName(l) + '“ – eure Fraktion entscheidet mit.', go: 'gesetze', btn: 'Ansehen' });
     });
     T.calendar(g, 8).filter(x => x.kind === 'ltw' && x.q === t.q).forEach(x => out.push({ icon: '🗺️', text: 'Landtagswahl in ' + E.stateById(x.land).name + ' am Quartalsende.', act: 'ltwk', btn: 'Wahlkampf unterstützen' }));
@@ -177,10 +180,11 @@
       html += '<h3>🗳️ Abstimmungen in diesem Quartal</h3><ul class="t-due">' + due.map(x => {
         if (x.kind === 'budget') return '<li><span>🏦 Haushaltsgesetz ' + x.year + '</span><span class="t-pg mid">Bundestag</span></li>';
         const l = x.law;
-        if (x.kind === 'bt') { const m = x.v.yes - x.v.no; return '<li><span>📜 ' + esc(T.lawName(l)) + ' ' + pill(l.by) + '</span><span class="t-pg ' + (!x.v.pass ? 'bad' : m < 20 ? 'mid' : 'good') + '">Bundestag ' + x.v.yes + ':' + x.v.no + '</span></li>'; }
-        const ok = l.zust ? x.v.pass : 69 - x.v.yes < TD.BUNDESRAT_MAJ;
-        return '<li><span>🏛️ ' + esc(T.lawName(l)) + ' ' + pill(l.by) + '</span><span class="t-pg ' + (ok ? 'good' : 'bad') + '">Bundesrat ' + x.v.yes + '/69</span></li>';
-      }).join('') + '</ul><p class="muted small">Prognose nach heutigem Stand. Fraktion auf Linie bringen, Länder überzeugen oder Debatten können sie noch drehen.</p>';
+        const f = T.forecast(g, l);
+        if (x.kind === 'bt') return '<li><span>📜 ' + esc(T.lawName(l)) + ' ' + pill(l.by) + '</span><span class="t-pg ' + chanceCls(f.chance) + '">Bundestag ' + f.yesLo + '–' + f.yesHi + ' Ja · ' + pctChance(f.chance) + '</span></li>';
+        const c = f.br ? f.br.chance : 1;
+        return '<li><span>🏛️ ' + esc(T.lawName(l)) + ' ' + pill(l.by) + '</span><span class="t-pg ' + chanceCls(c) + '">Bundesrat ~' + x.v.yes + '/69 · ' + pctChance(c) + '</span></li>';
+      }).join('') + '</ul><p class="muted small">Schätzung der Fraktionsführungen – entschieden wird im Plenum. Abwesende, Abweichler und taktierende Länder können das Ergebnis noch drehen.</p>';
     }
     html += actionsHtml();
     // Termine: die nächsten drei, der Rest zum Aufklappen
@@ -346,10 +350,10 @@
     let prog2 = '';
     if (active) {
       const bits = [];
-      if (['kabinett', 'kabinett_wait', 'veto', 'bundestag'].indexOf(l.stage) !== -1) { const v = T.predict(g, l).bt; bits.push('<span class="t-pg ' + (v.pass ? (v.yes - v.no < 20 ? 'mid' : 'good') : 'bad') + '">Bundestag ' + (v.pass ? (v.yes - v.no < 20 ? 'knapp ✓' : '✓') : '✗') + '</span>'); }
-      const br = T.bundesratVote(g, l);
-      const brOk = l.zust ? br.pass : 69 - br.yes < TD.BUNDESRAT_MAJ;
-      bits.push('<span class="t-pg ' + (brOk ? 'good' : 'bad') + '">Bundesrat ' + (brOk ? '✓' : '✗') + '</span>');
+      const f = T.forecast(g, l);
+      if (['kabinett', 'kabinett_wait', 'veto', 'bundestag'].indexOf(l.stage) !== -1) bits.push('<span class="t-pg ' + chanceCls(f.chance) + '">Bundestag ' + pctChance(f.chance) + '</span>');
+      const brC = f.br ? f.br.chance : (69 - T.bundesratVote(g, l).yes < TD.BUNDESRAT_MAJ ? 1 : 0);
+      bits.push('<span class="t-pg ' + chanceCls(brC) + '">Bundesrat ' + pctChance(brC) + '</span>');
       prog2 = bits.join('');
     }
     const status = active ? STAGE_NAME[l.stage] : STAGE_NAME[l.stage] || l.stage;
@@ -361,11 +365,13 @@
       ((l.backers && l.backers.length) || l.foe ? '<p class="small">' + (l.backers && l.backers.length ? '👍 ' + l.backers.map(id => esc(T.LB.byId(id).short)).join(', ') : '') + (l.foe ? ' · 👎 ' + esc(T.LB.byId(l.foe).short) : '') + '</p>' : '');
     if (l.stage === 'bundestag') {
       const v = T.predict(g, l).bt;
-      html += '<p class="small">Prognose Bundestag:</p>' + voteBar(v) + (v.afdDecisive ? '<p class="small warn">⚠️ Mehrheit nur mit Stimmen der AfD</p>' : '') + (l.disc ? '<p class="small">📣 Fraktion auf Linie gebracht</p>' : '');
+      const f = T.forecast(g, l);
+      html += '<p class="small">Schätzung der Fraktionsführung: <b>' + f.yesLo + '–' + f.yesHi + ' Ja</b>, ' + f.noLo + '–' + f.noHi + ' Nein · Chance <b>' + pctChance(f.chance) + '</b>' + (f.unsure ? ' · ' + f.unsure + ' Stimmen unsicher' : '') + '</p>' + voteBar(v) + (v.afdDecisive ? '<p class="small warn">⚠️ Mehrheit nur mit Stimmen der AfD</p>' : '') + (l.disc ? '<p class="small">📣 Fraktion auf Linie gebracht</p>' : '');
     }
     if (active) {
       const br = T.bundesratVote(g, l);
-      html += '<p class="small">Prognose Bundesrat: <b>' + br.yes + '</b> von 69 Stimmen ' + (l.zust ? '(Zustimmung nötig: ' + TD.BUNDESRAT_MAJ + ')' : '(Einspruch erst ab ' + TD.BUNDESRAT_MAJ + ' Gegenstimmen)') + (l.bought && l.bought.length ? ' · Zusagen an ' + l.bought.join(', ') : '') + '</p>';
+      const fb = T.forecast(g, l).br;
+      html += '<p class="small">Schätzung Bundesrat: <b>~' + br.yes + '</b> von 69 Stimmen' + (fb ? ' · Chance ' + pctChance(fb.chance) + (fb.wobbly.length ? ' · wackelig: ' + fb.wobbly.map(x => esc(E.stateById(x).name)).join(', ') : '') : '') + ' ' + (l.zust ? '(Zustimmung nötig: ' + TD.BUNDESRAT_MAJ + ')' : '(Einspruch erst ab ' + TD.BUNDESRAT_MAJ + ' Gegenstimmen)') + (l.bought && l.bought.length ? ' · Zusagen an ' + l.bought.join(', ') : '') + '</p>';
     }
     if (l.log.length) html += '<p class="small"><b>Verlauf</b></p><ul class="small">' + l.log.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>';
     return html + '</div></details>';
@@ -834,8 +840,9 @@
   // Bundestag: Fraktion für Fraktion füllt sich der Saal; Abweichler leuchten auf, die Präsidentin verkündet das Ergebnis.
   function playBt(rec, done) {
     const t = term();
-    const parties = SEAT_ORDER.filter(p => rec.detail[p] && (rec.detail[p].yes + rec.detail[p].no + rec.detail[p].abst) > 0);
-    const n = parties.reduce((x, p) => x + rec.detail[p].yes + rec.detail[p].no + rec.detail[p].abst, 0);
+    const tot = d => d.yes + d.no + d.abst + (d.absent || 0);
+    const parties = SEAT_ORDER.filter(p => rec.detail[p] && tot(rec.detail[p]) > 0);
+    const n = parties.reduce((x, p) => x + tot(rec.detail[p]), 0);
     const pos = seatLayout(n);
     const govSide = rec.gewissen ? [] : t.gov;
     let k = 0;
@@ -844,7 +851,7 @@
     parties.forEach(p => {
       const d = rec.detail[p];
       block[p] = [];
-      [['ja', d.yes], ['abst', d.abst], ['nein', d.no]].forEach(([v, c]) => {
+      [['ja', d.yes], ['abst', d.abst], ['nein', d.no], ['fehlt', d.absent || 0]].forEach(([v, c]) => {
         for (let i = 0; i < c; i++, k++) {
           const s0 = pos[k];
           const dev = govSide.indexOf(p) !== -1 && v === 'nein';
@@ -862,11 +869,11 @@
     const cnt = { ja: 0, nein: 0, abst: 0 };
     const reveal = p => {
       const d = rec.detail[p];
-      box.querySelectorAll('circle.seat[data-p="' + p + '"]').forEach(c => { c.style.fill = VOTE_COL[c.dataset.v]; c.classList.add('on'); });
+      box.querySelectorAll('circle.seat[data-p="' + p + '"]').forEach(c => { if (c.dataset.v !== 'fehlt') c.style.fill = VOTE_COL[c.dataset.v]; c.classList.add('on'); });
       cnt.ja += d.yes; cnt.nein += d.no; cnt.abst += d.abst;
       ['ja', 'nein', 'abst'].forEach(v => { const el = document.getElementById('vc-' + v); if (el) el.textContent = cnt[v]; });
       const now = document.getElementById('vote-now');
-      if (now) now.textContent = short(p) + ': ' + d.yes + ' Ja · ' + d.no + ' Nein · ' + d.abst + ' Enthaltung' + (govSide.indexOf(p) !== -1 && d.no ? ' – ' + d.no + ' Abweichler!' : '');
+      if (now) now.textContent = short(p) + ': ' + d.yes + ' Ja · ' + d.no + ' Nein · ' + d.abst + ' Enthaltung' + (d.absent ? ' · ' + d.absent + ' fehlen' : '') + (govSide.indexOf(p) !== -1 && d.no ? ' – ' + d.no + ' Abweichler!' : '');
     };
     const finish = () => {
       clearTimeout(timer);
@@ -877,7 +884,8 @@
         (rec.decisive ? '<p class="t-lead">⚖️ <b>Zünglein an der Waage:</b> Eure Stimmen haben den Ausschlag gegeben.</p>' : '') +
         (rec.afd ? '<p class="t-lead neg">⚠️ Die Mehrheit kam nur mit Stimmen der AfD zustande.</p>' : '') +
         (rec.method === 'namentlich' && rec.names && rec.names.length ? '<p class="small">Im Protokoll: ' + rec.names.map(esc).join(', ') + ' u. a.</p>' : '') +
-        '<table class="vote-table"><tr><th></th><th>Ja</th><th>Nein</th><th>Enth.</th></tr>' + parties.map(p => '<tr><td>' + pill(p) + '</td><td>' + rec.detail[p].yes + '</td><td>' + rec.detail[p].no + '</td><td>' + rec.detail[p].abst + '</td></tr>').join('') + '</table><p class="small muted">' + esc(my) + '</p>';
+        (rec.reasons && rec.reasons.length ? '<ul class="small vote-why">' + rec.reasons.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') +
+        '<table class="vote-table"><tr><th></th><th>Ja</th><th>Nein</th><th>Enth.</th>' + (rec.absent ? '<th>fehlt</th>' : '') + '</tr>' + parties.map(p => '<tr><td>' + pill(p) + '</td><td>' + rec.detail[p].yes + '</td><td>' + rec.detail[p].no + '</td><td>' + rec.detail[p].abst + '</td>' + (rec.absent ? '<td>' + (rec.detail[p].absent || 0) + '</td>' : '') + '</tr>').join('') + '</table><p class="small muted">' + esc(my) + '</p>';
       const btn = document.querySelector('#modal-actions button');
       if (btn) { const nb = btn.cloneNode(false); nb.className = 'btn choice primary'; nb.innerHTML = '<span>Weiter</span>'; nb.addEventListener('click', done); btn.replaceWith(nb); nb.focus(); }
     };
@@ -896,7 +904,7 @@
     const reveal = () => {
       const x = rec.votes[i];
       const li = document.querySelector('.br-call li[data-i="' + i + '"]');
-      if (li) { li.classList.add('on', 'v-' + x.v); li.querySelector('.br-v').textContent = label[x.v]; }
+      if (li) { li.classList.add('on', 'v-' + x.v); li.querySelector('.br-v').textContent = label[x.v] + (x.why ? ' – ' + x.why : ''); }
       if (x.v === 'ja') yes += x.votes;
       const f = document.getElementById('br-fill'); if (f) f.style.width = (yes / 69 * 100) + '%';
       const sm = document.getElementById('br-sum'); if (sm) sm.textContent = yes + ' Ja-Stimmen';
@@ -1008,10 +1016,10 @@
           .concat([{ label: 'In die Opposition gehen', hint: 'Die anderen bilden die Regierung', onClick: () => choose(it.options.length) }]));
     } else if (it.type === 'whip') {
       const l = term().laws.find(x => x.id === it.law);
-      const v = T.bundestagVote(g, l);
       const gr = it.groups[it.i];
       const w = T.WOBBLE.find(x => x.id === gr.reason);
-      const head = '<p>Die Abstimmung über „' + esc(T.lawName(l)) + '“ wird knapp. Prognose: <b>' + v.yes + ' Ja</b> gegen <b>' + v.no + ' Nein</b>' + (v.abst ? ', ' + v.abst + ' Enthaltungen' : '') + '.</p>' +
+      const f = T.forecast(g, l);
+      const head = '<p>Die Abstimmung über „' + esc(T.lawName(l)) + '“ wird knapp. Die Fraktionsführung rechnet mit <b>' + f.yesLo + '–' + f.yesHi + ' Ja</b> gegen <b>' + f.noLo + '–' + f.noHi + ' Nein</b> – Chance ' + pctChance(f.chance) + '.</p>' +
         '<ul class="small">' + it.groups.map((x, i) => '<li' + (i === it.i ? ' class="now"' : i < it.i ? ' class="muted"' : '') + '>' + esc(x.name) + ' (' + esc(short(x.p)) + ', WK ' + esc(x.wk) + ') + ' + (x.n - 1) + ' weitere</li>').join('') + '</ul>' +
         '<p><b>' + esc(gr.name) + '</b> aus dem Wahlkreis ' + esc(gr.wk) + ' und ' + (gr.n - 1) + ' weitere Abgeordnete ' + (w ? esc(w.text) : 'von ' + esc(pname(gr.p)) + ' wollen nicht mitziehen') + '.</p>';
       const opts = w ? [{ label: 'Gespräch unter vier Augen', hint: 'Überzeugen statt Druck – klappt nicht immer', onClick: () => choose(0) },
@@ -1025,7 +1033,8 @@
       const l = term().laws.find(x => x.id === it.law);
       const br = T.bundesratVote(g, l);
       const x = it.lands[it.i];
-      U.openModal(eyebrow + ' · 🏛️ Bundesrat (' + (it.i + 1) + '/' + it.lands.length + ')', 'Kampf um ' + E.stateById(x.land).name, '<p>„' + esc(T.lawName(l)) + '“ kommt nach heutigem Stand auf <b>' + br.yes + ' von 69</b> Stimmen ' + (l.zust ? '(nötig: ' + TD.BUNDESRAT_MAJ + ')' : '(Einspruch ab ' + TD.BUNDESRAT_MAJ + ' Gegenstimmen)') + '.</p>' +
+      const fb = T.forecast(g, l).br;
+      U.openModal(eyebrow + ' · 🏛️ Bundesrat (' + (it.i + 1) + '/' + it.lands.length + ')', 'Kampf um ' + E.stateById(x.land).name, '<p>„' + esc(T.lawName(l)) + '“ kommt nach heutigem Stand auf etwa <b>' + br.yes + ' von 69</b> Stimmen' + (fb ? ' (Chance ' + pctChance(fb.chance) + ')' : '') + ' ' + (l.zust ? '(nötig: ' + TD.BUNDESRAT_MAJ + ')' : '(Einspruch ab ' + TD.BUNDESRAT_MAJ + ' Gegenstimmen)') + '.</p>' +
         '<p>' + esc(x.mp) + ' (' + esc(short(x.party)) + '), Regierungschef:in von ' + esc(E.stateById(x.land).name) + ' (' + x.votes + ' Stimmen), lässt durchblicken: Mit dem richtigen Angebot könnte das Land zustimmen. Bedenken hat ' + x.block.map(p => esc(short(p))).join(', ') + '.</p>',
         [{ label: 'Finanzzusage an das Land', hint: '1 Mrd. € aus dem Bundeshaushalt', onClick: () => choose(0) },
           { label: 'Zugeständnis im Gesetz', hint: 'Kostenlos, aber das Gesetz wirkt schwächer', onClick: () => choose(1) },

@@ -1047,7 +1047,7 @@ test('Abstimmungskrimi: Wackelkandidaten umstimmen, Länder im Bundesrat gewinne
   assert.ok(r1.more && /Förderprojekt/.test(r1.text));
   assert.strictEqual(law.conv.union, 6);
   const r2 = T.resolvePending(g, 1);
-  assert.ok(!r2.more && /Prognose/.test(r2.text));
+  assert.ok(!r2.more && /Schätzung/.test(r2.text));
   assert.strictEqual(law.conv.union, 6);
   assert.ok(T.bundestagVote(g, law).detail.union.no <= Math.max(0, before.no - 0));
   assert.ok(law.log.some(x => x.indexOf('Erika Beispiel') !== -1));
@@ -1510,4 +1510,30 @@ test('Alte Spielstände: Sonderbonus der Kleinparteien wird übernommen, die Umf
   assert.ok(Math.abs(h.nat.fw - 0.6) < 1e-9 && Math.abs(h.reg.BY.fw - 1.2) < 1e-9);
   assert.strictEqual(h.minor.fw.nat, 0);
   assert.ok(E.nationalShares(h).fw > E.nationalShares(g).fw);
+});
+
+test('Offene Abstimmungen: Prognose ist eine Spanne, das Plenum entscheidet unterschiedlich', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  T.autoNames(g);
+  const t = g.term;
+  while (t.pending.length) T.resolvePending(g, 0);
+  const o = T.lawOptions(g);
+  const tp = o.topics.find(x => x.contract !== undefined && x.contract !== x.current) || o.topics[0];
+  T.performAction(g, 'gesetz', { topic: tp.topic, opt: tp.contract !== undefined ? tp.contract : 0, fraktion: true });
+  t.pending = [];
+  const law = t.laws[t.laws.length - 1];
+  const rng = g.rng;
+  const f = T.forecast(g, law);
+  assert.strictEqual(g.rng, rng, 'Die Prognose verändert den Spielzufall nicht');
+  assert.ok(f.yesLo <= f.yesHi && f.chance >= 0 && f.chance <= 1);
+  const results = new Set();
+  for (let i = 0; i < 6; i++) {
+    const h = E.deserialize(E.serialize(g));
+    h.rng = (h.rng + i * 7777) | 0;
+    T.endQuarter(h);
+    const L = h.term.laws.find(l => l.id === law.id);
+    if (L.bt) { results.add(L.bt.yes + ':' + L.bt.no); assert.ok(L.bt.absent > 0, 'Es fehlen immer einige Abgeordnete'); }
+  }
+  assert.ok(results.size >= 3, 'Gleiche Abstimmung, verschiedene Ergebnisse: ' + Array.from(results).join(' '));
 });
