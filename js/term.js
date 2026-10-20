@@ -151,7 +151,7 @@
   const FX_NAMES = { aktion: '🎯 Eure Aktionen', gesetz: '📜 Gesetze', parlament: '🏛️ Abstimmungen im Bundestag', haushalt: '🏦 Haushalt',
     karlsruhe: '⚖️ Karlsruhe', wahlen: '🗳️ Landtags- und Europawahlen', statusquo: '⚖️ Status quo', ereignis: '📰 Eure Reaktion auf Ereignisse',
     skandal: '🔥 Affären', abstimmung: '🗳️ Euer Abstimmungsverhalten', kabinett: '👥 Kabinett', regierung: '🏛️ Regierungsbilanz und Wirtschaft',
-    partei: '🎪 Spitze und Geschlossenheit', glaubw: '🤝 Glaubwürdigkeit', krise: '🚨 Krisenmanagement', lobby: '🏛️ Verbände und Lobbyismus', streit: '💥 Streit in der Koalition', hype: '🔥 Hype um eure Spitze', viral: '📱 Viraler Moment', medien: '🗞️ Medien', konkurrenz: '🥊 Konkurrenz', verblassen: '⏳ Frühere Effekte verblassen', sonst: 'Sonstiges' };
+    partei: '🎪 Spitze und Geschlossenheit', glaubw: '🤝 Glaubwürdigkeit', krise: '🚨 Krisenmanagement', lobby: '🏛️ Verbände und Lobbyismus', streit: '💥 Streit in der Koalition', hype: '🔥 Hype um eure Spitze', viral: '📱 Viraler Moment', medien: '🗞️ Medien', lage: '📊 Lage im Land', konkurrenz: '🥊 Konkurrenz', verblassen: '⏳ Frühere Effekte verblassen', sonst: 'Sonstiges' };
   // Glaubwürdigkeit (0–100): Wer seiner Linie treu bleibt, gewinnt Vertrauen; wer umfällt, verliert es.
   function addCred(g, v, why) {
     const t = g.term;
@@ -385,6 +385,7 @@
       gov: [], chanc: null, tolerated: false, role: 'opposition',
       cabinet: {}, contract: {}, chancellor: null, vize: null,
       policy: world ? copy(world.policy) : {},
+      lage: world && world.lage ? copy(world.lage) : null,
       taxes: world ? copy(world.taxes) : {},
       econ: world ? copy(world.econ) : Object.assign({}, TD.ECON0, { pol: { growth: 0, unemp: 0, infl: 0 } }),
       budget: world ? Object.assign({ draft: null, status: 'ok', oneoff: 0, history: [], vote: null }, copy(world.budget)) :
@@ -463,6 +464,7 @@
     if (t.doneAbs !== null) for (let idx = t.doneAbs + 1; idx < t.abs0; idx++) ltwDueAbs(idx).forEach(l => landtagswahl(g, l));
     flushLtwNight(g);
     t.doneAbs = t.abs0 - 1;
+    ensureLage(g);
     beginQuarter(g, true);
     return { ok: true, role: t.role };
   }
@@ -853,6 +855,105 @@
     });
   }
 
+  // ---------- Lage im Land ----------
+  // Wie geht es den Menschen? Je Thema ein Indikator (termdata LAGE). Er bewegt sich mit dem Grundtrend, der geltenden
+  // Regelung (neue Gesetze wirken erst nach einigen Quartalen voll), dem Haushalt und dem Zustand der Regierung.
+  // Folgen: Was sich verschlechtert, wird den Menschen wichtiger; Regierungsparteien werden für Verbesserungen
+  // belohnt und für Verschlechterungen bestraft (stärker), besonders in den betroffenen Wählergruppen.
+  const lageDef = id => TD.LAGE.find(x => x.id === id);
+  function lageVal(t, x) { return x.econ ? t.econ[x.econ] : t.lage[x.id]; }
+  function ensureLage(g) {
+    const t = g.term;
+    if (!t.lage) { t.lage = {}; TD.LAGE.forEach(x => { if (!x.econ) t.lage[x.id] = x.start; }); }
+    if (!t.lage0) { t.lage0 = {}; TD.LAGE.forEach(x => { t.lage0[x.id] = lageVal(t, x); }); }
+    if (!t.lagePrev) t.lagePrev = Object.assign({}, t.lage0);
+    if (!t.policyQ) t.policyQ = {};
+    if (!t.lageWhy) t.lageWhy = {};
+    return t.lage;
+  }
+  // Veränderung in „deutlichen Schritten“ (positiv = besser).
+  const lageImp = (t, x, ref) => x.better * (lageVal(t, x) - ref[x.id]) / x.scale;
+  function lageQuarter(g) {
+    const t = g.term;
+    ensureLage(g);
+    t.salPrev = Object.assign({}, g.salience); // für die Pfeile bei „Was die Menschen bewegt“
+    const prev = {};
+    TD.LAGE.forEach(x => { prev[x.id] = lageVal(t, x); });
+    const d = {};
+    TD.LAGE.forEach(x => { if (!x.econ) d[x.id] = x.drift || 0; });
+    // Geltende Regelungen, gemessen an der mittleren Linie; neue Gesetze wirken mit Verzögerung.
+    Object.keys(TD.LAGE_FX).forEach(topic => {
+      const lean = String(D.PROGRAM[topic][t.policy[topic]].lean);
+      const fx = TD.LAGE_FX[topic][lean] || {};
+      const base = TD.LAGE_FX[topic]['0'] || {};
+      const main = lageDef(topic);
+      const since = t.policyQ[topic];
+      const ramp = since === undefined ? 1 : clamp((t.q - since + 1) / ((main && main.lag) || 4), 0, 1);
+      Object.keys(Object.assign({}, fx, base)).forEach(id => { if (id in d) d[id] += ramp * ((fx[id] || 0) - (base[id] || 0)); });
+    });
+    // Haushalt: Mehr oder weniger Geld als im Ausgangsplan.
+    Object.keys(TD.LAGE_BUDGET).forEach(a => {
+      const rel = ((t.budget.plan && t.budget.plan[a]) || 0) / 100 + (a === 'verteidigung' ? (t.budget.def || 0) / 80 : 0);
+      Object.keys(TD.LAGE_BUDGET[a]).forEach(id => { if (id in d) d[id] += rel * TD.LAGE_BUDGET[a][id]; });
+    });
+    // Streit, vorläufige Haushaltsführung und Affären kosten Vertrauen in die Demokratie; die Arbeitslosigkeit treibt die Armut.
+    if (t.gov.length > 1 && t.mood < 35) d.demokratie -= 0.4;
+    if (t.budget.status === 'vorlaeufig') d.demokratie -= 0.3;
+    if (t.ua) d.demokratie -= 0.2;
+    d.soziales += 0.25 * (t.econ.unemp - ((t.econPrev && t.econPrev.unemp) || t.econ.unemp));
+    TD.LAGE.forEach(x => {
+      if (x.econ) return;
+      const v = t.lage[x.id] + d[x.id] + between(g, -0.1, 0.1) * x.scale * 0.15;
+      t.lage[x.id] = Math.max(0, /%/.test(x.unit) && !/BIP/.test(x.unit) ? Math.min(100, v) : v);
+    });
+    // Folgen für Parteien und Wählergruppen.
+    cat('lage');
+    TD.LAGE.forEach(x => {
+      const dImp = x.better * (lageVal(t, x) - prev[x.id]) / x.scale;
+      if (Math.abs(dImp) < 0.02) return;
+      const w = clamp(g.salience[x.id] / D.SALIENCE0[x.id], 0.5, 2.5);
+      const eff = 0.12 * dImp * w * (dImp < 0 ? 1.4 : 1); // Negatives wiegt schwerer
+      const owner = (ministerFor(t, x.id) || {}).party || t.chanc;
+      t.gov.forEach(p => {
+        addNat(g, p, eff * (p === owner ? 1.3 : 0.8));
+        Object.keys(x.groups || {}).forEach(k => { if (g.grp[k]) g.grp[k][p] = (g.grp[k][p] || 0) + 0.3 * dImp * x.groups[k]; });
+      });
+      if (Math.abs(dImp) >= 0.08) Object.keys(x.groups || {}).forEach(k => { t.lageWhy[k] = { id: x.id, d: dImp, q: t.q }; });
+    });
+    t.lagePrev = prev;
+    (t.lageHist = t.lageHist || []).push({ q: t.q, v: TD.LAGE.reduce((o, x) => { o[x.id] = Math.round(lageVal(t, x) * 100) / 100; return o; }, {}) });
+    if (t.lageHist.length > 20) t.lageHist.shift();
+  }
+  // Was die Menschen bewegt: Verschlechtert sich die Lage, wird das Thema wichtiger (und umgekehrt).
+  function lagePressure(g) {
+    const t = g.term;
+    const out = {};
+    A.TOPIC_IDS.forEach(tp => {
+      const x = lageDef(tp);
+      out[tp] = x && t.lage0 ? clamp(1 - 0.2 * lageImp(t, x, t.lage0), 0.6, 1.8) : 1;
+    });
+    return out;
+  }
+  // Bilanz der Legislatur: Indikatoren am Anfang und jetzt.
+  function lageBilanz(g) {
+    const t = g.term;
+    ensureLage(g);
+    return TD.LAGE.map(x => ({ id: x.id, name: x.name, unit: x.unit, dec: x.dec, from: t.lage0[x.id], to: lageVal(t, x), imp: lageImp(t, x, t.lage0), better: x.better }));
+  }
+  // Was ein Gesetz bewirken würde (für die Auswahl): Indikatoren mit Richtung, gemessen an der geltenden Regelung.
+  function lawEffects(g, topic, opt) {
+    const t = g.term;
+    const fx = TD.LAGE_FX[topic];
+    if (!fx) return [];
+    const now = fx[String(D.PROGRAM[topic][t.policy[topic]].lean)] || {};
+    const nxt = fx[String(D.PROGRAM[topic][opt].lean)] || {};
+    return Object.keys(Object.assign({}, now, nxt)).map(id => {
+      const x = lageDef(id);
+      const dv = (nxt[id] || 0) - (now[id] || 0);
+      return x && Math.abs(dv) > 1e-9 ? { id, name: x.name, good: x.better * dv > 0, up: dv > 0, lag: (lageDef(topic) || {}).lag || 4 } : null;
+    }).filter(Boolean);
+  }
+
   // ---------- Wirtschaft und Haushalt ----------
   function budgetCalc(t, plan) {
     const e = t.econ;
@@ -1237,12 +1338,12 @@
     const want = (LAND_INTEREST[topic] || {})[l] || 0;
     const cost = law.kind === 'topic' ? D.PROGRAM[topic][law.opt].cost || 0 : 0;
     if (base) {
-      if (want && L && Math.sign(want) !== Math.sign(L) && x < 0.45) return { ok: false, why: 'Landesinteresse' };
-      if (law.zust && cost >= 2 && POOR_LANDS.indexOf(l) !== -1 && !law.brDeal && x < 0.3) return { ok: false, why: 'Kosten für das Land' };
-      if (ctx.soon.has(l) && ctx.pop < 0 && x < 0.4) return { ok: false, why: 'Landtagswahl steht bevor' };
+      if (want && L && Math.sign(want) !== Math.sign(L) && x < 0.25) return { ok: false, why: 'Landesinteresse' };
+      if (law.zust && cost >= 2 && POOR_LANDS.indexOf(l) !== -1 && !law.brDeal && x < 0.2) return { ok: false, why: 'Kosten für das Land' };
+      if (ctx.soon.has(l) && ctx.pop < 0 && x < 0.3) return { ok: false, why: 'Landtagswahl steht bevor' };
       return null;
     }
-    if (want && L && Math.sign(want) === Math.sign(L) && x > 0.6) return { ok: true, why: 'Landesinteresse' };
+    if (want && L && Math.sign(want) === Math.sign(L) && x > 0.75) return { ok: true, why: 'Landesinteresse' };
     return null;
   }
   function bundesratVote(g, law, draw) {
@@ -1734,6 +1835,7 @@
       D.GROUPS.forEach(k => { diff[k.id] = a1[k.id] - a0[k.id]; mean += (A.W[k.id] || 0) * diff[k.id]; });
       D.GROUPS.forEach(k => { if (!g.grp[k.id]) return; t.gov.forEach(p => { g.grp[k.id][p] = (g.grp[k.id][p] || 0) + 0.6 * (diff[k.id] - mean); }); });
       t.policy[law.topic] = law.opt;
+      (t.policyQ = t.policyQ || {})[law.topic] = t.q; // Wirkung auf die Lage im Land beginnt jetzt
       t.sq[law.topic] = 55; // die neue Regelung ist der neue Status quo
       const o = D.PROGRAM[law.topic][law.opt];
       // Wie umstritten: Lager-Position und Kosten (Betroffenheit). Vorbild Heizungsgesetz 2023 (−3 für die Grünen).
@@ -3203,7 +3305,9 @@
     t.intl += (50 - t.intl) * 0.05;
     // Themen kehren langsam zur Normalität zurück
     const sb = A.salienceBase(cal(t).year);
-    A.TOPIC_IDS.forEach(tp => { g.salience[tp] += (sb[tp] - g.salience[tp]) * 0.1; });
+    const pr = lagePressure(g);
+    const tsum = A.TOPIC_IDS.reduce((x, tp) => x + sb[tp] * pr[tp], 0);
+    A.TOPIC_IDS.forEach(tp => { g.salience[tp] += (sb[tp] * pr[tp] / tsum - g.salience[tp]) * 0.1; });
     A.rollPollErr(g);
     A.takePoll(g);
     A.updateMinorVisibility(g, true).forEach(x => news(g, '📊 ' + x, 'info'));
@@ -3230,6 +3334,7 @@
     if (t.ua) { t.ua.left -= 1; if (t.ua.left <= 0) { news(g, '🔎 Der Untersuchungsausschuss legt seinen Abschlussbericht vor – schwere Vorwürfe gegen die Regierung.', 'big'); t.gov.forEach(p => addNat(g, p, -0.2)); t.ua = null; } }
     econQuarter(g);
     if (c.qn === 4) closeYear(g);
+    lageQuarter(g);
     const h = t.history;
     pressReview(g, h.length >= 2 ? clamp(h[h.length - 1].nat[g.party] - h[h.length - 2].nat[g.party], -2, 2) : 0);
     updatePolls(g);
@@ -3410,7 +3515,7 @@
     const money = Math.round(P0.budget * clamp(0.6 + 0.4 * t.party.cash / P0.budget, 0.6, 1.5) * 10) / 10;
     const world = { econ: copy(t.econ), policy: copy(t.policy), taxes: copy(t.taxes), intl: t.intl, laender: copy(t.laender),
       budget: { plan: copy(t.budget.plan), extra: t.budget.extra, def: t.budget.def, reform: t.budget.reform || 0, notlage: false, drift: copy(t.budget.drift || {}) },
-      landPrev: copy(t.landPrev), sq: copy(t.sq), abs0: electionAbs + 1, doneAbs: t.doneAbs };
+      landPrev: copy(t.landPrev), sq: copy(t.sq), abs0: electionAbs + 1, doneAbs: t.doneAbs, lage: t.lage ? copy(t.lage) : null };
     const leaders = leaderOptions(g, Math.floor(electionAbs / 4));
     return {
       party: g.party,
@@ -3464,7 +3569,7 @@
   }
 
   const TERM = {
-    QUARTERS, ACTIONS, LAW_STEPS, forecast, WOBBLE, brAligned, landGovernment, dueVotes, GEWISSEN, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
+    QUARTERS, ACTIONS, LAW_STEPS, forecast, lageBilanz, lawEffects, ensureLage, WOBBLE, brAligned, landGovernment, dueVotes, GEWISSEN, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
     lawOptions, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, cal,
     lawName, lawTitle, leanOf, quorum, eventChoices, fillText, eventById, ministryById, taxById, areaById, nextCampaign, summary,
     MEDIA, media, actionCash, govSeats, isGov, legacy, LB, careerSnapshot, chooseLeader, leaderAge, currentLeader, MAX_AGE, sqForces, absCal, FX_NAMES, ministerFor, eventMinister, ownMinistries, endTerm, defaultVote, partyVote, mandateVote

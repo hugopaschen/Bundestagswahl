@@ -1285,7 +1285,7 @@ test('Abstimmungen: Protokolle für die Live-Auszählung, Länderaufruf, Archiv 
     });
   }
   assert.ok(sawBt && sawBr && sawDebate, sawBt + '/' + sawBr + '/' + sawDebate);
-  assert.ok((t.voteLog || []).length > 0 && t.voteLog.every(x => x.my === 'ja'));
+  assert.ok((t.voteLog || []).length > 0 && t.voteLog.filter(x => !x.gewissen).every(x => x.my === 'ja'));
 });
 
 test('Gewissensentscheidung und Optionen der Opposition (Änderungsantrag, Zugeständnis, namentlich)', () => {
@@ -1536,4 +1536,29 @@ test('Offene Abstimmungen: Prognose ist eine Spanne, das Plenum entscheidet unte
     if (L.bt) { results.add(L.bt.yes + ':' + L.bt.no); assert.ok(L.bt.absent > 0, 'Es fehlen immer einige Abgeordnete'); }
   }
   assert.ok(results.size >= 3, 'Gleiche Abstimmung, verschiedene Ergebnisse: ' + Array.from(results).join(' '));
+});
+
+test('Lage im Land: Gesetze verändern Indikatoren mit Verzögerung, die Probleme der Menschen verschieben sich', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  T.autoNames(g);
+  const t = g.term;
+  while (t.pending.length) T.resolvePending(g, 0);
+  assert.strictEqual(T.lageBilanz(g).length, 16);
+  // Ein „Bauen, bauen, bauen“-Gesetz tritt in Kraft: Der Neubau zieht erst nach und nach an.
+  const h = E.deserialize(E.serialize(g));
+  h.term.policy.wohnen = D.PROGRAM.wohnen.findIndex(o => o.lean === 1);
+  h.term.policyQ = { wohnen: h.term.q };
+  const fx = T.lawEffects(g, 'wohnen', D.PROGRAM.wohnen.findIndex(o => o.lean === 1));
+  assert.ok(fx.some(f => f.id === 'wohnen' && f.good && f.up));
+  const w0 = h.term.lage.wohnen;
+  const base0 = g.term.lage.wohnen;
+  for (let q = 0; q < 6; q++) { while (h.term.pending.length) T.resolvePending(h, 0); T.endQuarter(h); while (g.term.pending.length) T.resolvePending(g, 0); T.endQuarter(g); }
+  assert.ok(h.term.lage.wohnen - w0 > g.term.lage.wohnen - base0 + 10, 'Mehr Neubau als ohne Gesetz');
+  // Wird es schlechter, wird das Thema wichtiger.
+  const k = E.deserialize(E.serialize(g));
+  k.term.lage.migration = 600;
+  const before = k.salience.migration;
+  for (let q = 0; q < 3; q++) { while (k.term.pending.length) T.resolvePending(k, 0); T.endQuarter(k); }
+  assert.ok(k.salience.migration > before, 'Mehr Asylanträge machen Migration wichtiger');
 });

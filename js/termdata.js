@@ -925,8 +925,70 @@
     bsw: ['Wirtschaftsflügel', 'Linker Flügel']
   };
 
+  // ---------- Lage im Land ----------
+  // Ein Indikator je Thema: Startwerte aus amtlichen Statistiken (Quelle je Eintrag), die Entwicklung je Quartal
+  // (drift) und die Wirkung der geltenden Regelung sind geschätzt. better: +1 = mehr ist besser, −1 = weniger ist besser;
+  // scale: Veränderung, die als „deutlich“ gilt; lag: Quartale, bis ein neues Gesetz voll wirkt; groups: wen es besonders trifft.
+  // wirtschaft und finanzen lesen die Wirtschaftsdaten der Legislatur (Arbeitslosigkeit, Schuldenquote).
+  var LAGE = [
+    { id: 'wirtschaft', name: 'Arbeitslosenquote', unit: '%', dec: 1, better: -1, scale: 0.8, econ: 'unemp', groups: { arbeiter: 1, arbeitslos: 1.5, niedrig: 1 },
+      src: 'Bundesagentur für Arbeit, 2025 (6,3 %)' },
+    { id: 'migration', name: 'Asylerstanträge', unit: 'Tsd./Jahr', dec: 0, start: 230, better: -1, scale: 60, drift: -3, lag: 3, groups: { aelter: 1, land: 1, arbeiter: 1 },
+      src: 'BAMF, Asylgeschäftsstatistik 2024: 229.751 Erstanträge' },
+    { id: 'soziales', name: 'Armutsgefährdungsquote', unit: '%', dec: 1, start: 15.5, better: -1, scale: 1, drift: 0, lag: 4, groups: { rentner: 1, arbeitslos: 1.5, niedrig: 1 },
+      src: 'Destatis, Mikrozensus/EU-SILC 2024: 15,5 %' },
+    { id: 'klima', name: 'Treibhausgase', unit: 'Mio. t', dec: 0, start: 649, better: -1, scale: 30, drift: -4, lag: 4, groups: { jung: 1.5, hoch: 1, stadt: 1 },
+      src: 'Umweltbundesamt, Emissionen 2024: 649 Mio. t CO₂-Äquivalente' },
+    { id: 'sicherheit', name: 'Straftaten', unit: 'Mio./Jahr', dec: 2, start: 5.84, better: -1, scale: 0.3, drift: 0, lag: 4, groups: { aelter: 1, frauen: 1, stadt: 1 },
+      src: 'Polizeiliche Kriminalstatistik 2024: 5,84 Mio. Fälle' },
+    { id: 'bildung', name: 'Schulabgänger ohne Abschluss', unit: '%', dec: 1, start: 6.9, better: -1, scale: 0.6, drift: 0.03, lag: 6, groups: { mitte: 1, frauen: 1, beamte: 1 },
+      src: 'Destatis 2022: 6,9 % eines Jahrgangs (rund 52.300)' },
+    { id: 'digitales', name: 'Glasfaser-Verfügbarkeit', unit: '% der Haushalte', dec: 0, start: 36, better: 1, scale: 10, drift: 1.5, lag: 4, groups: { land: 1.5, selbst: 1, jung: 1 },
+      src: 'Bundesnetzagentur, Gigabit-Grundbuch Mitte 2024: rund 36 % (gerundet)' },
+    { id: 'wohnen', name: 'Fertiggestellte Wohnungen', unit: 'Tsd./Jahr', dec: 0, start: 252, better: 1, scale: 30, drift: -4, lag: 6, groups: { stadt: 1.5, jung: 1.5, angest: 1 },
+      src: 'Destatis, Baufertigstellungen 2024: 251.900' },
+    { id: 'verteidigung', name: 'Verteidigungsausgaben', unit: '% des BIP', dec: 1, start: 2.1, better: 1, scale: 0.4, drift: 0, lag: 2, groups: { maenner: 1, aelter: 1 },
+      src: 'NATO, Defence Expenditure 2024: 2,1 %' },
+    { id: 'gesundheit', name: 'Kassen-Zusatzbeitrag', unit: '%', dec: 1, start: 2.5, better: -1, scale: 0.4, drift: 0.05, lag: 4, groups: { rentner: 1.5, angest: 1, arbeiter: 1 },
+      src: 'BMG, durchschnittlicher Zusatzbeitrag 2025: 2,5 %' },
+    { id: 'verkehr', name: 'Pünktlichkeit der Bahn', unit: '%', dec: 0, start: 62.5, better: 1, scale: 5, drift: -0.3, lag: 6, groups: { stadt: 1, ausbild: 1, angest: 1 },
+      src: 'Deutsche Bahn, Fernverkehr 2024: 62,5 %' },
+    { id: 'europa', name: 'Vertrauen in die EU', unit: '%', dec: 0, start: 50, better: 1, scale: 5, drift: 0, lag: 2, groups: { hoch: 1, jung: 1 },
+      src: 'Eurobarometer 2024, Deutschland: rund die Hälfte vertraut der EU (gerundet)' },
+    { id: 'familie', name: 'Fehlende Kitaplätze', unit: 'Tsd.', dec: 0, start: 306, better: -1, scale: 40, drift: -2, lag: 4, groups: { frauen: 1.5, mitte: 1.5, angest: 1 },
+      src: 'IW Köln, Kita-Report 2024: rund 306.000 fehlende Plätze' },
+    { id: 'land', name: 'Landwirtschaftliche Betriebe', unit: 'Tsd.', dec: 0, start: 255, better: 1, scale: 6, drift: -1, lag: 4, groups: { land: 2, selbst: 1, kath: 0.5 },
+      src: 'Destatis, Agrarstrukturerhebung 2023: rund 255.000' },
+    { id: 'demokratie', name: 'Zufriedenheit mit der Demokratie', unit: '%', dec: 0, start: 47, better: 1, scale: 5, drift: 0, lag: 2, groups: { niedrig: 1, aelter: 1, konfl: 1 },
+      src: 'ARD-DeutschlandTrend/Bertelsmann 2024: knapp die Hälfte zufrieden (gerundet)' },
+    { id: 'finanzen', name: 'Schuldenquote', unit: '% des BIP', dec: 1, better: -1, scale: 3, econ: 'debt', groups: { selbst: 1, hoch: 1 },
+      src: 'Destatis/Bundesbank 2024: 62,5 %' }
+  ];
+  // Wirkung der geltenden Regelung je Thema und Richtung (−1/0/+1) auf die Indikatoren je Quartal (geschätzt),
+  // gemessen an der mittleren Linie (0). Mit Nebenwirkungen: Mietendeckel bremst den Neubau, Grenzkontrollen
+  // belasten das Verhältnis zur EU, mehr Überwachung kostet Vertrauen, Tempolimit und Agrarwende senken Emissionen.
+  var LAGE_FX = {
+    migration: { '-1': { migration: 6 }, '0': { migration: -4 }, '1': { migration: -12, europa: -0.3 } },
+    soziales: { '-1': { soziales: -0.12 }, '0': {}, '1': { soziales: 0.1 } },
+    klima: { '-1': { klima: -6 }, '0': { klima: -2 }, '1': { klima: 3 } },
+    sicherheit: { '-1': { sicherheit: -0.01, demokratie: 0.2 }, '0': { sicherheit: -0.04 }, '1': { sicherheit: -0.03, demokratie: -0.3 } },
+    bildung: { '-1': { bildung: -0.06 }, '0': { bildung: -0.05 }, '1': { bildung: -0.02 } },
+    digitales: { '-1': { digitales: 0.2 }, '0': { digitales: 0.8 }, '1': { digitales: 1.2 } },
+    wohnen: { '-1': { wohnen: -6 }, '0': { wohnen: 3 }, '1': { wohnen: 8, klima: 0.5 } },
+    verteidigung: { '-1': { verteidigung: -0.04 }, '0': { verteidigung: 0.04 }, '1': { verteidigung: 0.08 } },
+    gesundheit: { '-1': { gesundheit: -0.08 }, '0': { gesundheit: -0.04 }, '1': { gesundheit: -0.02, soziales: 0.03 } },
+    verkehr: { '-1': { verkehr: 0.6, klima: -1.5 }, '0': { verkehr: 1.2 }, '1': { verkehr: 0.2, klima: 1 } },
+    europa: { '-1': { europa: 0.4 }, '0': { europa: 0.3 }, '1': { europa: -0.6 } },
+    familie: { '-1': { familie: -8, soziales: -0.05 }, '0': { familie: -6 }, '1': { familie: -1 } },
+    land: { '-1': { land: -0.4, klima: -0.8 }, '0': { land: 0.2 }, '1': { land: 0.4, klima: 0.6 } },
+    demokratie: { '-1': { demokratie: 0.3 }, '0': { demokratie: 0.3 }, '1': { demokratie: 0.2 } }
+  };
+  // Haushalt: Mehr Geld in einem Bereich (relativ zum Ausgangsniveau) wirkt je Quartal auf den Indikator (geschätzt).
+  var LAGE_BUDGET = { verkehr: { verkehr: 4 }, familie: { familie: -30, bildung: -0.15 }, innen: { sicherheit: -0.08 }, forschung: { digitales: 3 },
+    wohnen: { wohnen: 15 }, gesundheit: { gesundheit: -0.15 }, verteidigung: { verteidigung: 0.4 }, landwirtschaft: { land: 1 }, wirtschaft: { klima: -6 }, sozial: { soziales: -0.3 } };
+
   var TD = {
-    WINGS: WINGS,
+    WINGS: WINGS, LAGE: LAGE, LAGE_FX: LAGE_FX, LAGE_BUDGET: LAGE_BUDGET,
     MINISTRIES: MINISTRIES, KANZLERAMT: KANZLERAMT, TOPIC_MINISTRY: TOPIC_MINISTRY, WISH: WISH, MINISTER_KINDS: MINISTER_KINDS,
     LAENDER: LAENDER, BUNDESRAT_MAJ: BUNDESRAT_MAJ, LTW: LTW, EUROPAWAHL: EUROPAWAHL, BUNDESVERSAMMLUNG: BUNDESVERSAMMLUNG, LTW_BONUS: LTW_BONUS,
     ECON0: ECON0, AREAS: AREAS, AREA_PREF: AREA_PREF, REVENUE0: REVENUE0, DEBT_RULE: DEBT_RULE, BUDGET_STEPS: BUDGET_STEPS, TAXES: TAXES,

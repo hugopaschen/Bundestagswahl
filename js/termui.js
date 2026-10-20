@@ -148,6 +148,33 @@
     return html + '<p class="t-feedback" id="t-feedback"></p>';
   }
   function trend(v) { return v > 0.05 ? '<span class="pos">▲ ' + signed(v) + '</span>' : v < -0.05 ? '<span class="neg">▼ ' + signed(v) + '</span>' : '<span class="muted">• ±0</span>'; }
+  // Lage im Land: was die Menschen bewegt und wie es um die großen Probleme steht.
+  const fmtVal = (v, dec) => Number(v).toLocaleString('de-DE', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  function lageHtml() {
+    const t = term();
+    const rows = T.lageBilanz(g);
+    const prev = t.lagePrev || {};
+    const sp = t.salPrev || {};
+    const top = D.TOPICS.slice().sort((a, b) => g.salience[b.id] - g.salience[a.id]).slice(0, 5);
+    let html = '<h3>📊 Lage im Land</h3><div class="t-two"><div><h4>Was die Menschen bewegt</h4><ol class="t-probs">' + top.map(tp => {
+      const d = sp[tp.id] ? g.salience[tp.id] - sp[tp.id] : 0;
+      return '<li>' + tp.icon + ' ' + esc(tp.name) + ' <small class="muted">' + Math.round(g.salience[tp.id] * 100) + ' %</small>' + (Math.abs(d) >= 0.004 ? ' <small class="' + (d > 0 ? 'neg' : 'pos') + '">' + (d > 0 ? '▲' : '▼') + '</small>' : '') + '</li>';
+    }).join('') + '</ol><p class="muted small">Anteil an der Frage nach den wichtigsten Problemen. Was sich verschlechtert, wird wichtiger.</p></div>';
+    const row = x => {
+      const last = prev[x.id] === undefined ? x.to : x.to - prev[x.id];
+      const arrow = Math.abs(last) < Math.pow(10, -x.dec) / 2 ? '' : (last > 0 ? '▲' : '▼');
+      const lastGood = x.better * last > 0;
+      return '<div class="t-lage-row"><span>' + esc(x.name) + '</span><b>' + fmtVal(x.to, x.dec) + ' <small>' + esc(x.unit) + '</small></b>' +
+        '<small class="' + (Math.abs(x.imp) < 0.15 ? 'muted' : x.imp > 0 ? 'pos' : 'neg') + '">' + (x.to - x.from >= 0 ? '+' : '−') + fmtVal(Math.abs(x.to - x.from), x.dec) + '</small>' +
+        '<small class="' + (lastGood ? 'pos' : 'neg') + '">' + arrow + '</small></div>';
+    };
+    const moved = rows.slice().sort((a, b) => Math.abs(b.imp) - Math.abs(a.imp));
+    html += '<div><h4>Seit der Wahl am stärksten verändert</h4><div class="t-lage">' + moved.slice(0, 5).map(row).join('') + '</div></div></div>' +
+      '<details class="t-more"><summary>Alle 16 Indikatoren mit Quellen</summary><div class="t-lage">' + rows.map(row).join('') + '</div>' +
+      '<ul class="small muted">' + TD.LAGE.map(x => '<li>' + esc(x.name) + ': ' + esc(x.src) + '</li>').join('') + '</ul><p class="small muted">Startwerte amtlich, Entwicklung im Spiel geschätzt: Grundtrend, geltende Gesetze (wirken erst nach einigen Quartalen voll), Haushalt und Zustand der Regierung.</p></details>';
+    return html;
+  }
+
   function renderLage() {
     const t = term();
     const e = t.econ;
@@ -174,6 +201,7 @@
       chip('Inflation', num1(e.infl) + ' %', e.infl > 3) + chip('Schuldenquote', num1(e.debt) + ' %') + chip('Haushalt', (b.gap > 0 ? 'Schuldenbremse −' : 'Spielraum ') + mrd(Math.abs(b.gap)), b.gap > 0) +
       (T.isGov(t.role) && t.gov.length > 1 ? chip('Beliebtheit Spitze', (t.party.leader.like >= 0 ? '+' : '−') + num1(Math.abs(t.party.leader.like))) : '') +
       (T.isGov(t.role) ? chip('Ansehen in der Welt', Math.round(t.intl) + '/100') : '') + '</div>';
+    html += lageHtml();
     // Sitzungswoche: Abstimmungen am Ende dieses Quartals mit Prognose
     const due = T.dueVotes(g);
     if (due.length) {
@@ -449,7 +477,8 @@
           const costD = (op.cost - D.PROGRAM[lawTopic][x.current].cost) * TD.LAW_COST;
           html += '<button type="button" class="btn t-draft coalition-option" data-topic="' + lawTopic + '" data-opt="' + i + '"' + (can.ok ? '' : ' disabled') + '><b>' + esc(op.label) + (mine ? ' ⭐' : '') + '</b>' +
             '<span class="hint">' + esc(op.desc) + '</span><span class="hint">' + leanName(op.lean) + ' · Kosten ' + (costD >= 0 ? '+' : '−') + mrd(Math.abs(costD)) + '/Jahr' +
-            (x.contract === i ? ' · steht im Koalitionsvertrag' : '') + '</span>' + (partners ? '<span class="hint">Partner: ' + partners + '</span>' : '') + '</button>';
+            (x.contract === i ? ' · steht im Koalitionsvertrag' : '') + '</span>' + (partners ? '<span class="hint">Partner: ' + partners + '</span>' : '') +
+            (fxs => fxs.length ? '<span class="hint">Wirkt auf: ' + fxs.map(f => (f.good ? '✅ ' : '⚠️ ') + esc(f.name) + ' ' + (f.up ? '↑' : '↓')).join(', ') + ' · voll nach ~' + fxs[0].lag + ' Quartalen</span>' : '')(i === x.current ? [] : T.lawEffects(g, lawTopic, i)) + '</button>';
         });
         html += '</div><p class="muted small">⭐ = euer Wahlprogramm · 👍 Partner einverstanden · 😐 murrt · 🛑 Veto droht · 📜 offenes Vorhaben im Koalitionsvertrag</p>';
       }
@@ -775,7 +804,8 @@
     const rows = D.GROUPS.filter(k => now[k.id]).map(k => ({ k, v: now[k.id][g.party] || 0, d: start[k.id] ? (now[k.id][g.party] || 0) - (start[k.id][g.party] || 0) : 0 }));
     if (!rows.length) return '';
     const max = Math.max(...rows.map(r => r.v), 1);
-    const row = r => '<div class="t-grp"><span>' + r.k.icon + ' ' + esc(r.k.short) + '</span><span class="t-meter"><i style="width:' + r.v / max * 100 + '%;background:' + col(g.party) + '"></i></span><b>' + pct(r.v) + '</b><small class="' + (r.d >= 0 ? 'pos' : 'neg') + '">' + signed(r.d) + '</small></div>';
+    const why = k => { const w = t.lageWhy && t.lageWhy[k.id]; const x = w && w.q >= t.q - 2 && TD.LAGE.find(z => z.id === w.id); return x ? '<small class="t-grp-why ' + (w.d > 0 ? 'pos' : 'neg') + '">' + esc(x.name) + (w.d > 0 ? ' besser' : ' schlechter') + '</small>' : ''; };
+    const row = r => '<div class="t-grp"><span>' + r.k.icon + ' ' + esc(r.k.short) + why(r.k) + '</span><span class="t-meter"><i style="width:' + r.v / max * 100 + '%;background:' + col(g.party) + '"></i></span><b>' + pct(r.v) + '</b><small class="' + (r.d >= 0 ? 'pos' : 'neg') + '">' + signed(r.d) + '</small></div>';
     const moved = rows.slice().sort((a, b) => Math.abs(b.d) - Math.abs(a.d));
     return '<h3>👥 Wählergruppen: die größten Veränderungen</h3><div class="t-groups">' + moved.slice(0, 5).map(row).join('') + '</div>' +
       '<details class="t-more"><summary>Alle Wählergruppen (' + rows.length + ')</summary><div class="t-groups">' + rows.map(row).join('') + '</div></details>';
@@ -1199,6 +1229,7 @@
       '<li>Landtagswahlen: ' + s.ltw + (s.ltwGov ? ', danach in ' + s.ltwGov + ' Ländern mitregiert' : '') + '</li>' +
       '<li>Wirtschaft: Wachstum ' + num1(s.growth) + ' %, Arbeitslosigkeit ' + num1(s.unemp) + ' %, Schuldenquote ' + num1(s.debt) + ' %</li></ul>' +
       (t.early ? '<p class="fw-note">' + esc(t.early) + '</p>' : '') +
+      (() => { const rows = T.lageBilanz(g).filter(x => Math.abs(x.imp) >= 0.3).sort((a, b) => b.imp - a.imp); return rows.length ? '<p class="small"><b>📊 Was sich im Land verändert hat</b></p><ul class="t-sum small">' + rows.map(x => '<li class="' + (x.imp > 0 ? 'pos' : 'neg') + '">' + esc(x.name) + ': ' + fmtVal(x.from, x.dec) + ' → ' + fmtVal(x.to, x.dec) + ' ' + esc(x.unit) + '</li>').join('') + '</ul>' : ''; })() +
       (() => { const L = T.legacy(T.careerSnapshot(g)); return '<p class="small">🏆 Ewigkeits-Bilanz eurer Partei: <b>' + L.score + ' Punkte</b> nach ' + L.terms + ' Legislatur' + (L.terms === 1 ? '' : 'en') + ' – „' + esc(L.rating) + '“.</p>'; })() +
       '<p>Jetzt beginnt der Wahlkampf – mit dem Stand von heute in allen Ländern.</p>';
     U.openModal('Bilanz der ' + t.n + '. Legislaturperiode', s.rating, body, [
