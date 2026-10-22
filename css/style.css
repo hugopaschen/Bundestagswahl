@@ -580,6 +580,19 @@ h2 .flyer-hint { margin: 0; }
 .option .olabel { font-weight: 700; font-size: .9rem; }
 .option .odesc { font-size: .78rem; color: var(--text-2); }
 .option:has(input:checked) .odesc { color: inherit; opacity: .9; }
+.option .oparties { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 4px; font-size: .76rem; }
+.option .oparties .pill { opacity: .55; }
+.option .oparties .pill.wish { opacity: 1; outline: 2px solid var(--pc); outline-offset: 1px; }
+.wish-partners { margin: 6px 0 14px; }
+.wish-head { margin: 0 0 6px; }
+.wish-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.wish-chip[aria-pressed="true"] { background: var(--pc); color: var(--pon); border-color: var(--pc); }
+.wish-chip[aria-pressed="true"] .muted { color: inherit; opacity: .8; }
+.wish-sum { margin: 6px 0 0; }
+.wish-mark { margin-left: 6px; display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; }
+.wish-tag { font-size: .72rem; font-weight: 700; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--border); }
+.wish-tag.ok { color: var(--good); }
+.wish-tag.bad { color: var(--bad); }
 .option .ometa { display: flex; flex-wrap: wrap; gap: 4px; margin-top: auto; padding-top: 4px; }
 .flyer .option:has(input:checked) .tag { background: #fff; border-color: transparent; }
 .flyer .option:has(input:checked) .tag:not(.line):not(.dev) { color: #1d1d1b; }

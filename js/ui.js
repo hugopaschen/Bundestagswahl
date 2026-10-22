@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261022-204533';
+  const APP_VERSION = '20261022-205638';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -79,6 +79,7 @@
   let selTopic = null;
   let toastTimer = null;
   let draft = null; // Wahlprogramm in Bearbeitung
+  let wishPartners = []; // Wunschpartner beim Programm (nur zur Orientierung)
   let localTopic = ''; // Thema für Vor-Ort-Aktionen (leer = ohne Thema)
   let selGroup = 'jung'; // Zielgruppe für Online-Werbung
   let pendingLocal = null; // ausgewählte Vor-Ort-Aktion (wird nach Wahl der Zielgruppe durchgeführt)
@@ -2424,8 +2425,11 @@
 
     renderCoreChips();
 
+    const others = D.PARTIES.filter(x => x.id !== chosenParty && x.lean);
+    wishPartners = wishPartners.filter(id => others.some(x => x.id === id));
     $('positions').innerHTML = topicsByCompetence(chosenParty).map(t => {
       const options = D.PROGRAM[t.id].map((o, i) => {
+        const same = others.filter(x => x.lean[t.id] === o.lean).map(x => x.id);
         const dev = Math.abs(o.lean - p.lean[t.id]);
         const tags = [];
         if (dev === 0) tags.push('<span class="tag line">Parteilinie</span>');
@@ -2446,23 +2450,63 @@
         return '<label class="option"><input type="radio" name="pos-' + t.id + '" value="' + i + '"' +
           (draft.positions[t.id] === i ? ' checked' : '') + '>' +
           '<span class="olabel">' + esc(o.label) + '</span><span class="odesc">' + esc(o.desc) + '</span>' +
-          '<span class="ometa">' + tags.join('') + '</span></label>';
+          '<span class="ometa">' + tags.join('') + '</span>' +
+          (same.length ? '<span class="oparties"><span class="muted">Auch so: </span>' + same.map(q => '<span class="pill' + (wishPartners.indexOf(q) !== -1 ? ' wish' : '') + '" style="--pc:' + col(q) + ';--pon:' + onCol(q) + '">' + esc(short(q)) + '</span>').join('') + '</span>' : '') + '</label>';
       }).join('');
       const fans = topicFans(t.id);
       return '<fieldset class="topic-set" data-topic="' + t.id + '"><legend>' + t.icon + ' ' + esc(t.name) +
-        '<span class="core-mark" data-core="' + t.id + '" hidden>🎯 Kernthema</span></legend>' +
+        '<span class="core-mark" data-core="' + t.id + '" hidden>🎯 Kernthema</span><span class="wish-mark" data-wish="' + t.id + '"></span></legend>' +
         (fans.length ? '<p class="set-fans">Besonders wichtig für ' + groupIcons(fans) + '</p>' : '') +
         '<div class="options">' + options + '</div></fieldset>';
     }).join('');
     $('positions').querySelectorAll('input[type=radio]').forEach(inp => {
       inp.addEventListener('change', () => {
         draft.positions[inp.name.slice(4)] = Number(inp.value);
+        renderWish();
         renderProgramSummary();
       });
     });
     updateCoreMarks();
+    renderWish();
     renderProgramSummary();
     document.body.style.background = getComputedStyle(flyer).getPropertyValue('--fl-paper').trim();
+  }
+
+  // Wunschpartner: Übereinstimmung mit den Positionen anderer Parteien (Grundlage der Koalitionsverhandlungen).
+  function renderWish() {
+    const box = $('wish-partners');
+    if (!box || !draft) return;
+    const others = D.PARTIES.filter(x => x.id !== chosenParty && x.lean);
+    const mine = t => D.PROGRAM[t][draft.positions[t]].lean;
+    const topics = D.TOPICS.filter(t => D.PROGRAM[t.id]);
+    let html = '<p class="wish-head"><strong>🤝 Wunschpartner</strong> <span class="muted">– zeigt, wo ihr übereinstimmt:</span></p><div class="wish-chips">' +
+      others.map(x => {
+        const agree = topics.filter(t => mine(t.id) === x.lean[t.id]).length;
+        return '<button type="button" class="chip wish-chip" data-p="' + x.id + '" aria-pressed="' + (wishPartners.indexOf(x.id) !== -1) + '" style="--pc:' + col(x.id) + ';--pon:' + onCol(x.id) + '">' + esc(x.short) + ' <span class="muted">' + agree + '/' + topics.length + '</span></button>';
+      }).join('') + '</div>';
+    wishPartners.forEach(id => {
+      const x = E.party(id);
+      // Wie in den Verhandlungen: größte Abstände, gewichtet mit der Bedeutung für die Wähler.
+      const diffs = topics.map(t => ({ t, d: Math.abs(mine(t.id) - x.lean[t.id]) })).filter(z => z.d > 0)
+        .sort((a, b) => b.d * D.SALIENCE0[b.t.id] - a.d * D.SALIENCE0[a.t.id]);
+      const hard = diffs.filter(z => z.d === 2).length;
+      html += '<p class="small wish-sum"><span class="pill" style="--pc:' + col(id) + ';--pon:' + onCol(id) + '">' + esc(x.short) + '</span> ' +
+        (diffs.length ? diffs.length + ' Streitpunkte' + (hard ? ', davon ' + hard + ' gegensätzlich ⚔️' : '') + '. Am Verhandlungstisch: ' + diffs.slice(0, 3).map(z => (z.d === 2 ? '⚔️ ' : '') + z.t.icon + ' ' + esc(z.t.name)).join(', ') : 'Ihr stimmt in allen Themen überein.') + '</p>';
+    });
+    if (wishPartners.length) html += '<p class="small muted">In Koalitionsverhandlungen kommen die drei wichtigsten Streitpunkte auf den Tisch. Je weiter ihr auseinanderliegt (⚔️ = entgegengesetzte Positionen), desto schlechter startet das Verhandlungsklima.</p>';
+    box.innerHTML = html;
+    box.querySelectorAll('.wish-chip').forEach(b => b.addEventListener('click', () => {
+      const id = b.dataset.p;
+      wishPartners = wishPartners.indexOf(id) !== -1 ? wishPartners.filter(q => q !== id) : wishPartners.concat([id]);
+      document.querySelectorAll('#positions .oparties .pill').forEach(el => el.classList.toggle('wish', wishPartners.some(q => el.textContent === short(q))));
+      renderWish();
+    }));
+    // Markierung je Thema
+    document.querySelectorAll('#positions [data-wish]').forEach(el => {
+      const t = el.dataset.wish;
+      const res = wishPartners.map(q => ({ q, d: Math.abs(mine(t) - E.party(q).lean[t]) }));
+      el.innerHTML = res.map(r => '<span class="wish-tag ' + (r.d === 0 ? 'ok' : r.d === 2 ? 'bad' : 'mid') + '">' + (r.d === 0 ? '🤝 ' : r.d === 2 ? '⚔️ ' : '↔️ ') + esc(short(r.q)) + '</span>').join('');
+    });
   }
 
   // Gruppen, denen ein Thema besonders wichtig ist.
