@@ -2025,6 +2025,16 @@ path.wk.pending { opacity: 0; }
 .t-budget .num, .t-br .num, .t-lv .num { text-align: right; font-variant-numeric: tabular-nums; }
 .t-steps { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .t-steps .chip { padding: 3px 8px; font-size: .78rem; }
+.t-measure { margin: 8px 0; }
+.t-measure label { cursor: pointer; }
+.t-measure input { margin: 0 6px 0 0; vertical-align: middle; }
+@media (max-width: 640px) {
+  .t-plan tr { display: grid; grid-template-columns: 1fr auto; }
+  .t-plan thead th:last-child { display: none; }
+  .t-plan td:last-child { grid-column: 1 / -1; border-bottom: 1px solid var(--border); padding-top: 0; }
+  .t-plan td:not(:last-child) { border-bottom: 0; }
+  .t-steps .chip { padding: 3px 5px; font-size: .74rem; }
+}
 .t-check { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0; font-size: .9rem; }
 .t-cab-top, .t-cab-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin: 10px 0; }
 .t-cab-card { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface); }

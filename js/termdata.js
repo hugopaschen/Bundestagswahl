@@ -98,10 +98,10 @@
   // Regierungsentwurf (in der Bereinigungssitzung nur wenig verändert). Wirkung je 10 Mrd. € mehr pro Jahr geschätzt.
   // drift = jährlicher Anstieg über das Wirtschaftswachstum hinaus in % (Demografie, Refinanzierung zu höheren Zinsen; geschätzt).
   var AREAS = [
-    { id: 'sozial', name: 'Arbeit & Soziales (inkl. Rentenzuschuss, Epl. 11)', icon: '🤝', base: 197.4, topic: 'soziales', groups: { rentner: 0.4, arbeitslos: 0.6, arbeiter: 0.2 }, growth: 0.01, drift: 1.5 },
+    { id: 'sozial', name: 'Arbeit & Soziales (inkl. Rentenzuschuss, Epl. 11)', icon: '🤝', base: 197.4, min: -10, topic: 'soziales', groups: { rentner: 0.4, arbeitslos: 0.6, arbeiter: 0.2 }, growth: 0.01, drift: 1.5 },
     { id: 'verteidigung', name: 'Verteidigung (Epl. 14)', icon: '🪖', base: 82.7, topic: 'verteidigung', intl: 2, growth: 0.02 },
     { id: 'verkehr', name: 'Verkehr (Epl. 12, ohne Sondervermögen)', icon: '🚆', base: 28.2, topic: 'verkehr', groups: { land: 0.2 }, growth: 0.06 },
-    { id: 'gesundheit', name: 'Gesundheit & Pflege (Epl. 15)', icon: '🏥', base: 21.8, topic: 'gesundheit', groups: { aelter: 0.3 }, growth: 0.01, drift: 1 },
+    { id: 'gesundheit', name: 'Gesundheit & Pflege (Epl. 15)', icon: '🏥', base: 21.8, min: -10, topic: 'gesundheit', groups: { aelter: 0.3 }, growth: 0.01, drift: 1 },
     { id: 'familie', name: 'Bildung & Familie (Epl. 17)', icon: '👨‍👩‍👧', base: 14.7, topic: 'familie', groups: { frauen: 0.3, jung: 0.2 }, growth: 0.04 },
     { id: 'innen', name: 'Innere Sicherheit (Epl. 06)', icon: '🛡️', base: 16.0, topic: 'sicherheit', groups: { aelter: 0.2 }, growth: 0 },
     { id: 'forschung', name: 'Forschung & Digitales (Epl. 30, 24)', icon: '🔬', base: 22.7, topic: 'digitales', groups: { hoch: 0.3 }, growth: 0.07 },
@@ -109,7 +109,7 @@
     { id: 'entwicklung', name: 'Entwicklung & Auswärtiges (Epl. 23, 05)', icon: '🌐', base: 16.0, topic: 'europa', intl: 2, growth: 0 },
     { id: 'wohnen', name: 'Wohnen & Bau (Epl. 25)', icon: '🏠', base: 7.6, topic: 'wohnen', groups: { stadt: 0.3, jung: 0.2 }, growth: 0.04 },
     { id: 'landwirtschaft', name: 'Landwirtschaft (Epl. 10)', icon: '🌾', base: 7.0, topic: 'land', groups: { land: 0.3 }, growth: 0.01 },
-    { id: 'zinsen', name: 'Zinsen (Bundesschuld, Epl. 32)', icon: '💶', base: 33.6, fixed: true, drift: 4 },
+    { id: 'zinsen', name: 'Zinsen (Bundesschuld, Epl. 32)', icon: '💶', base: 33.6, fixed: true },
     { id: 'sonstiges', name: 'Allgemeine Finanzverwaltung, Kanzleramt, Verfassungsorgane u. a.', icon: '🗂️', base: 66.0, fixed: true }
   ];
   // Einnahmen ohne Kredite 2026: Steuern 387,21 Mrd. € plus sonstige Einnahmen (zusammen 426,6 Mrd. €).
@@ -120,7 +120,48 @@
   // außerhalb von Epl. 14 rund 20 Mrd. € (geschätzt aus 97,965 − 40,392 Mrd. € ausgenommener Kreditaufnahme 2026).
   // Sondervermögen Infrastruktur und Klimaneutralität: 500 Mrd. € über 12 Jahre (≈ 42 Mrd. € pro Jahr, außerhalb).
   var DEBT_RULE = { structural: 0.35, cyc: 0.5, trans: 0.25, defenseFree: 1.0, defenseOther: 20, sv: 42 };
-  var BUDGET_STEPS = [-10, -5, 0, 5, 10]; // Änderung je Bereich in Prozent
+  // Zinsen: Zinslast = Schuldenstand × Durchschnittszins. Jedes Jahr wird rund ein Achtel der Schulden zum Marktzins neu
+  // finanziert (Umlaufrendite zehnjähriger Bundesanleihen 2025 rund 2,6 %); der Durchschnittszins nähert sich ihm an.
+  var INTEREST = { market: 2.6, rollover: 0.12 };
+  var BUDGET_STEPS = [-20, -10, -5, 0, 5, 10, 20]; // Änderung je Bereich in Prozent (min je Bereich beachten)
+
+  // Konsolidierungsmaßnahmen im Haushaltsbegleitgesetz (Größenordnungen geschätzt, Quellen je Eintrag).
+  // rev = Mehreinnahmen/Einsparung je Jahr (Mrd. €), ramp = Quartale bis zur vollen Wirkung, oneoffDebt = einmalige Tilgung,
+  // drift = Bremse beim Ausgabenanstieg eines Bereichs (Prozentpunkte je Jahr), sv = weniger Sondervermögen je Jahr,
+  // groups = wen es trifft, lage = Wirkung auf die Lage im Land je Quartal, pref = Haltung der Parteien (+1 dafür, −1 dagegen).
+  var KONSOL = [
+    { id: 'subvention', icon: '✂️', name: 'Subventionsabbau: Dieselprivileg, Dienstwagen, Pendlerpauschale', rev: 8, ramp: 2,
+      groups: { land: -1, selbst: -0.5, arbeiter: -0.5 }, lage: { klima: -0.8 },
+      pref: { gruene: 1, linke: 1, spd: 0, union: -1, fdp: -1, afd: -1, bsw: -1, fw: -1 },
+      src: 'Umweltbundesamt: umweltschädliche Subventionen rund 35 Mrd. € (2018); Bundesanteil der genannten Posten geschätzt' },
+    { id: 'rente', icon: '👵', name: 'Rentenreform: Nachhaltigkeitsfaktor stärken, Rente an die Lebenserwartung koppeln', drift: { sozial: -0.8 },
+      groups: { rentner: -1.5, aelter: -1 }, pref: { fdp: 1, union: 0, gruene: 0, spd: -1, linke: -1, bsw: -1, afd: -1 },
+      src: 'Bundeszuschuss zur Rentenversicherung über 120 Mrd. € (2025), wächst schneller als die Wirtschaft; Bremswirkung geschätzt' },
+    { id: 'personal', icon: '🏢', name: 'Personalabbau in der Bundesverwaltung (−8 % über Fluktuation)', rev: 2.5, ramp: 4,
+      groups: { beamte: -1.5 }, lage: { digitales: -0.1 }, pref: { fdp: 1, union: 1, afd: 1, spd: -1, linke: -1, gruene: 0 },
+      src: 'Personalausgaben des Bundes rund 40 Mrd. € (2025); Einsparung geschätzt' },
+    { id: 'steuervollzug', icon: '🔎', name: 'Mehr Steuerprüfer, Kampf gegen Steuerbetrug', rev: 3, ramp: 6, cost: 0.4,
+      groups: { selbst: -0.3 }, pref: { linke: 1, spd: 1, gruene: 1, bsw: 1, union: 0, fdp: 0, afd: 0 },
+      src: 'Steuerhinterziehung in Deutschland auf mehrere Dutzend Mrd. € im Jahr geschätzt; Mehreinnahmen geschätzt' },
+    { id: 'buergergeld', icon: '📋', name: 'Bürgergeld-Reform mit strengeren Mitwirkungspflichten', rev: 1.5, ramp: 4,
+      groups: { arbeitslos: -1.5, niedrig: -0.5 }, lage: { soziales: 0.03 }, pref: { union: 1, fdp: 1, afd: 1, bsw: 0, spd: -1, gruene: -1, linke: -1 },
+      src: 'Bürgergeld-Ausgaben des Bundes rund 50 Mrd. € (2025); Einsparung geschätzt' },
+    { id: 'beteiligung', icon: '🏦', name: 'Verkauf von Bundesbeteiligungen (Telekom, Post)', oneoffDebt: 15,
+      groups: {}, pref: { fdp: 1, union: 1, spd: -1, linke: -1, gruene: 0, bsw: -1, afd: 0 },
+      src: 'Bund und KfW halten Anteile an Deutscher Telekom und DHL Group; Erlös geschätzt' },
+    { id: 'sv', icon: '🚧', name: 'Sondervermögen Infrastruktur strecken (42 → 30 Mrd. € im Jahr)', sv: 12,
+      groups: { stadt: -0.3, land: -0.3 }, lage: { verkehr: -0.4, digitales: -0.3 }, pref: { fdp: 1, afd: 1, union: 0, spd: -1, gruene: -1, linke: -1 },
+      src: 'Sondervermögen Infrastruktur und Klimaneutralität: 500 Mrd. € über 12 Jahre (2025)' }
+  ];
+  // Unerwartete Kosten im Haushaltsjahr (Mrd. €, einmalig; geschätzt nach realen Fällen).
+  var BUDGET_SHOCKS = [
+    { text: 'Hochwasserhilfen für die betroffenen Länder', cost: 5 },
+    { text: 'Ein Urteil des Bundesverfassungsgerichts verpflichtet zu Nachzahlungen', cost: 4 },
+    { text: 'Mehrkosten bei der Unterbringung Geflüchteter', cost: 3 },
+    { text: 'Rettungspaket für einen Energieversorger', cost: 8 },
+    { text: 'Zusätzliche Ukraine-Hilfe nach einer Offensive', cost: 6 },
+    { text: 'Höhere Kosten für Bundeswehr-Beschaffung als geplant', cost: 4 }
+  ];
 
   // Wie die Parteien zu den Haushaltsbereichen stehen (+1 mehr Geld, −1 eher kürzen) – geschätzt nach Wahlprogrammen 2025.
   var AREA_PREF = {
@@ -1061,7 +1102,7 @@
     WINGS: WINGS, LAGE: LAGE, LAGE_FX: LAGE_FX, LAGE_BUDGET: LAGE_BUDGET,
     MINISTRIES: MINISTRIES, KANZLERAMT: KANZLERAMT, TOPIC_MINISTRY: TOPIC_MINISTRY, WISH: WISH, MINISTER_KINDS: MINISTER_KINDS,
     LAENDER: LAENDER, BUNDESRAT_MAJ: BUNDESRAT_MAJ, LTW: LTW, EUROPAWAHL: EUROPAWAHL, BUNDESVERSAMMLUNG: BUNDESVERSAMMLUNG, LTW_BONUS: LTW_BONUS,
-    ECON0: ECON0, AREAS: AREAS, AREA_PREF: AREA_PREF, REVENUE0: REVENUE0, DEBT_RULE: DEBT_RULE, BUDGET_STEPS: BUDGET_STEPS, TAXES: TAXES,
+    ECON0: ECON0, AREAS: AREAS, KONSOL: KONSOL, INTEREST: INTEREST, BUDGET_SHOCKS: BUDGET_SHOCKS, AREA_PREF: AREA_PREF, REVENUE0: REVENUE0, DEBT_RULE: DEBT_RULE, BUDGET_STEPS: BUDGET_STEPS, TAXES: TAXES,
     LAW_COST: LAW_COST, ZUST_TOPICS: ZUST_TOPICS, TOPIC_ECON: TOPIC_ECON, POLICY0: POLICY0, ROLES: ROLES, FINANCE: FINANCE,
     EVENTS: EVENTS, SCANDALS: SCANDALS
   };

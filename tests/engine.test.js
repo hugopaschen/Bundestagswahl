@@ -1676,3 +1676,46 @@ test('Themen der Konkurrenz: Eine Aktion zum Kernthema einer Partei holt die Sti
   for (let w = 0; w < 3; w++) { while (g.pendingEvent) E.resolveEvent(g, 0); E.endWeek(g); }
   assert.ok(Object.keys(g.aiPush || {}).some(p => Object.keys(g.aiPush[p]).every(t => E.partyTopics(g, p).indexOf(t) !== -1)));
 });
+
+test('Haushalt: Konsolidierung, Zinsen, Steuerschätzung und Schuldenpfad', () => {
+  const TD = require('../js/termdata.js');
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  const t = g.term;
+  // Zinsen 2026: 33,6 Mrd. € bei rund 1,1 % Durchschnittszins.
+  assert.ok(Math.abs(T.budgetCalc(t).areas.zinsen - 33.6) < 0.5 && T.avgRate(t) > 1 && T.avgRate(t) < 1.3);
+  // Maßnahmen im Entwurf senken das Defizit; das gestreckte Sondervermögen senkt die Kredite außerhalb.
+  const all = TD.KONSOL.map(k => k.id);
+  const b0 = T.budgetCalc(t), b1 = T.budgetCalc(t, null, all);
+  assert.ok(b1.measRev >= 14.9 && b1.deficit < b0.deficit - 10 && b1.sv === TD.DEBT_RULE.sv - 12);
+  // Kürzungen bis −20 %, aber der Rentenzuschuss ist gesetzlich gebunden.
+  assert.ok(TD.BUDGET_STEPS.indexOf(-20) !== -1);
+  const plan = {}; Object.keys(t.budget.plan).forEach(a => { plan[a] = -20; });
+  const path = T.debtPath(g, plan, all);
+  assert.ok(path.length >= 2 && path[path.length - 1].debt < T.debtPath(g)[path.length - 1].debt);
+  let guard = 0;
+  while (!(t.budget.draft && !t.budget.draft.done) && guard++ < 6) { while (t.pending.length) T.resolvePending(g, 0); T.endQuarter(g); }
+  assert.ok(T.setBudgetDraft(g, plan, false, all).ok);
+  assert.strictEqual(t.budget.draft.plan.sozial, -10);
+  assert.ok(Object.values(t.budget.draft.plan).every(v => TD.BUDGET_STEPS.indexOf(v) !== -1));
+  // Bis zur Abstimmung: Steuerschätzung im Herbst, Zinsen und Maßnahmen nach dem Beschluss.
+  const debt0 = t.econ.debtBn, rate0 = T.avgRate(t);
+  for (let i = 0; i < 2; i++) { while (t.pending.length) T.resolvePending(g, 0); T.endQuarter(g); }
+  assert.ok(typeof t.budget.taxEst === 'number');
+  assert.notStrictEqual(T.avgRate(t), rate0);
+  if (t.budget.vote && t.budget.vote.pass) {
+    assert.ok(Object.keys(t.budget.measures).length === all.length);
+    assert.ok(t.econ.debtBn < debt0 + 98 + 42, 'Die Beteiligungsverkäufe und Kürzungen bremsen den Schuldenanstieg');
+  }
+  // Ein Überschuss tilgt Schulden (Schwarze Null).
+  t.budget.taxEst = 30; Object.assign(t.taxes, { spitzen: 3, mwst: 2, koerp: 2, vermoegen: 2 });
+  t.budget.plan = Object.assign({}, t.budget.draft ? t.budget.draft.plan : plan);
+  t.budget.measures = {}; all.forEach(id => { t.budget.measures[id] = t.q - 8; });
+  const bs = T.budgetCalc(t);
+  if (bs.deficit < 0) {
+    const before = t.econ.debtBn;
+    for (let i = 0; i < 4; i++) { while (t.pending.length) T.resolvePending(g, 0); T.endQuarter(g); }
+    assert.ok(t.econ.debtBn < before, 'Überschuss tilgt mehr als das Sondervermögen kostet');
+    assert.ok(t.news.some(n => /Schwarze Null/.test(n.text || n)));
+  }
+});

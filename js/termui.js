@@ -32,6 +32,7 @@
   let lawRoute = 'regierung'; // Regierungs- oder Fraktionsentwurf
   let budgetPlan = null; // Haushaltsentwurf in Bearbeitung
   let budgetNotlage = false;
+  let budgetMeasures = []; // Konsolidierungsmaßnahmen im Entwurf
   let newsSeen = null;
 
   const save = () => U.save();
@@ -525,10 +526,12 @@
     const t = term();
     const d = t.budget.draft;
     const editing = d && !d.done && T.playerDraftsBudget(g) && !t.over;
-    if (editing && !budgetPlan) { budgetPlan = Object.assign({}, d.plan); budgetNotlage = !!d.notlage; }
-    if (!editing) budgetPlan = null;
+    if (editing && !budgetPlan) { budgetPlan = Object.assign({}, d.plan); budgetNotlage = !!d.notlage; budgetMeasures = (d.measures || []).slice(); }
+    if (!editing) { budgetPlan = null; budgetMeasures = []; }
     const plan = editing ? budgetPlan : t.budget.plan;
-    const b = T.budgetCalc(t, plan);
+    const meas = editing ? budgetMeasures : [];
+    const b = T.budgetCalc(t, plan, meas);
+    const enacted = t.budget.measures || {};
     let html = '<h2>🏦 Haushalt & Steuern</h2>';
     const qn = T.cal(t).qn;
     // Ein Satz zum Stand
@@ -536,36 +539,59 @@
     html += '<p class="t-lead ' + (b.gap > 0 ? 'neg' : '') + '"><b>' + stand + '</b> ' + (b.gap > 0 ? 'Die Schuldenbremse wird um ' + mrd(b.gap) + ' gerissen.' : 'Die Schuldenbremse wird eingehalten (Spielraum ' + mrd(-b.gap) + ').') + '</p>';
     const BSTEPS = [[1, 'Eckwerte'], [3, 'Regierungsentwurf'], [3, '1. Lesung'], [4, 'Bereinigungssitzung'], [4, '2./3. Lesung'], [4, 'Bundesrat']];
     html += '<div class="t-stages">' + BSTEPS.map(x => '<span class="t-stage ' + (x[0] < qn ? 'done' : x[0] === qn ? 'now' : '') + '">' + x[1] + '</span>').join('<i>›</i>') + '</div>' +
-      '<p class="muted small">Haushaltsverfahren (Art. 110 GG): Eckwerte im Frühjahr, Regierungsentwurf im Sommer, 1. Lesung im September, Bereinigungssitzung im November, Beschluss im Dezember' + (t.budget.eck && t.budget.eck !== 'fort' ? ' · Eckwerte dieses Jahr: ' + (t.budget.eck === 'konsol' ? 'Konsolidierung' : 'Investitionen') : '') + '.</p>';
+      '<p class="muted small">Haushaltsverfahren (Art. 110 GG): Eckwerte im Frühjahr, Regierungsentwurf im Sommer, 1. Lesung im September, Bereinigungssitzung im November, Beschluss im Dezember' + (t.budget.eck && t.budget.eck !== 'fort' ? ' · Eckwerte dieses Jahr: ' + ({ konsol: 'Konsolidierung', invest: 'Investitionen', wishes: 'Wünsche der Ressorts' }[t.budget.eck] || '') : '') + '.</p>';
     html += '<div class="t-kpis">' +
       kpi('Ausgaben', mrd(b.spend), 'Bundeshaushalt ' + (editing ? d.year : T.cal(t).year)) +
       kpi('Einnahmen', mrd(b.revenue), 'davon Steueränderungen ' + (b.taxRev >= 0 ? '+' : '−') + mrd(Math.abs(b.taxRev))) +
       kpi('Neuverschuldung', mrd(b.deficit), 'erlaubt: ' + mrd(b.limit), b.gap > 0 ? 'neg' : '') +
       kpi('Schuldenbremse', b.gap > 0 ? 'gerissen um ' + mrd(b.gap) : 'eingehalten', 'Spielraum ' + mrd(-b.gap), b.gap > 0 ? 'neg' : 'pos') +
       kpi('Verteidigung', num1(b.defShare) + ' % des BIP', 'über 1 % von der Schuldenbremse ausgenommen') +
+      kpi('Schuldenquote', num1(t.econ.debt) + ' %', 'Gesamtstaat (vereinfacht), Maastricht: 60 %', t.econ.debt > 60 ? 'neg' : 'pos') +
+      kpi('Zinsen', mrd(b.areas.zinsen), 'Ø ' + num1(T.avgRate(t)) + ' % · Neuemissionen ' + num1(t.budget.market || TD.INTEREST.market) + ' %') +
       '</div>';
-    html += '<p class="muted small">Schuldenbremse (Art. 115 GG): 0,35 % des BIP' + (t.budget.reform ? ' + ' + num1(t.budget.reform) + ' % (Reform)' : '') + ', mehr bei schwacher Konjunktur (' + mrd(b.cyc) + '); Verteidigung über 1 % des BIP ist ausgenommen (' + mrd(b.defFree) + '). Das Sondervermögen Infrastruktur (rund ' + TD.DEBT_RULE.sv + ' Mrd. € im Jahr) läuft außerhalb des Kernhaushalts.</p>';
-    if (editing) html += '<div class="t-callout">✍️ <b>Haushaltsentwurf ' + d.year + '</b>: Legt fest, wo ihr mehr ausgebt und wo ihr kürzt. Kürzungen in den Lieblingsbereichen der Partner verschlechtern das Klima. Im 4. Quartal stimmt der Bundestag ab.</div>';
+    // Schuldenpfad bei unverändertem Kurs
+    const path = T.debtPath(g, plan, meas);
+    const last = path[path.length - 1];
+    html += '<p class="small ' + (last.debt < path[0].debt ? 'pos' : 'neg') + '">📉 <b>Schuldenpfad</b> (Prognose, wenn dieser Haushalt bis zum Ende der Wahlperiode gilt): ' + path.map(x => x.year + ': ' + num1(x.debt) + ' %').join(' → ') +
+      (last.debt < path[0].debt ? ' – die Quote sinkt.' : ' – die Quote steigt.') + ' <span class="muted">Ohne künftige Zinsänderungen und Steuerschätzungen.</span></p>';
+    if (t.budget.taxEst) html += '<p class="small">🧮 Steuerschätzung: ' + (t.budget.taxEst > 0 ? 'Mehreinnahmen' : 'Mindereinnahmen') + ' von ' + mrd(Math.abs(t.budget.taxEst)) + ' gegenüber der Planung (Arbeitskreis Steuerschätzungen, Mai und Oktober).</p>';
+    html += '<p class="muted small">Schuldenbremse (Art. 115 GG): 0,35 % des BIP' + (t.budget.reform ? ' + ' + num1(t.budget.reform) + ' % (Reform)' : '') + ', mehr bei schwacher Konjunktur (' + mrd(b.cyc) + '); Verteidigung über 1 % des BIP ist ausgenommen (' + mrd(b.defFree) + '). Das Sondervermögen Infrastruktur (' + mrd(b.sv) + ' im Jahr) läuft außerhalb des Kernhaushalts, erhöht aber die Schulden.</p>';
+    if (editing) html += '<div class="t-callout">✍️ <b>Haushaltsentwurf ' + d.year + '</b>: Legt fest, wo ihr mehr ausgebt und wo ihr kürzt. Kürzungen in den Lieblingsbereichen der Partner verschlechtern das Klima, tiefe Einschnitte (−20 %) treffen die betroffenen Gruppen hart. Im 4. Quartal stimmt der Bundestag ab.</div>';
     else if (d && d.done) html += '<div class="t-callout">Der Haushaltsentwurf ' + d.year + ' liegt dem Bundestag vor. Abstimmung am Ende des ' + (T.cal(t).qn === 3 ? 'nächsten' : 'laufenden') + ' Quartals.</div>';
     else if (t.budget.status === 'vorlaeufig') html += '<div class="t-callout warn">Vorläufige Haushaltsführung: Es fehlt ein beschlossener Haushalt.</div>';
-    html += '<table class="t-budget"><thead><tr><th>Bereich</th><th>Mrd. €</th><th>' + (editing ? 'Änderung' : 'Plan') + '</th></tr></thead><tbody>';
+    html += '<table class="t-budget t-plan"><thead><tr><th>Bereich</th><th class="num">Mrd. €</th><th>' + (editing ? 'Änderung' : 'Plan') + '</th></tr></thead><tbody>';
     TD.AREAS.forEach(a => {
       const v = plan[a.id] || 0;
       const prefs = t.gov.filter(p => p !== g.party && (TD.AREA_PREF[p] || {})[a.id]).map(p => pill(p) + ((TD.AREA_PREF[p] || {})[a.id] > 0 ? '❤️' : '✂️')).join(' ');
       html += '<tr><td>' + a.icon + ' ' + esc(a.name) + (prefs ? ' <span class="small">' + prefs + '</span>' : '') + '</td><td class="num">' + num1(b.areas[a.id]) + '</td><td>' +
-        (a.fixed ? '<span class="muted small">fest</span>' : editing ? '<span class="t-steps">' + TD.BUDGET_STEPS.map(s => '<button type="button" class="chip t-step" data-a="' + a.id + '" data-v="' + s + '" aria-pressed="' + (v === s) + '">' + (s > 0 ? '+' : s < 0 ? '−' : '±') + Math.abs(s) + ' %</button>').join('') + '</span>'
+        (a.fixed ? '<span class="muted small">fest</span>' : editing ? '<span class="t-steps">' + TD.BUDGET_STEPS.map(s => '<button type="button" class="chip t-step" data-a="' + a.id + '" data-v="' + s + '" aria-pressed="' + (v === s) + '"' + (a.min !== undefined && s < a.min ? ' disabled title="Gesetzlich gebunden: höchstens ' + a.min + ' %"' : '') + '>' + (s > 0 ? '+' : s < 0 ? '−' : '±') + Math.abs(s) + ' %</button>').join('') + '</span>'
           : (v ? (v > 0 ? '+' : '−') + Math.abs(v) + ' %' : '±0')) + '</td></tr>';
     });
     html += '<tr><td>📜 Mehrkosten beschlossener Gesetze</td><td class="num">' + num1(t.budget.extra) + '</td><td></td></tr>';
     if (t.budget.def) html += '<tr><td>🪖 Zusätzliche Verteidigungszusagen</td><td class="num">' + num1(t.budget.def) + '</td><td><span class="muted small">in Verteidigung</span></td></tr>';
     if (t.budget.oneoff) html += '<tr><td>⚡ Einmalige Ausgaben dieses Jahres</td><td class="num">' + num1(t.budget.oneoff) + '</td><td></td></tr>';
+    if (b.measRev) html += '<tr><td>✂️ Einsparungen und Mehreinnahmen durch Maßnahmen</td><td class="num">−' + num1(b.measRev) + '</td><td><span class="muted small">bei den Einnahmen</span></td></tr>';
     html += '</tbody></table>';
+    // Konsolidierungsmaßnahmen (Haushaltsbegleitgesetz)
+    html += '<h3>Konsolidierung</h3><p class="muted small">Strukturelle Maßnahmen wirken dauerhaft, brauchen aber Anlaufzeit. ' + (editing ? 'Wählt sie für das Haushaltsbegleitgesetz aus – sie gelten, wenn der Bundestag den Haushalt beschließt.' : 'Die Regierung kann sie mit dem nächsten Haushaltsentwurf beschließen.') + '</p><ul class="t-list">';
+    TD.KONSOL.forEach(k => {
+      const done = enacted[k.id] !== undefined;
+      const on = done || meas.indexOf(k.id) !== -1;
+      const eff = k.rev ? '+' + num1(k.rev) + ' Mrd. € im Jahr' + (k.ramp > 1 ? ' (voll nach ' + k.ramp + ' Quartalen)' : '') : k.drift ? 'bremst den Anstieg des Rentenzuschusses' : k.oneoffDebt ? 'einmalig ' + k.oneoffDebt + ' Mrd. € Schuldentilgung' : k.sv ? '−' + k.sv + ' Mrd. € Schulden im Jahr, weniger Investitionen' : '';
+      const partners = t.gov.filter(p => p !== g.party && (k.pref || {})[p]).map(p => pill(p) + (k.pref[p] > 0 ? '👍' : '👎')).join(' ');
+      const hit = Object.keys(k.groups || {}).filter(x => k.groups[x] < 0).map(x => (D.GROUPS.find(gr => gr.id === x) || {}).name || x).join(', ');
+      html += '<li class="t-measure">' + (editing && !done ? '<label><input type="checkbox" class="t-meas" data-k="' + k.id + '"' + (on ? ' checked' : '') + '> ' : '<span>') + k.icon + ' <b>' + esc(k.name) + '</b>' + (done ? ' <span class="t-pg pos">beschlossen</span>' : '') + (editing && !done ? '</label>' : '</span>') +
+        '<br><span class="small">' + eff + (k.cost ? ' · kostet ' + num1(k.cost) + ' Mrd. €' : '') + (hit ? ' · trifft: ' + esc(hit) : '') + (partners ? ' · ' + partners : '') + '</span>' +
+        '<br><span class="muted small">Quelle: ' + esc(k.src) + '</span></li>';
+    });
+    html += '</ul>';
     if (editing) {
       html += '<label class="t-check"><input type="checkbox" id="t-notlage"' + (budgetNotlage ? ' checked' : '') + '> Notlage erklären (Art. 115 Abs. 2 GG) – setzt die Schuldenbremse aus. Ohne echte Krise kippt Karlsruhe das wahrscheinlich.</label>' +
         '<button type="button" class="btn primary" id="t-budget-submit">Entwurf im Kabinett beschließen</button>';
     }
     if (t.budget.vote) html += '<p class="small">Letzte Haushaltsabstimmung (' + t.budget.vote.year + '): ' + (t.budget.vote.pass ? '✅ angenommen' : '❌ abgelehnt') + ' – ' + t.budget.vote.yes + ' Ja, ' + t.budget.vote.no + ' Nein.</p>';
-    if (t.budget.history.length) html += '<p class="small muted">Bisher: ' + t.budget.history.map(h => h.year + ': ' + (h.gap > 0 ? '−' : '+') + num1(Math.abs(h.gap)) + ' Mrd.' + (h.notlage ? ' (Notlage)' : '')).join(' · ') + '</p>';
+    if (t.budget.history.length) html += '<h3>Bisherige Haushalte</h3><table class="t-budget"><thead><tr><th>Jahr</th><th class="num">Kredite (Mrd. €)</th><th class="num">Schuldenbremse</th><th class="num">Quote</th></tr></thead><tbody>' +
+      t.budget.history.map(h => '<tr><td>' + h.year + (h.notlage ? ' (Notlage)' : '') + '</td><td class="num">' + (h.deficit <= 0 ? '⚖️ +' + num1(-h.deficit) : num1(h.deficit)) + '</td><td class="num ' + (h.gap > 0 ? 'neg' : 'pos') + '">' + (h.gap > 0 ? '−' : '+') + num1(Math.abs(h.gap)) + '</td><td class="num">' + (h.debt !== undefined ? num1(h.debt) + ' %' : '–') + '</td></tr>').join('') + '</tbody></table>';
     // Steuern
     html += '<h3>Steuern</h3><p class="muted small">Steueränderungen sind Gesetze: ' + (T.isGov(t.role) ? 'Bringt sie unter „Gesetze“ ein.' : 'Nur die Regierung kann sie einbringen.') + ' Die Werte zeigen Mehr- oder Mindereinnahmen des Bundes im Jahr.</p><table class="t-budget"><tbody>';
     TD.TAXES.forEach(x => {
@@ -578,10 +604,15 @@
     box.querySelectorAll('.t-step').forEach(btn => btn.addEventListener('click', () => { budgetPlan[btn.dataset.a] = Number(btn.dataset.v); renderBudget(); }));
     const nl = $('t-notlage');
     if (nl) nl.addEventListener('change', () => { budgetNotlage = nl.checked; });
+    box.querySelectorAll('.t-meas').forEach(cb => cb.addEventListener('change', () => {
+      budgetMeasures = budgetMeasures.filter(x => x !== cb.dataset.k).concat(cb.checked ? [cb.dataset.k] : []);
+      renderBudget();
+    }));
     const sub = $('t-budget-submit');
     if (sub) sub.addEventListener('click', () => {
-      const res = T.setBudgetDraft(g, budgetPlan, budgetNotlage);
+      const res = T.setBudgetDraft(g, budgetPlan, budgetNotlage, budgetMeasures);
       budgetPlan = null;
+      budgetMeasures = [];
       save();
       render();
       if (res.ok) U.toast('Haushaltsentwurf beschlossen. Abstimmung im Bundestag im 4. Quartal.');
@@ -1043,7 +1074,8 @@
       U.openModal(eyebrow + ' · 🏦 Haushaltsverfahren', 'Eckwerte für den Haushalt ' + it.year, '<p>Im Frühjahr beschließt das Kabinett die Eckwerte – den Rahmen für den Regierungsentwurf im Sommer. Welche Linie gebt ihr vor?</p>',
         [{ label: 'Fortschreiben', hint: 'Der bisherige Haushalt als Grundlage', onClick: () => choose(0) },
           { label: 'Konsolidieren', hint: 'Entwurf startet mit Kürzungen · glaubwürdig, Partner murren', onClick: () => choose(1) },
-          { label: 'Investieren', hint: 'Entwurf startet mit mehr Geld für Verkehr, Forschung, Verteidigung, Wohnen', onClick: () => choose(2) }]);
+          { label: 'Investieren', hint: 'Entwurf startet mit mehr Geld für Verkehr, Forschung, Verteidigung, Wohnen', onClick: () => choose(2) }].concat((it.wishes || []).length ? [
+          { label: 'Wünsche der Ressorts bewilligen', hint: it.wishes.map(w => (TD.AREAS.find(a => a.id === w.a) || {}).icon + ' +' + num1(w.amt) + ' Mrd. €').join(', ') + ' · gutes Klima, mehr Schulden', onClick: () => choose(3) }] : []));
     } else if (it.type === 'bereinigung') {
       U.openModal(eyebrow + ' · 🏦 Haushaltsausschuss', 'Bereinigungssitzung', '<p>In der traditionellen Nachtsitzung vor der 2./3. Lesung legen die Haushälter letzte Änderungen fest. Die Abgeordneten der Koalition wollen Projekte in ihren Wahlkreisen.</p>',
         [{ label: 'Projekte zulassen', hint: '0,8 Mrd. € · gutes Klima in Fraktion und Koalition', onClick: () => choose(0) },
