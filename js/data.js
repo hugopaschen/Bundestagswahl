@@ -128,6 +128,26 @@
 
   var OTHER = { id: 'sonstige', short: 'Sonst.', name: 'Sonstige' };
 
+  // Umfrageinstitute (fiktiv). Methoden, Stichproben und Rhythmus wie bei echten Instituten; die Hauseffekte (systematische
+  // Abweichung je Partei in Punkten) sind geschätzt nach der typischen Streuung deutscher Umfragen und gleichen sich im Mittel aus.
+  // every = Abstand der Veröffentlichungen in Tagen, offset = Wochentag der Veröffentlichung (0 = Donnerstag), field = Feldzeit in Tagen.
+  var INSTITUTES = [
+    { id: 'kompass', name: 'Kompass Meinungsforschung', short: 'Kompass', method: 'telefonisch', n: [1500, 2500], every: 7, offset: 5, field: 5, round: 1,
+      house: { union: 0.8, afd: -1.0, spd: 0.6, gruene: 0.3, linke: -0.3, bsw: -0.2, fdp: 0 } },
+    { id: 'albrecht', name: 'Albrecht & Haas Sozialforschung', short: 'Albrecht & Haas', method: 'persönlich-mündlich', n: [1000, 1100], every: 28, offset: 1, field: 12, round: 0.5,
+      house: { union: 1.0, afd: -0.8, spd: -0.2, gruene: 0.4, linke: -0.4, bsw: 0.2, fdp: 0.3 } },
+    { id: 'voxpanel', name: 'VoxPanel', short: 'VoxPanel', method: 'online (Panel)', n: [2000, 2400], every: 7, offset: 4, field: 3, round: 0.5,
+      house: { union: -1.0, afd: 1.4, spd: -0.6, gruene: -0.4, linke: 0.4, bsw: 0.3, fdp: -0.2 } },
+    { id: 'nordstern', name: 'Nordstern Research', short: 'Nordstern', method: 'telefonisch und online', n: [1200, 1400], every: 14, offset: 0, field: 4, round: 1,
+      house: { union: -0.4, afd: 0.6, spd: 0, gruene: -0.6, linke: 0.5, bsw: -0.2, fdp: 0.2 } },
+    { id: 'rheinblick', name: 'Institut Rheinblick', short: 'Rheinblick', method: 'telefonisch', n: [1300, 1600], every: 14, offset: 8, field: 3, round: 1,
+      house: { union: -0.4, afd: -0.2, spd: 0.2, gruene: 0.3, linke: -0.2, bsw: -0.1, fdp: -0.3 } }
+  ];
+  // Sitzungskalender (Kalenderwochen), angelehnt an die Sitzungswochen des Bundestages und die Plenarsitzungen des
+  // Bundesrates 2024/2025 – für spätere Jahre fortgeschrieben (geschätzt).
+  var SITZUNGSWOCHEN = [3, 4, 6, 7, 10, 11, 12, 16, 17, 19, 20, 24, 25, 26, 27, 37, 38, 40, 41, 42, 45, 46, 47, 50, 51];
+  var BUNDESRAT_KW = [7, 11, 15, 21, 24, 28, 39, 42, 47, 51];
+
   // Bundesländer mit Wahlberechtigten (Mio., gerundet) (x/y: frühere Kachelkarte, heute ungenutzt)
   // und Startwerte in Prozent (Sonntagsfrage, regional verteilt nach dem Muster der BTW 2025). Rest = Sonstige.
   var STATES = [
@@ -636,6 +656,9 @@
     SALIENCE0: SALIENCE0,
     PARTIES: PARTIES,
     OTHER: OTHER,
+    INSTITUTES: INSTITUTES,
+    SITZUNGSWOCHEN: SITZUNGSWOCHEN,
+    BUNDESRAT_KW: BUNDESRAT_KW,
     STATES: STATES,
     SEATS: SEATS,
     PROGRAM: PROGRAM,

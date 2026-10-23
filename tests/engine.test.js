@@ -1719,3 +1719,43 @@ test('Haushalt: Konsolidierung, Zinsen, Steuerschätzung und Schuldenpfad', () =
     assert.ok(t.news.some(n => /Schwarze Null/.test(n.text || n)));
   }
 });
+
+test('Kalender und Umfrageinstitute: echte Daten, Hauseffekte, Umfragemittel', () => {
+  // Wahl 2029: 46–48 Monate nach dem Zusammentritt am 25.3.2025 (Art. 39 GG) – letzter Sonntag im Februar.
+  const g = E.newGame('spd', 'Test', 3);
+  const wd = E.electionDate(g);
+  assert.strictEqual(E.fmtDate(wd), 'Sonntag, 25. Februar 2029');
+  assert.strictEqual(E.weekDay(g, g.maxWeeks, 7).getTime(), wd.getTime());
+  assert.strictEqual(E.weekStart(g, 1).getUTCDay(), 1);
+  // Hauseffekte gleichen sich im Mittel aus.
+  ['union', 'afd', 'spd', 'gruene', 'linke', 'bsw', 'fdp'].forEach(p => assert.ok(Math.abs(D.INSTITUTES.reduce((s, i) => s + (i.house[p] || 0), 0)) < 1e-9, p));
+  for (let w = 0; w < 3; w++) { while (g.pendingEvent) E.resolveEvent(g, 0); E.endWeek(g); }
+  const polls = E.campaignPolls(g);
+  assert.strictEqual(polls.length, D.INSTITUTES.length);
+  polls.forEach(x => {
+    assert.ok(Math.abs(sum(x.shares) - 100) <= 1.5, x.inst.id + ' summiert sich auf 100');
+    assert.ok(x.date < E.weekStart(g, g.week) && x.from < x.to);
+  });
+  const avg = E.campaignAverage(g);
+  const real = E.mergeShares(g, g.poll.nat);
+  Object.keys(avg).forEach(p => assert.ok(Math.abs(avg[p] - real[p]) < 4, p));
+  // Die Institute verändern den Spielzufall nicht.
+  const r0 = g.rng;
+  E.campaignPolls(g);
+  assert.strictEqual(g.rng, r0);
+  assert.ok(E.pollMargin(30) === 3 && E.pollMargin(4) < 2);
+});
+
+test('Legislatur: Quartale als Kalenderzeit, Sitzungstage und Umfragen', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  const t = g.term;
+  assert.strictEqual(T.quarterLabel(t), 'Apr.–Juni 2029');
+  assert.strictEqual(T.plenaryDate(t, 0, 'bt').getUTCDay(), 4);
+  assert.strictEqual(T.plenaryDate(t, 0, 'br').getUTCDay(), 5);
+  const cal = T.calendar(g, 8);
+  assert.ok(cal.every((x, i) => i === 0 || !x.at || !cal[i - 1].at || cal[i - 1].at <= x.at));
+  assert.ok(/Februar 2033/.test(cal[cal.length - 1].label));
+  const polls = T.termPolls(g);
+  assert.ok(polls.length === D.INSTITUTES.length && polls.every(x => x.date < T.quarterStart(t)));
+});

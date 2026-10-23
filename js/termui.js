@@ -65,17 +65,17 @@
     const age = T.leaderAge(g, T.cal(t).year);
     $('t-leader').textContent = t.party.leader.name + (age ? ' (' + age + ')' : '') + (t.role === 'kanzler' ? ' · Bundeskanzler:in' : t.role === 'junior' ? ' · Vizekanzler:in' : '');
     $('t-role').textContent = role.icon + ' ' + role.name + ' · ' + t.gov.map(short).join('-') + (t.tolerated ? '-Minderheitsregierung' : '-Regierung');
-    const poll = g.poll.nat[g.party];
+    const poll = T.termAverage(g)[g.party];
     const stats = [
       ['Zeit', T.quarterLabel(t)],
       ['Aktionen', '●'.repeat(t.ap) + '○'.repeat(Math.max(0, t.apMax - t.ap))],
-      ['Umfrage', pct(poll) + ' <small>(' + signed(poll - t.share0) + ')</small>'],
+      ['Umfragemittel', pct(poll) + ' <small>(' + signed(poll - t.share0) + ')</small>'],
       ['Parteikasse', mio(t.party.cash)]
     ];
     if (T.isGov(t.role) && t.gov.length > 1) stats.splice(3, 0, ['Koalitionsklima', Math.round(t.mood) + '/100']);
     $('t-stats').innerHTML = stats.map(s => '<div class="stat"><span class="stat-label">' + s[0] + '</span><span class="stat-value">' + s[1] + '</span></div>').join('');
     $('term-bar').style.width = Math.min(100, t.q / T.QUARTERS * 100) + '%';
-    $('btn-end-quarter').textContent = t.over ? 'Bilanz ansehen' : t.q === T.QUARTERS - 1 ? 'Legislatur beenden' : 'Quartal beenden';
+    $('btn-end-quarter').textContent = t.over ? 'Bilanz ansehen' : t.q === T.QUARTERS - 1 ? 'Zur Bundestagswahl' : 'Weiter zum ' + E.fmtDate(E.addDays(T.quarterEnd(t), 1), 'day');
     const unseen = t.news.indexOf(newsSeen);
     const n = unseen === -1 ? t.news.length : unseen;
     $('t-news-badge').hidden = !n || tab === 'lage';
@@ -205,11 +205,11 @@
     html += '<div class="t-todo"><h3>📋 Jetzt wichtig</h3>' + (td.length ? '<ul>' + td.map((x, i) => '<li class="' + (x.warn ? 'warn' : '') + '"><span class="t-todo-i">' + x.icon + '</span><span class="t-todo-t">' + esc(x.text) + '</span>' +
       '<button type="button" class="btn small t-todo-b" data-i="' + i + '">' + esc(x.btn) + ' →</button></li>').join('') + '</ul>' : '<p class="muted">Alles im Griff. Nutzt eure Aktionen, um Themen zu setzen.</p>') + '</div>';
     // Vier Kennzahlen mit Trend
-    const h = t.history;
-    const prev = h.length > 1 ? h[h.length - 2].nat[g.party] : t.share0;
+    const avg = T.termAverage(g)[g.party];
+    const prev = t.q > 0 ? T.termAverage(g, t.q - 1)[g.party] : t.share0;
     const cred = t.cred === undefined ? 55 : t.cred;
     html += '<div class="t-kpis t-kpis-4">' +
-      kpi('Umfrage ' + esc(short(g.party)), pct(g.poll.nat[g.party]), trend(g.poll.nat[g.party] - prev) + ' zum Vorquartal · ' + signed(g.poll.nat[g.party] - t.share0) + ' seit der Wahl') +
+      kpi('Umfragemittel ' + esc(short(g.party)), pct(avg) + ' <small class="muted">± ' + num1(E.pollMargin(avg)).replace(',0', '') + '</small>', trend(avg - prev) + ' zum Vorquartal · ' + signed(avg - t.share0) + ' seit der Wahl') +
       (T.isGov(t.role) && t.gov.length > 1 ? kpi('Koalitionsklima', Math.round(t.mood) + '/100', bar(t.mood, 100, t.mood < 30 ? 'bad' : t.mood < 50 ? 'mid' : 'good')) : kpi('Beliebtheit der Spitze', (t.party.leader.like >= 0 ? '+' : '−') + num1(Math.abs(t.party.leader.like)), esc(t.party.leader.name) + ' · Skala −5 bis +5')) +
       kpi('Geschlossenheit', Math.round(t.party.unity) + '/100', bar(t.party.unity, 100, t.party.unity < 40 ? 'bad' : 'good')) +
       kpi('Glaubwürdigkeit', Math.round(cred) + '/100', bar(cred, 100, cred < 40 ? 'bad' : cred < 55 ? 'mid' : 'good')) + '</div>';
@@ -238,7 +238,8 @@
     // Termine: die nächsten drei, der Rest zum Aufklappen
     const cal = T.calendar(g, 9);
     const li = x => '<li><span class="t-cal-q">' + esc(x.label) + '</span>' + esc(x.text) + (x.kind === 'ltw' ? ' <span class="muted small">· regiert von ' + t.laender[x.land].gov.map(short).join('-') + '</span>' : '') + '</li>';
-    html += '<h3>📅 Termine</h3><ul class="t-cal">' + cal.slice(0, 3).map(li).join('') + '</ul>' + (cal.length > 3 ? '<details class="t-more"><summary>Weitere Termine (' + (cal.length - 3) + ')</summary><ul class="t-cal">' + cal.slice(3).map(li).join('') + '</ul></details>' : '');
+    const sw = T.nextSession(t);
+    html += '<h3>📅 Termine</h3>' + (sw ? '<p class="small">Nächste Sitzungswoche des Bundestages: <b>' + E.fmtRange(sw.from, sw.to) + '</b> · Bundesrat: <b>' + T.plenaryLabel(t, t.q, 'br') + '</b></p>' : '') + '<ul class="t-cal">' + cal.slice(0, 3).map(li).join('') + '</ul>' + (cal.length > 3 ? '<details class="t-more"><summary>Weitere Termine (' + (cal.length - 3) + ')</summary><ul class="t-cal">' + cal.slice(3).map(li).join('') + '</ul></details>' : '');
     html += wearHtml();
     // Koalitionsvertrag (zum Aufklappen)
     if (T.isGov(t.role) && t.gov.length > 1) {
@@ -818,7 +819,10 @@
   // ---------- Umfragen ----------
   function renderPolls() {
     const t = term();
-    let html = '<h2>📊 Sonntagsfrage</h2><div class="poll-cols">' + U.pollColumnsHtml(g.poll.nat, t.start) + '</div><p class="muted small">Veränderung zur Bundestagswahl ' + t.year0 + '. Fehlerspanne ± ' + E.POLL_RANGE + ' Punkte.</p>';
+    const polls = T.termPolls(g);
+    const avg = E.pollAverage(polls);
+    let html = '<h2>📊 Sonntagsfrage</h2><div class="poll-cols">' + U.pollColumnsHtml(avg, t.start) + '</div><p class="muted small">Mittel der jüngsten Umfragen, Veränderung zur Bundestagswahl ' + t.year0 + '. Helle Fläche = Unsicherheit (bei großen Parteien bis ± 3 Punkte).</p>' +
+      '<h3>Aktuelle Umfragen</h3>' + U.instTableHtml(polls, g.party);
     html += '<h3>🧮 Koalitionsrechner</h3><p class="muted small">Sitze nach dieser Umfrage (5-%-Hürde, ohne Grundmandate und Überhang). Parteien antippen – reicht es für eine Mehrheit?</p><div class="calc-body t-calc" id="t-poll-calc"></div>';
     html += '<h3>Verlauf seit der Wahl</h3><div class="t-chart" id="t-chart"></div>';
     html += fxHtml();
@@ -830,7 +834,7 @@
     html += '<h3>📈 Megatrends</h3><p class="muted small">Über die Jahre verschiebt sich, was die Menschen bewegen wird – Alterung, Digitalisierung, Klimawandel und neue Sicherheitslage (Raten geschätzt). Wer hier Kompetenz aufbaut, profitiert in späteren Wahlen.</p>' +
       (mt.length ? '<div class="t-strip">' + mt.map(x => '<span class="t-strip-i"><small>' + x.tp.icon + ' ' + esc(x.tp.name) + '</small> +' + x.d + ' %</span>').join('') + '</div><p class="muted small">Grundgewicht ' + yr + ' im Vergleich zu 2029.</p>' : '<p class="muted small">Noch hat sich das Grundgewicht der Themen kaum verschoben.</p>');
     $('t-umfragen').innerHTML = html;
-    U.pollCalcHtml($('t-poll-calc'), g.poll.nat);
+    U.pollCalcHtml($('t-poll-calc'), avg);
     drawTermChart();
   }
   // Was eure Umfrage bewegt: Wirkungen nach Ursache (Prozentpunkte, vor der Wählerwanderung).
@@ -882,7 +886,8 @@
     const W = Math.max(300, Math.round(box.clientWidth || 600));
     const H = Math.round(Math.min(280, Math.max(180, W * 0.4)));
     const L = 28; const R = 10; const Tp = 8; const B = 22;
-    const hist = t.history;
+    // Umfragemittel zu Beginn jedes Quartals (der erste Punkt ist das Wahlergebnis).
+    const hist = t.history.map((h, i) => (i === 0 ? h : { q: h.q, nat: T.termAverage(g, h.q + 1) }));
     const ids = MAIN.filter(p => E.isShown(g, p)).concat((D.MINORS || []).map(m => m.id).filter(m => E.isShown(g, m)));
     let maxV = 0;
     hist.forEach(h => ids.forEach(p => { maxV = Math.max(maxV, h.nat[p] || 0); }));
@@ -958,7 +963,7 @@
     const method = { hand: '✋ Abstimmung per Handzeichen', namentlich: '🗂️ Namentliche Abstimmung – die Schriftführer zählen die Stimmkarten', hammel: '🐑 Hammelsprung: Alle verlassen den Saal und kommen durch die Ja-, Nein- oder Enthaltungstür zurück' }[rec.method] || '';
     const body = '<p class="small muted">' + method + '</p><div class="vote-live"><svg viewBox="-1.05 -1.06 2.1 1.1" role="img" aria-label="Abstimmung im Bundestag">' + dots + '</svg>' +
       '<div class="vote-count"><span class="vc-ja">Ja <b id="vc-ja">0</b></span><span class="vc-nein">Nein <b id="vc-nein">0</b></span><span class="vc-abst">Enthaltung <b id="vc-abst">0</b></span></div><p class="vote-now small" id="vote-now"></p></div><div id="vote-result"></div>';
-    U.openModal(T.quarterLabel(t, rec.q === undefined ? t.q : Math.min(rec.q, T.QUARTERS - 1)) + ' · 🏛️ Plenarsaal', rec.title, body, [{ label: 'Sofort zum Ergebnis', onClick: () => finish() }]);
+    U.openModal(T.plenaryLabel(t, rec.q === undefined ? t.q : rec.q, 'bt') + ' · Plenarsaal', rec.title, body, [{ label: 'Sofort zum Ergebnis', onClick: () => finish() }]);
     const box = document.getElementById('modal-body');
     let i = 0;
     let timer = null;
@@ -995,7 +1000,7 @@
     const body = '<p class="small muted">Die Präsidentin ruft die Länder auf. ' + (rec.zust ? 'Zustimmungsgesetz: Nötig sind 35 Ja-Stimmen.' : 'Einspruchsgesetz: Ein Einspruch braucht 35 Stimmen.') + '</p>' +
       '<ul class="br-call">' + rec.votes.map((x, i) => '<li data-i="' + i + '"><span>' + esc(E.stateById(x.land).name) + ' <small class="muted">(' + x.votes + ')</small></span><span class="br-gov">' + x.gov.map(pill).join(' ') + '</span><b class="br-v"></b></li>').join('') + '</ul>' +
       '<div class="br-tally"><div class="br-tally-bar"><i id="br-fill"></i><b style="left:' + (35 / 69 * 100) + '%"></b></div><span id="br-sum">0 Ja-Stimmen</span></div><div id="vote-result"></div>';
-    U.openModal(T.quarterLabel(t, rec.q === undefined ? t.q : Math.min(rec.q, T.QUARTERS - 1)) + ' · 🏛️ Bundesrat', rec.title, body, [{ label: 'Sofort zum Ergebnis', onClick: () => finish() }]);
+    U.openModal(T.plenaryLabel(t, rec.q === undefined ? t.q : rec.q, 'br') + ' · Bundesrat', rec.title, body, [{ label: 'Sofort zum Ergebnis', onClick: () => finish() }]);
     let i = 0; let yes = 0; let timer = null;
     const reveal = () => {
       const x = rec.votes[i];
@@ -1030,7 +1035,7 @@
       return;
     }
     const it = t.pending[0];
-    const eyebrow = T.quarterLabel(t);
+    const eyebrow = it.type === 'vote' ? T.plenaryLabel(t, t.q, 'bt') : T.quarterLabel(t);
     const after = res => {
       save();
       render();
@@ -1379,7 +1384,7 @@
       return;
     }
     btn.dataset.budget = '';
-    const before = g.poll.nat[g.party];
+    const before = T.termAverage(g)[g.party];
     const res = T.endQuarter(g);
     if (!res.ok) { U.toast(res.text); return; }
     save();
@@ -1391,7 +1396,8 @@
     t.reel = [];
     playReels(reels, () => showFront(() => {
       U.closeModal();
-      if (!t.over) U.toast(T.quarterLabel(t) + ' · Neue Umfrage: ' + pct(g.poll.nat[g.party]) + ' (' + signed(g.poll.nat[g.party] - before) + ')' +
+      const now = T.termAverage(g)[g.party];
+      if (!t.over) U.toast(T.quarterLabel(t) + ' · Umfragemittel: ' + pct(now) + ' (' + signed(now - before) + ')' +
         (topFx ? ' · größter Einfluss: ' + (T.FX_NAMES[topFx] || topFx).replace(/^\S+ /, '') + ' ' + signed(lastFx.fx[topFx]) : ''));
       checkPending();
     }));

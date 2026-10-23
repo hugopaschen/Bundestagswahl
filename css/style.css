@@ -1474,7 +1474,7 @@ h2 .flyer-hint { margin: 0; }
 .layout.tabbed .news { max-height: none; }
 .layout.tabbed .news li { font-size: .98rem; padding: 10px 0; }
 @media (max-width: 860px) {
-  .map-wrap, .polls-wrap { grid-template-columns: 1fr; }
+  .map-wrap, .polls-wrap { grid-template-columns: minmax(0, 1fr); }
   .map-side { position: static; }
 }
 
@@ -2268,10 +2268,10 @@ details.t-law[open] > summary { border-bottom: 1px solid var(--border); }
 .week-cal { display: flex; gap: 6px; align-items: center; overflow-x: auto; padding: 6px 2px 2px; font-size: 12px; scrollbar-width: none; }
 .week-cal::-webkit-scrollbar { display: none; }
 .wc-label { color: var(--muted); white-space: nowrap; margin-right: 2px; }
-.wc-item { white-space: nowrap; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+.wc-item { white-space: nowrap; padding: 1px 10px; color: var(--text); border-left: 1px solid var(--border); }
 .wc-item b { font-weight: 700; margin-right: 2px; }
 .wc-item.past { opacity: .45; text-decoration: line-through; }
-.wc-item.now { background: var(--accent); color: var(--accent-ink); }
+.wc-item.now { font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
 .t-team { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
 .t-team li { display: flex; flex-direction: column; }
 .hung-log { margin: 8px 0 12px; padding-left: 1.3em; display: grid; gap: 4px; font-size: .92rem; }
@@ -2320,3 +2320,14 @@ details.t-law[open] > summary { border-bottom: 1px solid var(--border); }
 .tc-owners { display: block; font-size: .7rem; color: var(--muted); margin-top: 2px; }
 .tc-owners i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 2px; vertical-align: middle; }
 .td-steer { font-size: .88rem; margin: 6px 0; }
+
+/* Umfragen der Institute: dichte Tabelle wie in Umfrageübersichten */
+.inst-wrap { overflow-x: auto; margin: 6px 0 4px; -webkit-overflow-scrolling: touch; }
+.inst-table { width: 100%; min-width: 640px; border-collapse: collapse; font-size: .84rem; font-variant-numeric: tabular-nums; }
+.inst-table th { text-align: left; font-weight: 700; padding: 6px 8px; border-bottom: 2px solid var(--text); white-space: nowrap; }
+.inst-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; white-space: nowrap; }
+.inst-table td:first-child { white-space: normal; min-width: 150px; }
+.inst-table td .muted { font-size: .76rem; }
+.inst-table .num { text-align: right; }
+.inst-table .me { font-weight: 800; background: var(--surface-2); }
+.inst-table .inst-avg td { font-weight: 700; border-top: 2px solid var(--text); border-bottom: 0; }

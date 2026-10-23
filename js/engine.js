@@ -870,6 +870,108 @@
   function publishedShares(g) { return publish(g, nationalShares(g)); }
   function publishedStateShares(g, stateId) { return publish(g, stateShares(g, stateId)); }
 
+  // ---------- Kalender ----------
+  // Alle Daten in UTC, damit Zeitzonen keine Tage verschieben.
+  const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+  const MONTHS_S = ['Jan.', 'Feb.', 'März', 'Apr.', 'Mai', 'Juni', 'Juli', 'Aug.', 'Sept.', 'Okt.', 'Nov.', 'Dez.'];
+  const WEEKDAYS = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+  const DAY_MS = 864e5;
+  const dayUTC = (y, m, d) => new Date(Date.UTC(y, m - 1, d));
+  const addDays = (dt, n) => new Date(dt.getTime() + n * DAY_MS);
+  const dayNum = dt => Math.floor(dt.getTime() / DAY_MS);
+  function lastSunday(y, m) { const d = dayUTC(y, m + 1, 0); return addDays(d, -d.getUTCDay()); }
+  // Montag der Kalenderwoche kw (ISO 8601).
+  function isoMonday(y, kw) { const j4 = dayUTC(y, 1, 4); return addDays(j4, -((j4.getUTCDay() + 6) % 7) + (kw - 1) * 7); }
+  function isoWeek(dt) { const th = addDays(dt, 3 - (dt.getUTCDay() + 6) % 7); const j1 = dayUTC(th.getUTCFullYear(), 1, 1); return 1 + Math.floor((dayNum(th) - dayNum(j1)) / 7); }
+  // style: 'long' = Sonntag, 25. Februar 2029 · 'day' = 25. Februar 2029 · 'dm' = 25. Februar · 'num' = 25.2.
+  function fmtDate(dt, style) {
+    const d = dt.getUTCDate(), m = dt.getUTCMonth(), y = dt.getUTCFullYear();
+    if (style === 'num') return d + '.' + (m + 1) + '.';
+    if (style === 'dm') return d + '. ' + MONTHS[m];
+    if (style === 'day') return d + '. ' + MONTHS[m] + ' ' + y;
+    return WEEKDAYS[dt.getUTCDay()] + ', ' + d + '. ' + MONTHS[m] + ' ' + y;
+  }
+  function fmtRange(a, b) {
+    if (a.getUTCMonth() === b.getUTCMonth()) return a.getUTCDate() + '.–' + fmtDate(b, 'dm');
+    return fmtDate(a, 'dm') + ' – ' + fmtDate(b, 'dm');
+  }
+  // Wahltermin: Die Bundestagswahl liegt 46 bis 48 Monate nach dem ersten Zusammentritt (Art. 39 GG) – nach der Wahl im
+  // Februar 2025 also im Frühjahr; das Spiel nimmt den letzten Sonntag im Februar. Nach einem Bruch liegt die Wahl im
+  // Quartal danach, nach einer Auflösung höchstens 60 Tage später (hier zwölf Wochen nach der ersten Wahl).
+  function electionDate(g) {
+    const abs = g.world && g.world.abs0 ? g.world.abs0 - 1 : (g.year || YEAR0) * 4;
+    const y = Math.floor(abs / 4), qn = abs % 4 + 1;
+    const d = lastSunday(y, (qn - 1) * 3 + 2);
+    return g.neuwahl ? addDays(d, 84) : d;
+  }
+  // Wahlkampfwoche w (1 … maxWeeks): Montag bis Sonntag, die letzte endet am Wahlsonntag.
+  function weekStart(g, w) { return addDays(electionDate(g), -6 - ((g.maxWeeks || MAX_WEEKS) - w) * 7); }
+  function weekLabel(g, w) { const a = weekStart(g, w); return fmtRange(a, addDays(a, 6)); }
+  // Tag innerhalb einer Wahlkampfwoche (1 = Montag … 7 = Sonntag).
+  function weekDay(g, w, dow) { return addDays(weekStart(g, w), (dow || 3) - 1); }
+  // Wahlkampfwoche, in die ein Datum fällt (0 = vor dem Wahlkampf).
+  function weekOf(g, dt) { return Math.max(0, Math.min(g.maxWeeks || MAX_WEEKS, Math.floor((dayNum(dt) - dayNum(weekStart(g, 1))) / 7) + 1)); }
+
+  // ---------- Umfrageinstitute ----------
+  // Eigener Zufall (wie bei Prognosen): Die Institute verändern den Spielverlauf nicht.
+  function localRng(seed) {
+    let a = seed >>> 0;
+    return () => {
+      a = (a + 0x6D2B79F5) | 0;
+      let x = Math.imul(a ^ (a >>> 15), 1 | a);
+      x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+      return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  // Unsicherheit einer Umfrage je Partei (Punkte): große Parteien bis ± POLL_RANGE, kleine weniger.
+  function pollMargin(share) { return Math.max(1, Math.round(POLL_RANGE * Math.min(1, (share + 3) / 15) * 2) / 2); }
+  // Die jüngste Umfrage jedes Instituts bis zum Tag now. baseAt(Datum) liefert den Stand der Stimmung zur Feldzeit.
+  function institutePolls(g, now, baseAt) {
+    const ids = shownIds(g);
+    return D.INSTITUTES.map((ins, k) => {
+      const dn = dayNum(now);
+      let pub = dn - (((dn - ins.offset) % ins.every) + ins.every) % ins.every;
+      // Zwischen den Jahren und an Neujahr wird nicht veröffentlicht.
+      const quiet = d => { const x = new Date(d * DAY_MS); const md = (x.getUTCMonth() + 1) * 100 + x.getUTCDate(); return md >= 1223 || md <= 101; };
+      while (quiet(pub)) pub -= 1;
+      const pubDate = new Date(pub * DAY_MS);
+      const R = localRng(((g.nameSeed || 1) * 7 + pub * 131 + k * 7919) % 2147483647);
+      const n = Math.round((ins.n[0] + R() * (ins.n[1] - ins.n[0])) / 10) * 10;
+      const base = mergeShares(g, baseAt(addDays(pubDate, -2)));
+      const gauss = () => (R() + R() + R() + R() - 2) * 1.73;
+      const raw = {};
+      let sum = 0;
+      ids.concat([D.OTHER.id]).forEach(p => {
+        const b = base[p] || 0;
+        const sd = Math.sqrt(Math.max(1, b) * (100 - b) / n) * 1.3; // Stichprobenfehler mit Designeffekt
+        raw[p] = Math.max(1, b + (ins.house[p] || 0) + gauss() * sd);
+        sum += raw[p];
+      });
+      // Auf 100 % bringen; „Sonstige“ ist der Rest nach dem Runden, wie in den veröffentlichten Tabellen.
+      const out = {};
+      let shown = 0;
+      ids.forEach(p => { out[p] = Math.round(raw[p] / sum * 100 / ins.round) * ins.round; shown += out[p]; });
+      out[D.OTHER.id] = Math.max(ins.round, Math.round((100 - shown) / ins.round) * ins.round);
+      return { inst: ins, date: pubDate, from: addDays(pubDate, -ins.field - 1), to: addDays(pubDate, -2), n, shares: out };
+    });
+  }
+  // Umfragemittel: Durchschnitt der jüngsten Umfrage jedes Instituts.
+  function pollAverage(list) {
+    const out = {};
+    list.forEach(x => Object.keys(x.shares).forEach(p => { out[p] = (out[p] || 0) + x.shares[p] / list.length; }));
+    return out;
+  }
+  // Im Wahlkampf: Stand am Montag der laufenden Woche; die Institute befragen auf Basis der Wochenumfragen.
+  function campaignPolls(g, week) {
+    const now = addDays(weekStart(g, Math.max(1, week === undefined ? g.week : week)), -1);
+    const hist = g.history || [];
+    return institutePolls(g, now, dt => {
+      const h = hist[Math.max(0, Math.min(hist.length - 1, weekOf(g, dt)))]; // Eintrag w = Stand am Ende der Woche w
+      return h ? h.shares : g.poll.nat;
+    });
+  }
+  function campaignAverage(g, week) { return pollAverage(campaignPolls(g, week)); }
+
   // ---------- Wählergruppen ----------
 
   function topicPref(k, topic, stateId) {
@@ -3855,7 +3957,8 @@
     goalReached, gaffeTopic, defaultProgram, validateProgram, programEffects, positionEffect, competenceOf, isCore,
     newGame, nationalShares, stateShares, leader, issueEffect,
     publishedShares, publishedStateShares, groupShares, pollShares, pollStateShares, pollGroupShares, groupMix, groupEfficiency, groupEffect, stolenBy, channelFit, stateWeights,
-    POLL_RANGE, GROUP_IDS, RIVAL_STYLES, rivalName, rivalLabel, rivalStyle, wkCandidate, newPerson, candBonus, chancellorPoll, MINOR_IDS, CONTEST_IDS, isShown, shownIds, mergeShares, mergeStateShares, partyTopics, steerPreview, WK_LIST, WK_BY_STATE, wkByNr, wkShares, wkProjection, directCounts, GRUNDMANDATE, FW_LEVELS, fwLevel, openFirewall, closeFirewall, firewallOptions, breakFirewall, flowSummary, steerVotes, stateFlows, regionFactor, nationalFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
+    POLL_RANGE, MONTHS, MONTHS_S, WEEKDAYS, dayUTC, addDays, dayNum, lastSunday, isoMonday, isoWeek, fmtDate, fmtRange, electionDate, weekStart, weekLabel, weekDay, weekOf,
+    localRng, pollMargin, institutePolls, pollAverage, campaignPolls, campaignAverage, GROUP_IDS, RIVAL_STYLES, rivalName, rivalLabel, rivalStyle, wkCandidate, newPerson, candBonus, chancellorPoll, MINOR_IDS, CONTEST_IDS, isShown, shownIds, mergeShares, mergeStateShares, partyTopics, steerPreview, WK_LIST, WK_BY_STATE, wkByNr, wkShares, wkProjection, directCounts, GRUNDMANDATE, FW_LEVELS, fwLevel, openFirewall, closeFirewall, firewallOptions, breakFirewall, flowSummary, steerVotes, stateFlows, regionFactor, nationalFactor, pickScenarios, SCENARIOS: SC, CITIZEN_QUESTIONS: CQ, CQ_ACTIONS, CQ_COMP, pickCitizenQuestions, citizenCompetence, focusFactor, saturatedContexts, groupSat, turnout, mobFactor, mobPotential, postalCast, postalShare, groupPostal, postalAffinity, electionShares, POSTAL_START, positionAppeal, programStateEffect, stateTopicFactor, stateTopTopics, groupTopicsInState, localTopicFactor, programTopicStates,
     actionCost, canAct, performAction, moneyWarning, spendenAvailable, spendenYield,
     drawEvent, resolveEvent, hungChoice, neuwahlCampaign, startHung,
     startDuel, duelAnswer,

@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261023-162000';
+  const APP_VERSION = '20261023-163929';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -40,6 +40,9 @@
     return ids.map((p, i) => ({ p, i })).sort((a, b) => (last[b.p] || 0) - (last[a.p] || 0) || a.i - b.i).map(x => x.p).concat([D.OTHER.id]);
   };
   const merged = sh => (g ? E.mergeShares(g, sh) : sh);
+  // Datum im Wahlkampf: Mittwoch der laufenden Woche (für Meldungen und Szenen).
+  const wkDate = (w, dow) => E.fmtDate(E.weekDay(g, w === undefined ? g.week : w, dow || 3));
+  const wkShort = w => E.fmtDate(E.addDays(E.weekStart(g, w), 6), 'num');
   const short = p => (p === D.OTHER.id ? D.OTHER.short : E.party(p).short);
   // Die letzte Bundestagswahl: 2025 oder die letzte Wahl im Spiel (nach einer Legislaturperiode).
   const prevYear = () => (g && g.prevYear) || 2025;
@@ -258,21 +261,24 @@
     badge.style.setProperty('--pon', onCol(me));
     $('candidate-name').textContent = g.candidate;
     $('party-goal').textContent = '„' + g.program.slogan + '“ · Ziel: ' + p.goalText;
-    $('stat-week').textContent = g.week + ' / ' + g.maxWeeks;
+    const ws = E.weekStart(g, g.week);
+    $('stat-week').textContent = E.fmtRange(ws, E.addDays(ws, 6));
+    $('stat-week-label').textContent = 'KW ' + E.isoWeek(ws) + ' · noch ' + (g.maxWeeks - g.week + 1) + ' Wo.';
     $('stat-money').textContent = money(g.money);
     $('stat-ap').textContent = '●'.repeat(g.ap) + '○'.repeat(g.apMax - g.ap);
     $('stat-ap').setAttribute('aria-label', g.ap + ' von ' + g.apMax + ' Terminen der Spitzenkandidatur übrig');
     $('stat-team').textContent = '●'.repeat(g.team || 0) + '○'.repeat(Math.max(0, (g.teamMax || 0) - (g.team || 0)));
     $('stat-team').setAttribute('aria-label', (g.team || 0) + ' von ' + (g.teamMax || 0) + ' Team-Einsätzen übrig');
-    const diff = shares[me] - g.startShares[me];
-    $('stat-poll').innerHTML = pct(shares[me]) + '<span class="poll-err"> ± ' + E.POLL_RANGE + '</span> <span class="small ' + (diff >= 0 ? 'pos' : 'neg') + '">' + signed(diff) + '</span>';
+    const avg = E.campaignAverage(g);
+    const diff = avg[me] - (merged(g.startShares)[me] || 0);
+    $('stat-poll').innerHTML = pct(avg[me]) + '<span class="poll-err"> ± ' + num1(E.pollMargin(avg[me])).replace(',0', '') + '</span> <span class="small ' + (diff >= 0 ? 'pos' : 'neg') + '">' + signed(diff) + '</span>';
     $('week-bar').style.width = ((g.week - 1) / g.maxWeeks * 100) + '%';
     const cal = $('week-cal');
     if (cal) {
-      cal.innerHTML = '<span class="wc-label">📅 Kalender</span>' + E.MILESTONES.map(m => '<span class="wc-item' + (m.week < g.week ? ' past' : m.week === g.week ? ' now' : '') + '">' +
-        '<b>W' + m.week + '</b> ' + m.icon + ' ' + esc(m.short) + '</span>').join('') + '<span class="wc-item' + (g.week >= g.maxWeeks ? ' now' : '') + '"><b>🗳️</b> Wahltag</span>';
+      cal.innerHTML = '<span class="wc-label">Termine</span>' + E.MILESTONES.map(m => '<span class="wc-item' + (m.week < g.week ? ' past' : m.week === g.week ? ' now' : '') + '">' +
+        '<b>' + E.fmtDate(E.weekStart(g, m.week), 'num') + '</b> ' + esc(m.short) + '</span>').join('') + '<span class="wc-item' + (g.week >= g.maxWeeks ? ' now' : '') + '"><b>' + E.fmtDate(E.electionDate(g), 'num') + '</b> Wahltag</span>';
     }
-    $('btn-end-week').textContent = g.week >= g.maxWeeks ? 'Zur Wahl! 🗳️' : 'Woche beenden';
+    $('btn-end-week').textContent = g.week >= g.maxWeeks ? 'Zur Wahl am ' + E.fmtDate(E.electionDate(g), 'dm') : 'Weiter zum ' + E.fmtDate(E.weekStart(g, g.week + 1), 'dm');
     $('btn-end-week').dataset.armed = '';
     $('btn-end-week').disabled = !!(g.pendingEvent || g.duel || (g.week === E.DUEL_WEEK && !g.duelDone));
 
@@ -283,7 +289,9 @@
     renderMoneyHint();
     renderActions();
     renderRivals();
-    renderPollBars(shares);
+    renderPollBars(avg);
+    const it = $('inst-table');
+    if (it) it.innerHTML = instTableHtml(E.campaignPolls(g), me);
     renderMobilization();
     renderFlows();
     renderFirewall();
@@ -685,7 +693,7 @@
     const cost = E.actionCost(a.id, a.scope === 'group' ? selGroup : selState, g);
     const spendBlocked = a.id === 'spenden' && !E.spendenAvailable(g);
     const postalBlocked = a.id === 'briefwahl' && g.week < E.POSTAL_START - 1;
-    if (a.id === 'briefwahl') extra = postalBlocked ? 'Unterlagen werden ab Woche ' + (E.POSTAL_START - 1) + ' verschickt' : 'sichert Stimmen vor späten Skandalen · ✉️ ' + Math.round(E.postalCast(g) * 100) + ' % schon abgegeben';
+    if (a.id === 'briefwahl') extra = postalBlocked ? 'Unterlagen werden ab dem ' + E.fmtDate(E.weekStart(g, E.POSTAL_START - 1), 'dm') + ' verschickt' : 'sichert Stimmen vor späten Skandalen · ✉️ ' + Math.round(E.postalCast(g) * 100) + ' % schon abgegeben';
     const disabled = !E.canAct(g, a.id) || (a.scope === 'topic' && !selTopic) || (a.scope === 'rival' && !selRival) || g.money + 1e-9 < cost || spendBlocked || postalBlocked;
     if (a.id === 'spenden') extra = spendBlocked ? 'Diese Woche schon veranstaltet – wieder ab nächster Woche' : 'bringt ca. ' + money(E.spendenYield(g)) + ' · jedes Mal weniger';
     const f = freshness(a);
@@ -1142,16 +1150,17 @@
     shares = merged(shares);
     if (base) base = merged(base);
     const POLL_ORDER = pollOrder();
-    const R = E.POLL_RANGE;
-    const top = Math.max(35, Math.ceil((Math.max.apply(null, POLL_ORDER.map(p => shares[p])) + R + 4) / 5) * 5);
+    const M = p => E.pollMargin(shares[p] || 0);
+    const top = Math.max(35, Math.ceil((Math.max.apply(null, POLL_ORDER.map(p => shares[p] + M(p))) + 4) / 5) * 5);
     let cols = '';
     let labels = '';
     POLL_ORDER.forEach(p => {
       const d = base && base[p] !== undefined ? shares[p] - base[p] : null;
+      const R = M(p);
       const lo = Math.max(0, shares[p] - R);
-      const range = '<i class="pc-range" style="bottom:' + (lo / top * 100) + '%;height:' + ((shares[p] + R - lo) / top * 100) + '%" title="Fehlerspanne ± ' + R + '"></i>';
+      const range = '<i class="pc-range" style="bottom:' + (lo / top * 100) + '%;height:' + ((shares[p] + R - lo) / top * 100) + '%" title="Unsicherheit ± ' + num1(R) + ' Punkte"></i>';
       cols += '<div class="pc-col" data-p="' + p + '"><span class="pc-val" style="bottom:' + ((shares[p] + R) / top * 100) + '%">' + pct(shares[p]) +
-        '<small>± ' + R + '</small></span>' + range +
+        '<small>± ' + num1(R).replace(',0', '') + '</small></span>' + range +
         '<div class="pc-bar" style="height:' + (shares[p] / top * 100) + '%;background:' + col(p) + '"></div></div>';
       labels += '<div class="pc-label' + (p === (g ? g.party : chosenParty) ? ' me' : '') + '" data-p="' + p + '"><span class="pc-name">' + (p === D.OTHER.id ? 'Andere' : short(p)) + '</span>' +
         '<span class="pc-diff">' + (d === null ? '' : signed(d)) + '</span></div>';
@@ -1160,6 +1169,21 @@
       '<div class="pc-labels">' + labels + '</div>';
   }
 
+
+  // Die jüngsten Umfragen der Institute und das Mittel daraus.
+  function instTableHtml(list, me) {
+    const avg = E.pollAverage(list);
+    const ids = pollOrder().filter(p => p in avg);
+    const v = x => (x % 1 ? num1(x) : String(x)) + ' %';
+    const head = '<tr><th>Institut</th><th>Veröffentlicht</th>' + ids.map(p => '<th class="num' + (p === me ? ' me' : '') + '">' + esc(p === D.OTHER.id ? 'Sonst.' : short(p)) + '</th>').join('') + '<th class="num">Befragte</th><th>Zeitraum</th></tr>';
+    const rows = list.slice().sort((a, b) => b.date - a.date).map(x => '<tr><td><b>' + esc(x.inst.name) + '</b><br><span class="muted">' + esc(x.inst.method) + '</span></td><td>' + E.fmtDate(x.date, 'num') + x.date.getUTCFullYear() + '</td>' +
+      ids.map(p => '<td class="num' + (p === me ? ' me' : '') + '">' + v(x.shares[p] || 0) + '</td>').join('') +
+      '<td class="num">' + x.n.toLocaleString('de-DE') + '</td><td>' + E.fmtDate(x.from, 'num') + '–' + E.fmtDate(x.to, 'num') + '</td></tr>').join('');
+    const mean = '<tr class="inst-avg"><td>Umfragemittel</td><td></td>' + ids.map(p => '<td class="num' + (p === me ? ' me' : '') + '">' + num1(avg[p]) + ' %</td>').join('') + '<td></td><td></td></tr>';
+    return '<div class="inst-wrap"><table class="inst-table"><thead>' + head + '</thead><tbody>' + rows + mean + '</tbody></table></div>' +
+      '<p class="muted small">Fünf Institute mit eigener Methode, Stichprobe und Erhebungszeitraum (fiktiv). Jedes weicht auf seine Weise systematisch ab; ' +
+      'die Abweichungen sind geschätzt nach der typischen Streuung deutscher Umfragen und gleichen sich im Mittel aus. Wie die Menschen wirklich wählen, zeigt erst der Wahlabend.</p>';
+  }
 
   // Wahlbeteiligung und Mobilisierung aller Parteien.
   function renderMobilization() {
@@ -1173,7 +1197,7 @@
     box.innerHTML = '<div class="mob-turnout"><span class="mob-label">Erwartete Wahlbeteiligung</span><span class="mob-big">' + pct(t) + '</span>' +
       '<span class="muted small">Bundestagswahl ' + prevYear() + ': ' + pct(prevTurnout() || base) + '</span>' +
       '<span class="mob-postal">✉️ Briefwahl: ' + (E.postalCast(g) > 0 ? Math.round(E.postalCast(g) * 100) + ' % der Stimmen schon abgegeben'
-        : 'beginnt in Woche ' + E.POSTAL_START) + '</span></div>' +
+        : 'beginnt am ' + E.fmtDate(E.weekStart(g, E.POSTAL_START), 'dm')) + '</span></div>' +
       '<div class="mob-bars"><span class="mob-label">Mobilisierung der Anhänger (bundesweit)</span>' + vals.map(x => {
         const w = Math.min(50, Math.abs(x.v) / max * 50);
         return '<div class="bg-row' + (x.p === g.party ? ' me' : '') + '"><span class="bg-name">' + short(x.p) + '</span>' +
@@ -1272,13 +1296,13 @@
     const l = E.LB.byId(ps.id);
     const tp = E.topicById(ps.topic);
     const own = g.program ? g.program.positions[ps.topic] : -1;
-    openModal('Woche ' + g.week + ' · 📋 Wahlprüfstein', l.icon + ' ' + l.short + ' fragt nach', '<p>' + esc(l.name) + ' verschickt seinen Wahlprüfstein an alle Parteien: „Wie steht Ihre Partei beim Thema ' + esc(tp.name) +
+    openModal(wkDate() + ' · Wahlprüfstein', l.icon + ' ' + l.short + ' fragt nach', '<p>' + esc(l.name) + ' verschickt seinen Wahlprüfstein an alle Parteien: „Wie steht Ihre Partei beim Thema ' + esc(tp.name) +
       '?“ Die Antworten werden an die Mitglieder verschickt.</p><p class="small muted">⭐ = euer Wahlprogramm. Wer anders antwortet, widerspricht sich.</p>',
       D.PROGRAM[ps.topic].map((o, i) => ({ label: o.label + (i === own ? ' ⭐' : ''), hint: o.desc, onClick: () => {
         const res = E.lobbyAnswer(g, ps.id, ps.topic, i);
         save();
         renderGame();
-        openModal('Woche ' + g.week + ' · 📋 Wahlprüfstein', l.icon + ' ' + l.short, '<p>' + esc(res.text) + '</p><p class="small">Beziehung zu ' + esc(l.short) + ': ' + Math.round(res.rel) + '/100</p>',
+        openModal(wkDate() + ' · Wahlprüfstein', l.icon + ' ' + l.short, '<p>' + esc(res.text) + '</p><p class="small">Beziehung zu ' + esc(l.short) + ': ' + Math.round(res.rel) + '/100</p>',
           [{ label: 'Weiter', primary: true, onClick: () => { closeModal(); next(); } }]);
       } })));
   }
@@ -1376,12 +1400,12 @@
   }
 
   function renderChart() {
-    drawChart('poll-chart', g.history.map(h => h.shares));
+    drawChart('poll-chart', g.history.map((h, i) => E.campaignAverage(g, i + 1)), g.history.map((h, i) => i === 0 ? 'Start' : wkShort(i)));
     if (gameTab === 'group' && selGroupView) renderGroupPoll();
   }
 
   // Umfrageverlauf als Liniendiagramm in einen Container zeichnen.
-  function drawChart(boxId, series) {
+  function drawChart(boxId, series, labels) {
     // Breite an den Platz anpassen, damit Beschriftungen bei Vollbild nicht mitwachsen.
     const W = Math.max(300, Math.round($(boxId).clientWidth || 320));
     const H = Math.round(Math.min(260, Math.max(170, W * 0.42)));
@@ -1402,7 +1426,7 @@
     for (let v = 0; v <= yMax; v += 10) svg += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '"></line>';
     svg += '</g><g class="axis">';
     for (let v = 0; v <= yMax; v += 10) svg += '<text x="' + (L - 5) + '" y="' + (y(v) + 3) + '" text-anchor="end">' + v + '</text>';
-    for (let i = 0; i <= g.maxWeeks; i++) svg += '<text x="' + x(i) + '" y="' + (H - 5) + '" text-anchor="middle">' + (i === 0 ? 'Start' : i) + '</text>';
+    for (let i = 0; i <= g.maxWeeks; i++) svg += '<text x="' + x(i) + '" y="' + (H - 5) + '" text-anchor="middle">' + (i === 0 ? 'Start' : labels ? wkShort(i) : i) + '</text>';
     svg += '</g>';
     ids.slice().sort((a, b) => (a === g.party) - (b === g.party)).forEach(p => {
       const pts = hist.map((h, i) => x(i) + ',' + y(h.shares[p])).join(' ');
@@ -1428,7 +1452,7 @@
       cross.setAttribute('x2', x(i));
       cross.setAttribute('visibility', 'visible');
       const sh = hist[i].shares;
-      tip.innerHTML = '<strong>' + (i === 0 ? 'Start' : 'Woche ' + i) + '</strong><br>' +
+      tip.innerHTML = '<strong>' + (labels ? (i === 0 ? 'Start' : 'bis ' + labels[i]) : i === 0 ? 'Start' : 'Woche ' + i) + '</strong><br>' +
         ids.slice().sort((a, b) => sh[b] - sh[a]).map(p => '<span class="sw" style="background:' + col(p) + '"></span>' + short(p) + ' ' + pct(sh[p])).join('<br>');
       tip.hidden = false;
       const left = x(i) / W * rect.width;
@@ -1455,7 +1479,7 @@
 
   function renderNews() {
     $('news').innerHTML = g.log.map(l =>
-      '<li><span class="wk">Woche ' + l.week + '</span><span class="' + (l.type === 'event' || l.type === 'duel' ? 'event' : l.type === 'ai' ? 'ai' : '') + '">' + esc(l.text) + '</span></li>'
+      '<li><span class="wk">' + (l.week ? wkShort(l.week) : 'Start') + '</span><span class="' + (l.type === 'event' || l.type === 'duel' ? 'event' : l.type === 'ai' ? 'ai' : '') + '">' + esc(l.text) + '</span></li>'
     ).join('');
   }
 
@@ -1494,7 +1518,7 @@
 
   function showEvent() {
     const ev = E.eventById(g.pendingEvent);
-    openModal('Woche ' + g.week + (ev.milestone ? ' · 📅 Wahlkampfkalender' : ' · Eilmeldung'), ev.title, '<p>' + esc(E.eventText(g, ev)) + '</p><p class="muted small">Wie reagiert ihr?</p>',
+    openModal(wkDate() + (ev.milestone ? ' · Wahlkampfkalender' : ' · Eilmeldung'), ev.title, '<p>' + esc(E.eventText(g, ev)) + '</p><p class="muted small">Wie reagiert ihr?</p>',
       ev.choices.map((c, i) => ({
         label: c.label,
         hint: c.hint + (c.later ? ' · ⏳ kann Spätfolgen haben' : ''),
@@ -1502,7 +1526,7 @@
           const res = E.resolveEvent(g, i);
           save();
           renderGame();
-          openModal('Woche ' + g.week + ' · ' + ev.title, 'Eure Reaktion: ' + c.label, '<p>' + esc(res.text) + '</p>',
+          openModal(wkDate() + ' · ' + ev.title, 'Eure Reaktion: ' + c.label, '<p>' + esc(res.text) + '</p>',
             [{ label: 'Weiter', primary: true, onClick: () => { renderGame(); checkPending(); } }]);
         }
       })));
@@ -1515,7 +1539,7 @@
     save();
     const d = g.duel;
     const who = d.opponents.map(p => '<b>' + esc(E.rivalName(g, p)) + '</b> (' + esc(short(p)) + ', ' + esc(E.rivalStyle(g.rivals && g.rivals[p]).name) + ')').join(', ');
-    openModal('Woche ' + g.week + ' · Live im Fernsehen', DUEL_NAMES[d.format],
+    openModal(wkDate(undefined, 4) + ' · Live im Fernsehen', DUEL_NAMES[d.format],
       '<p>' + (d.format === 'duell' ? 'Nur die beiden Großen treten an: ' : d.format === 'triell' ? 'Drei Kanzlerkandidaturen im Studio: ' : 'Alle Spitzenkandidierenden im Studio: ') + esc(g.candidate) + ' gegen ' + who + '. Millionen schauen zu.</p>' +
       '<p>Es geht um die wichtigsten Themen: <strong>' + topics.map(t => esc(t.name)).join(', ') + '</strong>. Bei jeder Frage greift euch jemand an – reagiert sachlich, persönlich, mit einem eigenen Angriff oder kontert direkt. Am Ende habt ihr ein Schlusswort.</p>' +
       '<p class="muted small">Gegen Angreifer hilft ein guter Konter oder Gelassenheit, gegen Populisten der Faktencheck, gegen Staatsmännische wirken Attacken schnell kleinlich.</p>',
@@ -1637,11 +1661,20 @@
   function pollCalcHtml(box, shares) {
     if (!box) return;
     const seats = pollSeats(shares);
-    const draw = anim => { pollCalcSel = calcInto(box, seats, pollCalcSel, anim, () => draw); };
+    // 300 Szenarien innerhalb der Unsicherheit der Umfragen (ca. 95 % in ± pollMargin).
+    const R = E.localRng(Math.round(Object.keys(shares).reduce((x, p) => x + shares[p] * 1000, 7)) % 2147483647);
+    const gauss = () => (R() + R() + R() + R() - 2) * 1.73;
+    const draws = [];
+    for (let i = 0; i < 300; i++) {
+      const sh = {};
+      Object.keys(shares).forEach(p => { sh[p] = Math.max(0, shares[p] + gauss() * E.pollMargin(shares[p]) / 1.96); });
+      draws.push(pollSeats(sh));
+    }
+    const draw = anim => { pollCalcSel = calcInto(box, seats, pollCalcSel, anim, () => draw, draws); };
     draw(false);
   }
   // Zeichnet Halbkreis, Status und Parteiknöpfe in box; gibt die bereinigte Auswahl zurück.
-  function calcInto(box, seats, sel, animateLast, again) {
+  function calcInto(box, seats, sel, animateLast, again, draws) {
     const total = D.SEATS;
     const maj = E.MAJORITY;
     sel = sel.filter(p => seats[p] > 0);
@@ -1669,6 +1702,11 @@
       const ok = E.coalitionViable(calcSel, g);
       status = (ok ? '✅ Mehrheit! ' : '⚠️ Rechnerisch eine Mehrheit – politisch ausgeschlossen. ') + (sum - maj + 1) + ' Sitz' + (sum - maj + 1 === 1 ? '' : 'e') + ' über der Mehrheit.';
     } else status = 'Es fehlen noch ' + (maj - sum) + ' Sitz' + (maj - sum === 1 ? '' : 'e') + ' zur Mehrheit.';
+    if (draws && calcSel.length) {
+      const sums = draws.map(d => calcSel.reduce((x, p) => x + (d[p] || 0), 0)).sort((a, b) => a - b);
+      const share = sums.filter(x => x >= maj).length / sums.length;
+      status += ' Spanne: ' + sums[Math.floor(sums.length * 0.1)] + '–' + sums[Math.floor(sums.length * 0.9)] + ' Sitze · Mehrheit in ' + Math.round(share * 100) + ' % der Szenarien.';
+    }
     const ids = SPECTRUM.filter(p => r.seats[p] > 0);
     box.innerHTML = svg + '<p class="calc-status ' + (sum >= maj ? (E.coalitionViable(calcSel, g) ? 'ok' : 'warn') : '') + '">' + status + '</p>' +
       '<div class="calc-chips">' + ids.map(p => {
@@ -1709,21 +1747,21 @@
     let svg = '<svg class="retro-chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Euer Umfrageverlauf bis zur Wahl">';
     for (let v = Math.ceil(lo); v <= hi; v += Math.max(1, Math.round((hi - lo) / 4))) svg += '<line class="rg" x1="30" x2="' + (W - 20) + '" y1="' + y(v) + '" y2="' + y(v) + '"></line><text class="rt" x="24" y="' + (y(v) + 4) + '" text-anchor="end">' + v + '</text>';
     svg += '<polyline points="' + hist.map((v, i) => x(i) + ',' + y(v)).join(' ') + '" style="stroke:' + col(me) + '"></polyline>';
-    hist.forEach((v, i) => { svg += '<circle cx="' + x(i) + '" cy="' + y(v) + '" r="3" style="fill:' + col(me) + '"></circle><text class="rt" x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="middle">' + (i === 0 ? 'Start' : 'W' + i) + '</text>'; });
+    hist.forEach((v, i) => { svg += '<circle cx="' + x(i) + '" cy="' + y(v) + '" r="3" style="fill:' + col(me) + '"></circle><text class="rt" x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="middle">' + (i === 0 ? 'Start' : wkShort(i)) + '</text>'; });
     svg += '<line class="rfin" x1="' + x(hist.length - 1) + '" y1="' + y(hist[hist.length - 1]) + '" x2="' + x(g.maxWeeks + 1) + '" y2="' + y(final) + '"></line>' +
       '<circle cx="' + x(g.maxWeeks + 1) + '" cy="' + y(final) + '" r="6" style="fill:' + col(me) + '"></circle><text class="rt strong" x="' + x(g.maxWeeks + 1) + '" y="' + (H - 6) + '" text-anchor="middle">Wahl</text>' +
       '<text class="rt strong" x="' + (x(g.maxWeeks + 1) - 10) + '" y="' + (y(final) - 10) + '" text-anchor="end">' + num1(final) + ' %</text></svg>';
     const items = g.journal.filter(j => Math.abs(j.d) >= 0.05);
     const best = items.slice().sort((a, b) => b.d - a.d).filter(j => j.d > 0).slice(0, 4);
     const worst = items.slice().sort((a, b) => a.d - b.d).filter(j => j.d < 0).slice(0, 3);
-    const li = j => '<li><span class="retro-w">W' + j.w + '</span> ' + esc(j.x) + ' <b class="' + (j.d >= 0 ? 'pos' : 'neg') + '">' + signed(j.d) + '</b></li>';
+    const li = j => '<li><span class="retro-w">' + wkShort(j.w) + '</span> ' + esc(j.x) + ' <b class="' + (j.d >= 0 ? 'pos' : 'neg') + '">' + signed(j.d) + '</b></li>';
     const weeks = [];
     for (let w = 1; w <= g.maxWeeks; w++) {
       const js = g.journal.filter(j => j.w === w);
       const ev = js.find(j => j.k === 'e' || j.k === 'd');
       const prev = g.history[w - 1] ? g.history[w - 1].shares[me] : null;
       const now = g.history[w] ? g.history[w].shares[me] : final;
-      weeks.push('<tr><td>Woche ' + w + '</td><td>' + js.filter(j => j.k === 'a').length + ' Aktionen</td><td>' + (ev ? esc(ev.x) : '–') + '</td><td class="' + (prev !== null && now >= prev ? 'pos' : 'neg') + '">' +
+      weeks.push('<tr><td>' + E.weekLabel(g, w) + '</td><td>' + js.filter(j => j.k === 'a').length + ' Aktionen</td><td>' + (ev ? esc(ev.x) : '–') + '</td><td class="' + (prev !== null && now >= prev ? 'pos' : 'neg') + '">' +
         (prev !== null ? signed(now - prev) : '') + '</td></tr>');
     }
     const c = g.cand;
@@ -2812,11 +2850,11 @@
     $('ko-steps').innerHTML = [
       ['🗺️', 'Vor Ort kämpfen', 'Auf der Seite „Deutschland“ sucht ihr euch Bundesländer aus und geht mit Kundgebungen, Plakaten und Haustürwahlkampf auf Stimmenfang.'],
       ['📣', 'Themen setzen', 'Unter „Aktionen“ wählt ihr ein Thema und macht es mit TV-Spots, Social Media, Pressekonferenzen und Talkshows groß – am besten eure Kernthemen.'],
-      ['📅', 'Woche für Woche', 'Jede Woche hat eure Spitzenkandidatur ' + game.apMax + ' Termine (Kundgebung, Bürgerdialog, Betriebsbesuch, Talkshow, Presse, Interview), euer Team ' + game.teamMax + ' Einsätze (ab Woche ' + E.TEAM_LATE_WEEK + ': ' + (game.teamMax + E.TEAM_LATE - E.TEAM_PER_WEEK) + ') für Haustür, Infostand, Plakate, Social Media und mehr. Danach gibt es eine neue Umfrage – und manchmal eine Eilmeldung, auf die ihr reagieren müsst.'],
-      ['📺', 'TV-Duell in Woche ' + E.DUEL_WEEK, 'Kurz vor der Wahl kommt die Elefantenrunde. Wer bei den wichtigsten Themen sattelfest ist, punktet.'],
+      ['📅', 'Woche für Woche', 'Jede Woche hat eure Spitzenkandidatur ' + game.apMax + ' Termine (Kundgebung, Bürgerdialog, Betriebsbesuch, Talkshow, Presse, Interview), euer Team ' + game.teamMax + ' Einsätze (ab dem ' + E.fmtDate(E.weekStart(game, E.TEAM_LATE_WEEK), 'dm') + ': ' + (game.teamMax + E.TEAM_LATE - E.TEAM_PER_WEEK) + ') für Haustür, Infostand, Plakate, Social Media und mehr. Danach melden sich die Umfrageinstitute – und manchmal kommt eine Eilmeldung, auf die ihr reagieren müsst.'],
+      ['📺', 'TV-Duell am ' + E.fmtDate(E.weekDay(game, E.DUEL_WEEK, 4), 'dm'), 'Kurz vor der Wahl kommt die Elefantenrunde. Wer bei den wichtigsten Themen sattelfest ist, punktet.'],
       ['🥊', 'Die Konkurrenz schläft nicht', 'Die anderen Parteien setzen ihre Themen, kämpfen um knappe Länder – und schlagen zurück, wenn ihr zu stark werdet oder ihnen eure Kernthemen streitig machen wollt.'],
       ['👥', 'Wählergruppen und Abnutzung', 'Jung, mittel und alt, niedrige bis hohe Bildung, Stadt und Land, Männer und Frauen wollen unterschiedlich angesprochen werden. Wer immer dasselbe macht, verliert Wirkung – Geld ist knapp, TV-Zeit wird teurer.'],
-      ['✉️', 'Briefwahl', 'Ab Woche ' + E.POSTAL_START + ' wählt ein Teil der Menschen per Brief – mit der Stimmung dieser Woche. Mit Briefwahl-Kampagnen sichert ihr eure Stimmen früh.'],
+      ['✉️', 'Briefwahl', 'Ab dem ' + E.fmtDate(E.weekStart(game, E.POSTAL_START), 'dm') + ' wählt ein Teil der Menschen per Brief – mit der Stimmung dieser Tage. Mit Briefwahl-Kampagnen sichert ihr eure Stimmen früh.'],
       ['🗳️', 'Mobilisieren', 'Nur wer wählen geht, zählt: Haustürwahlkampf, Kundgebungen und Social Media bringen Anhänger und Nichtwähler an die Urne – am meisten kurz vor der Wahl.'],
       ['📊', 'Umfragen sind nur Umfragen', 'Jede Umfrage hat eine Fehlerspanne von ± ' + E.POLL_RANGE + ' Punkten. Wo ihr wirklich steht, zeigt erst der Wahlabend. Und manche Entscheidung holt euch Wochen später wieder ein.']
     ].map(st => '<li><span class="ko-step-icon" aria-hidden="true">' + st[0] + '</span><div><b>' + st[1] + '</b><p>' + st[2] + '</p></div></li>').join('');
@@ -3020,8 +3058,8 @@
   // Schritt für Schritt durch den ersten Wahlkampftag: Bereich hervorheben, kurz erklären.
   const TOUR_KEY = 'btw-tour-seen';
   const tourSteps = () => [
-    { title: 'Willkommen im Wahlkampf!', text: '<p>Ihr habt <b>' + g.maxWeeks + ' Wochen</b> bis zur Bundestagswahl. Euer Ziel: <b>' + esc(E.party(g.party).goalText) + '</b>.</p><p>Diese Einführung zeigt euch alle Bereiche. Ihr könnt sie jederzeit beenden und später über <b>❓ Einführung</b> wieder starten.</p>' },
-    { sel: '#screen-game .topbar .stats', title: 'Eure Lage auf einen Blick', text: '<p><b>Woche</b> und <b>Wahlkampfkasse</b>. <b>🎤 Termine</b>: ' + g.apMax + ' Auftritte eurer Spitzenkandidatur pro Woche (Kundgebung, Bürgerdialog, Talkshow …). <b>👥 Team</b>: Einsätze eurer Mitglieder (Haustür, Infostand, Plakate, Social Media …) – große Parteien haben mehr Leute.</p><p><b>Umfrage</b>: euer Wert in der Sonntagsfrage, mit ± ' + E.POLL_RANGE + ' Punkten Fehlerspanne.</p>' },
+    { title: 'Willkommen im Wahlkampf!', text: '<p>Ihr habt <b>' + g.maxWeeks + ' Wochen</b> bis zur Bundestagswahl am <b>' + E.fmtDate(E.electionDate(g), 'day') + '</b>. Euer Ziel: <b>' + esc(E.party(g.party).goalText) + '</b>.</p><p>Diese Einführung zeigt euch alle Bereiche. Ihr könnt sie jederzeit beenden und später über <b>❓ Einführung</b> wieder starten.</p>' },
+    { sel: '#screen-game .topbar .stats', title: 'Eure Lage auf einen Blick', text: '<p><b>Kalenderwoche</b> und <b>Wahlkampfkasse</b>. <b>🎤 Termine</b>: ' + g.apMax + ' Auftritte eurer Spitzenkandidatur pro Woche (Kundgebung, Bürgerdialog, Talkshow …). <b>👥 Team</b>: Einsätze eurer Mitglieder (Haustür, Infostand, Plakate, Social Media …) – große Parteien haben mehr Leute.</p><p><b>Umfragemittel</b>: der Durchschnitt der jüngsten Umfragen von fünf Instituten, mit der Unsicherheit in Punkten. Die Institute weichen voneinander ab – genau hinsehen lohnt sich.</p>' },
     { sel: '#game-nav', title: 'Fünf Bereiche', text: '<p>Hier wechselt ihr zwischen <b>Deutschland</b> (Wahlkampf vor Ort), <b>Aktionen</b> (bundesweit), <b>Umfragen</b>, eurem <b>Wahlprogramm</b> und den <b>Nachrichten</b>.</p>' },
     { tab: 'map', sel: '#map', title: 'Die Deutschlandkarte', text: '<p>Die Farbe zeigt, wer im Land vorn liegt, die Zahl euren Umfragewert dort. Tippt ein Land an, um dort Wahlkampf zu machen.</p>' },
     { tab: 'map', sel: '#map-mode', title: 'Wahlkreise und Erststimmen', text: '<p>Schaltet um auf die <b>299 Wahlkreise</b>: Wer liegt bei den Erststimmen vorn? Mit <b>drei Direktmandaten</b> zieht eine Partei auch unter 5 % in den Bundestag ein (Grundmandatsklausel).</p><p>Vor Ort könnt ihr einen Wahlkreis als <b>Schwerpunkt</b> wählen oder eine <b>Erststimmen-Kampagne</b> starten.</p>' },
@@ -3029,7 +3067,7 @@
     { tab: 'map', sel: '#screen-game .local-block', title: 'Wahlkampf vor Ort', text: '<p>In drei Schritten: erst ein <b>Thema</b> (🎯 = Kernthema, das die Menschen im Land bewegt), dann die <b>Aktion</b>, dann die <b>Zielgruppe</b>.</p><p>Vor jeder Aktion stellt euch das Team Fragen zur Vorbereitung – gute Antworten machen die Aktion wirksamer. Bei Bürgerdialog, Infostand & Co. stellen euch Bürger Fachfragen: Richtige Antworten stärken eure Kompetenz im Thema.</p><p>Wer dieselbe Gruppe immer wieder mit demselben Thema umwirbt, erreicht sie schlechter – Abwechslung lohnt sich.</p>' },
     { tab: 'map', sel: '#sg-block', title: 'Wählergruppen im Land', text: '<p>Wer in diesem Land wählt – nach Alter, Bildung, Wohnort, Geschlecht, Konfession und Beruf – und wie ihr bei jeder Gruppe dasteht. Passt der Kanal zu den Gruppen im Land, wirkt eure Aktion besser.</p>' },
     { tab: 'actions', sel: '#topic-list', title: 'Themen bundesweit setzen', text: '<p>Wählt ein Thema und macht es mit TV-Spots, Social Media, Pressekonferenzen oder Talkshows groß. Zu euren <b>Kernthemen</b> wirkt das 25 % stärker.</p><p>Wird ein Thema wichtiger, profitieren die Parteien, die dort als kompetent gelten.</p>' },
-    { tab: 'actions', sel: '#national-actions', title: 'Geld und Briefwahl', text: '<p>Einmal pro Woche ein <b>Spendendinner</b> für die Kasse. Ab Woche ' + (E.POSTAL_START - 1) + ' eine <b>Briefwahl-Kampagne</b>: Ab Woche ' + E.POSTAL_START + ' wählen viele per Brief – diese Stimmen sind sicher.</p>' },
+    { tab: 'actions', sel: '#national-actions', title: 'Geld und Briefwahl', text: '<p>Einmal pro Woche ein <b>Spendendinner</b> für die Kasse. Ab dem ' + E.fmtDate(E.weekStart(g, E.POSTAL_START - 1), 'dm') + ' eine <b>Briefwahl-Kampagne</b>: Ab dem ' + E.fmtDate(E.weekStart(g, E.POSTAL_START), 'dm') + ' wählen viele per Brief – diese Stimmen sind sicher.</p>' },
     { tab: 'actions', sel: '#rival-party', up: '.act-block', title: 'Zielgruppen-Werbung und Angriffe', text: '<p>Darüber: Online-Anzeigen für genau eine Wählergruppe. Hier: eine Vergleichskampagne gegen eine andere Partei – riskant, und die Angegriffenen schlagen eher zurück.</p>' },
     { tab: 'polls', sel: '#poll-bars', title: 'Die Sonntagsfrage', text: '<p>Einmal pro Woche eine neue Umfrage. Die helle Fläche zeigt die Fehlerspanne: Wo ihr wirklich steht, zeigt erst der Wahlabend.</p>' },
     { tab: 'polls', sel: '#cand-panel', title: 'Eure Spitzenkandidatur', text: '<p><b>Bekanntheit</b> wächst mit jedem Auftritt, <b>Beliebtheit</b> mit gelungenen Terminen, guter Vorbereitung und einem starken TV-Duell. Patzer, Skandale und Negativkampagnen kosten Ansehen.</p><p>Eine beliebte Kandidatur zieht Stimmen – und entscheidet die <b>Kanzlerfrage</b>.</p>' },
@@ -3039,7 +3077,7 @@
     { tab: 'polls', sel: '#groups', title: 'Wählergruppen bundesweit', text: '<p>Euer Wert in jeder Gruppe und ihre Lieblingsthemen. Tippt eine Gruppe an, um ihre eigene Umfrage samt Verlauf zu sehen.</p>' },
     { tab: 'program', sel: '#program-view', title: 'Euer Wahlprogramm', text: '<p>Euer Flyer vom Programmparteitag: Kernthemen und Positionen. Die Kompetenz aus der Fachkonferenz begleitet euch durch den Wahlkampf.</p>' },
     { tab: 'news', sel: '#screen-game .news-card', title: 'Nachrichten', text: '<p>Was ihr getan habt, was die Konkurrenz plant und welche Eilmeldungen kamen. Die anderen Parteien reagieren auf euch – mit Gegenkampagnen und indem sie eure Themen besetzen.</p>' },
-    { tab: 'map', sel: '#btn-end-week', title: 'Woche beenden', text: '<p>Habt ihr eure Termine und Einsätze genutzt, beendet ihr die Woche. Dann gibt es eine neue Umfrage – und manchmal eine <b>Eilmeldung</b>, auf die ihr reagieren müsst.</p><p>In Woche ' + E.DUEL_WEEK + ' wartet die <b>Elefantenrunde</b> im Fernsehen.</p>' },
+    { tab: 'map', sel: '#btn-end-week', title: 'Zur nächsten Woche', text: '<p>Habt ihr eure Termine und Einsätze genutzt, geht es zur nächsten Woche. Dann melden sich die Umfrageinstitute – und manchmal kommt eine <b>Eilmeldung</b>, auf die ihr reagieren müsst.</p><p>Am ' + E.fmtDate(E.weekDay(g, E.DUEL_WEEK, 4), 'dm') + ' wartet die <b>Elefantenrunde</b> im Fernsehen.</p>' },
     { title: 'Viel Erfolg!', text: '<p>Das war’s. Fangt am besten mit einem Land an, in dem es knapp ist, oder setzt eines eurer Kernthemen. Die Einführung findet ihr jederzeit unter <b>❓ Einführung</b>.</p>' }
   ];
   let tourIdx = -1;
@@ -3139,16 +3177,16 @@
   $('btn-end-week').addEventListener('click', () => {
     const left = g.ap + (g.team || 0);
     if (left > 0 && !confirmOnButton($('btn-end-week'), 'Noch ' + left + ' Aktion' + (left > 1 ? 'en' : '') + ' übrig – trotzdem beenden?')) return;
-    const before = E.pollShares(g)[g.party];
+    const before = E.campaignAverage(g)[g.party];
     const res = E.endWeek(g);
     if (!res.ok) { if (res.text) toast(res.text); return; }
     save();
     $('feedback').textContent = '';
     $('local-feedback').textContent = '';
     if (res.election) { closeModal(); showElection(); return; }
-    const after = E.pollShares(g)[g.party];
+    const after = E.campaignAverage(g)[g.party];
     const rivals = g.log.filter(l => l.type === 'ai' && l.week === g.week - 1 && /euch|Kernthema/.test(l.text)).length;
-    toast('Neue Umfrage: ' + pct(after) + ' ± ' + E.POLL_RANGE + ' (' + signed(after - before) + ' zur Vorwoche)' +
+    toast('Umfragemittel: ' + pct(after) + ' (' + signed(after - before) + ' zur Vorwoche)' +
       (rivals ? ' · 🥊 Die Konkurrenz greift euch an!' : ''));
     renderGame();
     weekReview(before, after, () => pruefstein(checkPending));
@@ -3159,7 +3197,7 @@
     const wk = g.week - 1;
     const shots = (g.shots || []).filter(x => x.w === wk).sort((a, b) => Math.abs(b.d) - Math.abs(a.d)).slice(0, 3);
     if (!shots.length) { next(); return; }
-    openModal('Woche ' + wk + ' · Der Wahlkampf in Bildern', '📺 Die Woche von ' + g.candidate,
+    openModal(E.weekLabel(g, wk) + ' · Der Wahlkampf in Bildern', '📺 Die Woche von ' + g.candidate,
       '<ol class="sc-review">' + shots.map(x => '<li><span class="sc-rv-icon">' + x.icon + '</span><div><b>„' + esc(x.text) + '“</b><small>' + esc(x.title) + (x.d ? ' · ' + signed(x.d) + ' bundesweit' : '') + '</small></div></li>').join('') + '</ol>' +
       '<p>Neue Umfrage: <b>' + pct(after) + '</b> (' + signed(after - before) + ' zur Vorwoche)</p>',
       [{ label: 'Weiter', primary: true, onClick: () => { closeModal(); next(); } }]);
@@ -3186,7 +3224,7 @@
   window.BTW_UI = {
     setGame: x => { g = x; }, show, applyPartyTheme, save, saveHall, toast, showRecord: () => g && showRecord(g),
     runAction: (id, target, done) => runAction(E.ACTIONS.find(x => x.id === id), target || {}, done), confirmOnButton, openModal, closeModal,
-    esc, col, onCol, num1, pct, signed, short, money, pollColumnsHtml, pollCalcHtml, pollSeats, hemicycle, seatLegend, pills,
+    esc, col, onCol, num1, pct, signed, short, money, pollColumnsHtml, pollCalcHtml, pollSeats, instTableHtml, hemicycle, seatLegend, pills,
     // Nach der Legislaturperiode: Programmparteitag für den nächsten Wahlkampf mit dem Stand von heute.
     startNextCampaign(next) {
       if (!next) return;

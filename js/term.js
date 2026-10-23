@@ -49,7 +49,29 @@
     const c = absCal(idx);
     return Object.keys(TD.LTW).filter(l => dueIn(TD.LTW[l], c));
   }
-  function quarterLabel(t, q) { const c = cal(t, q); return c.qn + '. Quartal ' + c.year; }
+  // Quartale als Kalenderzeit: „Apr.–Juni 2030“, mit erstem und letztem Tag.
+  function quarterLabel(t, q) { const c = cal(t, q); return E.MONTHS_S[(c.qn - 1) * 3] + '–' + E.MONTHS_S[(c.qn - 1) * 3 + 2] + ' ' + c.year; }
+  function quarterStart(t, q) { const c = cal(t, q); return E.dayUTC(c.year, (c.qn - 1) * 3 + 1, 1); }
+  function quarterEnd(t, q) { const c = cal(t, q); return E.dayUTC(c.year, c.qn * 3 + 1, 0); }
+  // Sitzungstage im Quartal: letzte Sitzungswoche des Bundestages (Donnerstag) bzw. letzte Plenarsitzung des Bundesrates (Freitag).
+  function plenaryDate(t, q, house) {
+    const c = cal(t, q);
+    const kws = house === 'br' ? D.BUNDESRAT_KW : D.SITZUNGSWOCHEN;
+    const inQ = kws.map(kw => E.addDays(E.isoMonday(c.year, kw), house === 'br' ? 4 : 3)).filter(d => Math.floor(d.getUTCMonth() / 3) + 1 === c.qn);
+    return inQ.length ? inQ[inQ.length - 1] : quarterEnd(t, q);
+  }
+  function plenaryLabel(t, q, house) { return E.fmtDate(plenaryDate(t, q === undefined ? t.q : Math.min(q, QUARTERS - 1), house)); }
+  // Nächste Sitzungswoche ab einem Datum (Montag bis Freitag).
+  function nextSession(t) {
+    const now = quarterStart(t, t.q);
+    for (let y = now.getUTCFullYear(); y <= now.getUTCFullYear() + 1; y++) {
+      const m = D.SITZUNGSWOCHEN.map(kw => E.isoMonday(y, kw)).find(d => d >= now);
+      if (m) return { from: m, to: E.addDays(m, 4) };
+    }
+    return null;
+  }
+  // Wahltermin im Monat einer Wahl: zweiter Sonntag (geschätzt; die Länder legen ihn jeweils fest).
+  function secondSunday(y, m) { const d = E.dayUTC(y, m, 1); return E.addDays(d, (7 - d.getUTCDay()) % 7 + 7); }
   function dueIn(spec, c) {
     const y0 = spec[0]; const m = spec[1]; const per = spec[2];
     if (c.year < y0 || (c.year - y0) % per !== 0) return false;
@@ -63,14 +85,17 @@
   function calendar(g, n) {
     const t = g.term;
     const out = [];
+    const day = (y, m) => E.fmtDate(secondSunday(y, m), 'day');
     for (let q = t.q; q < QUARTERS && out.length < (n || 6); q++) {
       const c = cal(t, q);
-      ltwDue(t, q).forEach(l => out.push({ q, label: quarterLabel(t, q), kind: 'ltw', land: l, text: 'Landtagswahl ' + E.stateById(l).name }));
-      if (dueIn(TD.EUROPAWAHL, c)) out.push({ q, label: quarterLabel(t, q), kind: 'ew', text: 'Europawahl' });
-      if (dueIn(TD.BUNDESVERSAMMLUNG, c)) out.push({ q, label: quarterLabel(t, q), kind: 'bv', text: 'Bundesversammlung' });
-      if (c.qn === 3 && q < QUARTERS - 1) out.push({ q, label: quarterLabel(t, q), kind: 'haushalt', text: 'Haushaltsentwurf ' + (c.year + 1) });
+      ltwDue(t, q).forEach(l => out.push({ q, at: secondSunday(c.year, TD.LTW[l][1]), label: day(c.year, TD.LTW[l][1]), kind: 'ltw', land: l, text: 'Landtagswahl ' + E.stateById(l).name }));
+      if (dueIn(TD.EUROPAWAHL, c)) out.push({ q, at: secondSunday(c.year, TD.EUROPAWAHL[1]), label: day(c.year, TD.EUROPAWAHL[1]), kind: 'ew', text: 'Europawahl' });
+      if (dueIn(TD.BUNDESVERSAMMLUNG, c)) out.push({ q, at: secondSunday(c.year, TD.BUNDESVERSAMMLUNG[1]), label: day(c.year, TD.BUNDESVERSAMMLUNG[1]), kind: 'bv', text: 'Bundesversammlung' });
+      if (c.qn === 3 && q < QUARTERS - 1) out.push({ q, at: E.dayUTC(c.year, 7, 1), label: 'Juli ' + c.year, kind: 'haushalt', text: 'Kabinett beschließt den Regierungsentwurf ' + (c.year + 1) });
     }
-    out.push({ q: QUARTERS, label: quarterLabel(t, QUARTERS - 1), kind: 'btw', text: 'Bundestagswahl ' + cal(t, QUARTERS - 1).year });
+    out.sort((x, y) => x.at - y.at);
+    const last = cal(t, QUARTERS - 1);
+    out.push({ q: QUARTERS, label: E.fmtDate(E.lastSunday(last.year, (last.qn - 1) * 3 + 2), 'day'), kind: 'btw', text: 'Bundestagswahl ' + last.year });
     return out;
   }
 
@@ -3626,6 +3651,20 @@
     return { delivered, idle, unity, bilanz, relief, total: (chanc ? -0.5 : -0.46) * (1 - relief) - idle };
   }
 
+  // Umfrageinstitute in der Legislatur: jüngste Umfrage jedes Instituts vor Beginn des Quartals.
+  function termPolls(g, q) {
+    const t = g.term;
+    const c = absCal(t.abs0 + (q === undefined ? t.q : Math.max(0, q))); // auch nach dem letzten Quartal
+    const now = E.addDays(E.dayUTC(c.year, (c.qn - 1) * 3 + 1, 1), -1);
+    const h = t.history || [];
+    return E.institutePolls(g, now, dt => {
+      const k = dt.getUTCFullYear() * 4 + Math.floor(dt.getUTCMonth() / 3) - t.abs0; // Quartal der Legislatur
+      const e = h.filter(x => x.q <= k).pop() || h[0];
+      return e ? e.nat : g.poll.nat;
+    });
+  }
+  function termAverage(g, q) { return E.pollAverage(termPolls(g, q)); }
+
   function updatePolls(g) {
     const t = g.term;
     const e = t.econ;
@@ -3942,7 +3981,7 @@
 
   const TERM = {
     QUARTERS, ACTIONS, LAW_STEPS, forecast, lageBilanz, lawEffects, ensureLage, SOFORT, SHADOW_SETS, comebackBarometer, wkStatus, homeWk, termRecord, debtPath, activeMeasures, avgRate, govWear, WOBBLE, brAligned, landGovernment, dueVotes, GEWISSEN, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
-    lawOptions, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, cal,
+    lawOptions, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, quarterStart, quarterEnd, plenaryDate, plenaryLabel, nextSession, termPolls, termAverage, cal,
     lawName, lawTitle, leanOf, quorum, eventChoices, fillText, eventById, ministryById, taxById, areaById, nextCampaign, summary,
     MEDIA, media, actionCash, govSeats, isGov, legacy, LB, careerSnapshot, chooseLeader, leaderAge, currentLeader, MAX_AGE, sqForces, absCal, FX_NAMES, ministerFor, eventMinister, ownMinistries, endTerm, defaultVote, partyVote, mandateVote
   };
