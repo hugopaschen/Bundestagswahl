@@ -5,7 +5,10 @@
 
 - `kerg2.csv` – Ergebnisse nach Wahlkreisen (endgültig, Stand 14.03.2025):
   https://www.bundeswahlleiterin.de/bundestagswahlen/2025/ergebnisse/opendata/btw25/csv/kerg2.csv
-- `btw25_geometrie_wahlkreise_shp_geo.zip` – Geometrie der Wahlkreise, generalisiert, WGS84:
+- `btw25_geometrie_wahlkreise_vg250_shp_geo.zip` – Geometrie der Wahlkreise auf Basis VG250 (nicht generalisiert), WGS84 –
+  Grundlage der Karte seit der genaueren Darstellung:
+  https://www.bundeswahlleiterin.de/bundestagswahlen/2025/wahlkreiseinteilung/downloads.html
+- `btw25_geometrie_wahlkreise_shp_geo.zip` – Geometrie der Wahlkreise, generalisiert, WGS84 (früher verwendet):
   https://www.bundeswahlleiterin.de/bundestagswahlen/2025/wahlkreiseinteilung/downloads.html
 
 Daraus erzeugt `tools/build-wahlkreise.js` die Datei `js/wahlkreise.js`.

@@ -1,5 +1,7 @@
 // Erzeugt js/wahlkreise.js aus den amtlichen Daten der Bundeswahlleiterin (quellen/btw25):
-// Wahlkreisgrenzen (Shapefile, WGS84) und Erst-/Zweitstimmen je Wahlkreis (kerg2.csv).
+// Wahlkreisgrenzen (Shapefile auf Basis VG250, nicht generalisiert, WGS84) und Erst-/Zweitstimmen je Wahlkreis (kerg2.csv).
+// Die Grenzen werden grenztreu vereinfacht: Gemeinsame Grenzabschnitte zweier Wahlkreise werden nur einmal vereinfacht,
+// damit Nachbarn lückenlos aneinanderpassen. Die Genauigkeit richtet sich nach der Größe des Landes (Zoomstufe im Spiel).
 // Aufruf: node tools/build-wahlkreise.js
 const fs = require('fs');
 const path = require('path');
@@ -7,7 +9,7 @@ const { execSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
 const SRC = path.join(ROOT, 'quellen', 'btw25');
-const ZIP = path.join(SRC, 'btw25_geometrie_wahlkreise_shp_geo.zip');
+const ZIP = path.join(SRC, 'btw25_geometrie_wahlkreise_vg250_shp_geo.zip');
 const unzip = name => execSync('unzip -p "' + ZIP + '" "' + name + '"', { maxBuffer: 64 << 20 });
 
 const LAND = { '01': 'SH', '02': 'HH', '03': 'NI', '04': 'HB', '05': 'NW', '06': 'HE', '07': 'RP', '08': 'BW',
@@ -62,8 +64,8 @@ function readDbf(buf) {
 }
 
 // ---------- Projektion und Vereinfachung ----------
-const shp = readShp(unzip('btw25_geometrie_wahlkreise_shp_geo.shp'));
-const dbf = readDbf(unzip('btw25_geometrie_wahlkreise_shp_geo.dbf'));
+const shp = readShp(unzip('btw25_geometrie_wahlkreise_vg250_shp_geo.shp'));
+const dbf = readDbf(unzip('btw25_geometrie_wahlkreise_vg250_shp_geo.dbf'));
 const [lonMin, latMin, lonMax, latMax] = shp.bbox;
 const K = Math.cos(51.2 * Math.PI / 180); // Längengrade wie bei der Länderkarte gestaucht
 const W = 600;
@@ -141,27 +143,85 @@ for (const l of lines.slice(head + 1)) {
   }
 }
 
-// Kleine (städtische) Wahlkreise feiner vereinfachen, damit sie beim Hineinzoomen gut aussehen.
-function tolFor(ring) {
-  const xs = ring.map(p => p[0]);
-  const ys = ring.map(p => p[1]);
-  const size = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
-  return size < 12 ? 0.12 : size < 30 ? 0.3 : 0.8;
+// ---------- Grenztreue Vereinfachung ----------
+const Q = 50; // Raster: 1/50 Karteneinheit ≈ 20 m
+const keyOf = ([lon, lat]) => Math.round(lon * 1e7) + ',' + Math.round(lat * 1e7);
+const raw = shp.shapes.map(rings => rings.map(r => {
+  const pts = r.length > 1 && keyOf(r[0]) === keyOf(r[r.length - 1]) ? r.slice(0, -1) : r.slice();
+  return pts;
+}));
+// Welche Wahlkreise teilen sich einen Punkt?
+const members = new Map();
+raw.forEach((rings, si) => rings.forEach(r => r.forEach(pt => {
+  const k = keyOf(pt);
+  const m = members.get(k);
+  if (!m) members.set(k, [si]); else if (m.indexOf(si) === -1) m.push(si);
+})));
+const setOf = pt => members.get(keyOf(pt)).slice().sort((a, b) => a - b).join('.');
+// Genauigkeit je Land: etwa ein halbes Pixel, wenn das Land die Karte (600 px) füllt.
+const landOfShape = dbf.map(row => LAND[String(row.LAND_NR).padStart(2, '0')]);
+const landBox = {};
+raw.forEach((rings, si) => rings.forEach(r => r.forEach(pt => {
+  const [x, y] = proj(pt);
+  const b = landBox[landOfShape[si]] || (landBox[landOfShape[si]] = [Infinity, Infinity, -Infinity, -Infinity]);
+  b[0] = Math.min(b[0], x); b[1] = Math.min(b[1], y); b[2] = Math.max(b[2], x); b[3] = Math.max(b[3], y);
+})));
+const landTol = {};
+Object.keys(landBox).forEach(l => { const b = landBox[l]; landTol[l] = Math.max(0.02, Math.max(b[2] - b[0], b[3] - b[1]) / 600 * 0.45); });
+const arcCache = new Map();
+function simplifyArc(pts) {
+  // Kanonische Richtung, damit beide Nachbarn denselben Abschnitt identisch vereinfachen.
+  const ka = keyOf(pts[0]), kb = keyOf(pts[pts.length - 1]);
+  let rev = ka > kb;
+  if (ka === kb && pts.length > 2) rev = keyOf(pts[1]) > keyOf(pts[pts.length - 2]);
+  const seq = rev ? pts.slice().reverse() : pts;
+  const id = keyOf(seq[0]) + '|' + (seq[1] ? keyOf(seq[1]) : '') + '|' + keyOf(seq[seq.length - 1]) + '|' + seq.length;
+  let res = arcCache.get(id);
+  if (!res) {
+    const shapes = members.get(keyOf(seq[Math.floor(seq.length / 2)])) || [];
+    const tol = Math.min(...shapes.map(si => landTol[landOfShape[si]]));
+    res = dp(seq.map(proj), tol);
+    arcCache.set(id, res);
+  }
+  return rev ? res.slice().reverse() : res;
+}
+function simplifyRing(r) {
+  const n = r.length;
+  if (n < 4) return r.map(proj);
+  const sets = r.map(setOf);
+  const fixed = [];
+  for (let i = 0; i < n; i++) if (sets[i] !== sets[(i - 1 + n) % n] || sets[i] !== sets[(i + 1) % n] || sets[i].indexOf('.') !== sets[i].lastIndexOf('.')) fixed.push(i);
+  // Ring ohne Nachbarn (Insel, Außengrenze): an zwei weit entfernten Punkten teilen.
+  if (fixed.length < 2) {
+    const a = fixed.length ? fixed[0] : 0;
+    fixed.length = 0;
+    fixed.push(a, (a + Math.floor(n / 2)) % n);
+    fixed.sort((x, y) => x - y);
+  }
+  const outPts = [];
+  for (let f = 0; f < fixed.length; f++) {
+    const a = fixed[f], b = fixed[(f + 1) % fixed.length];
+    const seg = [];
+    for (let i = a; ; i = (i + 1) % n) { seg.push(r[i]); if (i === b && seg.length > 1) break; if (seg.length > n + 1) break; }
+    const simp = simplifyArc(seg);
+    outPts.push(...simp.slice(0, -1));
+  }
+  return outPts;
 }
 const out = [];
 dbf.forEach((row, i) => {
   const nr = +row.WKR_NR;
   const w = wk[nr];
   if (!w) throw new Error('Wahlkreis ' + nr + ' fehlt in kerg2.csv');
-  const rings = shp.shapes[i].map(r => r.map(proj));
-  const big = rings.reduce((a, b) => (Math.abs(area(b)) > Math.abs(area(a)) ? b : a));
-  const kept = rings.filter(r => r === big || Math.abs(area(r)) > 1.2).map(r => ringDp(r, tolFor(big))).filter(r => r.length >= 3);
-  // Relative Pfade (Zehntel-Raster) halten die Datei klein.
+  const ringsP = raw[i].map(r => ({ r, a: Math.abs(area(r.map(proj))) }));
+  const big = ringsP.reduce((x, y) => (y.a > x.a ? y : x));
+  const minArea = Math.pow(landTol[landOfShape[i]] * 3, 2);
+  const kept = ringsP.filter(x => x === big || x.a > minArea).map(x => simplifyRing(x.r)).filter(r => r.length >= 3);
+  // Relative Pfade im feinen Raster halten die Datei klein.
   const d = kept.map(r => {
-    const q = r.map(([x, y]) => [Math.round(x * 10), Math.round(y * 10)]);
+    const q = r.map(([x, y]) => [Math.round(x * Q), Math.round(y * Q)]);
     let px = q[0][0];
     let py = q[0][1];
-    let sOut = 'M' + px + ',' + py + 'l';
     const parts = [];
     for (let k = 1; k < q.length; k++) {
       const dx = q[k][0] - px;
@@ -170,15 +230,15 @@ dbf.forEach((row, i) => {
       parts.push(dx + ',' + dy);
       px = q[k][0]; py = q[k][1];
     }
-    return sOut + parts.join(' ').replace(/ -/g, '-') + 'z';
+    return 'M' + q[0][0] + ',' + q[0][1] + 'l' + parts.join(' ').replace(/ -/g, '-') + 'z';
   }).join('');
   const xs = kept.flat().map(p => p[0]);
   const ys = kept.flat().map(p => p[1]);
-  const [cx, cy] = centroid(big);
+  const [cx, cy] = centroid(simplifyRing(big.r));
   const e = {}; const z = {};
   IDS.forEach(p => { e[p] = r1(w.e[p] || 0); z[p] = r1(w.z[p] || 0); });
-  out.push({ nr, name: row.WKR_NAME || w.name, land: LAND[String(row.LAND_NR).padStart(2, '0')], d,
-    cx: Math.round(cx * 10), cy: Math.round(cy * 10), box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)].map(v => Math.round(v * 10)),
+  out.push({ nr, name: row.WKR_NAME || w.name, land: landOfShape[i], d,
+    cx: Math.round(cx * Q), cy: Math.round(cy * Q), box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)].map(v => Math.round(v * Q)),
     v: w.valid, e, z, win: w.eWin, seated: w.seated });
 });
 out.sort((a, b) => a.nr - b.nr);
@@ -186,11 +246,11 @@ Object.keys(land).forEach(id => IDS.forEach(p => { land[id][p] = r1(land[id][p] 
 
 const js = '/*\n * Wahlkreise der Bundestagswahl 2025 – erzeugt von tools/build-wahlkreise.js, nicht von Hand ändern.\n' +
   ' * Quelle: © Die Bundeswahlleiterin, Wiesbaden 2025, Datenlizenz Deutschland – Namensnennung – 2.0:\n' +
-  ' * Ergebnisse nach Wahlkreisen (kerg2.csv, endgültig) und Wahlkreisgeometrie (generalisiert, WGS84).\n' +
+  ' * Ergebnisse nach Wahlkreisen (kerg2.csv, endgültig) und Wahlkreisgeometrie (VG250, WGS84, grenztreu vereinfacht).\n' +
   ' * e = Erststimmen 2025 in %, z = Zweitstimmen 2025 in % (auch Freie Wähler, Volt, Tierschutzpartei),\n * win = Erststimmen-Sieger 2025,\n' +
   ' * seated = Sieger hat ein Mandat erhalten (false: wegen fehlender Zweitstimmendeckung ohne Sitz).\n' +
-  ' * Karte: Längengrade mit cos 51,2° gestaucht, vereinfacht, auf ' + W * 10 + ' × ' + H * 10 + ' Einheiten skaliert (ganze Zahlen).\n */\n' +
-  '(function (root) {\n  var WK = ' + JSON.stringify({ w: W * 10, h: H * 10, land2025: land, list: out }) + ';\n' +
+  ' * Karte: Längengrade mit cos 51,2° gestaucht, auf ' + W * Q + ' × ' + H * Q + ' Einheiten skaliert (ganze Zahlen).\n */\n' +
+  '(function (root) {\n  var WK = ' + JSON.stringify({ w: W * Q, h: H * Q, land2025: land, list: out }) + ';\n' +
   "  if (typeof module !== 'undefined' && module.exports) module.exports = WK; else root.BTW_WK = WK;\n})(this);\n";
 fs.writeFileSync(path.join(ROOT, 'js', 'wahlkreise.js'), js);
 const seats = {};
