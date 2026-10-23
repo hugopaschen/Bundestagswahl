@@ -177,7 +177,7 @@
   const FX_NAMES = { aktion: '🎯 Eure Aktionen', gesetz: '📜 Gesetze', parlament: '🏛️ Abstimmungen im Bundestag', haushalt: '🏦 Haushalt',
     karlsruhe: '⚖️ Karlsruhe', wahlen: '🗳️ Landtags- und Europawahlen', statusquo: '⚖️ Status quo', ereignis: '📰 Eure Reaktion auf Ereignisse',
     skandal: '🔥 Affären', abstimmung: '🗳️ Euer Abstimmungsverhalten', kabinett: '👥 Kabinett', regierung: '🏛️ Regierungsbilanz und Wirtschaft',
-    partei: '🎪 Spitze und Geschlossenheit', glaubw: '🤝 Glaubwürdigkeit', krise: '🚨 Krisenmanagement', lobby: '🏛️ Verbände und Lobbyismus', streit: '💥 Streit in der Koalition', hype: '🔥 Hype um eure Spitze', viral: '📱 Viraler Moment', medien: '🗞️ Medien', lage: '📊 Lage im Land', konkurrenz: '🥊 Konkurrenz', verblassen: '⏳ Frühere Effekte verblassen', sonst: 'Sonstiges' };
+    partei: '🎪 Spitze und Geschlossenheit', glaubw: '🤝 Glaubwürdigkeit', krise: '🚨 Krisenmanagement', lobby: '🏛️ Verbände und Lobbyismus', streit: '💥 Streit in der Koalition', hype: '🔥 Medienpräsenz der Spitze', viral: '📱 Reichweite in sozialen Medien', medien: '🗞️ Medien', lage: '📊 Lage im Land', konkurrenz: '🥊 Konkurrenz', verblassen: '⏳ Frühere Effekte verblassen', sonst: 'Sonstiges' };
   // Glaubwürdigkeit (0–100): Wer seiner Linie treu bleibt, gewinnt Vertrauen; wer umfällt, verliert es.
   function addCred(g, v, why) {
     const t = g.term;
@@ -464,7 +464,7 @@
     A.takePoll(g);
     t.lastNat = A.nationalShares(g);
     t.prevShare = t.lastNat[g.party];
-    t.history.push({ q: -1, nat: roundShares(g.poll.nat) });
+    t.history.push({ q: -1, nat: roundShares(g.poll.nat), econ: econSnap(t) });
     t.groups0 = copy(g.poll.groups || {});
     t.econPrev = { unemp: t.econ.unemp };
     g.phase = 'term';
@@ -3665,6 +3665,12 @@
   }
   function termAverage(g, q) { return E.pollAverage(termPolls(g, q)); }
 
+  // Wirtschaftsdaten je Quartal für die Zeitreihen.
+  function econSnap(t) {
+    const e = t.econ;
+    return { growth: r2(e.growth), unemp: r2(e.unemp), infl: r2(e.infl), debt: r2(e.debt) };
+  }
+
   function updatePolls(g) {
     const t = g.term;
     const e = t.econ;
@@ -3721,7 +3727,7 @@
     A.takePoll(g);
     A.updateMinorVisibility(g, true).forEach(x => news(g, '📊 ' + x, 'info'));
     t.lastNat = A.nationalShares(g);
-    t.history.push({ q: t.q, nat: roundShares(g.poll.nat) });
+    t.history.push({ q: t.q, nat: roundShares(g.poll.nat), econ: econSnap(t) });
   }
 
   function endQuarter(g) {

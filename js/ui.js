@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261023-163929';
+  const APP_VERSION = '20261023-165255';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -237,9 +237,9 @@
     const list = loadHall();
     box.hidden = !list.length;
     if (!list.length) return;
-    box.innerHTML = '<h2>🏆 Ruhmeshalle</h2><ol>' + list.slice(0, 5).map(x => '<li><span class="pill" style="--pc:' + col(x.party) + ';--pon:' + onCol(x.party) + '">' + esc(short(x.party)) + '</span> <b>' + esc(x.first) + '</b>' +
+    box.innerHTML = '<h2>Ruhmeshalle</h2><ol>' + list.slice(0, 5).map(x => '<li><span class="pill" style="--pc:' + col(x.party) + ';--pon:' + onCol(x.party) + '">' + esc(short(x.party)) + '</span> <b>' + esc(x.first) + '</b>' +
       (x.leaders.length > 1 ? ' und ' + (x.leaders.length - 1) + ' Nachfolge' + (x.leaders.length > 2 ? 'n' : '') : '') + ' · ' + x.terms + ' Legislatur' + (x.terms === 1 ? '' : 'en') +
-      (x.kanzlerJahre ? ', ' + num1(x.kanzlerJahre).replace(',0', '') + ' Jahre Kanzleramt' : '') + ' · <b>' + x.score + '</b> Punkte <span class="muted">(' + esc(x.rating) + ')</span></li>').join('') + '</ol>';
+      (x.kanzlerJahre ? ', ' + num1(x.kanzlerJahre).replace(',0', '') + ' Jahre Kanzleramt' : '') + ' · <span class="muted">' + esc(x.rating) + '</span></li>').join('') + '</ol>';
   }
 
   function updateSignature() {
@@ -265,9 +265,9 @@
     $('stat-week').textContent = E.fmtRange(ws, E.addDays(ws, 6));
     $('stat-week-label').textContent = 'KW ' + E.isoWeek(ws) + ' · noch ' + (g.maxWeeks - g.week + 1) + ' Wo.';
     $('stat-money').textContent = money(g.money);
-    $('stat-ap').textContent = '●'.repeat(g.ap) + '○'.repeat(g.apMax - g.ap);
+    $('stat-ap').textContent = g.ap + ' von ' + g.apMax + ' frei';
     $('stat-ap').setAttribute('aria-label', g.ap + ' von ' + g.apMax + ' Terminen der Spitzenkandidatur übrig');
-    $('stat-team').textContent = '●'.repeat(g.team || 0) + '○'.repeat(Math.max(0, (g.teamMax || 0) - (g.team || 0)));
+    $('stat-team').textContent = (g.team || 0) + ' von ' + (g.teamMax || 0) + ' Einsätzen';
     $('stat-team').setAttribute('aria-label', (g.team || 0) + ' von ' + (g.teamMax || 0) + ' Team-Einsätzen übrig');
     const avg = E.campaignAverage(g);
     const diff = avg[me] - (merged(g.startShares)[me] || 0);
@@ -566,7 +566,7 @@
   }
   function rivalTopicsHtml() {
     const ids = E.shownIds(g).filter(p => p !== g.party);
-    return '<details class="rt-box" open><summary>🎯 Themen der Konkurrenz</summary><p class="muted small">Bespielt ihr das Kernthema einer Partei, holt ihr die Stimmen vor allem von ihr – bei Aktionen in einem Land dort, wo sie stark ist. 🔥 = hat das Thema letzte Woche bespielt.</p><div class="rt-rows">' +
+    return '<details class="rt-box" open><summary>Themen der Konkurrenz</summary><p class="muted small">Bespielt ihr das Kernthema einer Partei, holt ihr die Stimmen vor allem von ihr – bei Aktionen in einem Land dort, wo sie stark ist. 🔥 = hat das Thema letzte Woche bespielt.</p><div class="rt-rows">' +
       ids.map(p => '<div class="rt-row"><span class="rt-party">' + pills([p]) + '</span><span class="rt-topics">' + E.partyTopics(g, p).map(t => '<button type="button" class="rt-chip" data-t="' + t + '">' + E.topicById(t).icon + ' ' + esc(E.topicById(t).name) + (pushingT(p, t) ? ' 🔥' : '') + '</button>').join('') + '</span></div>').join('') + '</div></details>';
   }
   // Von wem kämen die Stimmen? Bundesweit und im ausgewählten Land.
@@ -1006,7 +1006,7 @@
     const fit = E.channelFit(a.id, selState) * E.localTopicFactor(g, selState, localTopic || null);
     const pctFit = Math.round((fit - 1) * 100);
     const what = localTopic ? 'Kanal und Thema passen' : 'passt';
-    const mob = a.id === 'haustuer' || a.id === 'infostand' ? ' · 🗳️ mobilisiert stark' : a.id === 'kundgebung' || a.id === 'betrieb' ? ' · 🗳️ mobilisiert' : '';
+    const mob = a.id === 'haustuer' || a.id === 'infostand' ? ' · mobilisiert stark' : a.id === 'kundgebung' || a.id === 'betrieb' ? ' · mobilisiert' : '';
     if (pctFit >= 4) return 'in ' + name + mob + ' · ' + what + ' gut (+' + pctFit + ' %)';
     if (pctFit <= -4) return 'in ' + name + mob + ' · ' + (localTopic ? 'Kanal und Thema passen schlecht' : 'passt schlecht zur Wählerschaft') + ' (−' + Math.abs(pctFit) + ' %)';
     return 'in ' + name + mob;
@@ -1521,7 +1521,7 @@
     openModal(wkDate() + (ev.milestone ? ' · Wahlkampfkalender' : ' · Eilmeldung'), ev.title, '<p>' + esc(E.eventText(g, ev)) + '</p><p class="muted small">Wie reagiert ihr?</p>',
       ev.choices.map((c, i) => ({
         label: c.label,
-        hint: c.hint + (c.later ? ' · ⏳ kann Spätfolgen haben' : ''),
+        hint: c.hint + (c.later ? ' · kann Spätfolgen haben' : ''),
         onClick: () => {
           const res = E.resolveEvent(g, i);
           save();
@@ -1559,7 +1559,7 @@
     openModal(DUEL_NAMES[d.format || 'elefantenrunde'] + ' · Frage ' + (d.round + 1) + ' von ' + d.topics.length, E.topicById(topic).icon + ' ' + E.topicById(topic).name,
       duelScoreHtml(d.results) + '<p class="duel-question">Moderation: „' + esc(QUESTIONS[topic]) + '“</p>' +
       (at ? '<p class="duel-attack" style="--pc:' + col(at.p) + '">🗣️ <b>' + esc(at.name) + '</b> (' + esc(short(at.p)) + ') fällt euch ins Wort: „' + esc(at.text) + '“</p>' : '') +
-      '<p class="muted small">Kompetenz eurer Partei bei diesem Thema: ' + E.competenceOf(g, g.party)[topic] + '/100' + (E.isCore(g, topic) ? ' · 🎯 Kernthema eures Programms' : '') + '</p>',
+      '<p class="muted small">Kompetenz eurer Partei bei diesem Thema: ' + E.competenceOf(g, g.party)[topic] + '/100' + (E.isCore(g, topic) ? ' · Kernthema eures Programms' : '') + '</p>',
       E.DUEL_STYLES.map(st => ({
         label: st.name,
         hint: st.desc,
@@ -1618,7 +1618,7 @@
     let bars = '<div class="rhurdle" style="bottom:' + (5 / max * 100) + '%"></div>';
     ids.forEach(p => {
       bars += '<div class="col"><span class="rval">' + num1(rs[p]) + '</span>' +
-        '<div class="rbar" data-h="' + (rs[p] / max * 100) + '" style="background:' + col(p) + '"></div></div>';
+        '<div class="rbar" data-h="' + (rs[p] / max * 100) + '" data-v="' + rs[p] + '" style="background:' + col(p) + '"></div></div>';
     });
     $('result-bars').innerHTML = bars;
     $('result-labels').innerHTML = ids.map(p => {
@@ -1767,8 +1767,8 @@
     const c = g.cand;
     $('retro').innerHTML = '<div class="retro-grid"><div>' + svg + '<p class="muted small">Eure veröffentlichten Umfragewerte Woche für Woche – und das Ergebnis am Wahlabend.</p>' +
       (c ? '<p class="small">🎤 ' + esc(g.candidate) + ': Bekanntheit ' + Math.round(c.known) + ' %, Beliebtheit ' + (c.like >= 0 ? '+' : '−') + num1(Math.abs(c.like)) + '</p>' : '') + '</div>' +
-      '<div><h4>👍 Das hat am meisten gebracht</h4><ul class="retro-list">' + (best.map(li).join('') || '<li>–</li>') + '</ul>' +
-      '<h4>👎 Das hat geschadet</h4><ul class="retro-list">' + (worst.map(li).join('') || '<li>Nichts Nennenswertes – sauberer Wahlkampf!</li>') + '</ul></div></div>' +
+      '<div><h4>Das hat am meisten gebracht</h4><ul class="retro-list">' + (best.map(li).join('') || '<li>–</li>') + '</ul>' +
+      '<h4>Das hat geschadet</h4><ul class="retro-list">' + (worst.map(li).join('') || '<li>Nichts Nennenswertes – sauberer Wahlkampf!</li>') + '</ul></div></div>' +
       '<details class="retro-weeks"><summary>Woche für Woche</summary><table>' + weeks.join('') + '</table></details>' +
       '<p class="muted small">Wirkung = sofortige Veränderung eures Stimmenanteils; im Wahlkampf verblassen Effekte mit der Zeit wieder.</p>' +
       '<button type="button" class="btn" id="btn-share">📋 Ergebnis zum Teilen kopieren</button> <span id="share-ok" class="muted small"></span>';
@@ -1776,7 +1776,7 @@
       const o = r.outcome;
       const p = E.party(me);
       const text = 'Wahlkampf! – Bundestagswahl-Spiel\n' + p.name + ' mit ' + g.candidate + ': ' + pct(final) + ' (' + signed(o.delta) + ')\n' +
-        o.rating + ' – ' + o.score + ' Punkte\n' + (o.goal ? '✅ Wahlziel erreicht: ' : '❌ Wahlziel verfehlt: ') + p.goalText +
+        o.rating + '\n' + (o.goal ? '✅ Wahlziel erreicht: ' : '❌ Wahlziel verfehlt: ') + p.goalText +
         (r.government ? '\nRegierung: ' + r.government.map(short).join(', ') : '');
       const done = () => { $('share-ok').textContent = 'Kopiert!'; };
       // Ohne Zugriff auf die Zwischenablage: Text zum Markieren anzeigen.
@@ -1836,33 +1836,51 @@
     ['seat-card', 'wk-card', 'coalition-card', 'outcome-card', 'calc-card', 'retro-card'].forEach(id => $(id).classList.add('el-pending'));
     $('btn-el-skip').hidden = false;
     const sus = $('el-suspense');
-    sus.textContent = '18:00 Uhr – die Wahllokale haben geschlossen. Die Stimmen werden ausgezählt …';
+    sus.textContent = '18:00 Uhr – die Wahllokale haben geschlossen.';
     const cols = {};
     votes.querySelectorAll('.result-bars .col').forEach((c, i) => { cols[ids[i]] = c; });
-    const showBar = p => {
-      const c = cols[p];
-      if (!c) return;
-      c.classList.add('shown');
-      c.querySelector('.rbar').style.height = c.querySelector('.rbar').dataset.h + '%';
-      const l = votes.querySelector('.result-labels [data-p="' + p + '"]');
-      if (l) l.classList.add('shown');
+    // Wie im Fernsehen: Prognose aus der Nachwahlbefragung, dann Hochrechnungen aus ausgezählten Stimmbezirken,
+    // die sich dem Ergebnis nähern, und in der Nacht das vorläufige amtliche Endergebnis. Abweichungen geschätzt
+    // (Prognosen lagen bei großen Parteien meist bis 1,5 Punkte daneben).
+    const fin = {};
+    ids.forEach(p => { fin[p] = Number(cols[p].querySelector('.rbar').dataset.v); });
+    const R = E.localRng(Math.round(fin[me] * 1000 + (g.nameSeed || 1)) % 2147483647);
+    const err = {};
+    ids.forEach(p => { err[p] = (R() + R() + R() + R() - 2) * 1.73 * (0.3 + 0.035 * fin[p]); });
+    const night = E.addDays(E.electionDate(g), 1);
+    const stages = [
+      { at: '18:00 Uhr', name: 'Prognose', f: 1 },
+      { at: '18:40 Uhr', name: 'Erste Hochrechnung', f: 0.55 },
+      { at: '20:15 Uhr', name: 'Hochrechnung', f: 0.25 },
+      { at: '22:50 Uhr', name: 'Hochrechnung', f: 0.1 },
+      { at: E.fmtDate(night).split(',')[0] + ', 3:40 Uhr', name: 'Vorläufiges amtliches Endergebnis', f: 0 }
+    ];
+    const stageVals = f => {
+      const v = {};
+      let sum = 0;
+      ids.forEach(p => { v[p] = Math.max(0.1, fin[p] + err[p] * f); sum += v[p]; });
+      ids.forEach(p => { v[p] = v[p] / sum * 100; });
+      return v;
     };
-    // Von links nach rechts (wie die Balken stehen); vor der eigenen Partei eine kurze Kunstpause.
+    const setBars = v => ids.forEach(p => {
+      const c = cols[p];
+      c.classList.add('shown');
+      const b = c.querySelector('.rbar');
+      b.style.height = (Number(b.dataset.h) * v[p] / fin[p]) + '%';
+      c.querySelector('.rval').textContent = num1(v[p]);
+    });
     let t = 900;
-    ids.forEach(p => {
-      if (p === me) {
-        at(t, () => { sus.textContent = '… und ' + E.party(me).name + '?'; });
-        t += reduce ? 100 : 1500;
-        at(t, () => {
-          showBar(me);
-          const v = r.shares[me];
-          sus.textContent = E.party(me).short + ': ' + pct(v) + (v < 5 ? ' – unter der 5-%-Hürde.' : r.strongest === me ? ' – stärkste Kraft!' : '.');
-        });
-        t += reduce ? 100 : 2200;
-      } else {
-        at(t, () => showBar(p));
-        t += step;
-      }
+    stages.forEach((st, i) => {
+      at(t, () => {
+        const v = st.f ? stageVals(st.f) : fin;
+        setBars(v);
+        const mine = v[me];
+        sus.textContent = st.at + ' – ' + st.name + ': ' + E.party(me).short + ' ' + pct(mine) +
+          (mine < 5 ? ' – unter der 5-%-Hürde' : ids.every(q => q === D.OTHER.id || v[q] <= mine) ? ' – stärkste Kraft' : '') + '.';
+        votes.querySelectorAll('.result-labels > div').forEach(l => l.classList.add('shown'));
+        votes.classList.toggle('el-final', !st.f);
+      });
+      t += reduce ? 150 : i === 0 ? 2600 : 2200;
     });
     t += reduce ? 200 : 1400;
     // Sitzverteilung
@@ -1919,6 +1937,7 @@
     document.querySelectorAll('#screen-election .result-bars .col, #screen-election .result-labels > div, #screen-election .hc-seg, #screen-election .sl-item')
       .forEach(el => el.classList.add('shown'));
     ['votes-card', 'seat-card', 'wk-card'].forEach(id => $(id).classList.remove('el-revealing'));
+    $('votes-card').classList.add('el-final');
     ['seat-card', 'wk-card', 'coalition-card', 'outcome-card', 'calc-card', 'retro-card'].forEach(id => $(id).classList.remove('el-pending'));
     document.querySelectorAll('#wk-card path.wk.pending').forEach(p => p.classList.remove('pending'));
     $('btn-el-skip').hidden = true;
@@ -2007,7 +2026,7 @@
     let html = '<p><strong>' + (n.lead === g.party ? 'Koalitionsverhandlungen' : esc(E.party(n.lead).name) + ' lädt euch zu Koalitionsverhandlungen ein') + '</strong></p>' +
       '<p>' + pills(n.members, r.seats) + '</p>' +
       '<div class="neg-mood"><span class="mob-label">Verhandlungsklima</span><div class="neg-bar ' + moodCls + '"><i style="width:' + n.mood + '%"></i><b class="neg-min" style="left:' + E.NEG_MIN + '%" title="Darunter platzen die Gespräche"></b></div><span class="neg-val">' + Math.round(n.mood) + '</span></div>' +
-      '<p class="muted small">Fällt das Klima am Ende unter ' + E.NEG_MIN + ', platzen die Gespräche. Durchgesetzte Positionen und wichtige Ressorts bringen Punkte.</p>';
+      '<p class="muted small">Fällt das Klima am Ende unter ' + E.NEG_MIN + ', platzen die Gespräche. Durchgesetzte Positionen und wichtige Ressorts stärken eure Bilanz.</p>';
     if (n.log.length) html += '<ul class="neg-log">' + n.log.map(l => '<li>' + esc(l) + '</li>').join('') + '</ul>';
     const PH = [['sond', 'Sondierung'], ['topics', 'Verhandlungen'], ['draft', 'Ressorts'], ['ratify', 'Zustimmung der Basis'], ['kanzler2', 'Kanzlerwahl']];
     const ph = n.phase || (n.step < n.topics.length ? 'topics' : 'draft');
@@ -2015,19 +2034,19 @@
     html += '<div class="t-stages">' + PH.map((x, i) => '<span class="t-stage ' + (i < pi ? 'done' : i === pi ? 'now' : '') + '">' + x[1] + '</span>').join('<i>›</i>') + '</div>';
     if (ph === 'sond') {
       const top = n.topics[0];
-      html += '<div class="neg-topic"><h4>🤝 Sondierungsgespräche</h4><p>Erste vertrauliche Gespräche: Reicht die Basis für Koalitionsverhandlungen? Die größten Streitpunkte: ' +
+      html += '<div class="neg-topic"><h4>Sondierungsgespräche</h4><p>Erste vertrauliche Gespräche: Reicht die Basis für Koalitionsverhandlungen? Die größten Streitpunkte: ' +
         n.topics.map(x => esc(E.topicById(x.t).name)).join(', ') + '.</p></div>';
       html += '<div class="neg-choices">' + [['offen', '🕊️ Offen sondieren', 'Gute Atmosphäre: das Klima steigt'],
         ['rotelinie', '🟥 Rote Linie ziehen' + (top ? ': ' + E.topicById(top.t).name : ''), 'Dort fällt Härte leichter – aber knickt ihr ein, nimmt es die Basis übel']]
         .map(c => '<button type="button" class="btn coalition-option neg-btn" data-c="' + c[0] + '"><b>' + esc(c[1]) + '</b><span class="hint">' + c[2] + '</span></button>').join('') + '</div>';
     } else if (ph === 'ratify') {
-      html += '<div class="neg-topic"><h4>🗳️ Der Koalitionsvertrag steht</h4><p>Bevor er unterschrieben wird, muss eure Partei zustimmen. Durchgesetzt: ' + num1(n.kept).replace(',0', '') + ' von ' + n.topics.length + ' Streitpunkten' + (n.redBroken ? ' · ⚠️ eure rote Linie ist gefallen' : '') + '.</p></div>';
+      html += '<div class="neg-topic"><h4>Der Koalitionsvertrag steht</h4><p>Bevor er unterschrieben wird, muss eure Partei zustimmen. Durchgesetzt: ' + num1(n.kept).replace(',0', '') + ' von ' + n.topics.length + ' Streitpunkten' + (n.redBroken ? ' · eure rote Linie ist gefallen' : '') + '.</p></div>';
       html += '<div class="neg-choices">' + [['mitglieder', '📬 Mitgliedervotum', 'Alle Mitglieder stimmen ab (wie bei der SPD) – knapper, aber ein starkes Mandat'],
         ['parteitag', '🎪 Sonderparteitag', 'Delegierte stimmen ab – meist deutlicher']]
         .map(c => '<button type="button" class="btn coalition-option neg-btn" data-c="' + c[0] + '"><b>' + c[1] + '</b><span class="hint">' + c[2] + '</span></button>').join('') + '</div>';
     } else if (ph === 'kanzler2') {
       const k = n.kanzler[n.kanzler.length - 1];
-      html += '<div class="neg-topic"><h4>😱 Kanzlerwahl: 1. Wahlgang gescheitert</h4><p>Nur <b>' + k.yes + '</b> Stimmen – nötig wären ' + k.need + ' (Mehrheit der Mitglieder, Art. 63 Abs. 2 GG). Die Wahl ist geheim; Abweichler sind nicht zu ermitteln. Binnen 14 Tagen kann erneut gewählt werden.</p></div>';
+      html += '<div class="neg-topic"><h4>Kanzlerwahl: 1. Wahlgang gescheitert</h4><p>Nur <b>' + k.yes + '</b> Stimmen – nötig wären ' + k.need + ' (Mehrheit der Mitglieder, Art. 63 Abs. 2 GG). Die Wahl ist geheim; Abweichler sind nicht zu ermitteln. Binnen 14 Tagen kann erneut gewählt werden.</p></div>';
       html += '<div class="neg-choices">' + [['einschwoeren', '📣 Fraktionen einschwören, dann 2. Wahlgang', 'Sondersitzungen der Fraktionen – sehr wahrscheinlich klappt es'],
         ['sofort', '⏱️ Sofort 2. Wahlgang', 'Noch am selben Tag – riskanter']]
         .map(c => '<button type="button" class="btn coalition-option neg-btn" data-c="' + c[0] + '"><b>' + c[1] + '</b><span class="hint">' + c[2] + '</span></button>').join('') + '</div>';
@@ -2046,7 +2065,7 @@
       const d = n.draft;
       const mine = d.order.filter(p => p === g.party).length;
       const got = Object.keys(d.picks).filter(id => d.picks[id] === g.party).length;
-      html += '<div class="neg-topic"><h4>🏛️ Ressortverteilung</h4><p>Die Partner wählen reihum Ministerien – nach Sitzen stehen euch <b>' + mine + '</b> von ' + E.MINISTRIES.length +
+      html += '<div class="neg-topic"><h4>Ressortverteilung</h4><p>Die Partner wählen reihum Ministerien – nach Sitzen stehen euch <b>' + mine + '</b> von ' + E.MINISTRIES.length +
         ' zu' + (n.lead === g.party ? ' (dazu das Kanzleramt)' : '') + '. Ihr habt ' + got + ' gewählt. Nehmt ihr einem Partner sein Wunschressort weg (❤️), leidet das Klima.</p></div>';
       html += '<div class="neg-ministries">' + E.MINISTRIES.map(m => {
         const holder = d.picks[m.id];
@@ -2154,9 +2173,9 @@
     if (!opts.length) return;
     const div = document.createElement('div');
     div.className = 'fw-break';
-    div.innerHTML = '<h3>🧱 Brandmauer einreißen?</h3><p class="small">Mit der AfD hättet ihr eine Mehrheit im Bundestag. Ihr würdet regieren – ' +
+    div.innerHTML = '<h3>Brandmauer einreißen?</h3><p class="small">Mit der AfD hättet ihr eine Mehrheit im Bundestag. Ihr würdet regieren – ' +
       'aber gegen den Protest von Millionen, mit Austritten, Demonstrationen und Kritik von Kirchen, Gewerkschaften und Verbänden. ' +
-      'Das kostet euch 25 Punkte in der Bilanz.</p>';
+      'Das würde euch lange nachhängen.</p>';
     opts.forEach((o, i) => {
       const b = document.createElement('button');
       b.type = 'button';
@@ -2186,13 +2205,13 @@
     $('btn-term').textContent = r.neuwahl ? 'Weiter: Wahlkampf für die Neuwahl' : 'Weiter: Die Legislaturperiode beginnt';
     $('outcome').innerHTML =
       '<p class="eyebrow">Euer Wahlabend</p><h2>' + esc(o.rating) + '</h2>' +
-      '<div class="score">' + o.score + '</div><p class="muted small">Punkte</p>' +
-      '<p><strong>' + esc(p.name) + ': ' + pct(r.shares[g.party]) + '</strong> (' + signed(o.delta) + ' seit Wahlkampfstart)</p>' +
+      '<div class="score">' + pct(r.shares[g.party]) + '</div><p class="muted small">' + esc(p.name) + ' · vorläufiges amtliches Endergebnis</p>' +
+      '<p>' + signed(o.delta) + ' Prozentpunkte seit Wahlkampfstart' + (r.seats && r.seats[g.party] ? ' · ' + r.seats[g.party] + ' Sitze' : '') + '</p>' +
       (r.turnout ? '<p class="muted small">Wahlbeteiligung: ' + pct(r.turnout) + (prevTurnout() ? ' (' + prevYear() + ': ' + pct(prevTurnout()) + ')' : '') + '</p>' : '') +
-      (r.lastPoll ? '<p class="muted small">Letzte Umfrage: ' + pct(r.lastPoll[g.party]) + ' ± ' + E.POLL_RANGE + ' – das echte Ergebnis lag ' +
-        (Math.abs(r.shares[g.party] - r.lastPoll[g.party]) < 0.3 ? 'fast genau darauf.' : signed(r.shares[g.party] - r.lastPoll[g.party]) + ' Punkte daneben.') + '</p>' : '') +
+      (() => { const lp = E.campaignAverage(g, g.maxWeeks + 1)[g.party]; return '<p class="muted small">Letztes Umfragemittel: ' + pct(lp) + ' – das Ergebnis lag ' +
+        (Math.abs(r.shares[g.party] - lp) < 0.3 ? 'fast genau darauf.' : signed(r.shares[g.party] - lp) + ' Prozentpunkte daneben.') + '</p>'; })() +
       '<p>' + esc(r.neuwahl ? '🗳️ Keine Regierung: Der Bundestag ist aufgelöst – es gibt eine Neuwahl.' : statusText) + '</p>' +
-      (o.firewall ? '<p class="fw-note">🧱 Ihr habt die Brandmauer eingerissen. Proteste im ganzen Land (−25 Punkte).</p>' : '') +
+      (o.firewall ? '<p class="fw-note">🧱 Ihr habt die Brandmauer eingerissen. Proteste im ganzen Land – das wird euch lange nachhängen.</p>' : '') +
       '<p>' + (o.goal ? '✅ Wahlziel erreicht: ' : '❌ Wahlziel verfehlt: ') + esc(p.goalText) + '</p>' +
       (r.homeWk && (r.homeWk.won || r.homeWk.close) ? '<p>' + (r.homeWk.won ? '🏘️ ' + esc(g.candidate) + ' gewinnt den eigenen Wahlkreis ' + esc(r.homeWk.name) + ' direkt.' : '🏘️ Blamage im eigenen Wahlkreis: ' + esc(g.candidate) + ' verliert ' + esc(r.homeWk.name) + '.') + '</p>' : '') +
       '<div class="mob-bars flows result-flows"><span class="mob-label">Wählerwanderung seit Wahlkampfstart (Prozentpunkte)</span>' + flowBarsHtml(E.flowSummary(g, g.party), g.party) + '</div>';
@@ -3058,8 +3077,8 @@
   // Schritt für Schritt durch den ersten Wahlkampftag: Bereich hervorheben, kurz erklären.
   const TOUR_KEY = 'btw-tour-seen';
   const tourSteps = () => [
-    { title: 'Willkommen im Wahlkampf!', text: '<p>Ihr habt <b>' + g.maxWeeks + ' Wochen</b> bis zur Bundestagswahl am <b>' + E.fmtDate(E.electionDate(g), 'day') + '</b>. Euer Ziel: <b>' + esc(E.party(g.party).goalText) + '</b>.</p><p>Diese Einführung zeigt euch alle Bereiche. Ihr könnt sie jederzeit beenden und später über <b>❓ Einführung</b> wieder starten.</p>' },
-    { sel: '#screen-game .topbar .stats', title: 'Eure Lage auf einen Blick', text: '<p><b>Kalenderwoche</b> und <b>Wahlkampfkasse</b>. <b>🎤 Termine</b>: ' + g.apMax + ' Auftritte eurer Spitzenkandidatur pro Woche (Kundgebung, Bürgerdialog, Talkshow …). <b>👥 Team</b>: Einsätze eurer Mitglieder (Haustür, Infostand, Plakate, Social Media …) – große Parteien haben mehr Leute.</p><p><b>Umfragemittel</b>: der Durchschnitt der jüngsten Umfragen von fünf Instituten, mit der Unsicherheit in Punkten. Die Institute weichen voneinander ab – genau hinsehen lohnt sich.</p>' },
+    { title: 'Willkommen im Wahlkampf!', text: '<p>Ihr habt <b>' + g.maxWeeks + ' Wochen</b> bis zur Bundestagswahl am <b>' + E.fmtDate(E.electionDate(g), 'day') + '</b>. Euer Ziel: <b>' + esc(E.party(g.party).goalText) + '</b>.</p><p>Diese Einführung zeigt euch alle Bereiche. Ihr könnt sie jederzeit beenden und später über <b>Einführung</b> wieder starten.</p>' },
+    { sel: '#screen-game .topbar .stats', title: 'Eure Lage auf einen Blick', text: '<p><b>Kalenderwoche</b> und <b>Wahlkampfkasse</b>. <b>Termine</b>: ' + g.apMax + ' Auftritte eurer Spitzenkandidatur pro Woche (Kundgebung, Bürgerdialog, Talkshow …). <b>Team</b>: Einsätze eurer Mitglieder (Haustür, Infostand, Plakate, Social Media …) – große Parteien haben mehr Leute.</p><p><b>Umfragemittel</b>: der Durchschnitt der jüngsten Umfragen von fünf Instituten, mit der Unsicherheit in Punkten. Die Institute weichen voneinander ab – genau hinsehen lohnt sich.</p>' },
     { sel: '#game-nav', title: 'Fünf Bereiche', text: '<p>Hier wechselt ihr zwischen <b>Deutschland</b> (Wahlkampf vor Ort), <b>Aktionen</b> (bundesweit), <b>Umfragen</b>, eurem <b>Wahlprogramm</b> und den <b>Nachrichten</b>.</p>' },
     { tab: 'map', sel: '#map', title: 'Die Deutschlandkarte', text: '<p>Die Farbe zeigt, wer im Land vorn liegt, die Zahl euren Umfragewert dort. Tippt ein Land an, um dort Wahlkampf zu machen.</p>' },
     { tab: 'map', sel: '#map-mode', title: 'Wahlkreise und Erststimmen', text: '<p>Schaltet um auf die <b>299 Wahlkreise</b>: Wer liegt bei den Erststimmen vorn? Mit <b>drei Direktmandaten</b> zieht eine Partei auch unter 5 % in den Bundestag ein (Grundmandatsklausel).</p><p>Vor Ort könnt ihr einen Wahlkreis als <b>Schwerpunkt</b> wählen oder eine <b>Erststimmen-Kampagne</b> starten.</p>' },
@@ -3078,7 +3097,7 @@
     { tab: 'program', sel: '#program-view', title: 'Euer Wahlprogramm', text: '<p>Euer Flyer vom Programmparteitag: Kernthemen und Positionen. Die Kompetenz aus der Fachkonferenz begleitet euch durch den Wahlkampf.</p>' },
     { tab: 'news', sel: '#screen-game .news-card', title: 'Nachrichten', text: '<p>Was ihr getan habt, was die Konkurrenz plant und welche Eilmeldungen kamen. Die anderen Parteien reagieren auf euch – mit Gegenkampagnen und indem sie eure Themen besetzen.</p>' },
     { tab: 'map', sel: '#btn-end-week', title: 'Zur nächsten Woche', text: '<p>Habt ihr eure Termine und Einsätze genutzt, geht es zur nächsten Woche. Dann melden sich die Umfrageinstitute – und manchmal kommt eine <b>Eilmeldung</b>, auf die ihr reagieren müsst.</p><p>Am ' + E.fmtDate(E.weekDay(g, E.DUEL_WEEK, 4), 'dm') + ' wartet die <b>Elefantenrunde</b> im Fernsehen.</p>' },
-    { title: 'Viel Erfolg!', text: '<p>Das war’s. Fangt am besten mit einem Land an, in dem es knapp ist, oder setzt eines eurer Kernthemen. Die Einführung findet ihr jederzeit unter <b>❓ Einführung</b>.</p>' }
+    { title: 'Viel Erfolg!', text: '<p>Das war’s. Fangt am besten mit einem Land an, in dem es knapp ist, oder setzt eines eurer Kernthemen. Die Einführung findet ihr jederzeit unter <b>Einführung</b>.</p>' }
   ];
   let tourIdx = -1;
   let tourList = [];
@@ -3158,6 +3177,47 @@
   $('tour-prev').addEventListener('click', () => { if (tourIdx > 0) { tourIdx -= 1; showTourStep(); } });
   $('tour-skip').addEventListener('click', endTour);
   $('btn-tour').addEventListener('click', startTour);
+  document.querySelectorAll('.btn-model').forEach(b => b.addEventListener('click', showModel));
+
+  // Modell & Quellen: wie das Spiel rechnet, was belegt und was geschätzt ist.
+  function showModel() {
+    const sec = (title, items) => '<h3>' + title + '</h3><ul class="model-list">' + items.map(x => '<li>' + x + '</li>').join('') + '</ul>';
+    const est = ' <span class="model-est">geschätzt</span>';
+    const body = '<p>Das Spiel ist eine Simulation, keine Vorhersage. Es rechnet mit echten Ausgangsdaten, wo es sie gibt, und mit nachvollziehbaren Annahmen, wo nicht. Annahmen sind als <span class="model-est">geschätzt</span> markiert.</p>' +
+      sec('Wählerinnen und Wähler', [
+        'Ausgangspunkt ist das Ergebnis der Bundestagswahl 2025 (Bundeswahlleiterin) und die Sonntagsfrage zum Spielstart.',
+        D.GROUPS.length + ' Wählergruppen nach Alter, Bildung, Wohnort, Geschlecht, Konfession und Beruf. Wie sie wählen, stammt aus den Wahltagsbefragungen 2025 von Infratest dimap und Forschungsgruppe Wahlen; nicht veröffentlichte Werte sind am Gesamtergebnis geeicht.' + est,
+        'Jede Gruppe gewichtet Themen unterschiedlich. Was die Menschen bewegt, verschiebt sich mit der Lage im Land und über die Jahre (Alterung, Digitalisierung, Klima, Sicherheitslage).' + est
+      ]) +
+      '<details class="t-more"><summary>Quellen der Wählergruppen im Detail</summary><ul class="model-list small">' + (D.GROUP_SOURCES || []).map(x => '<li><b>' + esc(x.dim) + ':</b> ' + esc(x.text) + '</li>').join('') + '</ul></details>' +
+      sec('Umfragen', [
+        'Fünf fiktive Institute mit eigener Methode, Stichprobe und Feldzeit. Jedes weicht systematisch etwas ab; die Abweichungen gleichen sich im Mittel aus.' + est,
+        'Dazu kommt der Stichprobenfehler (Wurzel aus p·(1−p)/n mit Designeffekt 1,3). Das Umfragemittel ist der Durchschnitt der jüngsten Umfrage jedes Instituts.',
+        'Was die Menschen wirklich wählen, kennt das Spiel – ihr seht es erst am Wahlabend. Prognose und Hochrechnungen nähern sich dem Ergebnis schrittweise.' + est
+      ]) +
+      sec('Wahlrecht', [
+        D.SEATS + ' Sitze, Verteilung nach Sainte-Laguë, 5-%-Hürde, Grundmandatsklausel mit ' + E.GRUNDMANDATE + ' Direktmandaten, Zweitstimmendeckung bei den Wahlkreisen (Wahlrecht seit 2023).',
+        '299 Wahlkreise; Erststimmen aus den Länderwerten und dem Profil der Wahlkreise.' + est,
+        'Wahltermin: 46 bis 48 Monate nach dem ersten Zusammentritt des Bundestages (Art. 39 GG) – im Spiel der letzte Sonntag im Februar. Nach einer Auflösung höchstens 60 Tage später (im Spiel zwölf Wochen nach der ersten Wahl).' + est
+      ]) +
+      sec('Regierung und Gesetzgebung', [
+        'Kanzlerwahl nach Art. 63 GG in drei Wahlgängen; ohne Kanzlermehrheit entscheidet der Bundespräsident über Ernennung oder Auflösung.',
+        'Gesetze laufen durch Kabinett, Bundestag und Bundesrat (69 Stimmen, Einspruchs- und Zustimmungsgesetze, Vermittlungsausschuss). Abstimmungen haben Abweichler und Wackelkandidaten.' + est,
+        'Sitzungstage angelehnt an den Sitzungskalender von Bundestag und Bundesrat 2024/2025.' + est,
+        'Regierungsverschleiß pro Quartal, gedämpft durch gelieferte Gesetze, Koalitionsklima und umgesetzten Koalitionsvertrag – geeicht an GroKo 2013–17, Union 2009–13 und Ampel 2021–24.' + est
+      ]) +
+      sec('Haushalt und Wirtschaft', [
+        'Start mit dem Bundeshaushalt 2026: 524,5 Mrd. € Ausgaben, 97,965 Mrd. € Nettokreditaufnahme. Schuldenbremse nach Art. 115 GG (0,35 % des BIP, Konjunkturkomponente, Ausnahme für Verteidigung über 1 % des BIP). Sondervermögen Infrastruktur 500 Mrd. € über 12 Jahre.',
+        'Zinsen aus Schuldenstand und Durchschnittszins der Bundesschuld; Steuerschätzung im Mai und Herbst; Wirkung von Kürzungen und Konsolidierungsmaßnahmen.' + est,
+        'Wirtschaft: Startwerte nach dem Stand 2026, danach ein einfaches Modell aus Trendwachstum, Haushaltsimpuls und Investitionen; die Arbeitslosigkeit folgt dem Wachstum (Okunsches Gesetz).' + est
+      ]) +
+      sec('Was das Spiel vereinfacht', [
+        'Parteien und Verbände tragen ihre echten Namen. Personen, Umfrageinstitute, Zeitungen und Ereignisse sind erfunden.',
+        'Landtagswahltermine: zweiter Sonntag im Monat der regulären Wahl.' + est,
+        'Kein Überhang und keine Ausgleichsmandate (entfallen seit dem Wahlrecht 2023).'
+      ]);
+    openModal('Über das Spiel', 'Modell & Quellen', body, [{ label: 'Schließen', primary: true, onClick: closeModal }]);
+  }
   window.addEventListener('resize', placeTour);
   window.addEventListener('scroll', placeTour, { passive: true });
   document.addEventListener('keydown', e => {
@@ -3187,7 +3247,7 @@
     const after = E.campaignAverage(g)[g.party];
     const rivals = g.log.filter(l => l.type === 'ai' && l.week === g.week - 1 && /euch|Kernthema/.test(l.text)).length;
     toast('Umfragemittel: ' + pct(after) + ' (' + signed(after - before) + ' zur Vorwoche)' +
-      (rivals ? ' · 🥊 Die Konkurrenz greift euch an!' : ''));
+      (rivals ? ' · Die Konkurrenz greift euch an!' : ''));
     renderGame();
     weekReview(before, after, () => pruefstein(checkPending));
   });

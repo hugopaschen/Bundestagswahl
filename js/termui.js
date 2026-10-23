@@ -68,7 +68,7 @@
     const poll = T.termAverage(g)[g.party];
     const stats = [
       ['Zeit', T.quarterLabel(t)],
-      ['Aktionen', '●'.repeat(t.ap) + '○'.repeat(Math.max(0, t.apMax - t.ap))],
+      ['Termine im Quartal', t.ap + ' von ' + t.apMax + ' frei'],
       ['Umfragemittel', pct(poll) + ' <small>(' + signed(poll - t.share0) + ')</small>'],
       ['Parteikasse', mio(t.party.cash)]
     ];
@@ -134,7 +134,7 @@
     const t = term();
     const mine = T.ACTIONS.filter(a => a.roles.indexOf(t.role) !== -1);
     const blocked = [];
-    let html = '<h3>🎯 Aktionen <span class="muted small">' + t.ap + ' von ' + t.apMax + ' übrig</span></h3><div class="t-act-groups">';
+    let html = '<h3>Aktionen <span class="muted small">' + t.ap + ' von ' + t.apMax + ' übrig</span></h3><div class="t-act-groups">';
     ACT_GROUPS.forEach(([title, ids]) => {
       const list = mine.filter(a => ids.indexOf(a.id) !== -1 || (title.indexOf('Öffentlichkeit') !== -1 && !ACT_GROUPS.some(gr => gr[1].indexOf(a.id) !== -1)));
       const ok = list.filter(a => { const c = T.canAct(g, a.id); if (!c.ok) blocked.push({ a, why: c.text }); return c.ok; });
@@ -151,13 +151,45 @@
   function trend(v) { return v > 0.05 ? '<span class="pos">▲ ' + signed(v) + '</span>' : v < -0.05 ? '<span class="neg">▼ ' + signed(v) + '</span>' : '<span class="muted">• ±0</span>'; }
   // Lage im Land: was die Menschen bewegt und wie es um die großen Probleme steht.
   const fmtVal = (v, dec) => Number(v).toLocaleString('de-DE', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  // Wirtschaft seit der Wahl: vier kleine Zeitreihen je Quartal (Quelle der Startwerte: Projektion 2026, Rest Modell).
+  function econChartsHtml() {
+    const t = term();
+    const pts = t.history.filter(h => h.econ);
+    if (pts.length < 2) return '';
+    const W = 240, H = 92, L = 30, R = 8, Tp = 10, B = 18;
+    const label = h => (h.q < 0 ? 'Wahl' : T.cal(t, h.q).year + '');
+    const panel = (key, name, unit, good) => {
+      const v = pts.map(h => h.econ[key]);
+      let lo = Math.min(...v), hi = Math.max(...v);
+      const pad = Math.max(0.2, (hi - lo) * 0.15);
+      lo -= pad; hi += pad;
+      const x = i => L + (W - L - R) * i / Math.max(1, pts.length - 1);
+      const y = val => Tp + (H - Tp - B) * (1 - (val - lo) / (hi - lo));
+      const last = v[v.length - 1], first = v[0];
+      const better = good === 'up' ? last >= first : last <= first;
+      let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(name) + ' seit der Wahl">' +
+        '<line class="ec-axis" x1="' + L + '" x2="' + (W - R) + '" y1="' + (H - B) + '" y2="' + (H - B) + '"></line>' +
+        '<text class="ec-t" x="' + (L - 4) + '" y="' + (y(hi - pad) + 3) + '" text-anchor="end">' + num1(hi - pad) + '</text>' +
+        '<text class="ec-t" x="' + (L - 4) + '" y="' + (y(lo + pad) + 3) + '" text-anchor="end">' + num1(lo + pad) + '</text>' +
+        '<text class="ec-t" x="' + L + '" y="' + (H - 4) + '">' + label(pts[0]) + '</text>' +
+        '<text class="ec-t" x="' + (W - R) + '" y="' + (H - 4) + '" text-anchor="end">' + label(pts[pts.length - 1]) + '</text>';
+      if (lo < 0 && hi > 0) svg += '<line class="ec-zero" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(0) + '" y2="' + y(0) + '"></line>';
+      svg += '<polyline class="ec-line" points="' + v.map((val, i) => x(i).toFixed(1) + ',' + y(val).toFixed(1)).join(' ') + '"></polyline>' +
+        '<circle class="ec-dot" cx="' + x(v.length - 1) + '" cy="' + y(last) + '" r="3"></circle></svg>';
+      return '<figure class="ec-panel"><figcaption>' + esc(name) + ' <b class="' + (better ? 'pos' : 'neg') + '">' + num1(last) + ' ' + unit + '</b></figcaption>' + svg + '</figure>';
+    };
+    return '<h3>Wirtschaft seit der Wahl</h3><div class="ec-grid">' +
+      panel('growth', 'Wachstum', '%', 'up') + panel('unemp', 'Arbeitslosenquote', '%', 'down') + panel('infl', 'Inflation', '%', 'down') + panel('debt', 'Schuldenquote', '% des BIP', 'down') +
+      '</div><p class="muted small">Je Quartal, Jahresraten. Startwerte geschätzt nach dem Stand 2026, Verlauf aus dem Wirtschaftsmodell des Spiels.</p>';
+  }
+
   function lageHtml() {
     const t = term();
     const rows = T.lageBilanz(g);
     const prev = t.lagePrev || {};
     const sp = t.salPrev || {};
     const top = D.TOPICS.slice().sort((a, b) => g.salience[b.id] - g.salience[a.id]).slice(0, 5);
-    let html = '<h3>📊 Lage im Land</h3><div class="t-two"><div><h4>Was die Menschen bewegt</h4><ol class="t-probs">' + top.map(tp => {
+    let html = '<h3>Lage im Land</h3><div class="t-two"><div><h4>Was die Menschen bewegt</h4><ol class="t-probs">' + top.map(tp => {
       const d = sp[tp.id] ? g.salience[tp.id] - sp[tp.id] : 0;
       return '<li>' + tp.icon + ' ' + esc(tp.name) + ' <small class="muted">' + Math.round(g.salience[tp.id] * 100) + ' %</small>' + (Math.abs(d) >= 0.004 ? ' <small class="' + (d > 0 ? 'neg' : 'pos') + '">' + (d > 0 ? '▲' : '▼') + '</small>' : '') + '</li>';
     }).join('') + '</ol><p class="muted small">Anteil an der Frage nach den wichtigsten Problemen. Was sich verschlechtert, wird wichtiger.</p></div>';
@@ -190,7 +222,7 @@
     const t = term();
     const v = (t.voices || []).slice(0, n || 3);
     if (!v.length) return '';
-    return '<h3>🗣️ Stimmen aus dem Land</h3><div class="t-voices">' + v.map(x => '<blockquote class="t-voice ' + (x.mood === '+' ? 'pos' : 'neg') + '"><p>„' + esc(x.text.replace(/^„|“$/g, '')) + '“</p><cite>' + esc(x.who) + '</cite></blockquote>').join('') + '</div>';
+    return '<h3>Stimmen aus dem Land</h3><div class="t-voices">' + v.map(x => '<blockquote class="t-voice ' + (x.mood === '+' ? 'pos' : 'neg') + '"><p>„' + esc(x.text.replace(/^„|“$/g, '')) + '“</p><cite>' + esc(x.who) + '</cite></blockquote>').join('') + '</div>';
   }
 
   function renderLage() {
@@ -202,7 +234,7 @@
     if (t.over) html += '<div class="t-over"><p><strong>Die Legislaturperiode ist vorbei.</strong> ' + esc(t.early || '') + '</p><button type="button" class="btn primary" id="t-show-summary">Bilanz und nächster Wahlkampf</button></div>';
     // Jetzt wichtig
     const td = todos();
-    html += '<div class="t-todo"><h3>📋 Jetzt wichtig</h3>' + (td.length ? '<ul>' + td.map((x, i) => '<li class="' + (x.warn ? 'warn' : '') + '"><span class="t-todo-i">' + x.icon + '</span><span class="t-todo-t">' + esc(x.text) + '</span>' +
+    html += '<div class="t-todo"><h3>Jetzt wichtig</h3>' + (td.length ? '<ul>' + td.map((x, i) => '<li class="' + (x.warn ? 'warn' : '') + '"><span class="t-todo-i">' + x.icon + '</span><span class="t-todo-t">' + esc(x.text) + '</span>' +
       '<button type="button" class="btn small t-todo-b" data-i="' + i + '">' + esc(x.btn) + ' →</button></li>').join('') + '</ul>' : '<p class="muted">Alles im Griff. Nutzt eure Aktionen, um Themen zu setzen.</p>') + '</div>';
     // Vier Kennzahlen mit Trend
     const avg = T.termAverage(g)[g.party];
@@ -219,13 +251,14 @@
       chip('Inflation', num1(e.infl) + ' %', e.infl > 3) + chip('Schuldenquote', num1(e.debt) + ' %') + chip('Haushalt', (b.gap > 0 ? 'Schuldenbremse −' : 'Spielraum ') + mrd(Math.abs(b.gap)), b.gap > 0) +
       (T.isGov(t.role) && t.gov.length > 1 ? chip('Beliebtheit Spitze', (t.party.leader.like >= 0 ? '+' : '−') + num1(Math.abs(t.party.leader.like))) : '') +
       (T.isGov(t.role) ? chip('Ansehen in der Welt', Math.round(t.intl) + '/100') : '') + '</div>';
-    if (t.role === 'apo') { const cb = T.comebackBarometer(g); html += '<h3>📈 Comeback-Barometer</h3><div class="t-kpis">' + kpi('Chance auf den Wiedereinzug', cb.score + '/100', bar(cb.score, 100, cb.score >= 60 ? 'good' : cb.score >= 35 ? 'mid' : 'bad') + ' ' + esc(cb.label)) + kpi('Umfrage', pct(cb.poll), cb.poll >= 5 ? 'über der Hürde' : 'unter der Hürde') + kpi('In Landtagen', String(cb.landtage), 'Länder mit mindestens 5 %') + kpi('Mitglieder', Math.round(cb.members * 100) + ' %', 'im Vergleich zur Wahl') + '</div>'; }
+    if (t.role === 'apo') { const cb = T.comebackBarometer(g); html += '<h3>Comeback-Barometer</h3><div class="t-kpis">' + kpi('Chance auf den Wiedereinzug', cb.score + '/100', bar(cb.score, 100, cb.score >= 60 ? 'good' : cb.score >= 35 ? 'mid' : 'bad') + ' ' + esc(cb.label)) + kpi('Umfrage', pct(cb.poll), cb.poll >= 5 ? 'über der Hürde' : 'unter der Hürde') + kpi('In Landtagen', String(cb.landtage), 'Länder mit mindestens 5 %') + kpi('Mitglieder', Math.round(cb.members * 100) + ' %', 'im Vergleich zur Wahl') + '</div>'; }
+    html += econChartsHtml();
     html += lageHtml();
     html += voicesHtml(3);
     // Sitzungswoche: Abstimmungen am Ende dieses Quartals mit Prognose
     const due = T.dueVotes(g);
     if (due.length) {
-      html += '<h3>🗳️ Abstimmungen in diesem Quartal</h3><ul class="t-due">' + due.map(x => {
+      html += '<h3>Abstimmungen in diesem Quartal</h3><ul class="t-due">' + due.map(x => {
         if (x.kind === 'budget') return '<li><span>🏦 Haushaltsgesetz ' + x.year + '</span><span class="t-pg mid">Bundestag</span></li>';
         const l = x.law;
         const f = T.forecast(g, l);
@@ -239,12 +272,12 @@
     const cal = T.calendar(g, 9);
     const li = x => '<li><span class="t-cal-q">' + esc(x.label) + '</span>' + esc(x.text) + (x.kind === 'ltw' ? ' <span class="muted small">· regiert von ' + t.laender[x.land].gov.map(short).join('-') + '</span>' : '') + '</li>';
     const sw = T.nextSession(t);
-    html += '<h3>📅 Termine</h3>' + (sw ? '<p class="small">Nächste Sitzungswoche des Bundestages: <b>' + E.fmtRange(sw.from, sw.to) + '</b> · Bundesrat: <b>' + T.plenaryLabel(t, t.q, 'br') + '</b></p>' : '') + '<ul class="t-cal">' + cal.slice(0, 3).map(li).join('') + '</ul>' + (cal.length > 3 ? '<details class="t-more"><summary>Weitere Termine (' + (cal.length - 3) + ')</summary><ul class="t-cal">' + cal.slice(3).map(li).join('') + '</ul></details>' : '');
+    html += '<h3>Termine</h3>' + (sw ? '<p class="small">Nächste Sitzungswoche des Bundestages: <b>' + E.fmtRange(sw.from, sw.to) + '</b> · Bundesrat: <b>' + T.plenaryLabel(t, t.q, 'br') + '</b></p>' : '') + '<ul class="t-cal">' + cal.slice(0, 3).map(li).join('') + '</ul>' + (cal.length > 3 ? '<details class="t-more"><summary>Weitere Termine (' + (cal.length - 3) + ')</summary><ul class="t-cal">' + cal.slice(3).map(li).join('') + '</ul></details>' : '');
     html += wearHtml();
     // Koalitionsvertrag (zum Aufklappen)
     if (T.isGov(t.role) && t.gov.length > 1) {
       const open = Object.keys(t.contract).filter(tp => t.contract[tp] !== t.policy[tp]);
-      html += '<details class="t-more"><summary>📜 Koalitionsvertrag: noch ' + open.length + ' von ' + Object.keys(t.contract).length + ' Vorhaben offen</summary><p class="muted small">Gesetze aus dem Vertrag tragen die Partner mit.</p><ul class="t-contract">' +
+      html += '<details class="t-more"><summary>Koalitionsvertrag: noch ' + open.length + ' von ' + Object.keys(t.contract).length + ' Vorhaben offen</summary><p class="muted small">Gesetze aus dem Vertrag tragen die Partner mit.</p><ul class="t-contract">' +
         open.map(tp => '<li>' + E.topicById(tp).icon + ' ' + esc(D.PROGRAM[tp][t.contract[tp]].label) + '</li>').join('') + '</ul></details>';
     }
     $('t-lage').innerHTML = html;
@@ -428,7 +461,7 @@
   }
   function renderLaws() {
     const t = term();
-    let html = '<h2>📜 Gesetzgebung</h2>';
+    let html = '<h2>Gesetzgebung</h2>';
     const active = t.laws.filter(l => ['kabinett', 'kabinett_wait', 'veto', 'bundestag', 'bundesrat', 'vermittlung'].indexOf(l.stage) !== -1);
     html += '<details class="small"><summary class="muted">So läuft ein Gesetz (Art. 76–82 GG)</summary><p class="muted small">Regierungsentwurf: Referentenentwurf, Ressortabstimmung, Anhörung von Ländern und Verbänden, Kabinettsbeschluss (1 Quartal). ' +
       'Dann nimmt der Bundesrat Stellung (1. Durchgang), der Bundestag berät in 1. Lesung, der Ausschuss hört Sachverständige an, in 2./3. Lesung wird abgestimmt (Mehrheit der abgegebenen Stimmen; 1 Quartal). ' +
@@ -452,7 +485,7 @@
   function renderSq() {
     const t = term();
     const rows = D.TOPICS.map(tp => ({ tp, sq: t.sq[tp.id], f: T.sqForces(g, tp.id) })).sort((a, b) => a.sq - b.sq);
-    let html = '<h3>⚖️ Status quo: die gefährdetsten Themen</h3><p class="muted small">Was heute gilt, hat Rückhalt. Die Ränder greifen ihn an, die Mitte verteidigt ihn. Unter 40 gewinnen die Angreifer an Zustimmung, unter 15 kippt die Lage und die Regierung muss reagieren. Ein starker Status quo macht Gesetze, die ihn ändern, schwerer – ein schwacher leichter.</p><div class="t-sq">';
+    let html = '<h3>Status quo: die gefährdetsten Themen</h3><p class="muted small">Was heute gilt, hat Rückhalt. Die Ränder greifen ihn an, die Mitte verteidigt ihn. Unter 40 gewinnen die Angreifer an Zustimmung, unter 15 kippt die Lage und die Regierung muss reagieren. Ein starker Status quo macht Gesetze, die ihn ändern, schwerer – ein schwacher leichter.</p><div class="t-sq">';
     (sqAll ? rows : rows.slice(0, 3)).forEach(r => {
       const cls = r.sq < 15 ? 'bad' : r.sq < 40 ? 'mid' : 'good';
       const mine = T.leanOf(g, g.party, r.tp.id) === D.PROGRAM[r.tp.id][t.policy[r.tp.id]].lean;
@@ -545,7 +578,7 @@
     const meas = editing ? budgetMeasures : [];
     const b = T.budgetCalc(t, plan, meas);
     const enacted = t.budget.measures || {};
-    let html = '<h2>🏦 Haushalt & Steuern</h2>';
+    let html = '<h2>Haushalt & Steuern</h2>';
     const qn = T.cal(t).qn;
     // Ein Satz zum Stand
     const stand = editing ? '✍️ Euer Entwurf für ' + d.year + ' ist offen – im 4. Quartal stimmt der Bundestag ab.' : d && d.done ? '📄 Der Entwurf ' + d.year + ' liegt dem Bundestag vor.' : t.budget.status === 'vorlaeufig' ? '⚠️ Vorläufige Haushaltsführung – es fehlt ein beschlossener Haushalt.' : '✅ Der Haushalt ' + T.cal(t).year + ' ist beschlossen.';
@@ -635,7 +668,7 @@
   // ---------- Kabinett ----------
   function renderCabinet() {
     const t = term();
-    let html = '<h2>👥 Bundesregierung</h2>';
+    let html = '<h2>Bundesregierung</h2>';
     html += '<div class="t-cab-top"><div class="t-cab-card chanc"><span class="t-cab-min">' + TD.KANZLERAMT.icon + ' Bundeskanzler:in</span><b>' + esc(t.chancellor.name) + '</b>' + pill(t.chancellor.party) + '</div>' +
       (t.vize ? '<div class="t-cab-card"><span class="t-cab-min">Vizekanzler:in</span><b>' + esc(t.vize.name) + '</b>' + pill(t.vize.party) + '</div>' : '') + '</div>';
     const unnamed = Object.keys(t.cabinet).filter(id => t.cabinet[id].party === g.party && !t.cabinet[id].name);
@@ -677,7 +710,7 @@
   function renderParliament() {
     const t = term();
     const seats = t.seats;
-    let html = '<h2>🗳️ Bundestag und Bundesrat</h2><div class="t-parl"><div><h3>Bundestag (' + D.SEATS + ' Sitze)</h3><div class="hemicycle t-hemi">' + U.hemicycle(seats) + '</div><div class="seat-legend">' + U.seatLegend(seats) + '</div>' +
+    let html = '<h2>Bundestag und Bundesrat</h2><div class="t-parl"><div><h3>Bundestag (' + D.SEATS + ' Sitze)</h3><div class="hemicycle t-hemi">' + U.hemicycle(seats) + '</div><div class="seat-legend">' + U.seatLegend(seats) + '</div>' +
       '<p class="small">Regierung: ' + t.gov.map(pill).join(' ') + ' · ' + T.govSeats(t) + ' Sitze (Mehrheit ab ' + E.MAJORITY + ')' + (t.tolerated ? ' – Minderheitsregierung' : '') + '</p>';
     // Projektion: Wenn am nächsten Sonntag Bundestagswahl wäre (Sitze nach der aktuellen Umfrage).
     const proj = U.pollSeats(g.poll.nat);
@@ -697,7 +730,7 @@
       if (aligned) fedGov += L.votes;
       brRows += '<tr class="' + (aligned ? 'aligned' : '') + '"><td>' + esc(E.stateById(l).name) + '</td><td class="num">' + L.votes + '</td><td>' + L.gov.map(pill).join(' ') + '</td></tr>';
     });
-    html += '</div>' + projHtml + '</div><h3>Bundesrat (69 Stimmen)</h3>' + bundesratSvg(t) + '<p class="t-lead ' + (fedGov >= TD.BUNDESRAT_MAJ ? '' : 'neg') + '"><b>' + fedGov + ' von 69 Stimmen</b> kommen aus Ländern, in denen nur Bundesregierungsparteien regieren – ' +
+    html += '</div>' + projHtml + '</div><h3>Bundesrat (69 Stimmen)</h3>' + bundesratSvg(t) + landMapHtml(t) + '<p class="t-lead ' + (fedGov >= TD.BUNDESRAT_MAJ ? '' : 'neg') + '"><b>' + fedGov + ' von 69 Stimmen</b> kommen aus Ländern, in denen nur Bundesregierungsparteien regieren – ' +
       (fedGov >= TD.BUNDESRAT_MAJ ? 'genug für zustimmungspflichtige Gesetze.' : 'für zustimmungspflichtige Gesetze (' + TD.BUNDESRAT_MAJ + ') braucht ihr andere Länder.') + '</p>' +
       '<details class="t-more"><summary>Alle 16 Landesregierungen als Tabelle</summary><table class="t-br"><tbody>' + brRows + '</tbody></table></details>';
     if (t.ltwLog.length) {
@@ -706,7 +739,7 @@
     }
     if ((t.voteLog || []).length) {
       const lbl = { ja: '✅ Ja', nein: '❌ Nein', enthaltung: '➖ Enthaltung' };
-      html += '<details class="t-more"><summary>🗂️ Euer Abstimmungsverhalten (' + t.voteLog.length + ')</summary><ul class="t-ltw">' + t.voteLog.map(x => '<li><span class="muted small">' + esc(T.quarterLabel(t, Math.min(x.q, T.QUARTERS - 1))) + '</span> ' + esc(x.title) +
+      html += '<details class="t-more"><summary>Euer Abstimmungsverhalten (' + t.voteLog.length + ')</summary><ul class="t-ltw">' + t.voteLog.map(x => '<li><span class="muted small">' + esc(T.quarterLabel(t, Math.min(x.q, T.QUARTERS - 1))) + '</span> ' + esc(x.title) +
         ' · <b>' + (lbl[x.my] || x.my) + '</b> · ' + (x.pass ? 'angenommen' : 'abgelehnt') + ' (' + x.yes + ':' + x.no + ')' + (x.decisive ? ' ⚖️' : '') + (x.gewissen ? ' 🧭' : '') + '</li>').join('') +
         '</ul><p class="muted small">⚖️ = eure Stimmen gaben den Ausschlag · 🧭 = Gewissensentscheidung. Gegner und Presse erinnern sich an euer Abstimmungsverhalten.</p></details>';
     }
@@ -724,6 +757,25 @@
   // Zusammensetzung des Bundesrates im Stil der offiziellen Grafik: Halbkreis, Länder alphabetisch, Breite nach Stimmen,
   // die Koalitionsparteien eines Landes als Ringe (außen die Partei der Regierungschefin/des Regierungschefs).
   const BR_SHORT = { BW: 'Baden-Württemberg', MV: 'Mecklenburg-Vorpommern', NW: 'Nordrhein-Westfalen', RP: 'Rheinland-Pfalz', SH: 'Schleswig-Holstein', ST: 'Sachsen-Anhalt' };
+  // Karte der Landesregierungen: Farbe = Partei der Regierungschefin/des Regierungschefs, gestreift = Koalition mit Bundesregierungspartei.
+  function landMapHtml(t) {
+    const GEO = window.BTW_MAP;
+    if (!GEO) return '';
+    const fed = p => t.gov.indexOf(p) !== -1;
+    let shapes = '', labels = '';
+    D.STATES.forEach(st => {
+      const geo = GEO.states[st.id];
+      const L = t.laender[st.id];
+      if (!geo || !L) return;
+      const head = L.gov[0];
+      const allFed = L.gov.every(fed), someFed = L.gov.some(fed);
+      shapes += '<path class="lm-shape' + (allFed ? ' fed' : someFed ? ' mixed' : ' opp') + '" d="' + geo.d + '" style="fill:' + col(head) + '"><title>' + esc(st.name) + ': ' + L.gov.map(short).join('-') + ' · ' + L.votes + ' Stimmen</title></path>';
+      labels += '<text class="lm-v" x="' + geo.cx + '" y="' + (geo.cy + 5) + '" text-anchor="middle">' + L.votes + '</text>';
+    });
+    return '<figure class="lm-fig"><p class="br-title">Landesregierungen <small>Farbe = Partei an der Spitze · Zahl = Stimmen im Bundesrat · blass = ohne Bundesregierungspartei</small></p>' +
+      '<svg viewBox="-4 -4 ' + (GEO.w + 8) + ' ' + (GEO.h + 8) + '" role="img" aria-label="Karte der Landesregierungen">' + shapes + labels + '</svg></figure>';
+  }
+
   function bundesratSvg(t) {
     const cx = 550; const cy = 70; const r0 = 175; const r1 = 380; const r2 = 418;
     const ids = Object.keys(t.laender).sort((a, b) => E.stateById(a).name.localeCompare(E.stateById(b).name, 'de'));
@@ -772,7 +824,7 @@
   function renderParty() {
     const t = term();
     const P = t.party;
-    let html = '<h2>🎪 ' + esc(E.party(g.party).name) + '</h2><div class="t-kpis">' +
+    let html = '<h2>' + esc(E.party(g.party).name) + '</h2><div class="t-kpis">' +
       kpi('Vorsitz', esc(P.leader.name), 'Beliebtheit ' + (P.leader.like >= 0 ? '+' : '−') + num1(Math.abs(P.leader.like))) +
       kpi('Mitglieder', P.members.toLocaleString('de-DE'), signed((P.members / E.party(g.party).members - 1) * 100) + ' % seit der Wahl') +
       kpi('Parteikasse', mio(P.cash), 'geht in den nächsten Wahlkampf') +
@@ -780,7 +832,7 @@
     const Wn = TD.WINGS[g.party] || ['Wirtschaftsflügel', 'Sozialflügel'];
     const wings = P.wings || [55, 55];
     const team = P.team || {};
-    html += '<h3>🧭 Führung und Flügel</h3><div class="t-two"><div><h4>Führungsteam</h4><ul class="t-team">' +
+    html += '<h3>Führung und Flügel</h3><div class="t-two"><div><h4>Führungsteam</h4><ul class="t-team">' +
       '<li><span class="muted small">Vorsitz</span> ' + esc(P.leader.name) + (P.lastVote ? ' <span class="muted small">(' + String(P.lastVote.pct.toFixed(1)).replace('.', ',') + ' % beim Parteitag ' + P.lastVote.year + ')</span>' : '') + '</li>' +
       (team.gs ? '<li><span class="muted small">Generalsekretariat</span> ' + esc(team.gs) + '</li>' : '') +
       (team.fv && (t.seats[g.party] || 0) > 0 ? '<li><span class="muted small">Fraktionsvorsitz</span> ' + esc(team.fv) + '</li>' : '') +
@@ -788,30 +840,30 @@
       '<div><h4>Stimmung der Flügel</h4><div class="t-lv">' + Wn.map((n, i) => { const w = Math.round(wings[i]); return '<div class="t-lv-row"><span>' + esc(n) + '</span>' + bar(w, 100, w < 40 ? 'bad' : w < 55 ? 'mid' : 'good') + '<span class="num">' + w + '</span></div>'; }).join('') + '</div>' +
       '<p class="muted small">Eure Gesetze rechts der Mitte freuen „' + esc(Wn[0]) + '“, Gesetze links der Mitte „' + esc(Wn[1]) + '“. Ein verärgerter Flügel kostet Geschlossenheit. Ordentliche Parteitage alle zwei Jahre.</p></div></div>';
     const wk = T.wkStatus(g);
-    html += '<h3>🏘️ Euer Wahlkreis</h3><div class="t-kpis">' + kpi('Wahlkreis', esc(wk.name), esc(E.stateById(wk.land).name) + ' · vertreten von ' + esc(P.leader.name)) +
+    html += '<h3>Euer Wahlkreis</h3><div class="t-kpis">' + kpi('Wahlkreis', esc(wk.name), esc(E.stateById(wk.land).name) + ' · vertreten von ' + esc(P.leader.name)) +
       kpi('Erststimme (Umfrage)', pct(wk.mine), wk.lead ? 'vorn – Vorsprung ' + num1(wk.mine - wk.rivalShare) + ' Punkte' : esc(short(wk.rival)) + ' vorn mit ' + pct(wk.rivalShare)) +
       kpi('Wahlkreispflege', wk.care + '/100', bar(wk.care, 100, wk.care < 35 ? 'bad' : wk.care < 55 ? 'mid' : 'good') + ' wirkt bei der nächsten Wahl auf die Erststimmen') + '</div>';
     const M = t.media || { boulevard: 50, leit: 50, oer: 50, social: 50 };
-    html += '<h3>🗞️ Medien</h3><div class="t-lv">' + T.MEDIA.map(m => { const r = Math.round(M[m.id]); return '<div class="t-lv-row"><span>' + m.icon + ' ' + esc(m.name) + '</span>' + bar(r, 100, r >= 62 ? 'good' : r < 40 ? 'bad' : 'mid') + '<span class="num">' + r + '</span></div>'; }).join('') + '</div>' +
+    html += '<h3>Medien</h3><div class="t-lv">' + T.MEDIA.map(m => { const r = Math.round(M[m.id]); return '<div class="t-lv-row"><span>' + m.icon + ' ' + esc(m.name) + '</span>' + bar(r, 100, r >= 62 ? 'good' : r < 40 ? 'bad' : 'mid') + '<span class="num">' + r + '</span></div>'; }).join('') + '</div>' +
       '<p class="muted small">Wer mit einem Medium spricht (Aktion „Exklusiv-Interview“), wird dort wohlwollender begleitet. Die Presseschau am Quartalsende zeigt den Ton.</p>';
     const LBx = T.LB;
     const near = Math.round((g.lobby && g.lobby.near) || 0);
     // Verbände: die drei stärksten Unterstützer und Gegner, der Rest zum Aufklappen.
     const lrow = l => { const r = Math.round(LBx.rel(g, l.id)); return '<div class="t-lv-row"><span>' + l.icon + ' ' + esc(l.short) + '</span>' + bar(r, 100, r >= 70 ? 'good' : r <= 25 ? 'bad' : 'mid') + '<span class="num">' + r + '</span></div>'; };
     const sorted = LBx.LOBBIES.slice().sort((a, b) => LBx.rel(g, b.id) - LBx.rel(g, a.id));
-    html += '<h3>🏛️ Verbände <span class="muted small">Lobbynähe ' + near + '/100</span></h3><div class="t-two"><div><h4>👍 Stärkste Unterstützer</h4><div class="t-lv">' + sorted.slice(0, 3).map(lrow).join('') + '</div></div>' +
-      '<div><h4>👎 Stärkste Gegner</h4><div class="t-lv">' + sorted.slice(-3).reverse().map(lrow).join('') + '</div></div></div>' +
+    html += '<h3>Verbände <span class="muted small">Lobbynähe ' + near + '/100</span></h3><div class="t-two"><div><h4>Stärkste Unterstützer</h4><div class="t-lv">' + sorted.slice(0, 3).map(lrow).join('') + '</div></div>' +
+      '<div><h4>Stärkste Gegner</h4><div class="t-lv">' + sorted.slice(-3).reverse().map(lrow).join('') + '</div></div></div>' +
       '<details class="t-more"><summary>Alle Verbände und Lobbyregister</summary><p class="muted small">Verbündete (ab 70) mobilisieren und spenden, Gegner (bis 25) machen Stimmung gegen euch. Je höher die Lobbynähe, desto mehr Geld und Unterstützung, aber auch mehr Affärenrisiko.</p><div class="t-lv">' + sorted.map(lrow).join('') + '</div>' +
       (g.lobby && g.lobby.register.length ? '<h4>Lobbyregister (öffentlich)</h4><ul class="t-cred">' + g.lobby.register.slice(0, 8).map(x => '<li>' + esc(x.when) + ': ' + esc(LBx.byId(x.id).short) + ' – ' + esc(x.text) + '</li>').join('') + '</ul>' : '') + '</details>';
     // Landesverbände: nur die unruhigen.
     const lvRow = st => { const u = P.lv[st.id]; return '<div class="t-lv-row"><span>' + esc(st.name) + '</span>' + bar(u, 100, u > 60 ? 'bad' : u > 40 ? 'mid' : 'good') + '<span class="num">' + Math.round(u) + '</span></div>'; };
     const lvs = D.STATES.slice().sort((a, b) => P.lv[b.id] - P.lv[a.id]);
     const restless = lvs.filter(st => P.lv[st.id] >= 40);
-    html += '<h3>🧩 Landesverbände</h3>' + (restless.length ? '<p class="muted small">Unruhig (ab 50 kostet es im Land Stimmen):</p><div class="t-lv">' + restless.map(lvRow).join('') + '</div>' : '<p class="muted">Alle Landesverbände sind ruhig.</p>') +
+    html += '<h3>Landesverbände</h3>' + (restless.length ? '<p class="muted small">Unruhig (ab 50 kostet es im Land Stimmen):</p><div class="t-lv">' + restless.map(lvRow).join('') + '</div>' : '<p class="muted">Alle Landesverbände sind ruhig.</p>') +
       '<details class="t-more"><summary>Alle Landesverbände</summary><div class="t-lv">' + lvs.map(lvRow).join('') + '</div></details>';
     const career = [];
     if (career.length) {
-      html += '<h3>Eure Laufbahn</h3><ul class="t-career">' + career.map(c => '<li>' + c.n + '. Legislatur ' + c.from + '–' + c.to + ': ' + esc(TD.ROLES[c.role].name) + ' · ' + c.score + ' Punkte (' + esc(c.rating) + ')</li>').join('') + '</ul>';
+      html += '<h3>Eure Laufbahn</h3><ul class="t-career">' + career.map(c => '<li>' + c.n + '. Legislatur ' + c.from + '–' + c.to + ': ' + esc(TD.ROLES[c.role].name) + ' · ' + esc(c.rating) + '</li>').join('') + '</ul>';
     }
     $('t-partei').innerHTML = html;
   }
@@ -821,9 +873,9 @@
     const t = term();
     const polls = T.termPolls(g);
     const avg = E.pollAverage(polls);
-    let html = '<h2>📊 Sonntagsfrage</h2><div class="poll-cols">' + U.pollColumnsHtml(avg, t.start) + '</div><p class="muted small">Mittel der jüngsten Umfragen, Veränderung zur Bundestagswahl ' + t.year0 + '. Helle Fläche = Unsicherheit (bei großen Parteien bis ± 3 Punkte).</p>' +
+    let html = '<h2>Sonntagsfrage</h2><div class="poll-cols">' + U.pollColumnsHtml(avg, t.start) + '</div><p class="muted small">Mittel der jüngsten Umfragen, Veränderung zur Bundestagswahl ' + t.year0 + '. Helle Fläche = Unsicherheit (bei großen Parteien bis ± 3 Punkte).</p>' +
       '<h3>Aktuelle Umfragen</h3>' + U.instTableHtml(polls, g.party);
-    html += '<h3>🧮 Koalitionsrechner</h3><p class="muted small">Sitze nach dieser Umfrage (5-%-Hürde, ohne Grundmandate und Überhang). Parteien antippen – reicht es für eine Mehrheit?</p><div class="calc-body t-calc" id="t-poll-calc"></div>';
+    html += '<h3>Koalitionsrechner</h3><p class="muted small">Sitze nach dieser Umfrage (5-%-Hürde, ohne Grundmandate und Überhang). Parteien antippen – reicht es für eine Mehrheit?</p><div class="calc-body t-calc" id="t-poll-calc"></div>';
     html += '<h3>Verlauf seit der Wahl</h3><div class="t-chart" id="t-chart"></div>';
     html += fxHtml();
     html += groupsHtml();
@@ -831,7 +883,7 @@
     const yr = T.cal(t).year;
     const sb = E.salienceBase(yr);
     const mt = D.TOPICS.map(tp => ({ tp, d: Math.round((sb[tp.id] / D.SALIENCE0[tp.id] - 1) * 100) })).filter(x => x.d >= 2).sort((a, b) => b.d - a.d);
-    html += '<h3>📈 Megatrends</h3><p class="muted small">Über die Jahre verschiebt sich, was die Menschen bewegen wird – Alterung, Digitalisierung, Klimawandel und neue Sicherheitslage (Raten geschätzt). Wer hier Kompetenz aufbaut, profitiert in späteren Wahlen.</p>' +
+    html += '<h3>Megatrends</h3><p class="muted small">Über die Jahre verschiebt sich, was die Menschen bewegen wird – Alterung, Digitalisierung, Klimawandel und neue Sicherheitslage (Raten geschätzt). Wer hier Kompetenz aufbaut, profitiert in späteren Wahlen.</p>' +
       (mt.length ? '<div class="t-strip">' + mt.map(x => '<span class="t-strip-i"><small>' + x.tp.icon + ' ' + esc(x.tp.name) + '</small> +' + x.d + ' %</span>').join('') + '</div><p class="muted small">Grundgewicht ' + yr + ' im Vergleich zu 2029.</p>' : '<p class="muted small">Noch hat sich das Grundgewicht der Themen kaum verschoben.</p>');
     $('t-umfragen').innerHTML = html;
     U.pollCalcHtml($('t-poll-calc'), avg);
@@ -856,12 +908,12 @@
     const last = hist.length ? hist[hist.length - 1] : null;
     const total = {};
     hist.concat([{ fx: t.pollFx || {} }]).forEach(h => Object.keys(h.fx).forEach(c => { total[c] = (total[c] || 0) + h.fx[c]; }));
-    let html = '<h3>🔍 Was euch bewegt hat</h3>' + fxBlock('Die fünf wichtigsten Ursachen seit der Wahl (Prozentpunkte)', total, 5).replace('<h4>', '<h4 class="muted small">');
-    html += '<details class="t-more"><summary>Genauer: dieses und letztes Quartal, alle Ursachen</summary><p class="muted small">Krisen und Dauerstreit wirken lange nach, Routinearbeit verpufft schnell, ein Hype verglüht ohne Wahlerfolge (Werte geschätzt, vor der Wählerwanderung).</p><div class="t-fx-wrap">' +
+    let html = '<h3>Was euch bewegt hat</h3>' + fxBlock('Die fünf wichtigsten Ursachen seit der Wahl (Prozentpunkte)', total, 5).replace('<h4>', '<h4 class="muted small">');
+    html += '<details class="t-more"><summary>Genauer: dieses und letztes Quartal, alle Ursachen</summary><p class="muted small">Krisen und Dauerstreit wirken lange nach, Routinearbeit verpufft schnell, ein kurzer Medienrummel verglüht ohne Wahlerfolge (Werte geschätzt, vor der Wählerwanderung).</p><div class="t-fx-wrap">' +
       fxBlock('Seit Beginn dieses Quartals', t.pollFx || {}) + (last ? fxBlock('Im letzten Quartal (' + T.quarterLabel(t, last.q) + ')', last.fx) : '') + fxBlock('Alle Ursachen seit der Wahl', total) + '</div></details>';
     if (t.credLog && t.credLog.length) {
       const li = x => '<li><b class="' + (x.v >= 0 ? 'pos' : 'neg') + '">' + (x.v >= 0 ? '+' : '−') + Math.abs(x.v) + '</b> ' + esc(x.why) + '</li>';
-      html += '<h3>🤝 Glaubwürdigkeit: ' + Math.round(t.cred) + '/100</h3><ul class="t-cred">' + t.credLog.slice(0, 3).map(li).join('') + '</ul>' +
+      html += '<h3>Glaubwürdigkeit: ' + Math.round(t.cred) + '/100</h3><ul class="t-cred">' + t.credLog.slice(0, 3).map(li).join('') + '</ul>' +
         (t.credLog.length > 3 ? '<details class="t-more"><summary>Ältere Einträge</summary><ul class="t-cred">' + t.credLog.slice(3, 12).map(li).join('') + '</ul></details>' : '');
     }
     return html;
@@ -877,7 +929,7 @@
     const why = k => { const w = t.lageWhy && t.lageWhy[k.id]; const x = w && w.q >= t.q - 2 && TD.LAGE.find(z => z.id === w.id); return x ? '<small class="t-grp-why ' + (w.d > 0 ? 'pos' : 'neg') + '">' + esc(x.name) + (w.d > 0 ? ' besser' : ' schlechter') + '</small>' : ''; };
     const row = r => '<div class="t-grp"><span>' + r.k.icon + ' ' + esc(r.k.short) + why(r.k) + '</span><span class="t-meter"><i style="width:' + r.v / max * 100 + '%;background:' + col(g.party) + '"></i></span><b>' + pct(r.v) + '</b><small class="' + (r.d >= 0 ? 'pos' : 'neg') + '">' + signed(r.d) + '</small></div>';
     const moved = rows.slice().sort((a, b) => Math.abs(b.d) - Math.abs(a.d));
-    return '<h3>👥 Wählergruppen: die größten Veränderungen</h3><div class="t-groups">' + moved.slice(0, 5).map(row).join('') + '</div>' +
+    return '<h3>Wählergruppen: die größten Veränderungen</h3><div class="t-groups">' + moved.slice(0, 5).map(row).join('') + '</div>' +
       '<details class="t-more"><summary>Alle Wählergruppen (' + rows.length + ')</summary><div class="t-groups">' + rows.map(row).join('') + '</div></details>';
   }
   function drawTermChart() {
@@ -915,7 +967,7 @@
     newsSeen = t.news[0] || null;
     $('t-news-badge').hidden = true;
     const li = n => '<li class="t-n-' + n.kind + '"><span class="wk">' + esc(T.quarterLabel(t, Math.min(n.q, T.QUARTERS - 1)).replace('. Quartal ', '/')) + '</span><span>' + esc(n.text) + '</span></li>';
-    $('t-news').innerHTML = (t.front ? '<details class="t-more"><summary>🗞️ Titelseiten zum ' + esc(T.quarterLabel(t, Math.min(t.front.q, T.QUARTERS - 1))) + '</summary>' + frontHtml(t.front) + '</details>' : '') + '<h3>📰 Letzte Meldungen</h3><ul class="news">' + t.news.slice(0, 4).map(li).join('') + '</ul>' +
+    $('t-news').innerHTML = (t.front ? '<details class="t-more"><summary>Titelseiten zum ' + esc(T.quarterLabel(t, Math.min(t.front.q, T.QUARTERS - 1))) + '</summary>' + frontHtml(t.front) + '</details>' : '') + '<h3>Letzte Meldungen</h3><ul class="news">' + t.news.slice(0, 4).map(li).join('') + '</ul>' +
       (t.news.length > 4 ? '<details class="t-more"><summary>Alle Nachrichten (' + t.news.length + ')</summary><ul class="news">' + t.news.slice(4).map(li).join('') + '</ul></details>' : '');
   }
 
@@ -1053,14 +1105,14 @@
         (resp ? '<p class="small muted">Zuständig: ' + esc(resp.name) + ' (' + esc(short(resp.party)) + ', ' + esc(T.ministryById(resp.ministry).short) + ', Kompetenz ' + resp.comp + ') – Kompetenz verbessert die Erfolgsaussichten.</p>' : ''),
         T.eventChoices(g, ev).map((c, i) => ({ label: c.label, hint: (c.hint || '') + (c.chance !== undefined ? ' · Erfolgsaussicht ca. ' + Math.round(c.chance * 100) + ' %' : '') + (c.mandate ? ' · Abstimmung im Bundestag' : ''), onClick: () => choose(i) })));
     } else if (it.type === 'scandal') {
-      U.openModal(eyebrow + ' · 🔥 Affäre', 'Affäre im ' + T.ministryById(it.ministry).short + '-Ministerium', '<p>' + esc(it.text) + '</p>',
+      U.openModal(eyebrow + ' · Affäre', 'Affäre im ' + T.ministryById(it.ministry).short + '-Ministerium', '<p>' + esc(it.text) + '</p>',
         [{ label: 'Festhalten', hint: 'Riskant: Kommt mehr heraus, wird es teuer', onClick: () => choose(0) }, { label: 'Rücktritt nahelegen', hint: 'Ihr benennt eine Nachfolge', onClick: () => choose(1) }]);
     } else if (it.type === 'haushaltskrise') {
       const opts = [{ label: 'Mit der Opposition verhandeln', hint: 'Zugeständnisse – beim nächsten Anlauf bessere Chancen', onClick: () => choose(0) },
         { label: 'Den Entwurf überarbeiten', hint: 'Mehr Geld für die Schwerpunkte der Koalition', onClick: () => choose(1) },
         { label: 'Vorläufig weiterregieren', hint: 'Nächstes Quartal erneut abstimmen', onClick: () => choose(3) }];
       if (term().role === 'kanzler') opts.push({ label: 'Vertrauensfrage stellen', hint: 'Art. 68 GG – der Weg zu Neuwahlen (wie 2024)', onClick: () => choose(2) });
-      U.openModal(eyebrow + ' · 🏦 Haushaltskrise', 'Der Haushalt ist gescheitert', '<p>Ohne beschlossenen Haushalt gilt die vorläufige Haushaltsführung (Art. 111 GG): Nur laufende Verpflichtungen dürfen bezahlt werden, neue Projekte stehen still. ' + (it.fails > 1 ? 'Es ist bereits das ' + it.fails + '. Scheitern.' : '') + ' Wie geht es weiter?</p>', opts);
+      U.openModal(eyebrow + ' · Haushaltskrise', 'Der Haushalt ist gescheitert', '<p>Ohne beschlossenen Haushalt gilt die vorläufige Haushaltsführung (Art. 111 GG): Nur laufende Verpflichtungen dürfen bezahlt werden, neue Projekte stehen still. ' + (it.fails > 1 ? 'Es ist bereits das ' + it.fails + '. Scheitern.' : '') + ' Wie geht es weiter?</p>', opts);
     } else if (it.type === 'debatte') {
       const l = term().laws.find(x => x.id === it.law);
       if (it.i === 0) U.openModal(eyebrow + ' · 🎙️ 2./3. Lesung', 'Schlussdebatte: ' + T.lawName(l), '<p>Heute wird über euren Entwurf abgestimmt. Vorher die Schlussdebatte – wer spricht für eure Fraktion?</p>',
@@ -1073,47 +1125,47 @@
           { label: 'Angriff auf die Opposition', hint: 'Die eigenen Reihen schließen sich', onClick: () => choose(2) }]);
     } else if (it.type === 'namentlich') {
       const l = term().laws.find(x => x.id === it.law);
-      U.openModal(eyebrow + ' · 🗂️ Geschäftsordnung', 'Namentliche Abstimmung beantragen?', '<p>In der Koalition gibt es rund ' + it.dissent + ' Abweichler bei „' + esc(T.lawName(l)) + '“. Bei namentlicher Abstimmung (§ 52 GOBT) wird jede Stimme mit Namen protokolliert – die Abweichler stehen öffentlich da.</p>',
+      U.openModal(eyebrow + ' · Geschäftsordnung', 'Namentliche Abstimmung beantragen?', '<p>In der Koalition gibt es rund ' + it.dissent + ' Abweichler bei „' + esc(T.lawName(l)) + '“. Bei namentlicher Abstimmung (§ 52 GOBT) wird jede Stimme mit Namen protokolliert – die Abweichler stehen öffentlich da.</p>',
         [{ label: 'Namentliche Abstimmung beantragen', hint: 'Die Koalition wird vorgeführt', onClick: () => choose(0) }, { label: 'Handzeichen reicht', onClick: () => choose(1) }]);
     } else if (it.type === 'gewissen') {
       const x = T.GEWISSEN.find(y => y.id === it.id);
-      U.openModal(eyebrow + ' · 🧭 Gewissensentscheidung', x.title, '<p>' + esc(x.text) + '</p><p class="small muted">Bei ethischen Fragen geben die Fraktionen die Abstimmung meist frei. Gebt ihr eine Linie vor, folgen die meisten – aber nicht alle, und es gibt Unmut, wenn die Linie gegen die Mehrheit der Fraktion geht.</p>',
+      U.openModal(eyebrow + ' · Gewissensentscheidung', x.title, '<p>' + esc(x.text) + '</p><p class="small muted">Bei ethischen Fragen geben die Fraktionen die Abstimmung meist frei. Gebt ihr eine Linie vor, folgen die meisten – aber nicht alle, und es gibt Unmut, wenn die Linie gegen die Mehrheit der Fraktion geht.</p>',
         [{ label: 'Abstimmung freigeben', hint: 'Jede und jeder entscheidet nach Gewissen', onClick: () => choose(0) },
           { label: 'Fraktionslinie: Ja', onClick: () => choose(1) }, { label: 'Fraktionslinie: Nein', onClick: () => choose(2) }]);
     } else if (it.type === 'kbefragung') {
       const opp = it.opp ? (g.rivals && g.rivals[it.opp] ? g.rivals[it.opp].name + ' (' + short(it.opp) + ')' : short(it.opp)) : 'die Opposition';
-      U.openModal(eyebrow + ' · 🎤 Regierungsbefragung', 'Fragen an die Kanzlerin/den Kanzler', '<p>Mittwoch, 13 Uhr, Plenarsaal. Nach einem kurzen Eingangsstatement stellen die Abgeordneten Fragen. ' + esc(opp) + ' eröffnet mit einer Frage zum Thema <b>' + esc(E.topicById(it.topic).name) + '</b>.</p>' +
+      U.openModal(eyebrow + ' · Regierungsbefragung', 'Fragen an die Kanzlerin/den Kanzler', '<p>Mittwoch, 13 Uhr, Plenarsaal. Nach einem kurzen Eingangsstatement stellen die Abgeordneten Fragen. ' + esc(opp) + ' eröffnet mit einer Frage zum Thema <b>' + esc(E.topicById(it.topic).name) + '</b>.</p>' +
         '<p class="small muted">Kompetenz eurer Partei bei diesem Thema: ' + Math.round((g.competence || {})[it.topic] || 40) + '/100</p>',
         [{ label: 'Mit Fakten antworten', hint: 'Gelingt bei hoher Kompetenz', onClick: () => choose(0) },
           { label: 'Gegenangriff auf die Opposition', hint: 'Die Fraktion jubelt, die Mitte weniger', onClick: () => choose(1) },
           { label: 'Ausweichen', hint: 'Sicher – aber kostet Glaubwürdigkeit', onClick: () => choose(2) }]);
     } else if (it.type === 'eckwerte') {
-      U.openModal(eyebrow + ' · 🏦 Haushaltsverfahren', 'Eckwerte für den Haushalt ' + it.year, '<p>Im Frühjahr beschließt das Kabinett die Eckwerte – den Rahmen für den Regierungsentwurf im Sommer. Welche Linie gebt ihr vor?</p>',
+      U.openModal(eyebrow + ' · Haushaltsverfahren', 'Eckwerte für den Haushalt ' + it.year, '<p>Im Frühjahr beschließt das Kabinett die Eckwerte – den Rahmen für den Regierungsentwurf im Sommer. Welche Linie gebt ihr vor?</p>',
         [{ label: 'Fortschreiben', hint: 'Der bisherige Haushalt als Grundlage', onClick: () => choose(0) },
           { label: 'Konsolidieren', hint: 'Entwurf startet mit Kürzungen · glaubwürdig, Partner murren', onClick: () => choose(1) },
           { label: 'Investieren', hint: 'Entwurf startet mit mehr Geld für Verkehr, Forschung, Verteidigung, Wohnen', onClick: () => choose(2) }].concat((it.wishes || []).length ? [
           { label: 'Wünsche der Ressorts bewilligen', hint: it.wishes.map(w => (TD.AREAS.find(a => a.id === w.a) || {}).icon + ' +' + num1(w.amt) + ' Mrd. €').join(', ') + ' · gutes Klima, mehr Schulden', onClick: () => choose(3) }] : []));
     } else if (it.type === 'bereinigung') {
-      U.openModal(eyebrow + ' · 🏦 Haushaltsausschuss', 'Bereinigungssitzung', '<p>In der traditionellen Nachtsitzung vor der 2./3. Lesung legen die Haushälter letzte Änderungen fest. Die Abgeordneten der Koalition wollen Projekte in ihren Wahlkreisen.</p>',
+      U.openModal(eyebrow + ' · Haushaltsausschuss', 'Bereinigungssitzung', '<p>In der traditionellen Nachtsitzung vor der 2./3. Lesung legen die Haushälter letzte Änderungen fest. Die Abgeordneten der Koalition wollen Projekte in ihren Wahlkreisen.</p>',
         [{ label: 'Projekte zulassen', hint: '0,8 Mrd. € · gutes Klima in Fraktion und Koalition', onClick: () => choose(0) },
           { label: 'Hart bleiben', hint: 'Solide, aber die Haushälter murren', onClick: () => choose(1) }]);
     } else if (it.type === 'memory') {
       const m = it.m;
-      U.openModal(eyebrow + ' · 🎙️ Interview', 'Rückblick: „' + m.title + '“', '<p>Vor ' + it.ago + ' Quartalen (' + esc(T.quarterLabel(term(), m.q)) + ') habt ihr entschieden: <b>' + esc(m.label) + '</b>. ' + (m.ok ? 'Im Rückblick ging die Rechnung auf.' : 'Im Rückblick ging das schief.') + '</p><p>Die Interviewerin hakt nach: „Würden Sie heute wieder so entscheiden?“</p>',
+      U.openModal(eyebrow + ' · Interview', 'Rückblick: „' + m.title + '“', '<p>Vor ' + it.ago + ' Quartalen (' + esc(T.quarterLabel(term(), m.q)) + ') habt ihr entschieden: <b>' + esc(m.label) + '</b>. ' + (m.ok ? 'Im Rückblick ging die Rechnung auf.' : 'Im Rückblick ging das schief.') + '</p><p>Die Interviewerin hakt nach: „Würden Sie heute wieder so entscheiden?“</p>',
         [{ label: 'Zur Entscheidung stehen', hint: m.ok ? 'Ihr könnt auf das Ergebnis verweisen' : 'Riskant: Es hat nicht funktioniert', onClick: () => choose(0) },
           { label: m.ok ? 'Bescheiden bleiben' : 'Einen Fehler eingestehen', hint: m.ok ? 'Sympathisch' : 'Glaubwürdig, kostet kurz', onClick: () => choose(1) },
           { label: 'Ausweichen', hint: 'Die Frage bleibt hängen', onClick: () => choose(2) }]);
     } else if (it.type === 'ltwcamp') {
       const name = E.stateById(it.land).name;
       const L = term().laender[it.land];
-      U.openModal(eyebrow + ' · 🗺️ Landtagswahlkampf', 'Wahl in ' + name + ' am Quartalsende', '<p>In ' + name + ' wird gewählt. Regierung bisher: ' + L.gov.map(pill).join(' ') + ' (' + L.votes + ' Stimmen im Bundesrat). Euer letztes Ergebnis dort: ' + pct(term().landPrev[it.land] || 0) + '.</p>' +
+      U.openModal(eyebrow + ' · Landtagswahlkampf', 'Wahl in ' + name + ' am Quartalsende', '<p>In ' + name + ' wird gewählt. Regierung bisher: ' + L.gov.map(pill).join(' ') + ' (' + L.votes + ' Stimmen im Bundesrat). Euer letztes Ergebnis dort: ' + pct(term().landPrev[it.land] || 0) + '.</p>' +
         '<p class="small muted">Ihr liegt bundesweit bei ' + pct(g.poll.nat[g.party]) + ' (' + signed(g.poll.nat[g.party] - term().share0) + ' seit der Bundestagswahl). ' + (T.isGov(term().role) ? 'Regierungsparteien werden bei Landtagswahlen oft abgestraft.' : '') + '</p>',
         [{ label: 'Den Landesverband machen lassen', hint: 'Er dankt es euch – kein Bundestrend-Schutz', onClick: () => choose(0) },
           { label: 'Bundesprominenz schicken', hint: 'Mehr Stimmen im Land · kostet eine Aktion und Geld', onClick: () => choose(1) },
           { label: 'Abstand zur Bundespartei halten', hint: 'Schützt vor dem Bundestrend; eine Niederlage fällt weniger auf euch zurück', onClick: () => choose(2) }]);
     } else if (it.type === 'landkoa') {
       const name = E.stateById(it.land).name;
-      U.openModal(eyebrow + ' · 🤝 Regierungsbildung im Land', 'Koalitionsgespräche in ' + name, '<p>Nach der Landtagswahl könnt ihr in ' + name + ' mitregieren. Mit wem?</p><p class="small muted">Landesregierungen bestimmen das Abstimmungsverhalten im Bundesrat (' + term().laender[it.land].votes + ' Stimmen). Bündnisse quer zur Bundeskoalition belasten das Koalitionsklima.</p>',
+      U.openModal(eyebrow + ' · Regierungsbildung im Land', 'Koalitionsgespräche in ' + name, '<p>Nach der Landtagswahl könnt ihr in ' + name + ' mitregieren. Mit wem?</p><p class="small muted">Landesregierungen bestimmen das Abstimmungsverhalten im Bundesrat (' + term().laender[it.land].votes + ' Stimmen). Bündnisse quer zur Bundeskoalition belasten das Koalitionsklima.</p>',
         it.options.map((o, i) => ({ label: o.map(short).join('-'), hint: o.every(p => term().gov.indexOf(p) !== -1) ? 'Wie im Bund – stärkt die Bundesregierung im Bundesrat' : o.some(p => term().gov.indexOf(p) !== -1) ? 'Gemischte Koalition: Das Land enthält sich im Bundesrat meist' : 'Gegenmodell zum Bund', onClick: () => choose(i) }))
           .concat([{ label: 'In die Opposition gehen', hint: 'Die anderen bilden die Regierung', onClick: () => choose(it.options.length) }]));
     } else if (it.type === 'whip') {
@@ -1130,26 +1182,26 @@
         : [{ label: 'Die Spitze von ' + short(gr.p) + ' anrufen', hint: 'Hängt vom Koalitionsklima ab', onClick: () => choose(0) },
           { label: 'Zugeständnis in anderer Sache', hint: '0,5 Mrd. € für ein Projekt des Partners', onClick: () => choose(1) },
           { label: 'Darauf ankommen lassen', onClick: () => choose(2) }];
-      U.openModal(eyebrow + ' · 🗳️ Abstimmungskrimi (' + (it.i + 1) + '/' + it.groups.length + ')', 'Wackelkandidaten', head, opts);
+      U.openModal(eyebrow + ' · Abstimmungskrimi (' + (it.i + 1) + '/' + it.groups.length + ')', 'Wackelkandidaten', head, opts);
     } else if (it.type === 'brwhip') {
       const l = term().laws.find(x => x.id === it.law);
       const br = T.bundesratVote(g, l);
       const x = it.lands[it.i];
       const fb = T.forecast(g, l).br;
-      U.openModal(eyebrow + ' · 🏛️ Bundesrat (' + (it.i + 1) + '/' + it.lands.length + ')', 'Kampf um ' + E.stateById(x.land).name, '<p>„' + esc(T.lawName(l)) + '“ kommt nach heutigem Stand auf etwa <b>' + br.yes + ' von 69</b> Stimmen' + (fb ? ' (Chance ' + pctChance(fb.chance) + ')' : '') + ' ' + (l.zust ? '(nötig: ' + TD.BUNDESRAT_MAJ + ')' : '(Einspruch ab ' + TD.BUNDESRAT_MAJ + ' Gegenstimmen)') + '.</p>' +
+      U.openModal(eyebrow + ' · Bundesrat (' + (it.i + 1) + '/' + it.lands.length + ')', 'Kampf um ' + E.stateById(x.land).name, '<p>„' + esc(T.lawName(l)) + '“ kommt nach heutigem Stand auf etwa <b>' + br.yes + ' von 69</b> Stimmen' + (fb ? ' (Chance ' + pctChance(fb.chance) + ')' : '') + ' ' + (l.zust ? '(nötig: ' + TD.BUNDESRAT_MAJ + ')' : '(Einspruch ab ' + TD.BUNDESRAT_MAJ + ' Gegenstimmen)') + '.</p>' +
         '<p>' + esc(x.mp) + ' (' + esc(short(x.party)) + '), Regierungschef:in von ' + esc(E.stateById(x.land).name) + ' (' + x.votes + ' Stimmen), lässt durchblicken: Mit dem richtigen Angebot könnte das Land zustimmen. Bedenken hat ' + x.block.map(p => esc(short(p))).join(', ') + '.</p>',
         [{ label: 'Finanzzusage an das Land', hint: '1 Mrd. € aus dem Bundeshaushalt', onClick: () => choose(0) },
           { label: 'Zugeständnis im Gesetz', hint: 'Kostenlos, aber das Gesetz wirkt schwächer', onClick: () => choose(1) },
           { label: 'Hart bleiben', onClick: () => choose(2) }]);
     } else if (it.type === 'brstell') {
       const l = term().laws.find(x => x.id === it.law);
-      U.openModal(eyebrow + ' · 🏛️ Bundesrat, 1. Durchgang', 'Stellungnahme der Länder', '<p>Der Bundesrat nimmt zu eurem Entwurf „' + esc(T.lawName(l)) + '“ Stellung: Die Länder verlangen Änderungen und eine Beteiligung des Bundes an den Kosten. Nach heutigem Stand bekäme das Gesetz im 2. Durchgang nur <b>' + it.yes + ' von 69</b> Stimmen.</p>' +
+      U.openModal(eyebrow + ' · Bundesrat, 1. Durchgang', 'Stellungnahme der Länder', '<p>Der Bundesrat nimmt zu eurem Entwurf „' + esc(T.lawName(l)) + '“ Stellung: Die Länder verlangen Änderungen und eine Beteiligung des Bundes an den Kosten. Nach heutigem Stand bekäme das Gesetz im 2. Durchgang nur <b>' + it.yes + ' von 69</b> Stimmen.</p>' +
         '<p class="small muted">' + (l.zust ? 'Zustimmungsgesetz: Ohne 35 Stimmen ist es gescheitert, wenn auch der Vermittlungsausschuss keinen Kompromiss findet.' : 'Einspruchsgesetz: Der Bundesrat kann den Vermittlungsausschuss anrufen und Einspruch einlegen.') + '</p>',
         [{ label: 'Änderungswünsche übernehmen', hint: 'Länder mit kleinen Bedenken stimmen zu · der Bund trägt 1,5 Mrd. € Mehrkosten', onClick: () => choose(0) },
           { label: 'Gegenäußerung: zurückweisen', hint: 'Kein Geld, aber Risiko im 2. Durchgang', onClick: () => choose(1) }]);
     } else if (it.type === 'anhoerung') {
       const l = term().laws.find(x => x.id === it.law);
-      U.openModal(eyebrow + ' · 🎓 Ausschuss', 'Öffentliche Anhörung', '<p>Im federführenden Ausschuss hören die Abgeordneten Sachverständige zu „' + esc(T.lawName(l)) + '“ an. ' + esc(it.expert) + '</p>',
+      U.openModal(eyebrow + ' · Ausschuss', 'Öffentliche Anhörung', '<p>Im federführenden Ausschuss hören die Abgeordneten Sachverständige zu „' + esc(T.lawName(l)) + '“ an. ' + esc(it.expert) + '</p>',
         [{ label: 'Nachbessern', hint: 'Abstimmung ein Quartal später · weniger Abweichler, geringeres Klagerisiko', onClick: () => choose(0) },
           { label: 'Am Entwurf festhalten', hint: 'Abstimmung im Zeitplan · etwas Glaubwürdigkeit', onClick: () => choose(1) }]);
     } else if (it.type === 'veto') {
@@ -1157,11 +1209,11 @@
       const opts = [{ label: 'Entwurf zurückziehen', hint: 'Kein Streit', onClick: () => choose(0) }];
       if (l.kind === 'topic') opts.push({ label: 'Kompromiss in der Mitte', hint: '„' + D.PROGRAM[l.topic].find(o => o.lean === 0).label + '“', onClick: () => choose(1) });
       if (term().role === 'kanzler') opts.push({ label: 'Per Richtlinienkompetenz durchsetzen', hint: 'Art. 65 GG – das Koalitionsklima leidet stark', onClick: () => choose(2) });
-      U.openModal(eyebrow + ' · 🛑 Kabinett', 'Veto von ' + short(l.vetoBy), '<p>' + esc(pname(l.vetoBy)) + ' trägt euren Entwurf „' + esc(T.lawName(l)) + '“ nicht mit.</p>', opts);
+      U.openModal(eyebrow + ' · Kabinett', 'Veto von ' + short(l.vetoBy), '<p>' + esc(pname(l.vetoBy)) + ' trägt euren Entwurf „' + esc(T.lawName(l)) + '“ nicht mit.</p>', opts);
     } else if (it.type === 'cabinet') {
       const l = term().laws.find(x => x.id === it.law);
       const d = Math.abs(T.leanOf(g, g.party, l.kind === 'tax' ? 'finanzen' : l.topic) - (l.kind === 'tax' ? T.taxById(l.tax).levels[l.level].lean : D.PROGRAM[l.topic][l.opt].lean));
-      U.openModal(eyebrow + ' · 🏛️ Kabinettssitzung', 'Vorlage von ' + short(l.by), '<p>' + esc(pname(l.by)) + ' legt einen Gesetzentwurf vor: <b>' + esc(T.lawTitle(l)) + '</b>.</p><p class="small">' +
+      U.openModal(eyebrow + ' · Kabinettssitzung', 'Vorlage von ' + short(l.by), '<p>' + esc(pname(l.by)) + ' legt einen Gesetzentwurf vor: <b>' + esc(T.lawTitle(l)) + '</b>.</p><p class="small">' +
         (l.contract ? '📜 Steht im Koalitionsvertrag. ' : '') + (d === 0 ? 'Entspricht eurer Linie.' : d === 1 ? 'Weicht etwas von eurer Linie ab.' : 'Widerspricht eurer Linie deutlich – eure Basis wird murren.') + '</p>',
         [{ label: 'Zustimmen', hint: d === 2 ? 'Geschlossenheit sinkt' : 'Der Entwurf geht in den Bundestag', onClick: () => choose(0) },
           { label: 'Nachverhandeln', hint: 'Kompromiss in der Mitte, etwas Streit', onClick: () => choose(1) },
@@ -1169,29 +1221,29 @@
     } else if (it.type === 'budgetcab') {
       const d = term().budget.draft;
       const b = T.budgetCalc(term(), d.plan);
-      U.openModal(eyebrow + ' · 🏦 Haushalt', 'Haushaltsentwurf ' + d.year, '<p>Das Finanzministerium (' + esc(short(term().cabinet.finanzen ? term().cabinet.finanzen.party : term().chanc)) + ') legt den Entwurf vor: Neuverschuldung ' + mrd(b.deficit) + ', erlaubt ' + mrd(b.limit) + '.</p>',
+      U.openModal(eyebrow + ' · Haushalt', 'Haushaltsentwurf ' + d.year, '<p>Das Finanzministerium (' + esc(short(term().cabinet.finanzen ? term().cabinet.finanzen.party : term().chanc)) + ') legt den Entwurf vor: Neuverschuldung ' + mrd(b.deficit) + ', erlaubt ' + mrd(b.limit) + '.</p>',
         [{ label: 'Mittragen', hint: 'Gutes Klima', onClick: () => choose(0) }, { label: 'Nachbesserungen fordern', hint: '+5 % für einen eurer Schwerpunkte, das Klima leidet', onClick: () => choose(1) }]);
     } else if (it.type === 'lobby') {
       const l = T.LB.byId(it.lobby);
       const law = term().laws.find(x => x.id === it.law);
-      U.openModal(eyebrow + ' · 🏛️ Lobbyismus', l.icon + ' ' + l.short + ' meldet sich', '<p>Zu eurem Entwurf „' + esc(law ? T.lawName(law) : '') + '“ bittet ' + esc(l.name) + ' um ein Gespräch: „Das gefährdet ' +
-        (l.money >= 2 ? 'Arbeitsplätze und Investitionen' : 'die Menschen, die wir vertreten') + '. Wir haben da einen Vorschlag …“</p><p class="small muted">Beziehung: ' + Math.round(T.LB.rel(g, l.id)) + '/100 · Kampagnenkraft ' + '★'.repeat(l.power) + '</p>',
+      U.openModal(eyebrow + ' · Lobbyismus', l.icon + ' ' + l.short + ' meldet sich', '<p>Zu eurem Entwurf „' + esc(law ? T.lawName(law) : '') + '“ bittet ' + esc(l.name) + ' um ein Gespräch: „Das gefährdet ' +
+        (l.money >= 2 ? 'Arbeitsplätze und Investitionen' : 'die Menschen, die wir vertreten') + '. Wir haben da einen Vorschlag …“</p><p class="small muted">Beziehung: ' + Math.round(T.LB.rel(g, l.id)) + '/100 · Kampagnenkraft: ' + ['gering', 'gering', 'mittel', 'hoch'][Math.min(3, l.power)] + '</p>',
         [{ label: 'Anhören und Kompromiss machen', hint: 'Der Entwurf wird abgeschwächt, der Verband ist zufrieden', onClick: () => choose(0) },
           { label: 'Standhaft bleiben', hint: 'Der Verband startet eine Kampagne gegen euch', onClick: () => choose(1) },
           { label: '„Formulierungshilfe“ übernehmen', hint: 'Glatter Weg durchs Parlament – aber es kann herauskommen', onClick: () => choose(2) }]);
     } else if (it.type === 'door') {
       const l = T.LB.byId(it.lobby);
-      U.openModal(eyebrow + ' · 🚪 Drehtür', 'Seitenwechsel?', '<p>' + esc(it.name) + ', bis eben im ' + esc(T.ministryById(it.ministry).short) + '-Ressort, soll Cheflobbyist:in bei ' + esc(l.name) + ' werden – sofort.</p>',
+      U.openModal(eyebrow + ' · Drehtür', 'Seitenwechsel?', '<p>' + esc(it.name) + ', bis eben im ' + esc(T.ministryById(it.ministry).short) + '-Ressort, soll Cheflobbyist:in bei ' + esc(l.name) + ' werden – sofort.</p>',
         [{ label: 'Karenzzeit von 18 Monaten durchsetzen', hint: 'Sauber, der Verband ist verärgert', onClick: () => choose(0) },
           { label: 'Den Wechsel hinnehmen', hint: 'Gute Kontakte – schlechte Presse', onClick: () => choose(1) }]);
     } else if (it.type === 'lobbyaffair') {
       const l = T.LB.byId(it.lobby);
-      U.openModal(eyebrow + ' · 🔥 Lobbyaffäre', 'Bezahlte Nebentätigkeit?', '<p>Recherchen zeigen: Ein Abgeordneter eurer Fraktion hat für ' + esc(l.short) + ' gut bezahlte „Beratungsleistungen“ erbracht – und sich zugleich im Ausschuss für dessen Anliegen eingesetzt.</p>',
+      U.openModal(eyebrow + ' · Lobbyaffäre', 'Bezahlte Nebentätigkeit?', '<p>Recherchen zeigen: Ein Abgeordneter eurer Fraktion hat für ' + esc(l.short) + ' gut bezahlte „Beratungsleistungen“ erbracht – und sich zugleich im Ausschuss für dessen Anliegen eingesetzt.</p>',
         [{ label: 'Alles offenlegen und Konsequenzen ziehen', hint: 'Kostet, aber begrenzt den Schaden', onClick: () => choose(0) },
           { label: 'Aussitzen', hint: 'Riskant – wie bei Amthor oder der Maskenaffäre', onClick: () => choose(1) }]);
     } else if (it.type === 'wkcase') {
       const w = T.wkStatus(g);
-      U.openModal(eyebrow + ' · 🏘️ Bürgersprechstunde', 'Im Wahlkreis ' + w.name, '<p>' + esc(it.text) + '</p><p class="small muted">Wahlkreispflege: ' + w.care + '/100 · Erststimme laut Umfragen: ' + pct(w.mine) + (w.lead ? ' – ihr liegt vorn' : ' – ' + esc(short(w.rival)) + ' liegt vorn mit ' + pct(w.rivalShare)) + '</p>',
+      U.openModal(eyebrow + ' · Bürgersprechstunde', 'Im Wahlkreis ' + w.name, '<p>' + esc(it.text) + '</p><p class="small muted">Wahlkreispflege: ' + w.care + '/100 · Erststimme laut Umfragen: ' + pct(w.mine) + (w.lead ? ' – ihr liegt vorn' : ' – ' + esc(short(w.rival)) + ' liegt vorn mit ' + pct(w.rivalShare)) + '</p>',
         [{ label: 'Hinfahren und vermitteln', hint: 'Präsenz zeigen – stärkt euren Rückhalt vor Ort', onClick: () => choose(0) },
           T.isGov(term().role) ? { label: 'Förderprogramm für den Wahlkreis', hint: '0,2 Mrd. € – wirkt stark, kann als Selbstbedienung gelten', onClick: () => choose(1) } : { label: 'Das Thema in den Bundestag bringen', hint: 'Eine Anfrage, die man vor Ort mitbekommt', onClick: () => choose(1) },
           { label: 'Keine Zeit – Berlin geht vor', hint: 'Der Rückhalt im Wahlkreis sinkt', onClick: () => choose(2) }]);
@@ -1202,11 +1254,11 @@
         it.tops.map((id, i) => { const x = L.find(y => y.id === id); return { label: T.SOFORT[id], hint: x.name + ': ' + fmtVal(x.to, x.dec) + ' ' + x.unit + ' (seit der Wahl ' + (x.to - x.from >= 0 ? '+' : '−') + fmtVal(Math.abs(x.to - x.from), x.dec) + ')', onClick: () => choose(i) }; })
           .concat([{ label: 'Kein Sofortprogramm', hint: 'Geld sparen – die Probleme bleiben', onClick: () => choose(it.tops.length) }]));
     } else if (it.type === 'schattenkabinett') {
-      U.openModal(eyebrow + ' · 🧭 Opposition', 'Ein Schattenkabinett aufstellen', '<p>Eine starke Opposition zeigt, wer regieren könnte. Für welche Themen stellt ihr Köpfe auf? Dort wächst eure Kompetenz jedes Quartal, und ihr habt Gesichter für die Talkshows.</p>',
+      U.openModal(eyebrow + ' · Opposition', 'Ein Schattenkabinett aufstellen', '<p>Eine starke Opposition zeigt, wer regieren könnte. Für welche Themen stellt ihr Köpfe auf? Dort wächst eure Kompetenz jedes Quartal, und ihr habt Gesichter für die Talkshows.</p>',
         T.SHADOW_SETS.map((set, i) => ({ label: set.map(tp => E.topicById(tp).name).join(' · '), hint: 'Wichtigkeit heute: ' + set.map(tp => Math.round(g.salience[tp] * 100) + ' %').join(' / '), onClick: () => choose(i) })));
     } else if (it.type === 'parteitag_o') {
       const P = t.party;
-      U.openModal(eyebrow + ' · 🎪 Partei', 'Ordentlicher Parteitag', '<p>Alle zwei Jahre wählen die Delegierten die Parteispitze neu. ' + esc(P.leader.name) + ' stellt sich zur Wiederwahl. Geschlossenheit: ' + Math.round(P.unity) + '/100 · Flügel: ' + esc(TD.WINGS[g.party][0]) + ' ' + Math.round((P.wings || [55])[0]) + ', ' + esc(TD.WINGS[g.party][1]) + ' ' + Math.round((P.wings || [55, 55])[1]) + '.</p><p class="muted small">Womit tritt ' + esc(P.leader.name) + ' ans Rednerpult?</p>',
+      U.openModal(eyebrow + ' · Partei', 'Ordentlicher Parteitag', '<p>Alle zwei Jahre wählen die Delegierten die Parteispitze neu. ' + esc(P.leader.name) + ' stellt sich zur Wiederwahl. Geschlossenheit: ' + Math.round(P.unity) + '/100 · Flügel: ' + esc(TD.WINGS[g.party][0]) + ' ' + Math.round((P.wings || [55])[0]) + ', ' + esc(TD.WINGS[g.party][1]) + ' ' + Math.round((P.wings || [55, 55])[1]) + '.</p><p class="muted small">Womit tritt ' + esc(P.leader.name) + ' ans Rednerpult?</p>',
         [{ label: 'Kämpferische Rede', hint: 'Stärkt die Spitze – wenn die Partei geschlossen ist', onClick: () => choose(0) },
           { label: 'Versöhnliche Rede an beide Flügel', hint: 'Mehr Geschlossenheit', onClick: () => choose(1) },
           { label: 'Programmatische Grundsatzrede', hint: 'Mehr Kompetenz bei euren Kernthemen', onClick: () => choose(2) },
@@ -1214,65 +1266,65 @@
     } else if (it.type === 'fluegel') {
       const W = TD.WINGS[g.party];
       const w = it.wing;
-      U.openModal(eyebrow + ' · 🎪 Partei', 'Flügelstreit: ' + W[w] + ' begehrt auf', '<p>Der Flügel „' + esc(W[w]) + '“ fühlt sich übergangen und macht seinem Ärger in Interviews und Positionspapieren Luft. „' + esc(W[1 - w]) + '“ hält dagegen. Die Medien sprechen von einer zerrissenen Partei.</p>',
+      U.openModal(eyebrow + ' · Partei', 'Flügelstreit: ' + W[w] + ' begehrt auf', '<p>Der Flügel „' + esc(W[w]) + '“ fühlt sich übergangen und macht seinem Ärger in Interviews und Positionspapieren Luft. „' + esc(W[1 - w]) + '“ hält dagegen. Die Medien sprechen von einer zerrissenen Partei.</p>',
         [{ label: 'Dem Flügel entgegenkommen', hint: 'Beruhigt „' + W[w] + '“, der andere Flügel murrt', onClick: () => choose(0) },
           { label: 'Machtwort der Parteispitze', hint: 'Riskant – hängt an der Beliebtheit der Spitze', onClick: () => choose(1) },
           { label: 'Kommission für ein gemeinsames Papier', hint: 'Zeit gewinnen, kostet etwas Geld', onClick: () => choose(2) }]);
     } else if (it.type === 'machtkampf') {
       const P = t.party;
-      U.openModal(eyebrow + ' · ⚔️ Machtkampf', it.name + ' greift nach der Spitze', '<p>Die Umfragen sind schlecht, die Partei ist zerstritten (Geschlossenheit ' + Math.round(P.unity) + '). ' + esc(it.name) + (it.from === 'Kabinett' ? ' (' + esc(T.ministryById(it.ministry).short) + ')' : ', ein mächtiger Landesfürst,') + ' bringt sich offen als Alternative zu ' + esc(P.leader.name) + ' ins Spiel' + (t.role === 'kanzler' ? ' – auch fürs Kanzleramt' : '') + '.</p><p class="muted small">Wie reagiert ' + esc(P.leader.name) + '?</p>',
+      U.openModal(eyebrow + ' · Machtkampf', it.name + ' greift nach der Spitze', '<p>Die Umfragen sind schlecht, die Partei ist zerstritten (Geschlossenheit ' + Math.round(P.unity) + '). ' + esc(it.name) + (it.from === 'Kabinett' ? ' (' + esc(T.ministryById(it.ministry).short) + ')' : ', ein mächtiger Landesfürst,') + ' bringt sich offen als Alternative zu ' + esc(P.leader.name) + ' ins Spiel' + (t.role === 'kanzler' ? ' – auch fürs Kanzleramt' : '') + '.</p><p class="muted small">Wie reagiert ' + esc(P.leader.name) + '?</p>',
         [{ label: 'Kampfkandidatur annehmen', hint: 'Alles oder nichts – hängt an Beliebtheit und Geschlossenheit', onClick: () => choose(0) },
           { label: 'Einbinden und Macht teilen', hint: 'Ruhe – aber die Spitze wirkt schwächer', onClick: () => choose(1) },
           { label: 'Den Weg frei machen', hint: 'Geordneter Wechsel an der Spitze', onClick: () => choose(2) }]);
     } else if (it.type === 'ruecktritt') {
       const m = t.cabinet[it.ministry];
-      U.openModal(eyebrow + ' · 👥 Kabinett', 'Rücktrittsforderungen gegen ' + (m ? m.name : ''), '<p>Nach einer Serie von Pannen im ' + esc(T.ministryById(it.ministry).short) + '-Ressort fordern Opposition und Leitartikel den Rücktritt von ' + esc(m ? m.name : '') + '. Kompetenz: ' + (m ? m.comp : '?') + '/100.</p>',
+      U.openModal(eyebrow + ' · Kabinett', 'Rücktrittsforderungen gegen ' + (m ? m.name : ''), '<p>Nach einer Serie von Pannen im ' + esc(T.ministryById(it.ministry).short) + '-Ressort fordern Opposition und Leitartikel den Rücktritt von ' + esc(m ? m.name : '') + '. Kompetenz: ' + (m ? m.comp : '?') + '/100.</p>',
         [{ label: 'Festhalten', hint: 'Riskant – neue Pannen würden euch treffen', onClick: () => choose(0) },
           { label: 'Rücktritt annehmen', hint: 'Ihr benennt die Nachfolge', onClick: () => choose(1) },
           { label: 'Externe Prüfung anordnen', hint: 'Zweite Chance, das Ressort wird besser', onClick: () => choose(2) }]);
     } else if (it.type === 'ehrgeiz') {
       const m = t.cabinet[it.ministry];
-      U.openModal(eyebrow + ' · 👥 Kabinett', 'Ehrgeiz im Kabinett', '<p>' + esc(m ? m.name : '') + ' (' + esc(T.ministryById(it.ministry).short) + ') gibt ein großes Interview über die eigene Zukunft und lässt offen, ob mehr drin ist. Kompetenz ' + (m ? m.comp : '?') + ', Loyalität ' + (m ? m.loyal : '?') + '.</p>',
+      U.openModal(eyebrow + ' · Kabinett', 'Ehrgeiz im Kabinett', '<p>' + esc(m ? m.name : '') + ' (' + esc(T.ministryById(it.ministry).short) + ') gibt ein großes Interview über die eigene Zukunft und lässt offen, ob mehr drin ist. Kompetenz ' + (m ? m.comp : '?') + ', Loyalität ' + (m ? m.loyal : '?') + '.</p>',
         [{ label: 'Zurückpfeifen', hint: 'Loyalität steigt, etwas Unruhe', onClick: () => choose(0) },
           { label: 'Glänzen lassen', hint: 'Gut für die Partei – aber eine Rivalität entsteht', onClick: () => choose(1) },
           { label: 'Öffentlich loben', hint: 'Teamgeist', onClick: () => choose(2) }]);
     } else if (it.type === 'halbzeit') {
-      U.openModal(eyebrow + ' · 🔄 Halbzeit', 'Halbzeit der Legislatur', '<p>Zwei Jahre sind um. Hauptstadtpresse und Fraktion erwarten eine Bilanz – und fragen, ob das Kabinett in dieser Besetzung bis zur Wahl durchhält.</p>',
+      U.openModal(eyebrow + ' · Halbzeit', 'Halbzeit der Legislatur', '<p>Zwei Jahre sind um. Hauptstadtpresse und Fraktion erwarten eine Bilanz – und fragen, ob das Kabinett in dieser Besetzung bis zur Wahl durchhält.</p>',
         [{ label: 'Kabinett umbilden', hint: 'Das schwächste eigene Kabinettsmitglied geht – frischer Wind', onClick: () => choose(0) },
           { label: 'Halbzeitbilanz vorlegen', hint: 'Stärkt die Koalition', onClick: () => choose(1) },
           { label: 'Kontinuität', hint: 'Keine Wechsel', onClick: () => choose(2) }]);
     } else if (it.type === 'disloyal') {
       const m = term().cabinet[it.ministry];
-      U.openModal(eyebrow + ' · 👥 Kabinett', 'Querschuss aus dem Kabinett', '<p>' + esc(m ? m.name : '') + ' (' + esc(T.ministryById(it.ministry).short) + ') kritisiert in einem Interview offen den Kurs der Regierung und der eigenen Parteiführung. Loyalität: ' + (m ? m.loyal : '?') + '/100.</p>',
+      U.openModal(eyebrow + ' · Kabinett', 'Querschuss aus dem Kabinett', '<p>' + esc(m ? m.name : '') + ' (' + esc(T.ministryById(it.ministry).short) + ') kritisiert in einem Interview offen den Kurs der Regierung und der eigenen Parteiführung. Loyalität: ' + (m ? m.loyal : '?') + '/100.</p>',
         [{ label: 'Intern zurechtweisen', hint: 'Loyalität steigt, etwas Unruhe', onClick: () => choose(0) },
           { label: 'Ignorieren', hint: 'Führungsschwäche?', onClick: () => choose(1) },
           { label: 'Entlassen', hint: 'Durchgreifen – ihr benennt die Nachfolge', onClick: () => choose(2) }]);
     } else if (it.type === 'sq') {
       const tp = E.topicById(it.topic);
       const f = T.sqForces(g, it.topic);
-      U.openModal(eyebrow + ' · ⚖️ Status quo', 'Druck beim Thema ' + tp.name, '<p>Der Rückhalt für die geltende Regelung („' + esc(D.PROGRAM[it.topic][term().policy[it.topic]].label) + '“) ist eingebrochen. ' +
+      U.openModal(eyebrow + ' · Status quo', 'Druck beim Thema ' + tp.name, '<p>Der Rückhalt für die geltende Regelung („' + esc(D.PROGRAM[it.topic][term().policy[it.topic]].label) + '“) ist eingebrochen. ' +
         esc(f.att.slice(0, 2).map(x => pname(x.p)).join(' und ')) + ' machen massiv Druck – auf der Straße, in den Medien und in den Ländern.</p>',
         [{ label: 'Nachgeben: „' + D.PROGRAM[it.topic][it.opt].label + '“', hint: 'Ein Gesetzentwurf geht ins Kabinett', onClick: () => choose(0) },
           { label: 'Dagegenhalten', hint: 'Der Status quo wird gestärkt, aber das kostet Zustimmung', onClick: () => choose(1) },
           { label: 'Expertenkommission einsetzen', hint: 'Zeit gewinnen (1 Mrd. €)', onClick: () => choose(2) }]);
     } else if (it.type === 'break') {
-      U.openModal(eyebrow + ' · 💥 Koalitionsbruch', short(it.leaver) + ' verlässt die Regierung', '<p>Die Koalition ist am Ende. Wie geht es weiter?</p>',
+      U.openModal(eyebrow + ' · Koalitionsbruch', short(it.leaver) + ' verlässt die Regierung', '<p>Die Koalition ist am Ende. Wie geht es weiter?</p>',
         it.options.map((o, i) => ({ label: o.label, hint: o.hint, onClick: () => choose(i) })));
     } else if (it.type === 'offer') {
-      U.openModal(eyebrow + ' · 🤝 Angebot', 'Regierungsbeteiligung?', '<p>Nach dem Bruch der Koalition bietet sich eine neue Mehrheit an: <b>' + it.members.map(short).join('-') + '</b>' + (it.chanc === g.party ? ' – mit euch im Kanzleramt!' : '.') + '</p>',
+      U.openModal(eyebrow + ' · Angebot', 'Regierungsbeteiligung?', '<p>Nach dem Bruch der Koalition bietet sich eine neue Mehrheit an: <b>' + it.members.map(short).join('-') + '</b>' + (it.chanc === g.party ? ' – mit euch im Kanzleramt!' : '.') + '</p>',
         [{ label: 'Annehmen', hint: 'Ihr tretet in die Regierung ein', onClick: () => choose(0) }, { label: 'Ablehnen', hint: 'Lieber in der Opposition bleiben', onClick: () => choose(1) }]);
     } else if (it.type === 'vote') {
       if (it.budget) {
         const again = it.again || 0;
         const opts = [{ label: 'Ja', onClick: () => choose(0) }, { label: 'Nein', hint: 'üblich für die Opposition', onClick: () => choose(1) }, { label: 'Enthaltung', hint: again ? 'lässt die Regierung durchkommen, ohne zuzustimmen' : '', onClick: () => choose(2) }];
         if (again) opts.push({ label: '🤝 Zustimmung gegen Zugeständnis', hint: 'Mehr Geld für euren wichtigsten Bereich', onClick: () => choose(3) });
-        U.openModal(eyebrow + ' · 🗳️ Abstimmung', 'Haushalt ' + term().budget.draft.year + (again ? ' – ' + (again + 1) + '. Anlauf' : ''), again
+        U.openModal(eyebrow + ' · Abstimmung', 'Haushalt ' + term().budget.draft.year + (again ? ' – ' + (again + 1) + '. Anlauf' : ''), again
           ? '<p>Der Haushalt ist ' + (again > 1 ? again + '-mal' : '') + ' gescheitert, das Land wird vorläufig geführt. Die Regierung hat nachverhandelt und wirbt um Stimmen aus der Opposition. Wie stimmt eure Fraktion diesmal?</p>'
           : '<p>Der Bundestag stimmt über den Haushalt der Regierung ab. Wie stimmt eure Fraktion?</p>', opts);
       } else {
         const l = term().laws.find(x => x.id === it.law);
         const def = T.defaultVote(g, l);
-        U.openModal(eyebrow + ' · 🗳️ Abstimmung', 'Bundestag: ' + T.lawTitle(l), '<p>Die Regierung (' + esc(short(l.by)) + ') stellt den Entwurf zur Abstimmung. Eure Linie: <b>' + ({ ja: 'zustimmen', nein: 'ablehnen', enthaltung: 'enthalten' }[def]) + '</b>.</p>',
+        U.openModal(eyebrow + ' · Abstimmung', 'Bundestag: ' + T.lawTitle(l), '<p>Die Regierung (' + esc(short(l.by)) + ') stellt den Entwurf zur Abstimmung. Eure Linie: <b>' + ({ ja: 'zustimmen', nein: 'ablehnen', enthaltung: 'enthalten' }[def]) + '</b>.</p>',
           [{ label: 'Ja', hint: def === 'ja' ? 'entspricht eurer Linie' : '', onClick: () => choose(0) }, { label: 'Nein', hint: def === 'nein' ? 'entspricht eurer Linie' : '', onClick: () => choose(1) }, { label: 'Enthaltung', onClick: () => choose(2) },
             { label: '✏️ Änderungsantrag stellen', hint: 'Eure Alternative in der 2. Lesung – meist abgelehnt, aber sichtbar', onClick: () => choose(3) },
             { label: '🤝 Zustimmung gegen Zugeständnis', hint: 'Nur wenn die Koalition eure Stimmen braucht', onClick: () => choose(4) }]);
@@ -1309,7 +1361,7 @@
     const s = t.summary;
     if (!s) return;
     if (U.saveHall) U.saveHall({ party: g.party, candidate: g.candidate, career: T.careerSnapshot(g) });
-    const body = '<div class="score">' + s.score + '</div><p class="muted small">Punkte</p>' +
+    const body = '<div class="score">' + pct(s.share) + '</div><p class="muted small">Umfragemittel zum Ende der Legislatur</p>' +
       '<ul class="t-sum"><li>Umfrage zum Schluss: <b>' + pct(s.share) + '</b> (' + signed(s.delta) + ' seit der Wahl)</li>' +
       '<li>Gesetze in Kraft: ' + s.lawsTotal + ', davon von euch eingebracht: ' + s.lawsOwn + ', Wahlversprechen umgesetzt: ' + s.promises + '</li>' +
       '<li>Haushalte beschlossen: ' + s.budgets + ' · Affären: ' + s.scandals + '</li>' +
@@ -1317,7 +1369,7 @@
       '<li>Wirtschaft: Wachstum ' + num1(s.growth) + ' %, Arbeitslosigkeit ' + num1(s.unemp) + ' %, Schuldenquote ' + num1(s.debt) + ' %</li></ul>' +
       (t.early ? '<p class="fw-note">' + esc(t.early) + '</p>' : '') +
       (() => { const rows = T.lageBilanz(g).filter(x => Math.abs(x.imp) >= 0.3).sort((a, b) => b.imp - a.imp); return rows.length ? '<p class="small"><b>📊 Was sich im Land verändert hat</b></p><ul class="t-sum small">' + rows.map(x => '<li class="' + (x.imp > 0 ? 'pos' : 'neg') + '">' + esc(x.name) + ': ' + fmtVal(x.from, x.dec) + ' → ' + fmtVal(x.to, x.dec) + ' ' + esc(x.unit) + '</li>').join('') + '</ul>' : ''; })() +
-      (() => { const L = T.legacy(T.careerSnapshot(g)); return '<p class="small">🏆 Ewigkeits-Bilanz eurer Partei: <b>' + L.score + ' Punkte</b> nach ' + L.terms + ' Legislatur' + (L.terms === 1 ? '' : 'en') + ' – „' + esc(L.rating) + '“.</p>'; })() +
+      (() => { const L = T.legacy(T.careerSnapshot(g)); return '<p class="small">Gesamturteil über eure Partei nach ' + L.terms + ' Legislatur' + (L.terms === 1 ? '' : 'en') + ': „' + esc(L.rating) + '“.</p>'; })() +
       '<p>Jetzt beginnt der Wahlkampf – mit dem Stand von heute in allen Ländern.</p>';
     U.openModal('Bilanz der ' + t.n + '. Legislaturperiode', s.rating, body, [
       { label: 'Zum nächsten Wahlkampf', primary: true, hint: 'Erst die Spitzenkandidatur festlegen, dann Programmparteitag und Wahlkampf', onClick: () => chooseLeaderModal(T.nextCampaign(g)) },
@@ -1341,20 +1393,20 @@
     const L = T.legacy(C);
     const role = r => TD.ROLES[r] ? TD.ROLES[r].icon + ' ' + TD.ROLES[r].name : r;
     const status = { kanzler: '🏛️ Kanzleramt', regierung: '🤝 Regierung', opposition: '🪑 Opposition', raus: '🚪 nicht im Bundestag' };
-    let html = '<h2>🏆 Eure Laufbahn</h2><div class="t-kpis">' +
-      kpi('Ewigkeits-Bilanz', L.score + ' Punkte', esc(L.rating)) +
+    let html = '<h2>Eure Laufbahn</h2><div class="t-kpis">' +
+      kpi('Gesamturteil', esc(L.rating), L.terms + ' Legislatur' + (L.terms === 1 ? '' : 'en')) +
       kpi('Bundestagswahlen', String(L.elections), L.wins + '× Kanzleramt gewonnen') +
       kpi('Jahre im Kanzleramt', num1(L.kanzlerJahre).replace(',0', ''), 'mitregiert: ' + num1(L.juniorJahre).replace(',0', '') + ' Jahre') +
       kpi('Opposition / APO', num1(L.oppJahre).replace(',0', '') + ' / ' + num1(L.apoJahre).replace(',0', '') + ' Jahre') +
       kpi('Eigene Gesetze', String(L.laws), L.promises + ' Wahlversprechen umgesetzt') +
       (L.best ? kpi('Bestes Ergebnis', pct(L.best.share), 'Bundestagswahl ' + L.best.year) : '') + '</div>';
     if ((C.elections || []).length) {
-      html += '<h3>Bundestagswahlen</h3><table class="t-budget"><thead><tr><th>Jahr</th><th>Spitze</th><th>Ergebnis</th><th>Danach</th><th>Punkte</th></tr></thead><tbody>' +
-        C.elections.map(x => '<tr><td>' + x.year + '</td><td>' + esc(x.leader || '') + '</td><td class="num">' + pct(x.share) + ' · ' + x.seats + ' Sitze</td><td>' + (status[x.status] || '') + '</td><td class="num">' + (x.score || 0) + '</td></tr>').join('') + '</tbody></table>';
+      html += '<h3>Bundestagswahlen</h3><table class="t-budget"><thead><tr><th>Jahr</th><th>Spitze</th><th>Ergebnis</th><th>Danach</th></tr></thead><tbody>' +
+        C.elections.map(x => '<tr><td>' + x.year + '</td><td>' + esc(x.leader || '') + '</td><td class="num">' + pct(x.share) + ' · ' + x.seats + ' Sitze</td><td>' + (status[x.status] || '') + '</td></tr>').join('') + '</tbody></table>';
     }
     if ((C.terms || []).length) {
       html += '<h3>Legislaturperioden</h3><table class="t-budget"><thead><tr><th>Zeit</th><th>Rolle</th><th>Regierung</th><th>Bilanz</th></tr></thead><tbody>' +
-        C.terms.map(x => '<tr><td>' + x.from + '–' + x.to + (x.early ? ' *' : '') + '</td><td>' + role(x.role) + '</td><td>' + (x.gov || []).map(pill).join(' ') + '</td><td>' + x.score + ' Punkte · ' + esc(x.rating) + '</td></tr>').join('') +
+        C.terms.map(x => '<tr><td>' + x.from + '–' + x.to + (x.early ? ' *' : '') + '</td><td>' + role(x.role) + '</td><td>' + (x.gov || []).map(pill).join(' ') + '</td><td>' + esc(x.rating) + '</td></tr>').join('') +
         '</tbody></table><p class="muted small">* vorzeitig beendet</p>';
     }
     if ((C.leaders || []).length) {
@@ -1407,7 +1459,7 @@
     if (!t.front || t.over || t.frontSeen === t.front.q) { done(); return; }
     t.frontSeen = t.front.q;
     const v = (t.voices || []).filter(x => x.q === t.front.q).slice(0, 2);
-    U.openModal(T.quarterLabel(t, Math.min(t.front.q, T.QUARTERS - 1)) + ' · 🗞️ Am Kiosk', 'Die Titelseiten', frontHtml(t.front) +
+    U.openModal(T.quarterLabel(t, Math.min(t.front.q, T.QUARTERS - 1)) + ' · Am Kiosk', 'Die Titelseiten', frontHtml(t.front) +
       (v.length ? '<div class="t-voices">' + v.map(x => '<blockquote class="t-voice ' + (x.mood === '+' ? 'pos' : 'neg') + '"><p>„' + esc(x.text.replace(/^„|“$/g, '')) + '“</p><cite>' + esc(x.who) + '</cite></blockquote>').join('') + '</div>' : ''),
       [{ label: 'Weiter', primary: true, onClick: done }]);
   }

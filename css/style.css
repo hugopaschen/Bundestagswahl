@@ -2331,3 +2331,29 @@ details.t-law[open] > summary { border-bottom: 1px solid var(--border); }
 .inst-table .num { text-align: right; }
 .inst-table .me { font-weight: 800; background: var(--surface-2); }
 .inst-table .inst-avg td { font-weight: 700; border-top: 2px solid var(--text); border-bottom: 0; }
+
+/* Wirtschaft als Zeitreihen */
+.ec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px 22px; margin: 6px 0; }
+.ec-panel { margin: 0; }
+.ec-panel figcaption { display: flex; justify-content: space-between; font-size: .84rem; border-bottom: 1px solid var(--border); padding-bottom: 3px; }
+.ec-panel svg { width: 100%; height: auto; display: block; }
+.ec-line { fill: none; stroke: var(--text); stroke-width: 1.8; }
+.ec-dot { fill: var(--text); }
+.ec-axis { stroke: var(--border); }
+.ec-zero { stroke: var(--muted); stroke-dasharray: 3 3; }
+.ec-t { font-size: 9px; fill: var(--muted); }
+
+/* Modell & Quellen */
+.model-list { margin: 4px 0 12px; padding-left: 18px; }
+.model-list li { margin: 4px 0; font-size: .9rem; }
+.model-est { font-size: .72rem; font-weight: 700; color: var(--muted); border: 1px solid var(--border); border-radius: 3px; padding: 0 4px; white-space: nowrap; }
+.linkish { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; font: inherit; }
+
+/* Karte der Landesregierungen */
+.lm-fig { margin: 10px auto; max-width: 420px; }
+.lm-fig svg { width: 100%; height: auto; display: block; }
+.lm-shape { stroke: var(--surface); stroke-width: 1.5; }
+.lm-shape.opp { opacity: .35; }
+.lm-shape.mixed { opacity: .7; }
+.lm-v { font-size: 15px; font-weight: 800; fill: #fff; paint-order: stroke; stroke: rgba(0, 0, 0, .55); stroke-width: 3px; }
+.el-revealing:not(.el-final) .result-labels .rdiff { visibility: hidden; }

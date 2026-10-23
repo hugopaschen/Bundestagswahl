@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de" data-version="20261023-163929">
+<html lang="de" data-version="20261023-165255">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Montserrat:wght@700;800;900&family=Oswald:wght@600;700&family=Public+Sans:wght@500;700;800;900&family=Inter:wght@800&family=Open+Sans:wght@400;700;800&family=Caveat:wght@600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,700;1,400&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20261023-163929">
+  <link rel="stylesheet" href="css/style.css?v=20261023-165255">
 </head>
 <body>
   <!-- Startseite: Eröffnungsbild, ein eigener Bildschirm -->
@@ -24,6 +24,7 @@
           <button type="button" class="btn primary big" id="btn-intro-start">Wahlkampf beginnen</button>
           <button type="button" class="btn big" id="btn-intro-resume" hidden>Wahlkampf fortsetzen</button>
         </div>
+        <p><button type="button" class="linkish btn-model">Wie das Spiel rechnet: Modell &amp; Quellen</button></p>
         <p id="cloud-status" class="cloud-status" hidden></p>
         <div id="hall" class="hall" hidden></div>
       </div>
@@ -246,19 +247,20 @@
       <div class="stats">
         <div class="stat"><span class="stat-label" id="stat-week-label">Woche</span><span id="stat-week" class="stat-value"></span></div>
         <div class="stat"><span class="stat-label">Wahlkampfkasse</span><span id="stat-money" class="stat-value"></span></div>
-        <div class="stat"><span class="stat-label">🎤 Termine</span><span id="stat-ap" class="stat-value ap"></span></div>
-        <div class="stat"><span class="stat-label">👥 Team</span><span id="stat-team" class="stat-value ap"></span></div>
+        <div class="stat"><span class="stat-label">Termine</span><span id="stat-ap" class="stat-value ap"></span></div>
+        <div class="stat"><span class="stat-label">Team</span><span id="stat-team" class="stat-value ap"></span></div>
         <div class="stat"><span class="stat-label">Umfragemittel</span><span id="stat-poll" class="stat-value"></span></div>
       </div>
       <button type="button" class="btn primary" id="btn-end-week">Woche beenden</button>
     </header>
     <nav class="game-nav" id="game-nav" aria-label="Bereiche des Wahlkampfs">
-      <button type="button" class="game-tab" data-tab="map">🗺️ Deutschland</button>
-      <button type="button" class="game-tab" data-tab="actions">📣 Aktionen</button>
-      <button type="button" class="game-tab" data-tab="polls">📊 Umfragen</button>
-      <button type="button" class="game-tab" data-tab="program">📄 Wahlprogramm</button>
-      <button type="button" class="game-tab" data-tab="news">📰 Nachrichten <span class="tab-badge" id="news-badge" hidden></span></button>
-      <button type="button" class="nav-help" id="btn-tour" title="Einführung noch einmal ansehen">❓ Einführung</button>
+      <button type="button" class="game-tab" data-tab="map">Deutschland</button>
+      <button type="button" class="game-tab" data-tab="actions">Aktionen</button>
+      <button type="button" class="game-tab" data-tab="polls">Umfragen</button>
+      <button type="button" class="game-tab" data-tab="program">Wahlprogramm</button>
+      <button type="button" class="game-tab" data-tab="news">Nachrichten <span class="tab-badge" id="news-badge" hidden></span></button>
+      <button type="button" class="nav-help" id="btn-tour" title="Einführung noch einmal ansehen">Einführung</button>
+      <button type="button" class="nav-help btn-model" title="Wie das Spiel rechnet">Modell &amp; Quellen</button>
     </nav>
     <div class="week-progress" aria-hidden="true"><div id="week-bar"></div></div>
     <div class="week-cal" id="week-cal" aria-label="Wahlkampfkalender"></div>
@@ -283,7 +285,7 @@
         </div>
         <div class="local-block">
           <div class="local-head">
-            <h3 class="act-title">📍 Wahlkampf vor Ort in <span id="local-state"></span></h3>
+            <h3 class="act-title">Wahlkampf vor Ort in <span id="local-state"></span></h3>
             <p id="state-top-topics" class="state-top-topics"></p>
           </div>
           <nav id="local-steps" class="local-steps" aria-label="Schritte"></nav>
@@ -293,7 +295,7 @@
           <div id="local-target" class="local-target" hidden></div>
         </div>
         <details class="state-groups-block" id="sg-block">
-          <summary><h3>👥 Wählergruppen in <span id="sg-state"></span></h3><span class="sg-toggle"></span></summary>
+          <summary><h3>Wählergruppen in <span id="sg-state"></span></h3><span class="sg-toggle"></span></summary>
           <p class="muted small">Wer in diesem Land wählt – und wie ihr bei jeder Gruppe dasteht. Jede Person zählt in jeder Zeile zu genau einer Gruppe, darum ergibt jede Zeile 100 %. Aktionen vor Ort wirken besser, wenn der Kanal zu den Gruppen im Land passt.</p>
           <div id="state-groups" class="groups"></div>
           <details class="sg-sources"><summary>Quellen der Länderzahlen</summary><div id="sg-sources"></div></details>
@@ -307,7 +309,7 @@
         <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
 
         <div class="act-block">
-          <h3 class="act-title">🎯 Themen setzen</h3>
+          <h3 class="act-title">Themen setzen</h3>
           <p class="muted small act-intro" id="topic-intro">Wählt ein Thema – danach seht ihr, was ihr dazu tun könnt. Eure Kernthemen stehen vorne.</p>
           <div id="rival-topics" class="rival-topics"></div>
           <div id="topic-list" class="topic-grid"></div>
@@ -316,19 +318,19 @@
         </div>
 
         <div class="act-block extra-block">
-          <h3 class="act-title">💶 Wahlkampfkasse &amp; Briefwahl</h3>
+          <h3 class="act-title">Wahlkampfkasse &amp; Briefwahl</h3>
           <div id="national-actions" class="action-list"></div>
         </div>
 
         <div class="act-block extra-block">
-          <h3 class="act-title">🎯 Zielgruppen-Werbung online</h3>
+          <h3 class="act-title">Zielgruppen-Werbung online</h3>
           <p class="muted small">Bezahlte Anzeigen für genau eine Wählergruppe. Habt ihr oben ein Thema gewählt, wirbt die Anzeige damit – passt es zur Gruppe, wirkt sie stärker.</p>
           <label class="local-topic-row"><span>Zielgruppe</span><select id="online-group"></select></label>
           <div id="online-action" class="action-list"></div>
         </div>
 
         <div class="act-block extra-block">
-          <h3 class="act-title">🥊 Gegner angreifen</h3>
+          <h3 class="act-title">Gegner angreifen</h3>
           <p class="muted small">Eine Vergleichskampagne gegen eine andere Partei. Mit einem Thema, bei dem ihr kompetenter seid, steigen die Chancen. Wer nach unten tritt oder danebenliegt, schadet sich selbst – und die angegriffene Partei schlägt eher zurück.</p>
           <label class="local-topic-row"><span>Partei</span><select id="rival-party"></select></label>
           <div id="rival-action" class="action-list"></div>
@@ -357,7 +359,7 @@
         <div id="flows" class="flows"></div>
         <h3>Brandmauer</h3>
         <div id="firewall" class="fw-status"></div>
-        <h3>🏛️ Verbände</h3>
+        <h3>Verbände</h3>
         <p class="muted small">Wie Gewerkschaften, Wirtschafts-, Sozial- und Umweltverbände zu euch stehen. Verbündete mobilisieren und spenden, Gegner machen Stimmung gegen euch. Wahlprüfsteine kommen in den Wochen 2, 4 und 6.</p>
         <div id="lobby-panel" class="t-lv"></div>
         <h3>Wählergruppen</h3>
@@ -474,12 +476,13 @@
       <button type="button" class="btn primary" id="btn-end-quarter">Quartal beenden</button>
     </header>
     <nav class="game-nav" id="term-nav" aria-label="Bereiche der Legislaturperiode">
-      <button type="button" class="game-tab" data-tab="lage">🏛️ Lage <span class="tab-badge" id="t-news-badge" hidden></span></button>
-      <button type="button" class="game-tab" data-tab="gesetze">📜 Gesetze</button>
-      <button type="button" class="game-tab" data-tab="haushalt">🏦 Haushalt <span class="tab-badge" id="t-budget-badge" hidden>!</span></button>
-      <button type="button" class="game-tab" data-tab="regierung">👥 Regierung <span class="tab-badge" id="t-cab-badge" hidden>!</span></button>
-      <button type="button" class="game-tab" data-tab="partei">🎪 Partei</button>
-      <button type="button" class="game-tab" data-tab="umfragen">📊 Umfragen</button>
+      <button type="button" class="game-tab" data-tab="lage">Lage <span class="tab-badge" id="t-news-badge" hidden></span></button>
+      <button type="button" class="game-tab" data-tab="gesetze">Gesetze</button>
+      <button type="button" class="game-tab" data-tab="haushalt">Haushalt <span class="tab-badge" id="t-budget-badge" hidden>!</span></button>
+      <button type="button" class="game-tab" data-tab="regierung">Regierung <span class="tab-badge" id="t-cab-badge" hidden>!</span></button>
+      <button type="button" class="game-tab" data-tab="partei">Partei</button>
+      <button type="button" class="game-tab" data-tab="umfragen">Umfragen</button>
+      <button type="button" class="nav-help btn-model" title="Wie das Spiel rechnet">Modell &amp; Quellen</button>
     </nav>
     <div class="week-progress" aria-hidden="true"><div id="term-bar"></div></div>
     <div class="layout tabbed term-layout">
@@ -506,21 +509,21 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="js/data.js?v=20261023-163929"></script>
-  <script src="js/names.js?v=20261023-163929"></script>
-  <script src="js/wahlkreise.js?v=20261023-163929"></script>
-  <script src="js/germany.js?v=20261023-163929"></script>
-  <script src="js/questions.js?v=20261023-163929"></script>
-  <script src="js/scenarios.js?v=20261023-163929"></script>
-  <script src="js/citizenq.js?v=20261023-163929"></script>
-  <script src="js/scenes.js?v=20261023-163929"></script>
-  <script src="js/termdata.js?v=20261023-163929"></script>
-  <script src="js/lobby.js?v=20261023-163929"></script>
-  <script src="js/termscenes.js?v=20261023-163929"></script>
-  <script src="js/engine.js?v=20261023-163929"></script>
-  <script src="js/term.js?v=20261023-163929"></script>
-  <script src="js/cloud.js?v=20261023-163929"></script>
-  <script src="js/ui.js?v=20261023-163929"></script>
-  <script src="js/termui.js?v=20261023-163929"></script>
+  <script src="js/data.js?v=20261023-165255"></script>
+  <script src="js/names.js?v=20261023-165255"></script>
+  <script src="js/wahlkreise.js?v=20261023-165255"></script>
+  <script src="js/germany.js?v=20261023-165255"></script>
+  <script src="js/questions.js?v=20261023-165255"></script>
+  <script src="js/scenarios.js?v=20261023-165255"></script>
+  <script src="js/citizenq.js?v=20261023-165255"></script>
+  <script src="js/scenes.js?v=20261023-165255"></script>
+  <script src="js/termdata.js?v=20261023-165255"></script>
+  <script src="js/lobby.js?v=20261023-165255"></script>
+  <script src="js/termscenes.js?v=20261023-165255"></script>
+  <script src="js/engine.js?v=20261023-165255"></script>
+  <script src="js/term.js?v=20261023-165255"></script>
+  <script src="js/cloud.js?v=20261023-165255"></script>
+  <script src="js/ui.js?v=20261023-165255"></script>
+  <script src="js/termui.js?v=20261023-165255"></script>
 </body>
 </html>
