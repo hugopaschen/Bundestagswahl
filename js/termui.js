@@ -128,7 +128,7 @@
     ['Parlament & Gesetze', ['gesetz', 'disziplin', 'laender', 'forderung', 'antrag', 'anfrage', 'aktuelle', 'befragung', 'ua', 'klage', 'sq', 'vertrauen', 'misstrauen']],
     ['Öffentlichkeit', ['regerkl', 'presse', 'talkshow', 'interview', 'buerger', 'reise', 'social', 'protest', 'schatten', 'krisenstab']],
     ['Koalition & Partei', ['koaausschuss', 'profil', 'umbildung', 'basis', 'mitglieder', 'spenden', 'parteitag', 'lvpflege', 'austritt']],
-    ['Länder & Verbände', ['ltwk', 'laenderfront', 'laenderdeal', 'lobbytermin', 'lobbyrecherche', 'buendnis']]
+    ['Länder & Verbände', ['ltwk', 'landafd', 'laenderfront', 'laenderdeal', 'lobbytermin', 'lobbyrecherche', 'buendnis']]
   ];
   function actionsHtml() {
     const t = term();
@@ -327,6 +327,9 @@
         const next = T.calendar(g, 20).find(c => c.kind === 'ltw' && c.land === st.id);
         opts.push({ label: st.name, hint: (next ? '🗳️ ' + next.label + ' · ' : '') + 'Unruhe im Landesverband ' + Math.round(t.party.lv[st.id]) + '/100', v: st.id });
       });
+    } else if (a.target === 'afdland') {
+      T.afdLandOptions(g).forEach(o => opts.push({ label: E.stateById(o.land).name, hint: o.members.map(short).join('-') + ' · ' + Math.round(o.seats * 100 / o.total) + ' % der Sitze · heute: ' + t.laender[o.land].gov.map(short).join('-'), v: o.land }));
+      if (!opts.length) { feedback('In keinem Land gibt es eine Mehrheit mit der AfD.'); return; }
     } else if (a.target === 'law') {
       t.laws.filter(l => l.stage === a.stage).forEach(l => opts.push({ label: T.lawTitle(l), hint: STAGE_NAME[l.stage], v: l.id }));
       if (!opts.length) { feedback('Kein passendes Gesetz in diesem Stadium.'); return; }

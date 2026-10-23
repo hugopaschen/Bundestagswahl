@@ -2688,6 +2688,26 @@
       }
     });
   }
+  // Nach dem Einreißen der Brandmauer: Länder, in denen eure Partei mit der AfD (und weiteren offenen Partnern)
+  // im heutigen Landtag eine Mehrheit hätte – Regierungswechsel ohne Wahl (konstruktives Misstrauensvotum).
+  function afdLandOptions(g) {
+    const t = g.term;
+    if (g.party === 'afd' || E.fwLevel(g, g.party) < 3) return [];
+    const out = [];
+    Object.keys(t.laender).forEach(land => {
+      const L = t.laender[land];
+      if (L.gov.indexOf('afd') !== -1 && L.gov.indexOf(g.party) !== -1) return;
+      const seats = landSeats(g, land);
+      if (!(seats[g.party] > 0) || !(seats.afd > 0)) return;
+      const total = Object.keys(seats).reduce((x, p) => x + seats[p], 0);
+      const open = CONTEST.filter(p => p !== 'afd' && p !== g.party && seats[p] > 0 && E.fwLevel(g, p) >= 3);
+      const combos = [['afd', g.party]].concat(open.map(p => ['afd', g.party, p]));
+      const c = combos.find(m => m.reduce((x, p) => x + seats[p], 0) * 2 > total);
+      if (c) out.push({ land, members: c.slice().sort((a, b) => seats[b] - seats[a]), seats: c.reduce((x, p) => x + seats[p], 0), total });
+    });
+    return out;
+  }
+
   function resolveLandkrise(g, item, choice) {
     const t = g.term;
     const L = t.laender[item.land];
@@ -3365,6 +3385,7 @@
     { id: 'buerger', roles: ['kanzler', 'junior', 'opposition', 'apo'], icon: '🗣️', name: 'Bürgerdialog', target: 'topic', quiz: true, desc: 'Bürgerinnen und Bürger stellen Fachfragen zu einem Thema – gute Antworten bringen Vertrauen und Kompetenz.' },
     { id: 'disziplin', roles: ['kanzler', 'junior'], icon: '📣', name: 'Fraktion auf Linie bringen', target: 'law', stage: 'bundestag', desc: 'Weniger Abweichler bei der nächsten Abstimmung.' },
     { id: 'laender', roles: ['kanzler', 'junior'], icon: '🏛️', name: 'Länder überzeugen', target: 'law', stage: 'bundesrat', desc: 'Mit Bundesgeld zögernde Länder gewinnen (2 Mrd. € je Land).' },
+    { id: 'landafd', roles: ['kanzler', 'junior', 'opposition', 'apo'], icon: '🧱', name: 'Landesregierung mit der AfD bilden', target: 'afdland', desc: 'Nach dem Einreißen der Brandmauer: Regierungswechsel im Land per konstruktivem Misstrauensvotum, wo es im Landtag eine Mehrheit gibt.' },
     { id: 'laenderfront', roles: ['opposition', 'apo'], icon: '🧱', name: 'Länder-Front im Bundesrat', target: 'law', stage: 'bundesrat', desc: 'Die Länder, in denen ihr mitregiert, enthalten sich. Belastet eure Landeskoalitionen.' },
     { id: 'laenderdeal', roles: ['opposition', 'apo'], icon: '🤝', name: 'Zustimmung gegen Geld für eure Länder', target: 'law', stage: 'bundesrat', desc: 'Eure Länder stimmen zu, der Bund zahlt 1 Mrd. € je Land. Kostet Glaubwürdigkeit.' },
     { id: 'umbildung', roles: ['kanzler', 'junior'], icon: '🔄', name: 'Kabinettsumbildung', target: 'ministry', desc: 'Ein eigenes Ressort neu besetzen.' },
@@ -3419,6 +3440,10 @@
     if (id === 'ua' && t.ua) return { ok: false, text: 'Es läuft bereits ein Untersuchungsausschuss.' };
     if (id === 'misstrauen' && t.q - t.misstrauenQ < 4) return { ok: false, text: 'Ein neues Misstrauensvotum wäre zu früh.' };
     if (id === 'parteitag' && t.q - (t.parteitagQ === undefined ? -9 : t.parteitagQ) < 6) return { ok: false, text: 'Der letzte Parteitag ist noch nicht lange her.' };
+    if (id === 'landafd') {
+      if (E.fwLevel(g, g.party) < 3) return { ok: false, text: 'Die Brandmauer steht.' };
+      if (!afdLandOptions(g).length) return { ok: false, text: 'In keinem Land gibt es eine Mehrheit mit der AfD.' };
+    }
     if (id === 'laenderfront' || id === 'laenderdeal') {
       if (!Object.keys(t.laender).some(l => t.laender[l].gov.indexOf(g.party) !== -1)) return { ok: false, text: 'Ihr regiert in keinem Land mit.' };
       if (!t.laws.some(l => l.stage === 'bundesrat')) return { ok: false, text: 'Gerade liegt kein Gesetz im Bundesrat.' };
@@ -3538,6 +3563,24 @@
         t.budget.oneoff += 2 * cand.length;
         text = 'Zusagen an ' + cand.map(l => E.stateById(l).name).join(' und ') + ' (' + 2 * cand.length + ' Mrd. €).';
         kuhhandel(g, cand.length);
+        break;
+      }
+      case 'landafd': {
+        const o = afdLandOptions(g).find(x => x.land === target);
+        if (!o) return { ok: false, text: 'In diesem Land gibt es keine Mehrheit mit der AfD.' };
+        const L = t.laender[o.land];
+        const name = E.stateById(o.land).name;
+        const old = L.gov.slice();
+        L.gov = o.members;
+        L.strain = 30;
+        cat('partei');
+        addNat(g, g.party, -0.3);
+        addCred(g, -3, 'Landesregierung mit der AfD in ' + name);
+        t.party.unity = clamp(t.party.unity - 4, 0, 100);
+        if (isGov(t.role) && t.gov.length > 1) t.mood = clamp(t.mood + (t.gov.indexOf('afd') !== -1 ? 3 : -12), 0, 100);
+        news(g, 'Regierungswechsel in ' + name + ': ' + o.members.map(sname).join('-') + ' wählt per konstruktivem Misstrauensvotum eine neue Landesregierung (' + Math.round(o.seats * 100 / o.total) + ' % der Sitze). Bundesweit Proteste.', 'big');
+        chron(g, 'wahl', 'Landesregierung mit der AfD in ' + name + ': ' + o.members.map(sname).join('-') + ' statt ' + old.map(sname).join('-') + '.');
+        text = 'In ' + name + ' regiert jetzt ' + o.members.map(sname).join('-') + '. Bundesrat: Länder nur mit Bundesregierungsparteien jetzt ' + brAligned(t) + ' von 69 Stimmen.';
         break;
       }
       case 'laenderfront': {
@@ -4363,7 +4406,7 @@
   }
 
   const TERM = {
-    QUARTERS, ACTIONS, LAW_STEPS, forecast, lageBilanz, lawEffects, ensureLage, SOFORT, SHADOW_SETS, comebackBarometer, wkStatus, homeWk, termRecord, debtPath, activeMeasures, avgRate, areaBase, planEffect, govWear, WOBBLE, brAligned, landGovernment, dueVotes, GEWISSEN, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
+    QUARTERS, ACTIONS, LAW_STEPS, forecast, lageBilanz, lawEffects, ensureLage, SOFORT, SHADOW_SETS, comebackBarometer, wkStatus, homeWk, termRecord, debtPath, activeMeasures, avgRate, areaBase, planEffect, afdLandOptions, govWear, WOBBLE, brAligned, landGovernment, dueVotes, GEWISSEN, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
     lawOptions, lawBlock, taxRevAt, taxGrowthAt, taxInflAt, fmtTax, upgradeTaxes, lawLean, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, seasonLabel, quarterStart, quarterEnd, plenaryDate, plenaryLabel, nextSession, termPolls, termAverage, cal,
     lawName, lawTitle, leanOf, quorum, eventChoices, fillText, eventById, ministryById, taxById, areaById, nextCampaign, summary,
     MEDIA, media, actionCash, govSeats, isGov, legacy, LB, careerSnapshot, chooseLeader, leaderAge, currentLeader, MAX_AGE, sqForces, absCal, FX_NAMES, ministerFor, eventMinister, ownMinistries, endTerm, defaultVote, partyVote, mandateVote
