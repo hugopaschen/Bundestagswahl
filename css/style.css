@@ -2380,3 +2380,11 @@ details.t-law[open] > summary { border-bottom: 1px solid var(--border); }
 .scenario input { margin-top: 3px; }
 .seed-field { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: .92rem; }
 .seed-field input { width: 9ch; padding: 4px 6px; border: 1px solid #2b2b2d; border-radius: 2px; font: inherit; font-variant-numeric: tabular-nums; }
+
+/* Steuern stufenlos */
+.t-taxrow { padding: 10px 0; border-bottom: 1px solid var(--border); display: grid; gap: 6px; }
+.t-taxctl { display: flex; align-items: center; gap: 10px; }
+.t-taxrange { flex: 1; min-width: 0; accent-color: var(--text); }
+.t-taxnum { width: 7.5ch; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; font: inherit; font-variant-numeric: tabular-nums; background: var(--surface); color: var(--text); }
+.t-taxunit { font-size: .85rem; color: var(--muted); min-width: 4ch; }
+.t-taxrow .t-draft { justify-self: start; }

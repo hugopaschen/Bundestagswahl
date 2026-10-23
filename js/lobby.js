@@ -66,7 +66,8 @@
       if (law.kind === 'tax') {
         const tx = (D2 || root.BTW_TERMDATA).TAXES.find(x => x.id === law.tax);
         const dir = l.taxes && l.taxes[law.tax];
-        if (dir) { const before = tx.levels[law.from === undefined ? tx.start : law.from].rev; const after = tx.levels[law.level].rev; s = Math.sign((after - before) * dir); }
+        // Richtung der Einnahmen: Erhöhung bringt bei normalen Steuern mehr, bei Entlastungen weniger.
+        if (dir && tx) { const from = law.from === undefined ? tx.start : law.from; s = Math.sign((law.level - from) * Math.sign(tx.revPer || 1) * dir); }
       } else s = stanceTopic(l, law.topic, D.PROGRAM[law.topic][law.opt].lean);
       if (s) out.push({ l, s });
     });

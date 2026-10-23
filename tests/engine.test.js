@@ -1708,7 +1708,7 @@ test('Haushalt: Konsolidierung, Zinsen, Steuerschätzung und Schuldenpfad', () =
     assert.ok(t.econ.debtBn < debt0 + 98 + 42, 'Die Beteiligungsverkäufe und Kürzungen bremsen den Schuldenanstieg');
   }
   // Ein Überschuss tilgt Schulden (Schwarze Null).
-  t.budget.taxEst = 30; Object.assign(t.taxes, { spitzen: 3, mwst: 2, koerp: 2, vermoegen: 2 });
+  t.budget.taxEst = 30; Object.assign(t.taxes, { spitzen: 48, mwst: 21, koerp: 20, vermoegen: 1 });
   t.budget.plan = Object.assign({}, t.budget.draft ? t.budget.draft.plan : plan);
   t.budget.measures = {}; all.forEach(id => { t.budget.measures[id] = t.q - 8; });
   const bs = T.budgetCalc(t);
@@ -1872,8 +1872,8 @@ test('Gesetze und Steuern gelten über die Legislatur hinaus, bis jemand sie än
   const g = electedGame('union', 4, 8);
   T.startTerm(g);
   const t = g.term;
-  t.taxes.spitzen = 0;
-  t.statutes = { 'tax:spitzen': { v: 0, by: 'union', gov: ['union'], q: 'Apr.–Juni 2029', name: 'Spitzensteuersatz: 39 %' } };
+  t.taxes.spitzen = 39;
+  t.statutes = { 'tax:spitzen': { v: 39, by: 'union', gov: ['union'], q: 'Apr.–Juni 2029', name: 'Spitzensteuersatz auf 39 %' } };
   for (let i = 0; i < 20 && !t.over; i++) { while (t.pending.length) T.resolvePending(g, 0); T.endQuarter(g); }
   const endTax = t.taxes.spitzen, endPolicy = JSON.stringify(t.policy);
   const next = T.nextCampaign(g);
@@ -1886,4 +1886,33 @@ test('Gesetze und Steuern gelten über die Legislatur hinaus, bis jemand sie än
   assert.strictEqual(g2.term.taxes.spitzen, endTax);
   assert.strictEqual(JSON.stringify(g2.term.policy), endPolicy);
   assert.ok(g2.term.statutes && Object.keys(g2.term.statutes).length >= 1);
+});
+
+test('Steuern stufenlos: Laffer-Kurve, Stärke der Reaktion, Recht und alte Spielstände', () => {
+  const TD = require('../js/termdata.js');
+  const sp = TD.TAXES.find(x => x.id === 'spitzen'), mw = TD.TAXES.find(x => x.id === 'mwst');
+  // Am Ausgangswert ±0, Einnahmen steigen bis zum Maximum und fallen danach (Laffer).
+  assert.strictEqual(T.taxRevAt(sp, sp.base), 0);
+  assert.ok(Math.abs(T.taxRevAt(sp, 45) - 5) < 0.6, 'kleiner Schritt etwa wie früher (+5 Mrd. bei 45 %)');
+  assert.ok(T.taxRevAt(sp, sp.peak) > T.taxRevAt(sp, 90));
+  assert.ok(T.taxRevAt(mw, 25) > T.taxRevAt(mw, 21));
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  const t = g.term;
+  while (t.pending.length) T.resolvePending(g, 0);
+  // Frei wählbarer Satz, auf die Schrittweite gerundet.
+  t.ap = 4;
+  const r = T.performAction(g, 'gesetz', { tax: 'spitzen', level: 44.4 });
+  assert.ok(r.ok, r.text);
+  const law = t.laws[t.laws.length - 1];
+  assert.strictEqual(law.level, 44);
+  assert.ok(/von 42 % auf 44 %/.test(T.lawName(law)));
+  // Gegenrichtung gesperrt, Weiterdrehen erlaubt.
+  const o = T.lawOptions(g);
+  assert.ok(!o.taxes.some(x => x.tax === 'spitzen'), 'im Verfahren nicht erneut wählbar');
+  assert.ok(T.lawBlock(g, { kind: 'tax', tax: 'spitzen', level: 40 }, g.party));
+  // Alte Spielstände: Stufen werden in Werte umgerechnet.
+  const old = { taxes: { spitzen: 2, entlastung: 1, mwst: 1, koerp: 0, soli: 0, vermoegen: 2, co2: 2, strom: 0 }, laws: [], statutes: {} };
+  T.upgradeTaxes(old);
+  assert.deepStrictEqual([old.taxes.spitzen, old.taxes.entlastung, old.taxes.koerp, old.taxes.soli, old.taxes.co2, old.taxes.strom], [45, 1000, 10, 0, 100, 0.1]);
 });

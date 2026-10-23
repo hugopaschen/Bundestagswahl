@@ -491,7 +491,7 @@
     return '<details class="t-more"><summary>Geltendes Recht (' + changed + ' Änderungen seit Spielbeginn)</summary><p class="muted small">Gesetze und Steuern gelten über Legislaturen hinweg, bis eine Regierung sie wieder ändert oder Karlsruhe sie kippt.</p>' +
       '<table class="t-budget"><thead><tr><th>Bereich</th><th>Es gilt</th><th>Herkunft</th></tr></thead><tbody>' +
       D.TOPICS.map(tp => row(tp.icon + ' ' + esc(tp.name), D.PROGRAM[tp.id][t.policy[tp.id]].label, st[tp.id])).join('') +
-      TD.TAXES.map(x => row(x.icon + ' ' + esc(x.name), x.levels[t.taxes[x.id]].label, st['tax:' + x.id])).join('') +
+      TD.TAXES.map(x => row(x.icon + ' ' + esc(x.name), T.fmtTax(x, t.taxes[x.id]), st['tax:' + x.id])).join('') +
       '</tbody></table></details>';
   }
 
@@ -526,11 +526,14 @@
       E.topicById(x.topic).icon + ' ' + esc(E.topicById(x.topic).name) + (x.contract !== undefined && x.contract !== x.current ? ' 📜' : '') + '</button>').join('') +
       (o.taxes.length ? '<button type="button" class="chip t-topic" data-t="taxes" aria-pressed="' + (lawTopic === 'taxes') + '">🏦 Steuern</button>' : '') + '</div>';
     if (lawTopic === 'taxes') {
-      html += '<div class="t-opts">' + o.taxes.map(x => {
+      html += '<p class="muted small">Stellt jede Steuer frei ein. Die Wirkung hängt davon ab, wie stark ihr dreht: Große Sprünge stoßen auf Widerstand, über dem Einnahmemaximum weichen Steuerpflichtige aus, sehr hohe Sätze rufen Karlsruhe auf den Plan, unter EU-Mindestsätzen droht ein Verfahren. Werte geschätzt.</p><div class="t-opts">' + o.taxes.map(x => {
         const tx = T.taxById(x.tax);
-        return '<div class="t-taxrow"><b>' + tx.icon + ' ' + esc(tx.name) + '</b><span class="muted small"> heute: ' + esc(tx.levels[x.current].label) + (tx.zust ? ' · Bundesrat' : '') + '</span><div class="t-taxlv">' +
-          tx.levels.map((lv, i) => i === x.current ? '' : '<button type="button" class="btn t-draft" data-tax="' + x.tax + '" data-lv="' + i + '"' + (can.ok && !(x.blocked || {})[i] ? '' : ' disabled') + '>' + esc(lv.label) +
-            '<span class="hint">' + ((x.blocked || {})[i] ? esc(x.blocked[i]) : (lv.rev - tx.levels[x.current].rev >= 0 ? '+' : '−') + mrd(Math.abs(lv.rev - tx.levels[x.current].rev)) + ' im Jahr') + '</span></button>').join('') + '</div></div>';
+        return '<div class="t-taxrow" data-tax="' + x.tax + '"><div><b>' + tx.icon + ' ' + esc(tx.name) + '</b><span class="muted small"> heute: ' + esc(T.fmtTax(tx, x.current)) + (tx.zust ? ' · Bundesrat muss zustimmen' : '') + '</span></div>' +
+          '<div class="t-taxctl"><input type="range" class="t-taxrange" min="' + x.min + '" max="' + x.max + '" step="' + tx.step + '" value="' + x.current + '" aria-label="' + esc(tx.name) + '">' +
+          '<input type="number" class="t-taxnum" min="' + x.min + '" max="' + x.max + '" step="' + tx.step + '" value="' + x.current + '" aria-label="' + esc(tx.name) + ' (' + esc(tx.unit) + ')"><span class="t-taxunit">' + esc(tx.unit) + '</span></div>' +
+          '<div class="t-taxfx small"></div>' +
+          ((x.blockedUp || x.blockedDown) ? '<p class="muted small">' + esc(x.blockedUp || x.blockedDown) + '</p>' : '') +
+          '<button type="button" class="btn t-draft" data-tax="' + x.tax + '" data-lv="' + x.current + '" disabled>Entwurf einbringen</button></div>';
       }).join('') + '</div>';
     } else if (lawTopic) {
       const x = o.topics.find(z => z.topic === lawTopic);
@@ -558,8 +561,44 @@
     }
     return html;
   }
+  // Vorschau einer Steueränderung: Einnahmen, Wirtschaft, Warnungen.
+  function taxPreview(row) {
+    const t = term();
+    const x = T.taxById(row.dataset.tax);
+    const cur = t.taxes[x.id];
+    const v = Math.round(Number(row.querySelector('.t-taxrange').value) * 1000) / 1000;
+    const dRev = T.taxRevAt(x, v) - T.taxRevAt(x, cur);
+    const dG = T.taxGrowthAt(x, v) - T.taxGrowthAt(x, cur);
+    const dI = T.taxInflAt(x, v) - T.taxInflAt(x, cur);
+    const shock = Math.abs(v - cur) / x.scale;
+    const sg = (n, d) => (n >= 0 ? '+' : '−') + Math.abs(n).toFixed(d).replace('.', ',');
+    const warn = [];
+    if (x.peak && v > x.peak) warn.push('über dem Einnahmemaximum (' + T.fmtTax(x, x.peak) + ') – Ausweichen und Abwanderung');
+    if (x.legalMax !== undefined && v > x.legalMax) warn.push('verfassungsrechtlich heikel (Art. 14 GG) – Klage in Karlsruhe wahrscheinlich');
+    if (x.euMin !== undefined && v < x.euMin) warn.push('unter dem EU-Mindestsatz (' + T.fmtTax(x, x.euMin) + ') – Vertragsverletzungsverfahren');
+    if (x.minTax !== undefined && v < x.minTax) warn.push('unter der globalen Mindeststeuer – andere Staaten kassieren die Differenz');
+    const burden = (x.relief ? -1 : 1) * Math.sign(v - cur);
+    if (burden > 0 && shock > 3) warn.push('sehr großer Sprung – heftiger Widerstand, Koalitionspartner drohen mit Veto');
+    else if (burden > 0 && shock > 1.5) warn.push('großer Sprung – spürbarer Unmut');
+    const fx = row.querySelector('.t-taxfx');
+    fx.innerHTML = v === cur ? '<span class="muted">Regler verschieben, um eine Änderung zu entwerfen.</span>' :
+      '<b>' + esc(T.fmtTax(x, cur)) + ' → ' + esc(T.fmtTax(x, v)) + '</b> · Einnahmen ' + sg(dRev, 1) + ' Mrd. €/Jahr' + (Math.abs(dG) >= 0.005 ? ' · Wachstum ' + sg(dG, 2) : '') + (Math.abs(dI) >= 0.005 ? ' · Inflation ' + sg(dI, 2) : '') +
+      (warn.length ? '<br><span class="neg">⚠ ' + warn.map(esc).join(' · ') + '</span>' : '');
+    const btn = row.querySelector('.t-draft');
+    btn.dataset.lv = v;
+    btn.disabled = v === cur || !T.canAct(g, 'gesetz').ok;
+  }
+
   function bindDraft() {
     const box = $('t-gesetze');
+    box.querySelectorAll('.t-taxrow[data-tax]').forEach(row => {
+      const r = row.querySelector('.t-taxrange');
+      const n = row.querySelector('.t-taxnum');
+      if (!r || !n) return;
+      r.addEventListener('input', () => { n.value = r.value; taxPreview(row); });
+      n.addEventListener('change', () => { r.value = Math.min(Number(r.max), Math.max(Number(r.min), Number(n.value) || 0)); n.value = r.value; taxPreview(row); });
+      taxPreview(row);
+    });
     box.querySelectorAll('.t-topic').forEach(b => b.addEventListener('click', () => { lawTopic = b.dataset.t; renderLaws(); }));
     box.querySelectorAll('.t-route').forEach(b => b.addEventListener('click', () => { lawRoute = b.dataset.r; renderLaws(); }));
     box.querySelectorAll('.t-draft').forEach(b => b.addEventListener('click', () => {
@@ -683,8 +722,9 @@
     // Steuern
     html += '<h3>Steuern</h3><p class="muted small">Steueränderungen sind Gesetze: ' + (T.isGov(t.role) ? 'Bringt sie unter „Gesetze“ ein.' : 'Nur die Regierung kann sie einbringen.') + ' Die Werte zeigen Mehr- oder Mindereinnahmen des Bundes im Jahr.</p><table class="t-budget"><tbody>';
     TD.TAXES.forEach(x => {
-      const lv = x.levels[t.taxes[x.id]];
-      html += '<tr><td>' + x.icon + ' ' + esc(x.name) + (x.zust ? ' <span class="muted small">(Bundesrat)</span>' : '') + '</td><td>' + esc(lv.label) + '</td><td class="num">' + (lv.rev ? (lv.rev > 0 ? '+' : '−') + num1(Math.abs(lv.rev)) : '±0') + '</td></tr>';
+      const v = t.taxes[x.id];
+      const rv = T.taxRevAt(x, v);
+      html += '<tr><td>' + x.icon + ' ' + esc(x.name) + (x.zust ? ' <span class="muted small">(Bundesrat)</span>' : '') + '</td><td>' + esc(T.fmtTax(x, v)) + (v === x.base ? ' <span class="muted small">(Stand 2026)</span>' : '') + '</td><td class="num">' + (Math.abs(rv) >= 0.05 ? (rv > 0 ? '+' : '−') + num1(Math.abs(rv)) : '±0') + '</td></tr>';
     });
     html += '</tbody></table>';
     $('t-haushalt').innerHTML = html;
@@ -1264,7 +1304,7 @@
       U.openModal(eyebrow + ' · Kabinett', 'Veto von ' + short(l.vetoBy), '<p>' + esc(pname(l.vetoBy)) + ' trägt euren Entwurf „' + esc(T.lawName(l)) + '“ nicht mit.</p>', opts);
     } else if (it.type === 'cabinet') {
       const l = term().laws.find(x => x.id === it.law);
-      const d = Math.abs(T.leanOf(g, g.party, l.kind === 'tax' ? 'finanzen' : l.topic) - (l.kind === 'tax' ? T.taxById(l.tax).levels[l.level].lean : D.PROGRAM[l.topic][l.opt].lean));
+      const d = Math.abs(T.leanOf(g, g.party, l.kind === 'tax' ? 'finanzen' : l.topic) - T.lawLean(l));
       U.openModal(eyebrow + ' · Kabinettssitzung', 'Vorlage von ' + short(l.by), '<p>' + esc(pname(l.by)) + ' legt einen Gesetzentwurf vor: <b>' + esc(T.lawTitle(l)) + '</b>.</p><p class="small">' +
         (l.contract ? '📜 Steht im Koalitionsvertrag. ' : '') + (d === 0 ? 'Entspricht eurer Linie.' : d === 1 ? 'Weicht etwas von eurer Linie ab.' : 'Widerspricht eurer Linie deutlich – eure Basis wird murren.') + '</p>',
         [{ label: 'Zustimmen', hint: d === 2 ? 'Geschlossenheit sinkt' : 'Der Entwurf geht in den Bundestag', onClick: () => choose(0) },

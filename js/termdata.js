@@ -178,30 +178,36 @@
   // Aufkommen 2024 und Bundesanteil), Wirkung auf Wachstum/Inflation und Lager (−1 links … +1 rechts).
   // zust = zustimmungspflichtig im Bundesrat (Gemeinschaftssteuern, Art. 105 Abs. 3 GG).
   var TAXES = [
-    { id: 'spitzen', name: 'Spitzensteuersatz', icon: '💼', zust: true, start: 1,
-      levels: [{ label: '39 %', rev: -5, growth: 0.05, lean: 1 }, { label: '42 % (heute)', rev: 0, lean: 0 }, { label: '45 %', rev: 5, growth: -0.03, lean: -1 }, { label: '48 %', rev: 10, growth: -0.07, lean: -1 }],
+    // Stufenlos: Satz frei von min bis max (Prozentsteuern 0–100 %). base = Stand 2026 (Einnahmen ±0).
+    // revPer = Mehr-/Mindereinnahmen des Bundes je Einheit nahe base (Mrd. €/Jahr), peak = Satz mit den höchsten Einnahmen
+    // (Laffer-Kurve: darüber weichen Steuerpflichtige aus), growthPer/inflPer = Wirkung je Einheit (Prozentpunkte),
+    // scale = übliche Schrittweite (größere Sprünge werden überproportional bestraft), leanUp = Lager einer Erhöhung
+    // (−1 links … +1 rechts), legalMax = ab hier droht Karlsruhe (Art. 14 GG, Erdrosselungsverbot), euMin = EU-Mindestsatz,
+    // legacy = Werte der früheren Stufen. Alle Wirkungen geschätzt, Größenordnungen nach Steuerschätzung und Aufkommen 2024.
+    { id: 'spitzen', name: 'Spitzensteuersatz', icon: '💼', zust: true, unit: '%', min: 0, max: 100, step: 1, base: 42, start: 42,
+      revPer: 1.67, peak: 65, growthPer: -0.012, scale: 3, leanUp: -1, legalMax: 75, legacy: [39, 42, 45, 48],
       groups: { hoch: -1, selbst: -1, niedrig: 0.5, arbeiter: 0.5 } },
-    { id: 'entlastung', name: 'Entlastung kleiner und mittlerer Einkommen', icon: '👷', zust: true, start: 0,
-      levels: [{ label: 'keine', rev: 0, lean: 0 }, { label: 'Grundfreibetrag +1.000 €', rev: -6, growth: 0.04, lean: 0 }, { label: 'Tarifreform „Mittelstandsbauch“', rev: -14, growth: 0.08, infl: 0.1, lean: 0 }],
-      groups: { mittel: 1, angest: 1, arbeiter: 1 } },
-    { id: 'mwst', name: 'Mehrwertsteuer', icon: '🛒', zust: true, start: 1,
-      levels: [{ label: '17 %', rev: -17, growth: 0.1, infl: -0.6, lean: -1 }, { label: '19 % (heute)', rev: 0, lean: 0 }, { label: '21 %', rev: 17, growth: -0.12, infl: 0.8, lean: 1 }],
+    { id: 'entlastung', name: 'Grundfreibetrag (Erhöhung)', icon: '👷', zust: true, unit: '€', min: 0, max: 10000, step: 250, base: 0, start: 0,
+      revPer: -0.006, growthPer: 0.00004, inflPer: 0.00004, scale: 1000, leanUp: 0, relief: true, legacy: [0, 1000, 2500],
+      groups: { mittel: 1, angest: 1, arbeiter: 1, niedrig: 0.5 } },
+    { id: 'mwst', name: 'Mehrwertsteuer', icon: '🛒', zust: true, unit: '%', min: 0, max: 100, step: 0.5, base: 19, start: 19,
+      revPer: 8.5, peak: 60, growthPer: -0.055, inflPer: 0.4, scale: 1, leanUp: 1, euMin: 15, legacy: [17, 19, 21],
       groups: { niedrig: -1, rentner: -1, arbeitslos: -1 } },
-    { id: 'koerp', name: 'Körperschaftsteuer', icon: '🏭', zust: true, start: 1,
-      levels: [{ label: '10 % (Plan bis 2032)', rev: -7, growth: 0.1, lean: 1 }, { label: '15 % (heute)', rev: 0, lean: 0 }, { label: '20 %', rev: 7, growth: -0.1, lean: -1 }],
+    { id: 'koerp', name: 'Körperschaftsteuer', icon: '🏭', zust: true, unit: '%', min: 0, max: 100, step: 0.5, base: 15, start: 15,
+      revPer: 1.4, peak: 35, growthPer: -0.02, scale: 3, leanUp: -1, minTax: 15, legalMax: 60, legacy: [10, 15, 20],
       groups: { selbst: -1 } },
-    { id: 'soli', name: 'Solidaritätszuschlag', icon: '🧾', zust: false, start: 1,
-      levels: [{ label: 'abgeschafft', rev: -13, growth: 0.05, lean: 1 }, { label: 'für Spitzenverdiener und Firmen (heute)', rev: 0, lean: 0 }],
+    { id: 'soli', name: 'Solidaritätszuschlag', icon: '🧾', zust: false, unit: '%', min: 0, max: 100, step: 0.5, base: 5.5, start: 5.5,
+      revPer: 2.36, peak: 30, growthPer: -0.009, scale: 2, leanUp: -1, legalMax: 25, legacy: [0, 5.5],
       groups: { hoch: -1, selbst: -1 } },
-    { id: 'vermoegen', name: 'Vermögen und Erbschaften', icon: '💎', zust: true, start: 0,
-      levels: [{ label: 'wie heute', rev: 0, lean: 0 }, { label: 'Ausnahmen bei der Erbschaftsteuer streichen', rev: 4, growth: -0.02, lean: -1 }, { label: 'zusätzlich Vermögensteuer ab 2 Mio. €', rev: 12, growth: -0.06, lean: -1 }],
+    { id: 'vermoegen', name: 'Vermögensteuer (ab 2 Mio. €)', icon: '💎', zust: true, unit: '%', min: 0, max: 100, step: 0.1, base: 0, start: 0,
+      revPer: 12, peak: 4, growthPer: -0.06, scale: 0.5, leanUp: -1, legalMax: 2, legacy: [0, 0.3, 1],
       groups: { selbst: -1, hoch: -0.5, niedrig: 0.5, arbeitslos: 0.5 } },
-    { id: 'co2', name: 'CO₂-Preis (Gebäude und Verkehr)', icon: '🏭', zust: false, start: 1,
-      levels: [{ label: 'eingefroren', rev: -6, infl: -0.2, lean: 1 }, { label: 'europäischer Emissionshandel (heute)', rev: 0, lean: 0 }, { label: 'höher, mit Klimageld zurück', rev: 0, infl: 0.2, lean: -1, climate: 1 }],
+    { id: 'co2', name: 'CO₂-Preis (Gebäude und Verkehr)', icon: '🏭', zust: false, unit: '€/t', min: 0, max: 300, step: 5, base: 65, start: 65,
+      revPer: 0.3, klimageld: true, inflPer: 0.006, scale: 20, leanUp: -1, climatePer: 0.1, legacy: [45, 65, 100],
       groups: { land: -1, jung: 0.5, stadt: 0.3 } },
-    { id: 'strom', name: 'Stromsteuer', icon: '⚡', zust: false, start: 1,
-      levels: [{ label: 'EU-Minimum für alle', rev: -5, growth: 0.03, infl: -0.15, lean: 0 }, { label: 'nur für Industrie gesenkt (heute)', rev: 0, lean: 0 }],
-      groups: { rentner: 0.5, niedrig: 0.5 } }
+    { id: 'strom', name: 'Stromsteuer (Haushalte)', icon: '⚡', zust: false, unit: 'ct/kWh', min: 0, max: 5, step: 0.05, base: 2.05, start: 2.05,
+      revPer: 2.5, growthPer: -0.015, inflPer: 0.075, scale: 0.5, leanUp: 0, euMin: 0.1, legacy: [0.1, 2.05],
+      groups: { rentner: -0.5, niedrig: -0.5, selbst: -0.3 } }
   ];
 
   // Gesetzgebung: Wirkung, wenn eine Programmposition Gesetz wird (geschätzt).

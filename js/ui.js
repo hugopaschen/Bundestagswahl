@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261023-194132';
+  const APP_VERSION = '20261023-195754';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -3225,6 +3225,7 @@
       ]) +
       sec('Haushalt und Wirtschaft', [
         'Start mit dem Bundeshaushalt 2026: 524,5 Mrd. € Ausgaben, 97,965 Mrd. € Nettokreditaufnahme. Schuldenbremse nach Art. 115 GG (0,35 % des BIP, Konjunkturkomponente, Ausnahme für Verteidigung über 1 % des BIP). Sondervermögen Infrastruktur 500 Mrd. € über 12 Jahre.',
+        'Steuern stufenlos (Prozentsteuern 0–100 %): Einnahmen folgen einer Laffer-Kurve mit Maximum je Steuer, große Sprünge werden überproportional bestraft, sehr hohe Sätze rufen Karlsruhe auf den Plan (Art. 14 GG), unter EU-Mindestsätzen droht ein Vertragsverletzungsverfahren, unter 15 % Körperschaftsteuer greift die globale Mindeststeuer.' + est,
         'Zinsen aus Schuldenstand und Durchschnittszins der Bundesschuld; Steuerschätzung im Mai und Herbst; Wirkung von Kürzungen und Konsolidierungsmaßnahmen.' + est,
         'Wirtschaft: Startwerte nach dem Stand 2026, danach ein einfaches Modell aus Trendwachstum, Haushaltsimpuls und Investitionen; die Arbeitslosigkeit folgt dem Wachstum (Okunsches Gesetz).' + est
       ]) +

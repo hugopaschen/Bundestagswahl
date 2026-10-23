@@ -107,9 +107,46 @@
   }
   const optIndex = (topic, lean) => Math.max(0, D.PROGRAM[topic].findIndex(o => o.lean === lean));
   const lawTopic = law => (law.kind === 'tax' ? 'finanzen' : law.topic);
-  const lawLean = law => (law.kind === 'tax' ? taxById(law.tax).levels[law.level].lean : D.PROGRAM[law.topic][law.opt].lean);
+  // ---------- Steuern stufenlos ----------
+  // Einnahmen mit Laffer-Kurve: R(v) = k·v·(1 − v/100)^ε mit Maximum bei peak, geeicht auf revPer bei base.
+  function taxRevAt(x, v) {
+    const d = v - x.base;
+    if (x.klimageld && d > 0) return 0; // Mehreinnahmen fließen als Klimageld zurück
+    if (!x.peak) return x.revPer * d;
+    const eps = 100 / x.peak - 1;
+    const f = u => u * Math.pow(Math.max(0, 1 - u / 100), eps);
+    const fp = u => Math.pow(Math.max(1e-9, 1 - u / 100), eps) - u * eps / 100 * Math.pow(Math.max(1e-9, 1 - u / 100), eps - 1);
+    return x.revPer / fp(x.base) * (f(v) - f(x.base));
+  }
+  // Wachstum: Unter der globalen Mindeststeuer (15 %) sparen Unternehmen nichts – andere Staaten erheben die Differenz.
+  function taxGrowthAt(x, v) {
+    const eff = x.minTax !== undefined ? Math.max(v, x.minTax) : v;
+    let gr = (x.growthPer || 0) * (eff - x.base);
+    if (x.peak && eff > x.peak) gr -= 0.01 * (eff - x.peak); // Ausweichen und Abwanderung
+    return clamp(gr, -2, 1.5);
+  }
+  const taxInflAt = (x, v) => clamp((x.inflPer || 0) * (v - x.base), -3, 8);
+  function fmtTax(x, v) {
+    const n = Math.round(v * 100) / 100;
+    const num = x.unit === '€' ? (n > 0 ? '+' : '') + n.toLocaleString('de-DE') : String(n).replace('.', ',');
+    return num + ' ' + x.unit;
+  }
+  const taxShock = law => (law.kind === 'tax' ? Math.abs(law.level - law.from) / taxById(law.tax).scale : 0);
+  // Alte Spielstände: Stufen-Indizes in Werte umrechnen (einmalig).
+  function upgradeTaxes(t) {
+    if (!t || t.taxModel === 2) return;
+    const val = (x, i) => (i === undefined ? x.start : x.legacy[i] !== undefined ? x.legacy[i] : x.start);
+    TD.TAXES.forEach(x => { t.taxes[x.id] = val(x, t.taxes[x.id]); });
+    (t.laws || []).filter(l => l.kind === 'tax').forEach(l => { const x = taxById(l.tax); if (!x) return; l.level = val(x, l.level); if (l.from !== undefined) l.from = val(x, l.from); });
+    Object.keys(t.statutes || {}).forEach(k => { if (k.indexOf('tax:') === 0) { const x = taxById(k.slice(4)); if (x) t.statutes[k].v = val(x, t.statutes[k].v); } });
+    t.taxModel = 2;
+  }
+  // Lager eines Steuergesetzes: Richtung der Änderung (Erhöhung/Senkung).
+  const lawLean = law => (law.kind === 'tax' ? (taxById(law.tax).leanUp || 0) * Math.sign(law.level - (law.from === undefined ? law.level : law.from)) : D.PROGRAM[law.topic][law.opt].lean);
+  // Abstand einer Partei zu einem Gesetz (0–2); große Steuersprünge (über drei übliche Schritte) gelten als eine Stufe weiter weg.
+  const lawDist = (g, p, law) => Math.min(2, Math.abs(leanOf(g, p, lawTopic(law)) - lawLean(law)) + (taxShock(law) >= 3 ? 1 : 0));
   function lawName(law) {
-    if (law.kind === 'tax') { const x = taxById(law.tax); return x.name + ': ' + x.levels[law.level].label; }
+    if (law.kind === 'tax') { const x = taxById(law.tax); return x.name + ' ' + (law.from !== undefined && law.from !== law.level ? 'von ' + fmtTax(x, law.from) + ' auf ' : 'auf ') + fmtTax(x, law.level); }
     return D.PROGRAM[law.topic][law.opt].label;
   }
   function lawTitle(law) {
@@ -422,6 +459,7 @@
       lage: world && world.lage ? copy(world.lage) : null,
       taxes: world ? copy(world.taxes) : {},
       statutes: world && world.statutes ? copy(world.statutes) : {}, // geltendes Recht mit Herkunft, über Legislaturen hinweg
+      taxModel: world && world.taxModel === 2 ? 2 : undefined,
       econ: world ? copy(world.econ) : Object.assign({}, TD.ECON0, scenarioOf(g).econ || {}, { pol: { growth: 0, unemp: 0, infl: 0 } }),
       budget: world ? Object.assign({ draft: null, status: 'ok', oneoff: 0, history: [], vote: null }, copy(world.budget)) :
         { plan: {}, draft: null, status: 'ok', extra: 0, def: 0, oneoff: 0, reform: 0, notlage: false, history: [], vote: null },
@@ -440,6 +478,7 @@
     if (!world) {
       A.TOPIC_IDS.forEach(topic => { t.policy[topic] = optIndex(topic, TD.POLICY0); });
       TD.TAXES.forEach(x => { t.taxes[x.id] = x.start; });
+      t.taxModel = 2;
       TD.AREAS.forEach(a => { if (!a.fixed) t.budget.plan[a.id] = 0; });
       t.econ.debtBn = t.econ.debt * t.econ.gdp / 100;
     }
@@ -1260,7 +1299,8 @@
     // Maßnahmen: Einsparungen/Mehreinnahmen (mit Anlaufzeit) und Kosten (z. B. neue Steuerprüfer).
     const measRev = Object.keys(meas).reduce((x, id) => x + (konsol(id).rev || 0) * meas[id], 0) * s;
     spend += Object.keys(meas).reduce((x, id) => x + (konsol(id).cost || 0), 0);
-    const taxRev = TD.TAXES.reduce((sum, x) => sum + x.levels[t.taxes[x.id]].rev, 0) * s;
+    upgradeTaxes(t);
+    const taxRev = TD.TAXES.reduce((sum, x) => sum + taxRevAt(x, t.taxes[x.id]), 0) * s;
     const gap0 = e.gap === undefined ? TD.ECON0.gap : e.gap;
     // Steuern reagieren auf die Konjunktur (Budgetsemielastizität ~0,5).
     const revenue = TD.REVENUE0 * s + TD.DEBT_RULE.cyc * (gap0 - TD.ECON0.gap) * e.gdp / 100 + taxRev + measRev + (t.budget.taxEst || 0);
@@ -1594,10 +1634,13 @@
       });
       if (opts.length || Object.keys(blocked).length) topics.push({ topic, ministry: min, own: mine, opts, blocked, current: t.policy[topic], contract: t.contract[topic] });
     });
+    upgradeTaxes(t);
     const taxes = (t.role === 'kanzler' || own.indexOf('finanzen') !== -1) ? TD.TAXES.filter(x => !inPipeline(t, 'tax:' + x.id)).map(x => {
-      const blocked = {};
-      x.levels.forEach((lv, i) => { if (i !== t.taxes[x.id]) { const why = lawBlock(g, { kind: 'tax', tax: x.id, level: i }, g.party); if (why) blocked[i] = why; } });
-      return { tax: x.id, current: t.taxes[x.id], blocked };
+      const cur = t.taxes[x.id];
+      const up = lawBlock(g, { kind: 'tax', tax: x.id, level: Math.min(x.max, cur + x.step) }, g.party);
+      const down = lawBlock(g, { kind: 'tax', tax: x.id, level: Math.max(x.min, cur - x.step) }, g.party);
+      return { tax: x.id, current: cur, min: up && up.indexOf('Widerspricht') === 0 ? cur : x.min, max: down && down.indexOf('Widerspricht') === 0 ? cur : x.max,
+        blockedUp: up && up.indexOf('Widerspricht') === 0 ? up : null, blockedDown: down && down.indexOf('Widerspricht') === 0 ? down : null };
     }) : [];
     return { topics, taxes };
   }
@@ -1655,7 +1698,7 @@
   }
   // Wie beliebt ist die neue Regelung? (positiv = populär)
   function lawPop(law) {
-    if (law.kind === 'tax') { const x = taxById(law.tax); return -((x.levels[law.level].rev || 0) - (x.levels[law.from === undefined ? law.level : law.from].rev || 0)) / 25; }
+    if (law.kind === 'tax') { const x = taxById(law.tax); return -(taxRevAt(x, law.level) - taxRevAt(x, law.from === undefined ? law.level : law.from)) / 25 - 0.1 * Math.max(0, taxShock(law) - 1); }
     return D.PROGRAM[law.topic][law.opt].pop || 0;
   }
   // Rahmen einer Abstimmung: Wahlkampfnähe, bald wählende Länder, Beliebtheit.
@@ -1673,7 +1716,7 @@
     const absent = dr ? Math.round(s * (0.02 + 0.05 * dr.abs)) : 0;
     const n = s - absent;
     const out = (yes, abst) => ({ yes, abst, no: n - yes - abst, absent });
-    const d = Math.abs(leanOf(g, p, lawTopic(law)) - lawLean(law));
+    const d = lawDist(g, p, law);
     if (p === g.party && !isGov(t.role)) {
       const c = t.voteChoice[law.id] || defaultVote(g, law);
       // Auch in der eigenen Fraktion gibt es Einzelne, die anders stimmen – mehr bei Streit und gegen die eigene Linie.
@@ -1721,7 +1764,7 @@
     return out(0, 0);
   }
   function defaultVote(g, law) {
-    const d = Math.abs(leanOf(g, g.party, lawTopic(law)) - lawLean(law));
+    const d = lawDist(g, g.party, law);
     return d === 0 ? 'ja' : d === 1 ? 'enthaltung' : 'nein';
   }
   function bundestagVote(g, law, draw) {
@@ -1755,7 +1798,7 @@
   function partyBackslaw(g, p, law) {
     const t = g.term;
     if (t.gov.indexOf(p) !== -1) return true;
-    const d = Math.abs(leanOf(g, p, lawTopic(law)) - lawLean(law));
+    const d = lawDist(g, p, law);
     // Wankt der Status quo, geben Länder mit nur kleinen Bedenken nach.
     return d === 0 || (d === 1 && (law.brDeal || (law.kind === 'topic' && t.sq[law.topic] < 25)));
   }
@@ -1842,12 +1885,12 @@
       if (!x || x.no < 2) return;
       const drop = (t.start[p] || 0) - ((t.lastNat && t.lastNat[p]) || t.start[p] || 0);
       const why = ctx.pop < 0 && ctx.soon.size ? 'Angst vor der Landtagswahl in ' + Array.from(ctx.soon).map(l => E.stateById(l).name).join(' und ') :
-        drop > 3 ? 'Nervosität nach dem Absturz in den Umfragen' : Math.abs(leanOf(g, p, lawTopic(law)) - lawLean(law)) === 2 ? 'das Gesetz widerspricht der Parteilinie' : 'Bedenken einzelner Abgeordneter';
+        drop > 3 ? 'Nervosität nach dem Absturz in den Umfragen' : lawDist(g, p, law) === 2 ? 'das Gesetz widerspricht der Parteilinie' : 'Bedenken einzelner Abgeordneter';
       out.push(x.no + ' Abweichler bei ' + sname(p) + ' – ' + why);
     });
     CONTEST.filter(p => t.gov.indexOf(p) === -1 && p !== g.party).forEach(p => {
       const x = v.detail[p];
-      const d = Math.abs(leanOf(g, p, lawTopic(law)) - lawLean(law));
+      const d = lawDist(g, p, law);
       if (x && d === 1 && x.yes > 0) out.push(sname(p) + ' stimmt überraschend zu – „in der Sache richtig“');
       else if (x && d === 0 && ctx.elect && x.abst > x.yes / 2) out.push(sname(p) + ' enthält sich trotz Nähe – es ist Wahljahr');
     });
@@ -1864,7 +1907,7 @@
     if (law.by === g.party) {
       let veto = null;
       t.gov.filter(p => p !== g.party).forEach(p => {
-        const d = Math.abs(leanOf(g, p, lawTopic(law)) - lawLean(law));
+        const d = lawDist(g, p, law);
         if (law.contract || d === 0) return;
         if (d === 1) { t.mood = clamp(t.mood - 2, 0, 100); law.log.push(sname(p) + ' murrt, trägt den Entwurf aber mit.'); return; }
         veto = veto || p;
@@ -1948,7 +1991,7 @@
     const t = g.term;
     const v = bundesratVote(g, law);
     if (law.zust ? v.pass : 69 - v.yes < TD.BUNDESRAT_MAJ) return null;
-    const lands = Object.keys(t.laender).filter(l => !v.lands[l] && t.laender[l].gov.filter(p => !partyBackslaw(g, p, law)).every(p => Math.abs(leanOf(g, p, lawTopic(law)) - lawLean(law)) <= 1))
+    const lands = Object.keys(t.laender).filter(l => !v.lands[l] && t.laender[l].gov.filter(p => !partyBackslaw(g, p, law)).every(p => lawDist(g, p, law) <= 1))
       .sort((x, y) => t.laender[y].votes - t.laender[x].votes).slice(0, 2)
       .map(l => ({ land: l, votes: t.laender[l].votes, mp: mpName(g, l), party: t.laender[l].gov[0], block: t.laender[l].gov.filter(p => !partyBackslaw(g, p, law)) }));
     return lands.length ? { lands, yes: v.yes } : null;
@@ -2073,7 +2116,7 @@
     if (!rec.my) return;
     (t.voteLog = t.voteLog || []).unshift({ q: rec.q, title: rec.title, my: rec.my, yes: rec.yes, no: rec.no, abst: rec.abst, pass: rec.pass, decisive: rec.decisive, gewissen: !!(law && law.gewissen) });
     if (t.voteLog.length > 60) t.voteLog.length = 60;
-    const d = law && law.kind ? Math.abs(leanOf(g, g.party, lawTopic(law)) - lawLean(law)) : 0;
+    const d = law && law.kind ? lawDist(g, g.party, law) : 0;
     if (rec.decisive || (rec.my === 'ja' && d === 2) || (rec.my === 'nein' && d === 0)) {
       (t.memory = t.memory || []).push({ q: t.q, title: 'Abstimmung über „' + rec.title + '“', label: 'Ihr habt mit ' + ({ ja: 'Ja', nein: 'Nein', enthaltung: 'Enthaltung' }[rec.my]) + ' gestimmt', ok: (rec.my === 'ja') === (d < 2) });
     }
@@ -2251,13 +2294,31 @@
     let pop;
     if (law.kind === 'tax') {
       const x = taxById(law.tax);
-      const prev = x.levels[t.taxes[law.tax]];
-      const now = x.levels[law.level];
-      t.taxes[law.tax] = law.level;
-      applyEcon(t.econ, { growth: (now.growth || 0) - (prev.growth || 0) }, 1);
-      t.econ.infl += (now.infl || 0) - (prev.infl || 0);
-      const dRev = now.rev - prev.rev;
-      pop = (-dRev / 25 + (now.lean === -1 && dRev > 0 ? 0.35 : 0) + (now.climate ? -0.1 : 0)) * 2.2;
+      const from = t.taxes[law.tax];
+      const to = law.level;
+      t.taxes[law.tax] = to;
+      applyEcon(t.econ, { growth: taxGrowthAt(x, to) - taxGrowthAt(x, from) }, 1);
+      t.econ.infl += taxInflAt(x, to) - taxInflAt(x, from);
+      const dRev = taxRevAt(x, to) - taxRevAt(x, from);
+      const dir = Math.sign(to - from);
+      const shock = Math.abs(to - from) / x.scale;
+      const burden = x.relief ? -dir : dir; // +1 = Belastung steigt
+      pop = (-dRev / 25 + ((x.leanUp || 0) === -1 && dRev > 0 ? 0.35 : 0)) * 2.2;
+      // Große Sprünge werden überproportional bestraft (Mehrwertsteuer +3 Punkte 2007), große Senkungen wirken kaum stärker.
+      if (burden > 0) pop -= Math.min(3, 0.3 * Math.pow(Math.max(0, shock - 1), 2));
+      else pop = Math.min(pop, 0.8);
+      // Wen es trifft: Wählergruppen rücken von der Regierung ab oder auf sie zu.
+      Object.keys(x.groups || {}).forEach(k => { if (g.grp[k]) t.gov.forEach(p => { g.grp[k][p] = (g.grp[k][p] || 0) + 0.4 * x.groups[k] * dir * Math.min(3, shock); }); });
+      if (x.climatePer) { ensureLage(g); t.lage.klima -= x.climatePer * (to - from); }
+      if (x.peak && to > x.peak && from <= x.peak) news(g, 'Ökonomen warnen: Mit ' + fmtTax(x, to) + ' liegt die ' + x.name + ' über dem Einnahmemaximum – Ausweichen und Abwanderung kosten mehr, als der höhere Satz bringt.', 'warn');
+      if (x.legalMax !== undefined && to > x.legalMax) {
+        news(g, 'Verfassungsrechtler sprechen von einer „Erdrosselungssteuer“: ' + x.name + ' ' + fmtTax(x, to) + ' könnte gegen die Eigentumsgarantie (Art. 14 GG) verstoßen.', 'warn');
+        aiKlage(g, { kind: 'law', law: law.id, chance: clamp(0.35 + 0.1 * (to - x.legalMax) / x.scale, 0.35, 0.9), text: '„' + lawName(law) + '“' });
+      }
+      t.euCases = t.euCases || {};
+      if (x.euMin !== undefined && to < x.euMin) { if (t.euCases[x.id] === undefined) { t.euCases[x.id] = t.q; t.intl = clamp(t.intl - 8, 0, 100); news(g, 'Brüssel leitet ein Vertragsverletzungsverfahren ein: ' + x.name + ' unter dem EU-Mindestsatz von ' + fmtTax(x, x.euMin) + '.', 'bad'); } }
+      else delete t.euCases[x.id];
+      if (x.minTax !== undefined && to < x.minTax && from >= x.minTax) news(g, 'Globale Mindeststeuer: Unter ' + fmtTax(x, x.minTax) + ' erheben andere Staaten die Differenz – deutsche Konzerne sparen kaum, dem Bund fehlt das Geld.', 'warn');
     } else {
       const prevOpt = t.policy[law.topic];
       const prevLean = D.PROGRAM[law.topic][prevOpt].lean;
@@ -2354,8 +2415,11 @@
         const lf = leanOf(g, p, 'finanzen');
         const x = pick(g, TD.TAXES.filter(z => !inPipeline(t, 'tax:' + z.id)));
         if (x) {
-          const lvl = x.levels.findIndex((l, i) => i !== t.taxes[x.id] && l.lean === lf && lf !== 0);
-          if (lvl !== -1 && !lawBlock(g, { kind: 'tax', tax: x.id, level: lvl }, p)) cands.push({ tax: x.id, level: lvl, w: 0.2 });
+          const cur = t.taxes[x.id];
+          const sgn = lf * (x.leanUp || 0);
+          let lvl = Math.round((cur + sgn * x.scale) / x.step) * x.step;
+          lvl = Math.round(clamp(lvl, Math.max(x.min, x.euMin || 0, x.minTax || 0), Math.min(x.max, x.legalMax || x.max, x.peak || x.max)) * 1000) / 1000;
+          if (sgn && lvl !== cur && !lawBlock(g, { kind: 'tax', tax: x.id, level: lvl }, p)) cands.push({ tax: x.id, level: lvl, w: 0.2 });
         }
       }
       if (!cands.length) return;
@@ -2532,6 +2596,17 @@
     t.ltwNight = [];
     t.ltwKoa = [];
   }
+  // Vertragsverletzungsverfahren (EU-Mindeststeuersätze): Ansehen sinkt, nach einem Jahr verhängt der EuGH ein Zwangsgeld.
+  function euCasesQuarter(g) {
+    const t = g.term;
+    Object.keys(t.euCases || {}).forEach(id => {
+      const x = taxById(id);
+      if (!x || t.taxes[id] >= x.euMin) { delete t.euCases[id]; return; }
+      t.intl = clamp(t.intl - 1.5, 0, 100);
+      if (t.q - t.euCases[id] >= 4) { t.budget.oneoff += 0.4; if ((t.q - t.euCases[id]) % 4 === 0) news(g, 'Der Europäische Gerichtshof verhängt ein Zwangsgeld wegen der ' + x.name + ' unter dem EU-Mindestsatz.', 'bad'); }
+    });
+  }
+
   // ---------- Landeskoalitionen zwischen den Wahlen ----------
   // Spannung je Landeskoalition (0–100): Absturz eines Partners im Bund, Lagerkonflikt Bund/Opposition im Bundesrat,
   // Länder-Front und gescheiterte Parteischiene. Hohe Spannung kann die Koalition sprengen (Hamburg 2010, Saarland 2012,
@@ -3052,7 +3127,7 @@
       news(g, '„' + lawName(law) + '“: ' + text, 'info');
     } else if (item.type === 'cabinet') {
       const law = t.laws.find(l => l.id === item.law);
-      const d = Math.abs(leanOf(g, g.party, lawTopic(law)) - lawLean(law));
+      const d = lawDist(g, g.party, law);
       if (choice === 0) { law.stage = 'bundestag'; law.btQ = t.q; law.log.push('Kabinett beschließt den Entwurf.'); if (d === 2) { t.party.unity = clamp(t.party.unity - 4, 0, 100); addCred(g, -4, 'Im Kabinett einem Entwurf gegen eure Linie zugestimmt'); } else if (d === 0) addCred(g, 1); text = 'Ihr stimmt im Kabinett zu.'; }
       else if (choice === 1 && law.kind === 'topic' && optIndex(law.topic, 0) !== t.policy[law.topic] && law.opt !== optIndex(law.topic, 0)) {
         law.opt = optIndex(law.topic, 0); law.stage = 'bundestag'; law.btQ = t.q; t.mood = clamp(t.mood - 2, 0, 100); law.log.push('Nachverhandelt: „' + lawName(law) + '“.'); text = 'Ihr handelt einen Kompromiss heraus.';
@@ -3173,7 +3248,7 @@
       }
       if (!item.budget) {
         const law = t.laws.find(l => l.id === item.law);
-        const d = Math.abs(leanOf(g, g.party, lawTopic(law)) - lawLean(law));
+        const d = lawDist(g, g.party, law);
         if (v === 'ja' && d === 2) { t.party.unity = clamp(t.party.unity - 3, 0, 100); addCred(g, -5, 'Für ein Gesetz gegen eure Linie gestimmt: „' + lawName(law) + '“'); }
         else if (v === 'nein' && d === 0) addCred(g, -2, 'Gegen ein Gesetz nach eurer Linie gestimmt: „' + lawName(law) + '“');
         else if ((v === 'ja' && d === 0) || (v === 'nein' && d === 2)) addCred(g, 1);
@@ -3356,9 +3431,12 @@
         const o = lawOptions(g);
         if (!target) return { ok: false, text: 'Bitte ein Vorhaben wählen.' };
         if (target.tax) {
-          const tb = lawBlock(g, { kind: 'tax', tax: target.tax, level: target.level }, g.party);
+          const tx = taxById(target.tax);
+          if (tx) target.level = clamp(Math.round(Number(target.level) / tx.step) * tx.step, tx.min, tx.max);
+          if (tx) target.level = Math.round(target.level * 1000) / 1000;
+          const tb = tx && lawBlock(g, { kind: 'tax', tax: target.tax, level: target.level }, g.party);
           if (tb) return { ok: false, text: tb };
-          if (!o.taxes.some(x => x.tax === target.tax) || !taxById(target.tax).levels[target.level] || target.level === t.taxes[target.tax]) return { ok: false, text: 'Diese Steueränderung ist nicht möglich.' };
+          if (!o.taxes.some(x => x.tax === target.tax) || !tx || !isFinite(target.level) || target.level === t.taxes[target.tax]) return { ok: false, text: 'Diese Steueränderung ist nicht möglich.' };
           const law = makeLaw(g, { kind: 'tax', tax: target.tax, level: target.level }, g.party);
           lobbyReact(g, law);
           text = 'Entwurf „' + lawName(law) + '“ geht ins Kabinett.';
@@ -3437,7 +3515,7 @@
         if (!law) return { ok: false, text: 'Kein Gesetz im Bundesrat ausgewählt.' };
         const v = bundesratVote(g, law);
         // Länder, in denen nur eine Partei fehlt und die nicht völlig dagegen ist.
-        const cand = Object.keys(t.laender).filter(l => !v.lands[l] && t.laender[l].gov.filter(p => !partyBackslaw(g, p, law)).every(p => Math.abs(leanOf(g, p, lawTopic(law)) - lawLean(law)) <= 1))
+        const cand = Object.keys(t.laender).filter(l => !v.lands[l] && t.laender[l].gov.filter(p => !partyBackslaw(g, p, law)).every(p => lawDist(g, p, law) <= 1))
           .sort((x, y) => t.laender[y].votes - t.laender[x].votes).slice(0, 2);
         if (!cand.length) return { ok: false, text: 'Kein Land lässt sich umstimmen.' };
         law.bought = (law.bought || []).concat(cand);
@@ -3543,7 +3621,7 @@
         } else {
           const law = t.laws.find(l => l.id === Number(target) && l.stage === 'inkraft');
           if (!law) return { ok: false, text: 'Bitte ein Gesetz wählen.' };
-          const d = Math.abs(leanOf(g, g.party, lawTopic(law)) - lawLean(law));
+          const d = lawDist(g, g.party, law);
           t.klagen.push({ kind: 'law', law: law.id, due: t.q + 2, chance: (d === 2 ? 0.3 : 0.12) + (law.fraktion && !law.fixed ? 0.1 : 0) - (law.fixed ? 0.05 : 0), text: '„' + lawName(law) + '“', by: 'player' });
         }
         text = 'Die Klage ist eingereicht. Karlsruhe entscheidet in etwa einem halben Jahr.';
@@ -4041,6 +4119,7 @@
     updateParty(g);
     updateMood(g);
     if (t.over) return { ok: true, over: true };
+    euCasesQuarter(g);
     landCoalitions(g);
     ltwDue(t).forEach(l => landtagswahl(g, l));
     flushLtwNight(g);
@@ -4210,7 +4289,8 @@
     const electionAbs = t.early ? c.abs + 1 : t.abs0 + QUARTERS - 1;
     const P0 = party(g.party);
     const money = Math.round(P0.budget * clamp(0.6 + 0.4 * t.party.cash / P0.budget, 0.6, 1.5) * 10) / 10;
-    const world = { econ: copy(t.econ), policy: copy(t.policy), taxes: copy(t.taxes), statutes: copy(t.statutes || {}), intl: t.intl, laender: copy(t.laender),
+    upgradeTaxes(t);
+    const world = { econ: copy(t.econ), policy: copy(t.policy), taxes: copy(t.taxes), taxModel: 2, statutes: copy(t.statutes || {}), intl: t.intl, laender: copy(t.laender),
       budget: { plan: copy(t.budget.plan), extra: t.budget.extra, def: t.budget.def, reform: t.budget.reform || 0, notlage: false, drift: copy(t.budget.drift || {}) },
       landPrev: copy(t.landPrev), sq: copy(t.sq), abs0: electionAbs + 1, doneAbs: t.doneAbs, lage: t.lage ? copy(t.lage) : null };
     const leaders = leaderOptions(g, Math.floor(electionAbs / 4));
@@ -4268,7 +4348,7 @@
 
   const TERM = {
     QUARTERS, ACTIONS, LAW_STEPS, forecast, lageBilanz, lawEffects, ensureLage, SOFORT, SHADOW_SETS, comebackBarometer, wkStatus, homeWk, termRecord, debtPath, activeMeasures, avgRate, govWear, WOBBLE, brAligned, landGovernment, dueVotes, GEWISSEN, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
-    lawOptions, lawBlock, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, seasonLabel, quarterStart, quarterEnd, plenaryDate, plenaryLabel, nextSession, termPolls, termAverage, cal,
+    lawOptions, lawBlock, taxRevAt, taxGrowthAt, taxInflAt, fmtTax, upgradeTaxes, lawLean, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, seasonLabel, quarterStart, quarterEnd, plenaryDate, plenaryLabel, nextSession, termPolls, termAverage, cal,
     lawName, lawTitle, leanOf, quorum, eventChoices, fillText, eventById, ministryById, taxById, areaById, nextCampaign, summary,
     MEDIA, media, actionCash, govSeats, isGov, legacy, LB, careerSnapshot, chooseLeader, leaderAge, currentLeader, MAX_AGE, sqForces, absCal, FX_NAMES, ministerFor, eventMinister, ownMinistries, endTerm, defaultVote, partyVote, mandateVote
   };
