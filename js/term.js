@@ -858,12 +858,12 @@
     const lines = [];
     TD.AREAS.forEach(a => {
       if (a.fixed || !a.groups) return;
-      const d = ((newPlan[a.id] || 0) - (oldPlan[a.id] || 0)) / 5;
+      const d = (planEffect(newPlan[a.id] || 0) - planEffect(oldPlan[a.id] || 0)) / 5;
       if (!d) return;
       let w = 0;
       Object.keys(a.groups).forEach(k => { const gr = D.GROUPS.find(x => x.id === k); if (gr) w += gr.weight * a.groups[k]; });
       pop += d * w * 0.6;
-      if (Math.abs(d * w) > 0.04) lines.push(a.name.split(' (')[0] + (d > 0 ? ' +' : ' ') + (newPlan[a.id] - oldPlan[a.id]) + ' %');
+      if (Math.abs(d * w) > 0.04) lines.push(a.name.split(' (')[0] + (d > 0 ? ' +' : ' ') + num1(newPlan[a.id] - oldPlan[a.id]) + ' %');
       t.gov.forEach(p => { const pr = (TD.AREA_PREF[p] || {})[a.id]; if (pr) addNat(g, p, 0.04 * pr * d); });
     });
     if (pop) t.gov.forEach(p => addNat(g, p, pop * (p === t.chanc ? 1 : 0.7)));
@@ -969,7 +969,7 @@
     });
     // Haushalt: Mehr oder weniger Geld als im Ausgangsplan.
     Object.keys(TD.LAGE_BUDGET).forEach(a => {
-      const rel = ((t.budget.plan && t.budget.plan[a]) || 0) / 100 + (a === 'verteidigung' ? (t.budget.def || 0) / 80 : 0);
+      const rel = planEffect((t.budget.plan && t.budget.plan[a]) || 0) / 100 + (a === 'verteidigung' ? (t.budget.def || 0) / 80 : 0);
       Object.keys(TD.LAGE_BUDGET[a]).forEach(id => { if (id in d) d[id] += rel * TD.LAGE_BUDGET[a][id]; });
     });
     // Konsolidierungsmaßnahmen wirken dauerhaft auf die Lage (z. B. gestrecktes Sondervermögen: langsamere Sanierung).
@@ -1319,7 +1319,7 @@
     const b = budgetCalc(t);
     // Investitionen in Verkehr, Forschung, Bildung … stützen das Wachstum; das Defizit wirkt als Impuls.
     let inv = 0;
-    TD.AREAS.forEach(a => { if (!a.fixed && a.growth) inv += (b.areas[a.id] - a.base * b.s) / 10 * a.growth; });
+    TD.AREAS.forEach(a => { if (!a.fixed && a.growth) inv += areaBase(t, a.id) * planEffect(t.budget.plan[a.id] || 0) / 100 / 10 * a.growth; });
     const impulse = clamp(0.15 * ((b.deficit + b.sv) / e.gdp * 100 - 3.0), -0.3, 0.3);
     const status = t.budget.status === 'vorlaeufig' ? -0.1 : 0;
     const target = e.trend + e.pol.growth + inv + impulse + status;
@@ -1460,7 +1460,8 @@
   // Eine Stufe weiter (dir = +1/−1) auf der Skala BUDGET_STEPS, mit Untergrenze je Bereich (Rentenzuschuss gesetzlich).
   function stepShift(area, v, dir) {
     const S = TD.BUDGET_STEPS;
-    const i = S.indexOf(v) === -1 ? S.indexOf(0) : S.indexOf(v);
+    // Freie Werte (eigener Entwurf) auf die nächste Stufe beziehen.
+    const i = S.reduce((bi, x, k) => (Math.abs(x - (v || 0)) < Math.abs(S[bi] - (v || 0)) ? k : bi), S.indexOf(0));
     const min = (areaById(area) && areaById(area).min) || S[0];
     return Math.max(min, S[clamp(i + dir, 0, S.length - 1)]);
   }
@@ -1484,12 +1485,27 @@
     return plan;
   }
 
-  // Spieler-Entwurf setzen (Werte aus BUDGET_STEPS).
+  // Grundbetrag eines Bereichs ohne Planänderung (wächst mit dem BIP und der Ausgabendynamik).
+  function areaBase(t, id) {
+    const a = areaById(id);
+    return a.base * (t.econ.gdp / TD.ECON0.gdp) * ((t.budget.drift && t.budget.drift[id]) || 1);
+  }
+  // Wie viel einer Änderung wirklich ankommt: Große Aufstockungen fließen nicht vollständig ab (Planungs- und
+  // Baukapazitäten, Ausgabereste), tiefe Kürzungen treffen überproportional (Leistungen brechen weg). Geschätzt.
+  function planEffect(p) {
+    if (p > 30) return 30 + (p - 30) * 0.4;
+    if (p < -20) return -20 + (p + 20) * 1.5;
+    return p;
+  }
+  // Spieler-Entwurf setzen: freie Prozentwerte je Bereich (−100 … +100 %, gesetzlich gebundene Bereiche mit Untergrenze).
   function setBudgetDraft(g, plan, notlage, measures) {
     const t = g.term;
     if (!t.budget.draft || t.budget.draft.done) return { ok: false, text: 'Gerade steht kein Haushaltsentwurf an.' };
     const clean = {};
-    Object.keys(t.budget.plan).forEach(a => { const v = plan && plan[a] !== undefined ? Number(plan[a]) : t.budget.plan[a]; clean[a] = TD.BUDGET_STEPS.indexOf(v) !== -1 ? Math.max(v, (areaById(a) && areaById(a).min) || -100) : 0; });
+    Object.keys(t.budget.plan).forEach(a => {
+      const v = plan && plan[a] !== undefined ? Number(plan[a]) : t.budget.plan[a];
+      clean[a] = isFinite(v) ? Math.round(clamp(v, Math.max(-100, (areaById(a) && areaById(a).min) || -100), 100) * 10) / 10 : 0;
+    });
     t.budget.draft.plan = clean;
     t.budget.draft.measures = (measures || []).filter(id => konsol(id) && !(t.budget.measures || {})[id]);
     // Partner reagieren auf die Maßnahmen im Haushaltsbegleitgesetz.
@@ -1501,7 +1517,7 @@
       const pr = TD.AREA_PREF[p] || {};
       let d = 0;
       Object.keys(pr).forEach(a => { d += pr[a] * ((clean[a] || 0) - (t.budget.plan[a] || 0)) / 5; });
-      t.mood = clamp(t.mood + clamp(d * 2, -12, 6), 0, 100);
+      t.mood = clamp(t.mood + clamp(d * 2, -20, 6), 0, 100);
     });
     if (notlage) news(g, 'Die Bundesregierung will für ' + t.budget.draft.year + ' eine Notlage nach Art. 115 Abs. 2 GG erklären, um die Schuldenbremse auszusetzen.', 'warn');
     const b = budgetCalc(t, clean, t.budget.draft.measures);
@@ -2472,7 +2488,7 @@
           t.mood = clamp(t.mood - 10, 0, 100);
           t.econ.growth -= 0.2;
           t.budget.oneoff -= 0; // Haushaltssperre: weniger Spielraum im laufenden Jahr
-          Object.keys(t.budget.plan).forEach(a => { t.budget.plan[a] = clamp(t.budget.plan[a] - 5, -10, 10); });
+          Object.keys(t.budget.plan).forEach(a => { t.budget.plan[a] = Math.max((areaById(a) && areaById(a).min) || -100, t.budget.plan[a] - 5); });
         } else {
           const law = t.laws.find(l => l.id === k.law);
           if (law && law.stage === 'inkraft') {
@@ -3137,7 +3153,7 @@
       if (choice === 1) {
         const pr = TD.AREA_PREF[g.party] || {};
         const fav = Object.keys(pr).filter(a => pr[a] > 0 && a in t.budget.draft.plan)[0];
-        if (fav) t.budget.draft.plan[fav] = clamp(t.budget.draft.plan[fav] + 5, -10, 10);
+        if (fav) t.budget.draft.plan[fav] = clamp(t.budget.draft.plan[fav] + 5, -100, 100);
         t.mood = clamp(t.mood - 5, 0, 100);
         text = 'Ihr setzt Nachbesserungen durch' + (fav ? ' (' + areaById(fav).name + ' +5 %)' : '') + '.';
       } else text = 'Ihr tragt den Haushaltsentwurf mit.';
@@ -3219,7 +3235,7 @@
         // Haushaltsdeal: Zustimmung gegen mehr Geld für euren wichtigsten Bereich.
         const pr = TD.AREA_PREF[g.party] || {};
         const fav = Object.keys(pr).filter(a => pr[a] > 0 && a in t.budget.draft.plan)[0];
-        if (fav) t.budget.draft.plan[fav] = clamp(t.budget.draft.plan[fav] + 5, -10, 10);
+        if (fav) t.budget.draft.plan[fav] = clamp(t.budget.draft.plan[fav] + 5, -100, 100);
         v = 'ja'; addNat(g, g.party, 0.1); addCred(g, 1, 'Haushaltsdeal mit der Regierung');
         text = 'Deal: Ihr stimmt dem Haushalt zu' + (fav ? ', dafür gibt es mehr Geld für ' + areaById(fav).name : '') + '.';
         news(g, 'Haushaltsdeal: ' + party(g.party).short + ' stimmt dem Etat zu – gegen Zugeständnisse.', 'info');
@@ -4347,7 +4363,7 @@
   }
 
   const TERM = {
-    QUARTERS, ACTIONS, LAW_STEPS, forecast, lageBilanz, lawEffects, ensureLage, SOFORT, SHADOW_SETS, comebackBarometer, wkStatus, homeWk, termRecord, debtPath, activeMeasures, avgRate, govWear, WOBBLE, brAligned, landGovernment, dueVotes, GEWISSEN, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
+    QUARTERS, ACTIONS, LAW_STEPS, forecast, lageBilanz, lawEffects, ensureLage, SOFORT, SHADOW_SETS, comebackBarometer, wkStatus, homeWk, termRecord, debtPath, activeMeasures, avgRate, areaBase, planEffect, govWear, WOBBLE, brAligned, landGovernment, dueVotes, GEWISSEN, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
     lawOptions, lawBlock, taxRevAt, taxGrowthAt, taxInflAt, fmtTax, upgradeTaxes, lawLean, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, seasonLabel, quarterStart, quarterEnd, plenaryDate, plenaryLabel, nextSession, termPolls, termAverage, cal,
     lawName, lawTitle, leanOf, quorum, eventChoices, fillText, eventById, ministryById, taxById, areaById, nextCampaign, summary,
     MEDIA, media, actionCash, govSeats, isGov, legacy, LB, careerSnapshot, chooseLeader, leaderAge, currentLeader, MAX_AGE, sqForces, absCal, FX_NAMES, ministerFor, eventMinister, ownMinistries, endTerm, defaultVote, partyVote, mandateVote

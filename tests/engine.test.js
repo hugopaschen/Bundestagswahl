@@ -1697,7 +1697,7 @@ test('Haushalt: Konsolidierung, Zinsen, Steuerschätzung und Schuldenpfad', () =
   while (!(t.budget.draft && !t.budget.draft.done) && guard++ < 6) { while (t.pending.length) T.resolvePending(g, 0); T.endQuarter(g); }
   assert.ok(T.setBudgetDraft(g, plan, false, all).ok);
   assert.strictEqual(t.budget.draft.plan.sozial, -10);
-  assert.ok(Object.values(t.budget.draft.plan).every(v => TD.BUDGET_STEPS.indexOf(v) !== -1));
+  assert.ok(Object.values(t.budget.draft.plan).every(v => v >= -100 && v <= 100));
   // Bis zur Abstimmung: Steuerschätzung im Herbst, Zinsen und Maßnahmen nach dem Beschluss.
   const debt0 = t.econ.debtBn, rate0 = T.avgRate(t);
   for (let i = 0; i < 2; i++) { while (t.pending.length) T.resolvePending(g, 0); T.endQuarter(g); }
@@ -1915,4 +1915,21 @@ test('Steuern stufenlos: Laffer-Kurve, Stärke der Reaktion, Recht und alte Spie
   const old = { taxes: { spitzen: 2, entlastung: 1, mwst: 1, koerp: 0, soli: 0, vermoegen: 2, co2: 2, strom: 0 }, laws: [], statutes: {} };
   T.upgradeTaxes(old);
   assert.deepStrictEqual([old.taxes.spitzen, old.taxes.entlastung, old.taxes.koerp, old.taxes.soli, old.taxes.co2, old.taxes.strom], [45, 1000, 10, 0, 100, 0.1]);
+});
+
+test('Haushalt: freie Beträge je Bereich mit Abfluss- und Einschnittwirkung', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  const t = g.term;
+  let guard = 0;
+  while (!(t.budget.draft && !t.budget.draft.done) && guard++ < 6) { while (t.pending.length) T.resolvePending(g, 0); T.endQuarter(g); }
+  const plan = Object.assign({}, t.budget.draft.plan, { verkehr: 47.3, familie: -63.2, sozial: -40 });
+  assert.ok(T.setBudgetDraft(g, plan, false).ok);
+  assert.strictEqual(t.budget.draft.plan.verkehr, 47.3);
+  assert.strictEqual(t.budget.draft.plan.familie, -63.2);
+  assert.strictEqual(t.budget.draft.plan.sozial, -10, 'gesetzlich gebunden');
+  // Große Aufstockung fließt nicht voll ab, tiefe Kürzung wirkt verstärkt.
+  assert.ok(T.planEffect(47.3) < 47.3 && T.planEffect(-63.2) < -63.2);
+  const b = T.budgetCalc(t, t.budget.draft.plan);
+  assert.ok(Math.abs(b.areas.verkehr - T.areaBase(t, 'verkehr') * 1.473) < 0.01);
 });

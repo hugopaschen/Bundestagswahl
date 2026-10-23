@@ -683,16 +683,21 @@
       (last.debt < path[0].debt ? ' – die Quote sinkt.' : ' – die Quote steigt.') + ' <span class="muted">Ohne künftige Zinsänderungen und Steuerschätzungen.</span></p>';
     if (t.budget.taxEst) html += '<p class="small">🧮 Steuerschätzung: ' + (t.budget.taxEst > 0 ? 'Mehreinnahmen' : 'Mindereinnahmen') + ' von ' + mrd(Math.abs(t.budget.taxEst)) + ' gegenüber der Planung (Arbeitskreis Steuerschätzungen, Mai und Oktober).</p>';
     html += '<p class="muted small">Schuldenbremse (Art. 115 GG): 0,35 % des BIP' + (t.budget.reform ? ' + ' + num1(t.budget.reform) + ' % (Reform)' : '') + ', mehr bei schwacher Konjunktur (' + mrd(b.cyc) + '); Verteidigung über 1 % des BIP ist ausgenommen (' + mrd(b.defFree) + '). Das Sondervermögen Infrastruktur (' + mrd(b.sv) + ' im Jahr) läuft außerhalb des Kernhaushalts, erhöht aber die Schulden.</p>';
-    if (editing) html += '<div class="t-callout">✍️ <b>Haushaltsentwurf ' + d.year + '</b>: Legt fest, wo ihr mehr ausgebt und wo ihr kürzt. Kürzungen in den Lieblingsbereichen der Partner verschlechtern das Klima, tiefe Einschnitte (−20 %) treffen die betroffenen Gruppen hart. Im 4. Quartal stimmt der Bundestag ab.</div>';
+    if (editing) html += '<div class="t-callout">✍️ <b>Haushaltsentwurf ' + d.year + '</b>: Tragt je Bereich den Betrag in Mrd. € ein – das Spiel rechnet die Änderung in Prozent. Kürzungen in den Lieblingsbereichen der Partner verschlechtern das Klima, tiefe Einschnitte (−20 %) treffen die betroffenen Gruppen hart. Im 4. Quartal stimmt der Bundestag ab.</div>';
     else if (d && d.done) html += '<div class="t-callout">Der Haushaltsentwurf ' + d.year + ' liegt dem Bundestag vor. Abstimmung am Ende des ' + (T.cal(t).qn === 3 ? 'nächsten' : 'laufenden') + ' Quartals.</div>';
     else if (t.budget.status === 'vorlaeufig') html += '<div class="t-callout warn">Vorläufige Haushaltsführung: Es fehlt ein beschlossener Haushalt.</div>';
     html += '<table class="t-budget t-plan"><thead><tr><th>Bereich</th><th class="num">Mrd. €</th><th>' + (editing ? 'Änderung' : 'Plan') + '</th></tr></thead><tbody>';
     TD.AREAS.forEach(a => {
       const v = plan[a.id] || 0;
       const prefs = t.gov.filter(p => p !== g.party && (TD.AREA_PREF[p] || {})[a.id]).map(p => pill(p) + ((TD.AREA_PREF[p] || {})[a.id] > 0 ? '❤️' : '✂️')).join(' ');
-      html += '<tr><td>' + a.icon + ' ' + esc(a.name) + (prefs ? ' <span class="small">' + prefs + '</span>' : '') + '</td><td class="num">' + num1(b.areas[a.id]) + '</td><td>' +
-        (a.fixed ? '<span class="muted small">fest</span>' : editing ? '<span class="t-steps">' + TD.BUDGET_STEPS.map(s => '<button type="button" class="chip t-step" data-a="' + a.id + '" data-v="' + s + '" aria-pressed="' + (v === s) + '"' + (a.min !== undefined && s < a.min ? ' disabled title="Gesetzlich gebunden: höchstens ' + a.min + ' %"' : '') + '>' + (s > 0 ? '+' : s < 0 ? '−' : '±') + Math.abs(s) + ' %</button>').join('') + '</span>'
-          : (v ? (v > 0 ? '+' : '−') + Math.abs(v) + ' %' : '±0')) + '</td></tr>';
+      // Im Entwurf: Betrag frei eintippen (Mrd. €), das Spiel rechnet den Prozentwert.
+      const baseAmt = a.fixed ? 0 : T.areaBase(t, a.id);
+      const extra = a.id === 'verteidigung' ? t.budget.def : 0;
+      const note = v > 30 ? 'Nicht alles fließt ab (Planungs- und Baukapazitäten).' : v < -20 ? 'Tiefer Einschnitt – Leistungen brechen weg.' : '';
+      const minAmt = baseAmt * (1 + Math.max(-100, a.min === undefined ? -100 : a.min) / 100) + extra;
+      html += '<tr><td>' + a.icon + ' ' + esc(a.name) + (prefs ? ' <span class="small">' + prefs + '</span>' : '') + (editing && a.min !== undefined ? '<br><span class="muted small">Gesetzlich gebunden: höchstens ' + Math.abs(a.min) + ' % weniger</span>' : '') + '</td><td class="num">' +
+        (editing && !a.fixed ? '<input type="number" class="t-bnum" data-a="' + a.id + '" data-base="' + baseAmt + '" data-extra="' + extra + '" min="' + minAmt.toFixed(1) + '" max="' + (baseAmt * 2 + extra).toFixed(1) + '" step="0.1" value="' + b.areas[a.id].toFixed(1) + '" aria-label="' + esc(a.name) + ' in Mrd. €">' : num1(b.areas[a.id])) + '</td><td>' +
+        (a.fixed ? '<span class="muted small">fest</span>' : (v ? (v > 0 ? '+' : '−') + num1(Math.abs(v)).replace(',0', '') + ' %' : '±0') + (note ? '<br><span class="small ' + (v < -20 ? 'neg' : 'muted') + '">' + note + '</span>' : '')) + '</td></tr>';
     });
     html += '<tr><td>📜 Mehrkosten beschlossener Gesetze</td><td class="num">' + num1(t.budget.extra) + '</td><td></td></tr>';
     if (t.budget.def) html += '<tr><td>🪖 Zusätzliche Verteidigungszusagen</td><td class="num">' + num1(t.budget.def) + '</td><td><span class="muted small">in Verteidigung</span></td></tr>';
@@ -730,6 +735,15 @@
     $('t-haushalt').innerHTML = html;
     const box = $('t-haushalt');
     box.querySelectorAll('.t-step').forEach(btn => btn.addEventListener('click', () => { budgetPlan[btn.dataset.a] = Number(btn.dataset.v); renderBudget(); }));
+    // Freie Beträge: Umrechnung in Prozent vom Grundbetrag des Bereichs.
+    box.querySelectorAll('.t-bnum').forEach(inp => inp.addEventListener('change', () => {
+      const base = Number(inp.dataset.base), extra = Number(inp.dataset.extra) || 0;
+      const amt = Math.min(Number(inp.max), Math.max(Number(inp.min), Number(String(inp.value).replace(',', '.')) || 0));
+      budgetPlan[inp.dataset.a] = base > 0 ? Math.round(((amt - extra) / base - 1) * 1000) / 10 : 0;
+      renderBudget();
+      const again = $('t-haushalt').querySelector('.t-bnum[data-a="' + inp.dataset.a + '"]');
+      if (again) again.focus();
+    }));
     const nl = $('t-notlage');
     if (nl) nl.addEventListener('change', () => { budgetNotlage = nl.checked; });
     box.querySelectorAll('.t-meas').forEach(cb => cb.addEventListener('change', () => {
