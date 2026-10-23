@@ -421,6 +421,7 @@
       policy: world ? copy(world.policy) : {},
       lage: world && world.lage ? copy(world.lage) : null,
       taxes: world ? copy(world.taxes) : {},
+      statutes: world && world.statutes ? copy(world.statutes) : {}, // geltendes Recht mit Herkunft, über Legislaturen hinweg
       econ: world ? copy(world.econ) : Object.assign({}, TD.ECON0, scenarioOf(g).econ || {}, { pol: { growth: 0, unemp: 0, infl: 0 } }),
       budget: world ? Object.assign({ draft: null, status: 'ok', oneoff: 0, history: [], vote: null }, copy(world.budget)) :
         { plan: {}, draft: null, status: 'ok', extra: 0, def: 0, oneoff: 0, reform: 0, notlage: false, history: [], vote: null },
@@ -2240,6 +2241,7 @@
     cat('gesetz');
     law.stage = 'inkraft';
     law.q1 = t.q;
+    (t.statutes = t.statutes || {})[law.kind === 'tax' ? 'tax:' + law.tax : law.topic] = { v: law.kind === 'tax' ? law.level : law.opt, by: law.by, gov: t.gov.slice(), q: quarterLabel(t, Math.min(t.q, QUARTERS - 1)), name: lawName(law) };
     chron(g, 'gesetz', '„' + lawName(law) + '“ tritt in Kraft (eingebracht von ' + sname(law.by) + ').');
     t.stats.lawsTotal += 1;
     const topic = lawTopic(law);
@@ -2412,11 +2414,13 @@
           if (law && law.stage === 'inkraft') {
             law.stage = 'aufgehoben';
             law.log.push('Vom Bundesverfassungsgericht aufgehoben (' + quarterLabel(t) + ').');
+            // Es gilt wieder, was vor dem Gesetz galt.
             if (law.kind === 'topic') {
-              const prev = optIndex(law.topic, 0);
+              const prev = law.prevOpt !== undefined ? law.prevOpt : law.from !== undefined ? law.from : optIndex(law.topic, 0);
               t.budget.extra -= (D.PROGRAM[law.topic][law.opt].cost - D.PROGRAM[law.topic][prev].cost) * TD.LAW_COST;
               t.policy[law.topic] = prev;
-            } else t.taxes[law.tax] = taxById(law.tax).start;
+            } else t.taxes[law.tax] = law.from !== undefined ? law.from : taxById(law.tax).start;
+            if (t.statutes) delete t.statutes[law.kind === 'tax' ? 'tax:' + law.tax : law.topic];
             news(g, '⚖️ Das Bundesverfassungsgericht erklärt „' + lawName(law) + '“ für verfassungswidrig.', 'bad');
             t.gov.forEach(p => addNat(g, p, -0.35));
           }
@@ -4206,7 +4210,7 @@
     const electionAbs = t.early ? c.abs + 1 : t.abs0 + QUARTERS - 1;
     const P0 = party(g.party);
     const money = Math.round(P0.budget * clamp(0.6 + 0.4 * t.party.cash / P0.budget, 0.6, 1.5) * 10) / 10;
-    const world = { econ: copy(t.econ), policy: copy(t.policy), taxes: copy(t.taxes), intl: t.intl, laender: copy(t.laender),
+    const world = { econ: copy(t.econ), policy: copy(t.policy), taxes: copy(t.taxes), statutes: copy(t.statutes || {}), intl: t.intl, laender: copy(t.laender),
       budget: { plan: copy(t.budget.plan), extra: t.budget.extra, def: t.budget.def, reform: t.budget.reform || 0, notlage: false, drift: copy(t.budget.drift || {}) },
       landPrev: copy(t.landPrev), sq: copy(t.sq), abs0: electionAbs + 1, doneAbs: t.doneAbs, lage: t.lage ? copy(t.lage) : null };
     const leaders = leaderOptions(g, Math.floor(electionAbs / 4));

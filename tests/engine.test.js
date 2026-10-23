@@ -1867,3 +1867,23 @@ test('Gesetze: kein zweites Mal in einer Legislatur, nichts gegen den eigenen fr
   t.ap = 4;
   assert.strictEqual(T.performAction(g, 'gesetz', { topic: tp.topic, opt }).ok, false);
 });
+
+test('Gesetze und Steuern gelten über die Legislatur hinaus, bis jemand sie ändert', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  const t = g.term;
+  t.taxes.spitzen = 0;
+  t.statutes = { 'tax:spitzen': { v: 0, by: 'union', gov: ['union'], q: 'Apr.–Juni 2029', name: 'Spitzensteuersatz: 39 %' } };
+  for (let i = 0; i < 20 && !t.over; i++) { while (t.pending.length) T.resolvePending(g, 0); T.endQuarter(g); }
+  const endTax = t.taxes.spitzen, endPolicy = JSON.stringify(t.policy);
+  const next = T.nextCampaign(g);
+  assert.ok(next.carry.world.statutes && next.carry.world.taxes.spitzen === endTax);
+  const g2 = E.newGame(next.party, next.candidate, 5, next.program, next.carry);
+  g2.week = g2.maxWeeks; g2.duelDone = true; while (g2.pendingEvent) E.resolveEvent(g2, 0); E.endWeek(g2);
+  for (let z = 0; z < 6 && g2.phase !== 'done'; z++) { if (g2.result.awaitingChoice) E.chooseCoalition(g2, 0); while (g2.result.neg && !g2.result.neg.done) E.negotiate(g2, 'nachgeben'); while (g2.result.hung && !g2.result.hung.done) { const h = g2.result.hung; const free = h.tolerators.filter(p => h.tried.indexOf(p) === -1); E.hungChoice(g2, h.step === 'ask' ? 'dulden' : free.length ? 'duldung' : 'minderheit', free[0]); } }
+  if (g2.result.neuwahl) return;
+  T.startTerm(g2);
+  assert.strictEqual(g2.term.taxes.spitzen, endTax);
+  assert.strictEqual(JSON.stringify(g2.term.policy), endPolicy);
+  assert.ok(g2.term.statutes && Object.keys(g2.term.statutes).length >= 1);
+});

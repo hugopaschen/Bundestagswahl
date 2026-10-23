@@ -473,12 +473,26 @@
     if (T.isGov(t.role)) html += renderDraft();
     else html += '<p class="muted small">' + (t.role === 'opposition' ? 'Als Opposition stimmt ihr im Bundestag mit ab und könnt Gesetze in Karlsruhe prüfen lassen (Normenkontrollklage).' : 'Ohne Sitze im Bundestag schaut ihr zu – aber auf der Straße und in den Ländern könnt ihr Druck machen.') + '</p>';
     html += renderSq();
+    html += statuteHtml();
     const done = t.laws.filter(l => active.indexOf(l) === -1).slice().reverse();
     if (done.length) html += '<details class="t-more"><summary>Abgeschlossene Gesetze (' + done.length + ')</summary><div class="t-laws">' + done.map(lawCard).join('') + '</div></details>';
     $('t-gesetze').innerHTML = html;
     const more = $('t-gesetze').querySelector('.t-sq-more');
     if (more) more.addEventListener('click', () => { sqAll = !sqAll; renderLaws(); });
     bindDraft();
+  }
+
+  // Geltendes Recht: Was heute gilt – auch aus früheren Legislaturen – und wer es beschlossen hat.
+  function statuteHtml() {
+    const t = term();
+    const st = t.statutes || {};
+    const row = (name, val, s) => '<tr><td>' + name + '</td><td>' + esc(val) + '</td><td class="muted small">' + (s ? 'seit ' + esc(s.q) + ' · eingebracht von ' + esc(short(s.by)) + (s.gov && s.gov.length ? ' (Regierung ' + s.gov.map(short).join('-') + ')' : '') : 'Stand bei Spielbeginn') + '</td></tr>';
+    const changed = D.TOPICS.filter(tp => st[tp.id]).length + TD.TAXES.filter(x => st['tax:' + x.id]).length;
+    return '<details class="t-more"><summary>Geltendes Recht (' + changed + ' Änderungen seit Spielbeginn)</summary><p class="muted small">Gesetze und Steuern gelten über Legislaturen hinweg, bis eine Regierung sie wieder ändert oder Karlsruhe sie kippt.</p>' +
+      '<table class="t-budget"><thead><tr><th>Bereich</th><th>Es gilt</th><th>Herkunft</th></tr></thead><tbody>' +
+      D.TOPICS.map(tp => row(tp.icon + ' ' + esc(tp.name), D.PROGRAM[tp.id][t.policy[tp.id]].label, st[tp.id])).join('') +
+      TD.TAXES.map(x => row(x.icon + ' ' + esc(x.name), x.levels[t.taxes[x.id]].label, st['tax:' + x.id])).join('') +
+      '</tbody></table></details>';
   }
 
   // Status quo: Rückhalt der geltenden Regelung je Thema, Angreifer und Verteidiger.
