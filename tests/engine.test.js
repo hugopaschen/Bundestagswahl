@@ -1797,3 +1797,48 @@ test('Start-Szenario und Startzahl', () => {
   for (let w = 0; w < 3; w++) { [a, b].forEach(x => { while (x.pendingEvent) E.resolveEvent(x, 0); E.endWeek(x); }); }
   assert.strictEqual(JSON.stringify(a.poll.nat), JSON.stringify(b.poll.nat));
 });
+
+test('Länder: Koalitionskrisen zwischen den Wahlen und Länder-Front im Bundesrat', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  const t = g.term;
+  // Eine Landeskoalition unter maximaler Spannung zerbricht früher oder später.
+  const land = Object.keys(t.laender).find(l => t.laender[l].gov.length > 1 && t.laender[l].gov.indexOf(g.party) === -1);
+  let changed = false;
+  const before = t.laender[land].gov.join('-');
+  for (let i = 0; i < 15 && !t.over && !changed; i++) {
+    t.laender[land].strain = 100;
+    while (t.pending.length) T.resolvePending(g, 0);
+    T.endQuarter(g);
+    changed = (t.chron || []).some(x => new RegExp(E.stateById(land).name).test(x.text) && /Regierungswechsel|Koalitionsbruch|Koalitionskrise|Rettungsversuch|Koalitionswechsel|Neuwahl in/.test(x.text));
+  }
+  assert.ok(changed, 'Koalitionsbruch in ' + land + ' (' + before + ')');
+  // Krise mit eigener Beteiligung: Entscheidung liegt beim Spieler.
+  const mine = Object.keys(t.laender).find(l => t.laender[l].gov.length > 1 && t.laender[l].gov.indexOf(g.party) !== -1);
+  if (mine && !t.over) {
+    while (t.pending.length) T.resolvePending(g, 0);
+    t.pending.push({ type: 'landkrise', land: mine, out: t.laender[mine].gov.find(p => p !== g.party), alt: null });
+    const r = T.resolvePending(g, 0);
+    assert.ok(r.ok && /Koalition|Neuwahl/.test(r.text));
+  }
+});
+
+test('Bundesrat: Länder-Front blockiert, Länder-Deal kauft Zustimmung', () => {
+  const g = electedGame('spd', 4, 0);
+  T.startTerm(g);
+  const t = g.term;
+  while (t.pending.length) T.resolvePending(g, 0);
+  const own = Object.keys(t.laender).filter(l => t.laender[l].gov.indexOf(g.party) !== -1);
+  if (!own.length || T.isGov(t.role)) return;
+  const law = { id: 999, kind: 'topic', topic: 'wirtschaft', opt: 1, by: t.chanc, stage: 'bundesrat', zust: true, log: [] };
+  t.laws.push(law);
+  const v0 = T.bundesratVote(g, law);
+  t.ap = 4;
+  const r = T.performAction(g, 'laenderfront', law.id);
+  assert.ok(r.ok, r.text);
+  const v1 = T.bundesratVote(g, law);
+  assert.ok(own.every(l => !v1.lands[l]) && v1.yes <= v0.yes);
+  const r2 = T.performAction(g, 'laenderdeal', law.id);
+  assert.ok(r2.ok, r2.text);
+  assert.ok(own.every(l => T.bundesratVote(g, law).lands[l]));
+});

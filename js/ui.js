@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261023-170909';
+  const APP_VERSION = '20261023-190413';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -3219,6 +3219,8 @@
         'Kanzlerwahl nach Art. 63 GG in drei Wahlgängen; ohne Kanzlermehrheit entscheidet der Bundespräsident über Ernennung oder Auflösung.',
         'Gesetze laufen durch Kabinett, Bundestag und Bundesrat (69 Stimmen, Einspruchs- und Zustimmungsgesetze, Vermittlungsausschuss). Abstimmungen haben Abweichler und Wackelkandidaten.' + est,
         'Sitzungstage angelehnt an den Sitzungskalender von Bundestag und Bundesrat 2024/2025.' + est,
+        'Landeskoalitionen können zwischen den Wahlen zerbrechen – nach Krach, Affären oder wenn ein Partner im Bund abstürzt (wie Hamburg 2010, Saarland 2012, Thüringen 2020). Dann gibt es eine Neuwahl oder ein neues Bündnis ohne Wahl; im Schnitt ein bis zwei Krisen je Wahlperiode.' + est,
+        'Im Bundesrat lassen sich Länder umwerben: mit Geld, mit Zugeständnissen im Gesetz oder über die eigenen Ministerpräsidenten. Die Opposition kann ihre Länder enthalten lassen (Koalitionsklausel) oder ihre Zustimmung gegen Geld für ihre Länder geben.' + est,
         'Regierungsverschleiß pro Quartal, gedämpft durch gelieferte Gesetze, Koalitionsklima und umgesetzten Koalitionsvertrag – geeicht an GroKo 2013–17, Union 2009–13 und Ampel 2021–24.' + est
       ]) +
       sec('Haushalt und Wirtschaft', [

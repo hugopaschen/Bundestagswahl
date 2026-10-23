@@ -125,10 +125,10 @@
   }
   // Aktionen in vier Gruppen, kompakt als Knöpfe.
   const ACT_GROUPS = [
-    ['📜 Parlament & Gesetze', ['gesetz', 'disziplin', 'laender', 'forderung', 'antrag', 'anfrage', 'aktuelle', 'befragung', 'ua', 'klage', 'sq', 'vertrauen', 'misstrauen']],
-    ['📣 Öffentlichkeit', ['regerkl', 'presse', 'talkshow', 'interview', 'buerger', 'reise', 'social', 'protest', 'schatten', 'krisenstab']],
-    ['🤝 Koalition & Partei', ['koaausschuss', 'profil', 'umbildung', 'basis', 'mitglieder', 'spenden', 'parteitag', 'lvpflege', 'austritt']],
-    ['🗺️ Länder & Verbände', ['ltwk', 'lobbytermin', 'lobbyrecherche', 'buendnis']]
+    ['Parlament & Gesetze', ['gesetz', 'disziplin', 'laender', 'forderung', 'antrag', 'anfrage', 'aktuelle', 'befragung', 'ua', 'klage', 'sq', 'vertrauen', 'misstrauen']],
+    ['Öffentlichkeit', ['regerkl', 'presse', 'talkshow', 'interview', 'buerger', 'reise', 'social', 'protest', 'schatten', 'krisenstab']],
+    ['Koalition & Partei', ['koaausschuss', 'profil', 'umbildung', 'basis', 'mitglieder', 'spenden', 'parteitag', 'lvpflege', 'austritt']],
+    ['Länder & Verbände', ['ltwk', 'laenderfront', 'laenderdeal', 'lobbytermin', 'lobbyrecherche', 'buendnis']]
   ];
   function actionsHtml() {
     const t = term();
@@ -1215,9 +1215,19 @@
       const fb = T.forecast(g, l).br;
       U.openModal(eyebrow + ' · Bundesrat (' + (it.i + 1) + '/' + it.lands.length + ')', 'Kampf um ' + E.stateById(x.land).name, '<p>„' + esc(T.lawName(l)) + '“ kommt nach heutigem Stand auf etwa <b>' + br.yes + ' von 69</b> Stimmen' + (fb ? ' (Chance ' + pctChance(fb.chance) + ')' : '') + ' ' + (l.zust ? '(nötig: ' + TD.BUNDESRAT_MAJ + ')' : '(Einspruch ab ' + TD.BUNDESRAT_MAJ + ' Gegenstimmen)') + '.</p>' +
         '<p>' + esc(x.mp) + ' (' + esc(short(x.party)) + '), Regierungschef:in von ' + esc(E.stateById(x.land).name) + ' (' + x.votes + ' Stimmen), lässt durchblicken: Mit dem richtigen Angebot könnte das Land zustimmen. Bedenken hat ' + x.block.map(p => esc(short(p))).join(', ') + '.</p>',
-        [{ label: 'Finanzzusage an das Land', hint: '1 Mrd. € aus dem Bundeshaushalt', onClick: () => choose(0) },
-          { label: 'Zugeständnis im Gesetz', hint: 'Kostenlos, aber das Gesetz wirkt schwächer', onClick: () => choose(1) },
-          { label: 'Hart bleiben', onClick: () => choose(2) }]);
+        [{ label: 'Finanzzusage an das Land', hint: '1 Mrd. € aus dem Bundeshaushalt · mehrere Zusagen im Quartal gelten als Kuhhandel', onClick: () => choose(0) },
+          { label: 'Zugeständnis im Gesetz', hint: 'Kostenlos, aber das Gesetz wirkt schwächer', onClick: () => choose(1) }]
+          .concat(term().gov.indexOf(x.party) !== -1 && x.block.length ? [{ label: 'Über die Parteischiene', hint: x.mp + ' soll ' + x.block.map(p => short(p)).join(' und ') + ' im Land überzeugen · kann die Landeskoalition belasten', onClick: () => choose(3) }] : [])
+          .concat([{ label: 'Hart bleiben', onClick: () => choose(2) }]));
+    } else if (it.type === 'landkrise') {
+      const L = term().laender[it.land];
+      const name = E.stateById(it.land).name;
+      U.openModal(eyebrow + ' · Landespolitik', 'Koalitionskrise in ' + name, '<p>In ' + esc(name) + ' (' + L.gov.map(pill).join(' ') + ', ' + L.votes + ' Stimmen im Bundesrat) droht ' + esc(short(it.out)) + ' mit dem Ausstieg aus der Koalition. Der Landesverband bittet die Bundespartei um eine Linie.</p>' +
+        (it.alt ? '<p class="small">Rechnerisch möglich wäre ein neues Bündnis ohne Neuwahl: ' + it.alt.map(pill).join(' ') + '.</p>' : '<p class="small">Eine andere Mehrheit ohne ' + esc(short(it.out)) + ' gibt es im Landtag nicht.</p>') +
+        '<p class="small muted">Bundesrat heute: ' + T.brAligned(term()) + ' von 69 Stimmen aus Ländern nur mit Bundesregierungsparteien.</p>',
+        [{ label: 'Koalition retten', hint: 'Zugeständnisse an ' + short(it.out) + ' · klappt meist, euer Landesverband murrt', onClick: () => choose(0) },
+          { label: 'Neuwahl im Land', hint: 'Die Wählerinnen und Wähler entscheiden – mit dem Bundestrend im Rücken oder im Nacken', onClick: () => choose(1) }]
+          .concat(it.alt ? [{ label: 'Neues Bündnis ohne Wahl', hint: it.alt.map(short).join('-') + ' · kostet Glaubwürdigkeit', onClick: () => choose(2) }] : []));
     } else if (it.type === 'brstell') {
       const l = term().laws.find(x => x.id === it.law);
       U.openModal(eyebrow + ' · Bundesrat, 1. Durchgang', 'Stellungnahme der Länder', '<p>Der Bundesrat nimmt zu eurem Entwurf „' + esc(T.lawName(l)) + '“ Stellung: Die Länder verlangen Änderungen und eine Beteiligung des Bundes an den Kosten. Nach heutigem Stand bekäme das Gesetz im 2. Durchgang nur <b>' + it.yes + ' von 69</b> Stimmen.</p>' +
