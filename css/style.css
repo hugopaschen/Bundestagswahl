@@ -2389,3 +2389,7 @@ details.t-law[open] > summary { border-bottom: 1px solid var(--border); }
 .t-taxunit { font-size: .85rem; color: var(--muted); min-width: 4ch; }
 .t-taxrow .t-draft { justify-self: start; }
 .t-bnum { width: 9ch; padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px; font: inherit; text-align: right; font-variant-numeric: tabular-nums; background: var(--surface); color: var(--text); }
+
+/* 5-%-Hürde in den Umfrageverläufen */
+.hurdle5 { stroke: #d1201f; stroke-width: 1.5; stroke-dasharray: 5 4; }
+.hurdle5-t { fill: #d1201f; font-size: 10px; font-weight: 700; }

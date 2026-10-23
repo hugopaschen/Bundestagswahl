@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261023-220035';
+  const APP_VERSION = '20261023-220731';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -1428,6 +1428,8 @@
     for (let v = 0; v <= yMax; v += 10) svg += '<text x="' + (L - 5) + '" y="' + (y(v) + 3) + '" text-anchor="end">' + v + '</text>';
     for (let i = 0; i <= g.maxWeeks; i++) svg += '<text x="' + x(i) + '" y="' + (H - 5) + '" text-anchor="middle">' + (i === 0 ? 'Start' : labels ? wkShort(i) : i) + '</text>';
     svg += '</g>';
+    // 5-%-Hürde
+    svg += '<line class="hurdle5" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(5) + '" y2="' + y(5) + '"></line><text class="hurdle5-t" x="' + (W - R) + '" y="' + (y(5) - 3) + '" text-anchor="end">5-%-Hürde</text>';
     ids.slice().sort((a, b) => (a === g.party) - (b === g.party)).forEach(p => {
       const pts = hist.map((h, i) => x(i) + ',' + y(h.shares[p])).join(' ');
       svg += '<polyline class="series' + (p === g.party ? ' me' : '') + '" points="' + pts + '" style="stroke:' + col(p) + '"></polyline>';
@@ -1746,6 +1748,7 @@
     const y = v => 10 + (H - 34) * (1 - (v - lo) / Math.max(1, hi - lo));
     let svg = '<svg class="retro-chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Euer Umfrageverlauf bis zur Wahl">';
     for (let v = Math.ceil(lo); v <= hi; v += Math.max(1, Math.round((hi - lo) / 4))) svg += '<line class="rg" x1="30" x2="' + (W - 20) + '" y1="' + y(v) + '" y2="' + y(v) + '"></line><text class="rt" x="24" y="' + (y(v) + 4) + '" text-anchor="end">' + v + '</text>';
+    if (lo < 5 && hi > 5) svg += '<line class="hurdle5" x1="30" x2="' + (W - 20) + '" y1="' + y(5) + '" y2="' + y(5) + '"></line><text class="hurdle5-t" x="' + (W - 20) + '" y="' + (y(5) - 3) + '" text-anchor="end">5-%-Hürde</text>';
     svg += '<polyline points="' + hist.map((v, i) => x(i) + ',' + y(v)).join(' ') + '" style="stroke:' + col(me) + '"></polyline>';
     hist.forEach((v, i) => { svg += '<circle cx="' + x(i) + '" cy="' + y(v) + '" r="3" style="fill:' + col(me) + '"></circle><text class="rt" x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="middle">' + (i === 0 ? 'Start' : wkShort(i)) + '</text>'; });
     svg += '<line class="rfin" x1="' + x(hist.length - 1) + '" y1="' + y(hist[hist.length - 1]) + '" x2="' + x(g.maxWeeks + 1) + '" y2="' + y(final) + '"></line>' +

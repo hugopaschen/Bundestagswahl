@@ -1049,6 +1049,8 @@
     for (let v = 0; v <= yMax; v += 10) svg += '<text x="' + (L - 5) + '" y="' + (y(v) + 3) + '" text-anchor="end">' + v + '</text>';
     for (let i = 0; i <= n; i++) { const c = T.absCal(t.abs0 + i - 1); if (c.qn === 1 || i === 0) svg += '<text x="' + x(i) + '" y="' + (H - 5) + '" text-anchor="middle">' + (i === 0 ? 'Wahl' : c.year) + '</text>'; }
     svg += '</g>';
+    // 5-%-Hürde
+    svg += '<line class="hurdle5" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(5) + '" y2="' + y(5) + '"></line><text class="hurdle5-t" x="' + (W - R) + '" y="' + (y(5) - 3) + '" text-anchor="end">5-%-Hürde</text>';
     ids.slice().sort((a, b) => (a === g.party) - (b === g.party)).forEach(p => {
       const pts = hist.map((h, i) => x(i) + ',' + y(h.nat[p] || 0)).join(' ');
       svg += '<polyline class="series' + (p === g.party ? ' me' : '') + '" points="' + pts + '" style="stroke:' + col(p) + '"></polyline>';
