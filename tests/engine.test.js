@@ -1933,3 +1933,24 @@ test('Haushalt: freie Beträge je Bereich mit Abfluss- und Einschnittwirkung', (
   const b = T.budgetCalc(t, t.budget.draft.plan);
   assert.ok(Math.abs(b.areas.verkehr - T.areaBase(t, 'verkehr') * 1.473) < 0.01);
 });
+
+test('Brandmauer eingerissen: Koalitionsverhandlungen auch mit der AfD', () => {
+  let done = false;
+  for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]) {
+    const g = E.newGame('union', 'T', seed);
+    g.week = g.maxWeeks; g.duelDone = true; while (g.pendingEvent) E.resolveEvent(g, 0); E.endWeek(g);
+    if (!g.result.awaitingChoice || !E.firewallOptions(g).length) continue;
+    const opt = E.firewallOptions(g)[0];
+    const r = E.breakFirewall(g, 0);
+    assert.ok(r.ok && r.negotiation, 'Verhandlungen statt sofortiger Regierung');
+    assert.ok(g.result.neg && !g.result.neg.done && g.result.neg.members.indexOf('afd') !== -1);
+    assert.strictEqual(g.result.neg.lead, opt.members.slice().sort((a, b) => g.result.seats[b] - g.result.seats[a])[0]);
+    let k = 0;
+    while (g.result.neg && !g.result.neg.done && k++ < 40) E.negotiate(g, g.result.neg.step < g.result.neg.topics.length ? 'nachgeben' : 'x');
+    if (g.result.neg.success) assert.ok(g.result.firewallBroken && g.result.government.indexOf('afd') !== -1);
+    else assert.ok(!g.result.firewallBroken);
+    done = true;
+    break;
+  }
+  assert.ok(done, 'Ein Spiel mit Brandmauer-Option gefunden');
+});

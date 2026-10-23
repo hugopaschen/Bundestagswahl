@@ -2867,11 +2867,12 @@
     if (!opt) return { ok: false };
     openFirewall(g, g.party, 3);
     r.coalitions = findCoalitions(r.seats, g);
-    r.government = opt.members;
     r.awaitingChoice = false;
     r.firewallBroken = true;
-    finalizeOutcome(g, r);
-    return { ok: true };
+    // Auch mit der AfD wird verhandelt: Streitthemen, Ressorts, Kanzlerwahl. Die Verhandlungen führt die größere Partei.
+    const lead = opt.members.slice().sort((a, b) => r.seats[b] - r.seats[a])[0];
+    startNegotiation(g, opt.members, lead);
+    return { ok: true, negotiation: true };
   }
 
   // ---------- Wochenwechsel ----------
@@ -3661,6 +3662,8 @@
     n.success = false;
     const key = n.members.slice().sort().join();
     r.failedTalks = (r.failedTalks || []).concat([key]);
+    // Platzen die Gespräche mit der AfD, regiert sie nicht mit – der Tabubruch der Gespräche bleibt aber haften.
+    if (r.firewallBroken && n.members.indexOf('afd') !== -1) { r.firewallBroken = false; r.firewallTalks = true; }
     const left = r.coalitions.filter(c => c.viable && r.failedTalks.indexOf(c.members.slice().sort().join()) === -1);
     if (n.lead === g.party) {
       r.options = (r.options || []).filter(o => r.failedTalks.indexOf(o.members.slice().sort().join()) === -1);
@@ -3854,7 +3857,7 @@
     const goal = goalReached(p, r);
     const bonus = { kanzler: 50, regierung: 30, opposition: 10, raus: 0 }[status];
     // Wer am Wahlabend die Brandmauer einreißt, regiert – aber gegen den Protest von Millionen.
-    const fwPenalty = r.firewallBroken ? 25 : 0;
+    const fwPenalty = r.firewallBroken ? 25 : r.firewallTalks ? 10 : 0;
     // Erfolgreiche Koalitionsverhandlungen: durchgesetzte Positionen und Ressorts zählen.
     const negPts = r.neg && r.neg.success && r.government && r.government.indexOf(p) !== -1 ? r.neg.pts : 0;
     const score = Math.max(0, Math.round(50 + (share - start) * 10 + bonus + (goal ? 25 : 0) - fwPenalty + negPts));

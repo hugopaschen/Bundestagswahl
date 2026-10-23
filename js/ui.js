@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261023-220731';
+  const APP_VERSION = '20261023-224343';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -2176,7 +2176,7 @@
     if (!opts.length) return;
     const div = document.createElement('div');
     div.className = 'fw-break';
-    div.innerHTML = '<h3>Brandmauer einreißen?</h3><p class="small">Mit der AfD hättet ihr eine Mehrheit im Bundestag. Ihr würdet regieren – ' +
+    div.innerHTML = '<h3>Brandmauer einreißen?</h3><p class="small">Mit der AfD hättet ihr eine Mehrheit im Bundestag. Ihr könntet Koalitionsverhandlungen aufnehmen – ' +
       'aber gegen den Protest von Millionen, mit Austritten, Demonstrationen und Kritik von Kirchen, Gewerkschaften und Verbänden. ' +
       'Das würde euch lange nachhängen.</p>';
     opts.forEach((o, i) => {
@@ -2185,7 +2185,7 @@
       b.className = 'btn coalition-option fw-option';
       b.innerHTML = pills(o.members, g.result.seats) + '<span class="hint">' + o.seats + ' Sitze · Koalition mit der AfD</span>';
       b.addEventListener('click', () => {
-        if (!confirmOnButton(b, 'Wirklich? Nochmal tippen: Brandmauer einreißen und mit der AfD regieren')) return;
+        if (!confirmOnButton(b, 'Wirklich? Nochmal tippen: Brandmauer einreißen und mit der AfD verhandeln')) return;
         E.breakFirewall(g, i); save(); renderElection(false);
       });
       div.appendChild(b);
