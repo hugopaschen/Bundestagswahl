@@ -1584,18 +1584,46 @@
       const mine = own.indexOf(min) !== -1;
       if (t.role !== 'kanzler' && !mine) return;
       if (inPipeline(t, topic)) return;
-      const opts = D.PROGRAM[topic].map((o, i) => i).filter(i => i !== t.policy[topic]);
-      if (opts.length) topics.push({ topic, ministry: min, own: mine, opts, current: t.policy[topic], contract: t.contract[topic] });
+      const blocked = {};
+      const opts = D.PROGRAM[topic].map((o, i) => i).filter(i => {
+        if (i === t.policy[topic]) return false;
+        const why = lawBlock(g, { kind: 'topic', topic, opt: i }, g.party);
+        if (why) blocked[i] = why;
+        return !why;
+      });
+      if (opts.length || Object.keys(blocked).length) topics.push({ topic, ministry: min, own: mine, opts, blocked, current: t.policy[topic], contract: t.contract[topic] });
     });
-    const taxes = (t.role === 'kanzler' || own.indexOf('finanzen') !== -1) ? TD.TAXES.filter(x => !inPipeline(t, 'tax:' + x.id)).map(x => ({ tax: x.id, current: t.taxes[x.id] })) : [];
+    const taxes = (t.role === 'kanzler' || own.indexOf('finanzen') !== -1) ? TD.TAXES.filter(x => !inPipeline(t, 'tax:' + x.id)).map(x => {
+      const blocked = {};
+      x.levels.forEach((lv, i) => { if (i !== t.taxes[x.id]) { const why = lawBlock(g, { kind: 'tax', tax: x.id, level: i }, g.party); if (why) blocked[i] = why; } });
+      return { tax: x.id, current: t.taxes[x.id], blocked };
+    }) : [];
     return { topics, taxes };
+  }
+
+  // Glaubwürdige Gesetzgebung: Kein Gesetz wird in einer Legislaturperiode zweimal beschlossen, und keine Partei bringt
+  // einen Entwurf ein, der ihrem eigenen früheren Entwurf zum selben Thema widerspricht (Richtung rückwärts).
+  // Optionen sind nach Richtung geordnet (Programm: links → rechts, Steuern: Stufen), daher genügt der Index.
+  function lawBlock(g, spec, by) {
+    const t = g.term;
+    const p = by || g.party;
+    const isTax = spec.kind === 'tax' || spec.tax !== undefined;
+    const same = l => (isTax ? l.kind === 'tax' && l.tax === spec.tax && l.level === spec.level : l.kind === 'topic' && l.topic === spec.topic && l.opt === spec.opt);
+    const done = t.laws.find(l => l.stage === 'inkraft' && same(l));
+    if (done) return 'Schon beschlossen in dieser Legislaturperiode (' + quarterLabel(t, Math.min(done.q1 === undefined ? t.q : done.q1, QUARTERS - 1)) + ').';
+    const cur = isTax ? t.taxes[spec.tax] : t.policy[spec.topic];
+    const dir = Math.sign((isTax ? spec.level : spec.opt) - cur);
+    const mine = t.laws.filter(l => l.by === p && l.dir && (isTax ? l.kind === 'tax' && l.tax === spec.tax : l.kind === 'topic' && l.topic === spec.topic));
+    const against = mine.find(l => l.dir === -dir);
+    if (dir && against) return 'Widerspricht eurem eigenen Entwurf „' + lawName(against) + '“ aus dieser Legislaturperiode.';
+    return null;
   }
 
   function makeLaw(g, spec, by) {
     const t = g.term;
     const law = { id: ++t.lawSeq, kind: spec.kind === 'tax' ? 'tax' : 'topic', by, stage: 'kabinett', q0: t.q, log: [] };
-    if (law.kind === 'tax') { law.tax = spec.tax; law.level = spec.level; law.from = t.taxes[spec.tax]; law.zust = taxById(spec.tax).zust; }
-    else { law.topic = spec.topic; law.opt = spec.opt; law.zust = TD.ZUST_TOPICS.indexOf(spec.topic) !== -1; }
+    if (law.kind === 'tax') { law.tax = spec.tax; law.level = spec.level; law.from = t.taxes[spec.tax]; law.zust = taxById(spec.tax).zust; law.dir = Math.sign(law.level - law.from); }
+    else { law.topic = spec.topic; law.opt = spec.opt; law.from = t.policy[spec.topic]; law.zust = TD.ZUST_TOPICS.indexOf(spec.topic) !== -1; law.dir = Math.sign(law.opt - law.from); }
     law.contract = law.kind === 'topic' && t.contract[law.topic] === law.opt;
     t.laws.push(law);
     return law;
@@ -2316,6 +2344,7 @@
         let target = t.contract[topic] !== undefined ? t.contract[topic] : optIndex(topic, partnerFar ? 0 : lp);
         if (target === t.policy[topic]) target = optIndex(topic, partnerFar ? 0 : lp);
         if (target === t.policy[topic]) return;
+        if (lawBlock(g, { kind: 'topic', topic, opt: target }, p)) return;
         cands.push({ topic, opt: target, w: g.salience[topic] * (t.contract[topic] === target ? 2 : 1) });
       });
       // Gelegentlich Steuerpolitik nach der Linie der Finanzpartei
@@ -2324,7 +2353,7 @@
         const x = pick(g, TD.TAXES.filter(z => !inPipeline(t, 'tax:' + z.id)));
         if (x) {
           const lvl = x.levels.findIndex((l, i) => i !== t.taxes[x.id] && l.lean === lf && lf !== 0);
-          if (lvl !== -1) cands.push({ tax: x.id, level: lvl, w: 0.2 });
+          if (lvl !== -1 && !lawBlock(g, { kind: 'tax', tax: x.id, level: lvl }, p)) cands.push({ tax: x.id, level: lvl, w: 0.2 });
         }
       }
       if (!cands.length) return;
@@ -3323,6 +3352,8 @@
         const o = lawOptions(g);
         if (!target) return { ok: false, text: 'Bitte ein Vorhaben wählen.' };
         if (target.tax) {
+          const tb = lawBlock(g, { kind: 'tax', tax: target.tax, level: target.level }, g.party);
+          if (tb) return { ok: false, text: tb };
           if (!o.taxes.some(x => x.tax === target.tax) || !taxById(target.tax).levels[target.level] || target.level === t.taxes[target.tax]) return { ok: false, text: 'Diese Steueränderung ist nicht möglich.' };
           const law = makeLaw(g, { kind: 'tax', tax: target.tax, level: target.level }, g.party);
           lobbyReact(g, law);
@@ -3330,6 +3361,7 @@
           if (target.fraktion) text = fraktionsEntwurf(g, law);
         } else {
           const tp = o.topics.find(x => x.topic === target.topic);
+          if (tp && tp.blocked && tp.blocked[target.opt]) return { ok: false, text: tp.blocked[target.opt] };
           if (!tp || tp.opts.indexOf(target.opt) === -1) return { ok: false, text: 'Dieses Vorhaben ist nicht möglich.' };
           const law = makeLaw(g, { kind: 'topic', topic: target.topic, opt: target.opt }, g.party);
           lobbyReact(g, law);
@@ -4232,7 +4264,7 @@
 
   const TERM = {
     QUARTERS, ACTIONS, LAW_STEPS, forecast, lageBilanz, lawEffects, ensureLage, SOFORT, SHADOW_SETS, comebackBarometer, wkStatus, homeWk, termRecord, debtPath, activeMeasures, avgRate, govWear, WOBBLE, brAligned, landGovernment, dueVotes, GEWISSEN, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
-    lawOptions, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, seasonLabel, quarterStart, quarterEnd, plenaryDate, plenaryLabel, nextSession, termPolls, termAverage, cal,
+    lawOptions, lawBlock, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, seasonLabel, quarterStart, quarterEnd, plenaryDate, plenaryLabel, nextSession, termPolls, termAverage, cal,
     lawName, lawTitle, leanOf, quorum, eventChoices, fillText, eventById, ministryById, taxById, areaById, nextCampaign, summary,
     MEDIA, media, actionCash, govSeats, isGov, legacy, LB, careerSnapshot, chooseLeader, leaderAge, currentLeader, MAX_AGE, sqForces, absCal, FX_NAMES, ministerFor, eventMinister, ownMinistries, endTerm, defaultVote, partyVote, mandateVote
   };

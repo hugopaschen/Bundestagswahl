@@ -1842,3 +1842,28 @@ test('Bundesrat: Länder-Front blockiert, Länder-Deal kauft Zustimmung', () => 
   assert.ok(r2.ok, r2.text);
   assert.ok(own.every(l => T.bundesratVote(g, law).lands[l]));
 });
+
+test('Gesetze: kein zweites Mal in einer Legislatur, nichts gegen den eigenen früheren Entwurf', () => {
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  const t = g.term;
+  while (t.pending.length) T.resolvePending(g, 0);
+  const o = T.lawOptions(g);
+  const tp = o.topics.find(x => x.opts.length && x.opts.some(i => i !== x.current));
+  const opt = tp.opts[0];
+  const cur = t.policy[tp.topic];
+  t.ap = 4;
+  assert.ok(T.performAction(g, 'gesetz', { topic: tp.topic, opt }).ok);
+  const law = t.laws[t.laws.length - 1];
+  // Entwurf in die Gegenrichtung ist gesperrt, solange der eigene Entwurf in die andere Richtung zeigt.
+  law.stage = 'inkraft'; law.q1 = t.q; t.policy[tp.topic] = opt;
+  const back = Math.sign(opt - cur) > 0 ? opt - 1 : opt + 1;
+  assert.ok(T.lawBlock(g, { kind: 'topic', topic: tp.topic, opt: back }, g.party), 'Gegenrichtung gesperrt');
+  // Dasselbe Gesetz ein zweites Mal: gesperrt, auch wenn es zwischenzeitlich zurückgedreht wurde.
+  t.policy[tp.topic] = cur;
+  assert.ok(/Schon beschlossen/.test(T.lawBlock(g, { kind: 'topic', topic: tp.topic, opt }, 'spd') || ''));
+  const o2 = T.lawOptions(g).topics.find(x => x.topic === tp.topic);
+  if (o2) assert.ok(o2.opts.indexOf(opt) === -1 && o2.blocked[opt]);
+  t.ap = 4;
+  assert.strictEqual(T.performAction(g, 'gesetz', { topic: tp.topic, opt }).ok, false);
+});

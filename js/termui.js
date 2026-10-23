@@ -515,8 +515,8 @@
       html += '<div class="t-opts">' + o.taxes.map(x => {
         const tx = T.taxById(x.tax);
         return '<div class="t-taxrow"><b>' + tx.icon + ' ' + esc(tx.name) + '</b><span class="muted small"> heute: ' + esc(tx.levels[x.current].label) + (tx.zust ? ' · Bundesrat' : '') + '</span><div class="t-taxlv">' +
-          tx.levels.map((lv, i) => i === x.current ? '' : '<button type="button" class="btn t-draft" data-tax="' + x.tax + '" data-lv="' + i + '"' + (can.ok ? '' : ' disabled') + '>' + esc(lv.label) +
-            '<span class="hint">' + (lv.rev - tx.levels[x.current].rev >= 0 ? '+' : '−') + mrd(Math.abs(lv.rev - tx.levels[x.current].rev)) + ' im Jahr</span></button>').join('') + '</div></div>';
+          tx.levels.map((lv, i) => i === x.current ? '' : '<button type="button" class="btn t-draft" data-tax="' + x.tax + '" data-lv="' + i + '"' + (can.ok && !(x.blocked || {})[i] ? '' : ' disabled') + '>' + esc(lv.label) +
+            '<span class="hint">' + ((x.blocked || {})[i] ? esc(x.blocked[i]) : (lv.rev - tx.levels[x.current].rev >= 0 ? '+' : '−') + mrd(Math.abs(lv.rev - tx.levels[x.current].rev)) + ' im Jahr') + '</span></button>').join('') + '</div></div>';
       }).join('') + '</div>';
     } else if (lawTopic) {
       const x = o.topics.find(z => z.topic === lawTopic);
@@ -535,6 +535,9 @@
             '<span class="hint">' + esc(op.desc) + '</span><span class="hint">' + leanName(op.lean) + ' · Kosten ' + (costD >= 0 ? '+' : '−') + mrd(Math.abs(costD)) + '/Jahr' +
             (x.contract === i ? ' · steht im Koalitionsvertrag' : '') + '</span>' + (partners ? '<span class="hint">Partner: ' + partners + '</span>' : '') +
             (fxs => fxs.length ? '<span class="hint">Wirkt auf: ' + fxs.map(f => (f.good ? '✅ ' : '⚠️ ') + esc(f.name) + ' ' + (f.up ? '↑' : '↓')).join(', ') + ' · voll nach ~' + fxs[0].lag + ' Quartalen</span>' : '')(i === x.current ? [] : T.lawEffects(g, lawTopic, i)) + '</button>';
+        });
+        Object.keys(x.blocked || {}).forEach(i => {
+          html += '<button type="button" class="btn t-draft coalition-option" disabled><b>' + esc(D.PROGRAM[lawTopic][i].label) + '</b><span class="hint">Nicht möglich: ' + esc(x.blocked[i]) + '</span></button>';
         });
         html += '</div><p class="muted small">⭐ = euer Wahlprogramm · 👍 Partner einverstanden · 😐 murrt · 🛑 Veto droht · 📜 offenes Vorhaben im Koalitionsvertrag</p>';
       }
