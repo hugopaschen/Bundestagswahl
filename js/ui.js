@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261023-200521';
+  const APP_VERSION = '20261023-204405';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -2483,7 +2483,7 @@
 
     renderCoreChips();
 
-    const others = D.PARTIES.filter(x => x.id !== chosenParty && x.lean);
+    const others = D.PARTIES.concat(D.MINORS || []).filter(x => x.id !== chosenParty && x.lean);
     wishPartners = wishPartners.filter(id => others.some(x => x.id === id));
     $('positions').innerHTML = topicsByCompetence(chosenParty).map(t => {
       const options = D.PROGRAM[t.id].map((o, i) => {
@@ -2534,7 +2534,7 @@
   function renderWish() {
     const box = $('wish-partners');
     if (!box || !draft) return;
-    const others = D.PARTIES.filter(x => x.id !== chosenParty && x.lean);
+    const others = D.PARTIES.concat(D.MINORS || []).filter(x => x.id !== chosenParty && x.lean);
     const mine = t => D.PROGRAM[t][draft.positions[t]].lean;
     const topics = D.TOPICS.filter(t => D.PROGRAM[t.id]);
     let html = '<p class="wish-head"><strong>🤝 Wunschpartner</strong> <span class="muted">– zeigt, wo ihr übereinstimmt:</span></p><div class="wish-chips">' +
