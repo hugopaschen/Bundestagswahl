@@ -3612,6 +3612,20 @@
   }
 
 
+  // Regierungsverschleiß (Amtsmalus, wie GroKo 2013–17). Wer liefert, geschlossen auftritt und den Koalitionsvertrag
+  // umsetzt, kann ihn ausgleichen (Union 2009–13: 33,8 → 41,5 %); Stillstand und Streit (Ampel 2021–24) kosten extra.
+  function govWear(g, p) {
+    const t = g.term;
+    const delivered = Math.min(3, t.qLaws || 0);
+    const idle = t.q - (t.lastLawQ === undefined ? -1 : t.lastLawQ) >= 4 ? 0.06 : 0;
+    const unity = t.gov.length > 1 ? clamp((t.mood - 50) / 80, -0.25, 0.35) : 0.15;
+    const ct = Object.keys(t.contract || {});
+    const bilanz = ct.length ? ct.filter(tp => t.policy[tp] === t.contract[tp]).length / ct.length : 0;
+    const chanc = p === t.chanc;
+    const relief = 0.25 * delivered + unity + (chanc ? 0.6 : 0.4) * bilanz;
+    return { delivered, idle, unity, bilanz, relief, total: (chanc ? -0.5 : -0.46) * (1 - relief) - idle };
+  }
+
   function updatePolls(g) {
     const t = g.term;
     const e = t.econ;
@@ -3622,10 +3636,7 @@
     // Regierungsverschleiß und Wirtschaftslage (geschätzt)
     cat('regierung');
     const econ = 0.25 * (e.growth - 1) - 0.6 * (e.unemp - t.econPrev.unemp) - 0.08 * Math.max(0, e.infl - 2.5);
-    // Regierungsverschleiß (Amtsmalus, wie GroKo 2013–17): Liefern dämpft ihn nur etwas; Stillstand kostet extra.
-    const delivered = Math.min(2, t.qLaws || 0);
-    const idle = t.q - (t.lastLawQ === undefined ? -1 : t.lastLawQ) >= 4 ? 0.06 : 0;
-    t.gov.forEach(p => { addNat(g, p, ((p === t.chanc ? -0.5 : -0.46) * (1 - 0.125 * delivered) - idle) + econ * (p === t.chanc ? 1 : 0.5)); });
+    t.gov.forEach(p => { addNat(g, p, govWear(g, p).total + econ * (p === t.chanc ? 1 : 0.5)); });
     if (t.gov.length > 1 && t.mood < 35) t.gov.forEach(p => addNat(g, p, -0.1));
     if (t.budget.status === 'vorlaeufig') t.gov.forEach(p => addNat(g, p, -0.12));
     if (t.ua) { t.gov.forEach(p => addNat(g, p, -0.1 * (t.ua.f || 1))); addNat(g, g.party, 0.04 * (t.ua.f || 1)); }
@@ -3930,7 +3941,7 @@
   }
 
   const TERM = {
-    QUARTERS, ACTIONS, LAW_STEPS, forecast, lageBilanz, lawEffects, ensureLage, SOFORT, SHADOW_SETS, comebackBarometer, wkStatus, homeWk, termRecord, debtPath, activeMeasures, avgRate, WOBBLE, brAligned, landGovernment, dueVotes, GEWISSEN, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
+    QUARTERS, ACTIONS, LAW_STEPS, forecast, lageBilanz, lawEffects, ensureLage, SOFORT, SHADOW_SETS, comebackBarometer, wkStatus, homeWk, termRecord, debtPath, activeMeasures, avgRate, govWear, WOBBLE, brAligned, landGovernment, dueVotes, GEWISSEN, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
     lawOptions, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, cal,
     lawName, lawTitle, leanOf, quorum, eventChoices, fillText, eventById, ministryById, taxById, areaById, nextCampaign, summary,
     MEDIA, media, actionCash, govSeats, isGov, legacy, LB, careerSnapshot, chooseLeader, leaderAge, currentLeader, MAX_AGE, sqForces, absCal, FX_NAMES, ministerFor, eventMinister, ownMinistries, endTerm, defaultVote, partyVote, mandateVote

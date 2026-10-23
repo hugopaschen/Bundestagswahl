@@ -14,9 +14,10 @@ const SEEDS = [3, 4, 5, 7];
 // Zielbereiche (Durchschnitt aus 4 Spielen) nach echten Legislaturen: GroKo 2013–17 (Union −8,6, SPD −5,2
 // bis zur Wahl), Ampel 2021–24 (zusammen 52 → 38 %), Union in der Opposition 2022–24 (+6 bis +8).
 // aktiv = Spieler, der die Koalition pflegt und liefert; passiv = Spieler, der nichts tut.
+// Regierungen können zulegen, wenn sie liefern und geschlossen auftreten (Union 2009–13: 33,8 → 41,5 %).
 const TARGETS = {
-  union: { role: 'Kanzlerschaft', passiv: [-9, -3], aktiv: [-4, 0] },
-  spd: { role: 'Juniorpartner', passiv: [-7, -1], aktiv: [-4, 0] },
+  union: { role: 'Kanzlerschaft', passiv: [-9, -3], aktiv: [-2, 3] },
+  spd: { role: 'Juniorpartner', passiv: [-7, -1], aktiv: [-2, 3] },
   linke: { role: 'Opposition', passiv: [0, 5], aktiv: [3, 8] },
   fdp: { role: 'APO', passiv: [-1, 2], aktiv: [0.5, 3.5] }
 };

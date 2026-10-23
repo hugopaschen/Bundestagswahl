@@ -239,6 +239,7 @@
     const cal = T.calendar(g, 9);
     const li = x => '<li><span class="t-cal-q">' + esc(x.label) + '</span>' + esc(x.text) + (x.kind === 'ltw' ? ' <span class="muted small">· regiert von ' + t.laender[x.land].gov.map(short).join('-') + '</span>' : '') + '</li>';
     html += '<h3>📅 Termine</h3><ul class="t-cal">' + cal.slice(0, 3).map(li).join('') + '</ul>' + (cal.length > 3 ? '<details class="t-more"><summary>Weitere Termine (' + (cal.length - 3) + ')</summary><ul class="t-cal">' + cal.slice(3).map(li).join('') + '</ul></details>' : '');
+    html += wearHtml();
     // Koalitionsvertrag (zum Aufklappen)
     if (T.isGov(t.role) && t.gov.length > 1) {
       const open = Object.keys(t.contract).filter(tp => t.contract[tp] !== t.policy[tp]);
@@ -519,6 +520,17 @@
       U.toast(res.text);
       checkPending();
     }));
+  }
+
+  // Amtsbonus oder Verschleiß: woran es liegt und wie man ihn senkt.
+  function wearHtml() {
+    const t = term();
+    if (t.gov.indexOf(g.party) === -1) return '';
+    const w = T.govWear(g, g.party);
+    const sgn = x => (x >= 0 ? '+' : '−') + num1(Math.abs(x));
+    return '<p class="small">🏛️ <b>Regierungsbilanz</b>: ' + sgn(w.total) + ' Punkte im Quartal (' + (w.total >= 0 ? 'Amtsbonus' : 'Verschleiß') + '). ' +
+      'Vertrag umgesetzt: ' + Math.round(w.bilanz * 100) + ' % · Gesetze in diesem Quartal: ' + w.delivered + ' · Koalitionsklima: ' + (w.unity >= 0 ? 'hilft' : 'schadet') +
+      (w.idle ? ' · Stillstand seit einem Jahr kostet extra' : '') + '. Liefern, geschlossen auftreten und den Vertrag umsetzen senkt den Verschleiß.</p>';
   }
 
   // ---------- Haushalt & Steuern ----------
