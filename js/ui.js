@@ -2,7 +2,7 @@
 (function () {
   // Muss zur data-version in index.html passen (wird von tools/bump-version.js gesetzt).
   // Passen Seite und Skript nicht zusammen (alte Datei aus dem Browser-Cache), einmal neu laden.
-  const APP_VERSION = '20261023-165255';
+  const APP_VERSION = '20261023-170909';
   if (document.documentElement.dataset.version !== APP_VERSION) {
     let reloaded = false;
     try { reloaded = sessionStorage.getItem('btw-version-reload') === APP_VERSION; } catch (e) { /* ignorieren */ }
@@ -149,7 +149,7 @@
     ['intro', 'name', 'start', 'program', 'reveal', 'kickoff', 'game', 'election', 'term'].forEach(s => { $('screen-' + s).hidden = s !== screen; });
     // Die Programm-Website färbt den ganzen Seitenhintergrund in der Papierfarbe der Partei.
     // Seiten, die randlos über die ganze Breite gehen, färben auch den Seitenhintergrund ein.
-    if (screen === 'start') document.body.style.background = '#f4f4f1';
+    if (screen === 'start') { document.body.style.background = '#f4f4f1'; if ($('start-opts')) $('start-opts').hidden = !!nextCarry; }
     else if (screen !== 'program') document.body.style.background = '';
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
@@ -2213,6 +2213,7 @@
       '<p>' + esc(r.neuwahl ? '🗳️ Keine Regierung: Der Bundestag ist aufgelöst – es gibt eine Neuwahl.' : statusText) + '</p>' +
       (o.firewall ? '<p class="fw-note">🧱 Ihr habt die Brandmauer eingerissen. Proteste im ganzen Land – das wird euch lange nachhängen.</p>' : '') +
       '<p>' + (o.goal ? '✅ Wahlziel erreicht: ' : '❌ Wahlziel verfehlt: ') + esc(p.goalText) + '</p>' +
+      (g.seed0 !== undefined ? '<p class="muted small">Startzahl ' + (g.seed0 >>> 0) + (g.scenario ? ' · Ausgangslage: ' + esc((D.START_SCENARIOS.find(x => x.id === g.scenario) || {}).name || '') : '') + '</p>' : '') +
       (r.homeWk && (r.homeWk.won || r.homeWk.close) ? '<p>' + (r.homeWk.won ? '🏘️ ' + esc(g.candidate) + ' gewinnt den eigenen Wahlkreis ' + esc(r.homeWk.name) + ' direkt.' : '🏘️ Blamage im eigenen Wahlkreis: ' + esc(g.candidate) + ' verliert ' + esc(r.homeWk.name) + '.') + '</p>' : '') +
       '<div class="mob-bars flows result-flows"><span class="mob-label">Wählerwanderung seit Wahlkampfstart (Prozentpunkte)</span>' + flowBarsHtml(E.flowSummary(g, g.party), g.party) + '</div>';
     card.hidden = false;
@@ -2969,7 +2970,9 @@
 
   $('btn-program-confirm').addEventListener('click', () => {
     if (E.validateProgram(draft).length) return;
-    const game = E.newGame(chosenParty, $('candidate').value, undefined, draft, nextCarry || undefined);
+    const seedRaw = ($('seed-input') && $('seed-input').value || '').replace(/\D/g, '');
+    const startCarry = nextCarry || (chosenScenario !== 'real' ? { scenario: chosenScenario } : undefined);
+    const game = E.newGame(chosenParty, $('candidate').value, seedRaw ? Number(seedRaw) : undefined, draft, startCarry);
     nextCarry = null;
     g = game;
     save();
@@ -3176,6 +3179,17 @@
   $('tour-next').addEventListener('click', () => { tourIdx += 1; if (tourIdx >= tourList.length) endTour(); else showTourStep(); });
   $('tour-prev').addEventListener('click', () => { if (tourIdx > 0) { tourIdx -= 1; showTourStep(); } });
   $('tour-skip').addEventListener('click', endTour);
+  // Ausgangslage wählen (nur beim ersten Wahlkampf; danach gilt die Welt aus der Legislatur).
+  let chosenScenario = 'real';
+  function renderScenarios() {
+    const box = $('scenario-list');
+    if (!box) return;
+    $('start-opts').hidden = !!nextCarry;
+    box.innerHTML = D.START_SCENARIOS.map(sc => '<label class="scenario"><input type="radio" name="scenario" value="' + sc.id + '"' + (sc.id === chosenScenario ? ' checked' : '') + '>' +
+      '<span><b>' + esc(sc.name) + '</b>' + (sc.id === 'real' ? '' : ' <span class="model-est">fiktiv</span>') + '<br><span class="muted small">' + esc(sc.desc) + '</span></span></label>').join('');
+    box.querySelectorAll('input').forEach(inp => inp.addEventListener('change', () => { chosenScenario = inp.value; }));
+  }
+  renderScenarios();
   $('btn-tour').addEventListener('click', startTour);
   document.querySelectorAll('.btn-model').forEach(b => b.addEventListener('click', showModel));
 
@@ -3183,7 +3197,8 @@
   function showModel() {
     const sec = (title, items) => '<h3>' + title + '</h3><ul class="model-list">' + items.map(x => '<li>' + x + '</li>').join('') + '</ul>';
     const est = ' <span class="model-est">geschätzt</span>';
-    const body = '<p>Das Spiel ist eine Simulation, keine Vorhersage. Es rechnet mit echten Ausgangsdaten, wo es sie gibt, und mit nachvollziehbaren Annahmen, wo nicht. Annahmen sind als <span class="model-est">geschätzt</span> markiert.</p>' +
+    const mine = g && g.seed0 !== undefined ? '<p class="small">Euer Spiel: Startzahl <b>' + (g.seed0 >>> 0) + '</b>' + (g.scenario ? ', Ausgangslage „' + esc((D.START_SCENARIOS.find(x => x.id === g.scenario) || {}).name || '') + '“' : '') + '.</p>' : '';
+    const body = mine + '<p>Das Spiel ist eine Simulation, keine Vorhersage. Es rechnet mit echten Ausgangsdaten, wo es sie gibt, und mit nachvollziehbaren Annahmen, wo nicht. Annahmen sind als <span class="model-est">geschätzt</span> markiert.</p>' +
       sec('Wählerinnen und Wähler', [
         'Ausgangspunkt ist das Ergebnis der Bundestagswahl 2025 (Bundeswahlleiterin) und die Sonntagsfrage zum Spielstart.',
         D.GROUPS.length + ' Wählergruppen nach Alter, Bildung, Wohnort, Geschlecht, Konfession und Beruf. Wie sie wählen, stammt aus den Wahltagsbefragungen 2025 von Infratest dimap und Forschungsgruppe Wahlen; nicht veröffentlichte Werte sind am Gesamtergebnis geeicht.' + est,
@@ -3213,6 +3228,8 @@
       ]) +
       sec('Was das Spiel vereinfacht', [
         'Parteien und Verbände tragen ihre echten Namen. Personen, Umfrageinstitute, Zeitungen und Ereignisse sind erfunden.',
+        'Die Ausgangslage „Ausgangslage“ nutzt reale Startdaten; Rezession, Preisschock, Sicherheitskrise und Fluchtbewegung sind fiktive Zuspitzungen.' + est,
+        'Die anderen Parteien wechseln nach anhaltender Schwäche ihre Spitze und schärfen vorher ihr Profil; Ereignisse wie Mieterproteste oder Bahnchaos kommen erst, wenn sich die Lage im Land verschlechtert hat.' + est,
         'Landtagswahltermine: zweiter Sonntag im Monat der regulären Wahl.' + est,
         'Kein Überhang und keine Ausgleichsmandate (entfallen seit dem Wahlrecht 2023).'
       ]);

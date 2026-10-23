@@ -1759,3 +1759,41 @@ test('Legislatur: Quartale als Kalenderzeit, Sitzungstage und Umfragen', () => {
   const polls = T.termPolls(g);
   assert.ok(polls.length === D.INSTITUTES.length && polls.every(x => x.date < T.quarterStart(t)));
 });
+
+test('Welt lebt: Lage-Ereignisse, Führungswechsel der Konkurrenz, Zeitungen und Chronik', () => {
+  const TD = require('../js/termdata.js');
+  const g = electedGame('union', 4, 8);
+  T.startTerm(g);
+  const t = g.term;
+  // Lage-Ereignisse kommen erst, wenn sich der Indikator verschlechtert hat.
+  const ev = TD.EVENTS.find(e => e.id === 'lage_mieten');
+  assert.ok(ev && /^lage:wohnen</.test(ev.req));
+  // Führungswechsel: eine Partei, die lange schwach ist, wechselt die Spitze.
+  const p = ['spd', 'gruene', 'linke'].find(x => x !== t.chanc && (t.start[x] || 0) >= 3);
+  const name0 = g.rivals[p] && g.rivals[p].name;
+  let changed = false;
+  for (let i = 0; i < 12 && !t.over && !changed; i++) {
+    t.lastNat[p] = (t.start[p] || 10) - 5;
+    while (t.pending.length) T.resolvePending(g, 0);
+    T.endQuarter(g);
+    changed = (t.chron || []).some(x => x.kind === 'konkurrenz' && /Führungswechsel/.test(x.text));
+  }
+  assert.ok(changed, 'Führungswechsel nach anhaltender Schwäche');
+  if (name0) assert.notStrictEqual(g.rivals[p].name, name0);
+  // Chronik und Zeitungskommentare
+  assert.ok(t.chron.length > 0 && t.chron.every(x => typeof x.q === 'number' && x.text));
+  assert.ok(t.front && Array.isArray(t.front.comments));
+  if (t.front.comments.length) assert.strictEqual(t.front.comments.length, 2);
+});
+
+test('Start-Szenario und Startzahl', () => {
+  const g = E.newGame('spd', 'Test', 4242, undefined, { scenario: 'rezession' });
+  assert.strictEqual(g.scenario, 'rezession');
+  assert.strictEqual(g.seed0, 4242);
+  const g0 = E.newGame('spd', 'Test', 4242);
+  assert.ok(g.salience.wirtschaft > g0.salience.wirtschaft);
+  // Gleiche Startzahl, gleicher Verlauf.
+  const a = E.newGame('spd', 'Test', 99), b = E.newGame('spd', 'Test', 99);
+  for (let w = 0; w < 3; w++) { [a, b].forEach(x => { while (x.pendingEvent) E.resolveEvent(x, 0); E.endWeek(x); }); }
+  assert.strictEqual(JSON.stringify(a.poll.nat), JSON.stringify(b.poll.nat));
+});

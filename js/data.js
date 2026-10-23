@@ -143,6 +143,14 @@
     { id: 'rheinblick', name: 'Institut Rheinblick', short: 'Rheinblick', method: 'telefonisch', n: [1300, 1600], every: 14, offset: 8, field: 3, round: 1,
       house: { union: -0.4, afd: -0.2, spd: 0.2, gruene: 0.3, linke: -0.2, bsw: -0.1, fdp: -0.3 } }
   ];
+  // Start-Szenarien. „Ausgangslage“ nutzt nur reale Startdaten; die übrigen sind fiktive Zuspitzungen mit geschätzten Werten.
+  var START_SCENARIOS = [
+    { id: 'real', name: 'Ausgangslage', desc: 'Reale Startdaten: Wahlergebnis 2025, Sonntagsfrage zum Spielstart, Bundeshaushalt 2026, Wirtschaft nach dem Stand 2026.', sal: {}, econ: {} },
+    { id: 'rezession', name: 'Rezession', desc: 'Die Wirtschaft schrumpft, die Arbeitslosigkeit steigt auf über 7 %. Arbeitsplätze und soziale Sicherheit bewegen die Menschen.', sal: { wirtschaft: 0.03, soziales: 0.015 }, econ: { growth: -1.0, unemp: 7.4, gap: -2.5 } },
+    { id: 'preisschock', name: 'Preisschock', desc: 'Energie und Lebensmittel werden deutlich teurer, die Inflation steigt auf über 5 %.', sal: { wirtschaft: 0.02, soziales: 0.02 }, econ: { infl: 5.5, growth: 0.2 } },
+    { id: 'sicherheit', name: 'Sicherheitskrise', desc: 'Die Lage an der Ostflanke der NATO spitzt sich zu. Verteidigung und innere Sicherheit stehen oben auf der Agenda.', sal: { verteidigung: 0.04, sicherheit: 0.015 }, econ: { growth: 0.6 } },
+    { id: 'flucht', name: 'Fluchtbewegung', desc: 'Nach einem neuen Krieg im Nahen Osten steigen die Asylanträge stark an. Migration wird zum beherrschenden Thema.', sal: { migration: 0.04 }, econ: {}, lage: { migration: 330 } }
+  ];
   // Sitzungskalender (Kalenderwochen), angelehnt an die Sitzungswochen des Bundestages und die Plenarsitzungen des
   // Bundesrates 2024/2025 – für spätere Jahre fortgeschrieben (geschätzt).
   var SITZUNGSWOCHEN = [3, 4, 6, 7, 10, 11, 12, 16, 17, 19, 20, 24, 25, 26, 27, 37, 38, 40, 41, 42, 45, 46, 47, 50, 51];
@@ -657,6 +665,7 @@
     PARTIES: PARTIES,
     OTHER: OTHER,
     INSTITUTES: INSTITUTES,
+    START_SCENARIOS: START_SCENARIOS,
     SITZUNGSWOCHEN: SITZUNGSWOCHEN,
     BUNDESRAT_KW: BUNDESRAT_KW,
     STATES: STATES,

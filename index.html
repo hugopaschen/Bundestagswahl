@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de" data-version="20261023-165255">
+<html lang="de" data-version="20261023-170909">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Montserrat:wght@700;800;900&family=Oswald:wght@600;700&family=Public+Sans:wght@500;700;800;900&family=Inter:wght@800&family=Open+Sans:wght@400;700;800&family=Caveat:wght@600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,700;1,400&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20261023-165255">
+  <link rel="stylesheet" href="css/style.css?v=20261023-170909">
 </head>
 <body>
   <!-- Startseite: Eröffnungsbild, ein eigener Bildschirm -->
@@ -88,6 +88,12 @@
 
       <div id="party-list" class="ballot-list" role="radiogroup" aria-label="Partei"></div>
       <footer class="ballot-foot">
+        <details class="start-opts" id="start-opts">
+          <summary>Ausgangslage und Startzahl</summary>
+          <div id="scenario-list" class="scenario-list" role="radiogroup" aria-label="Ausgangslage"></div>
+          <label class="seed-field">Startzahl <input type="text" id="seed-input" inputmode="numeric" maxlength="9" placeholder="zufällig" autocomplete="off"></label>
+          <p class="muted small">Gleiche Startzahl, gleiche Entscheidungen – gleicher Verlauf. So lassen sich Durchläufe vergleichen.</p>
+        </details>
         <button type="button" class="doc-btn" id="btn-start" disabled>Weiter zum Wahlprogramm →</button>
       </footer>
     </section>
@@ -482,6 +488,7 @@
       <button type="button" class="game-tab" data-tab="regierung">Regierung <span class="tab-badge" id="t-cab-badge" hidden>!</span></button>
       <button type="button" class="game-tab" data-tab="partei">Partei</button>
       <button type="button" class="game-tab" data-tab="umfragen">Umfragen</button>
+      <button type="button" class="game-tab" data-tab="chronik">Chronik</button>
       <button type="button" class="nav-help btn-model" title="Wie das Spiel rechnet">Modell &amp; Quellen</button>
     </nav>
     <div class="week-progress" aria-hidden="true"><div id="term-bar"></div></div>
@@ -493,6 +500,7 @@
       <section class="card" data-tab="regierung" id="t-parlament" hidden></section>
       <section class="card" data-tab="partei" id="t-partei" hidden></section>
       <section class="card" data-tab="umfragen" id="t-umfragen" hidden></section>
+      <section class="card" data-tab="chronik" id="t-chronik" hidden></section>
       <section class="card news-card" data-tab="lage" id="t-news" hidden></section>
       <section class="card" data-tab="partei" id="t-laufbahn" hidden></section>
     </div>
@@ -509,21 +517,21 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="js/data.js?v=20261023-165255"></script>
-  <script src="js/names.js?v=20261023-165255"></script>
-  <script src="js/wahlkreise.js?v=20261023-165255"></script>
-  <script src="js/germany.js?v=20261023-165255"></script>
-  <script src="js/questions.js?v=20261023-165255"></script>
-  <script src="js/scenarios.js?v=20261023-165255"></script>
-  <script src="js/citizenq.js?v=20261023-165255"></script>
-  <script src="js/scenes.js?v=20261023-165255"></script>
-  <script src="js/termdata.js?v=20261023-165255"></script>
-  <script src="js/lobby.js?v=20261023-165255"></script>
-  <script src="js/termscenes.js?v=20261023-165255"></script>
-  <script src="js/engine.js?v=20261023-165255"></script>
-  <script src="js/term.js?v=20261023-165255"></script>
-  <script src="js/cloud.js?v=20261023-165255"></script>
-  <script src="js/ui.js?v=20261023-165255"></script>
-  <script src="js/termui.js?v=20261023-165255"></script>
+  <script src="js/data.js?v=20261023-170909"></script>
+  <script src="js/names.js?v=20261023-170909"></script>
+  <script src="js/wahlkreise.js?v=20261023-170909"></script>
+  <script src="js/germany.js?v=20261023-170909"></script>
+  <script src="js/questions.js?v=20261023-170909"></script>
+  <script src="js/scenarios.js?v=20261023-170909"></script>
+  <script src="js/citizenq.js?v=20261023-170909"></script>
+  <script src="js/scenes.js?v=20261023-170909"></script>
+  <script src="js/termdata.js?v=20261023-170909"></script>
+  <script src="js/lobby.js?v=20261023-170909"></script>
+  <script src="js/termscenes.js?v=20261023-170909"></script>
+  <script src="js/engine.js?v=20261023-170909"></script>
+  <script src="js/term.js?v=20261023-170909"></script>
+  <script src="js/cloud.js?v=20261023-170909"></script>
+  <script src="js/ui.js?v=20261023-170909"></script>
+  <script src="js/termui.js?v=20261023-170909"></script>
 </body>
 </html>

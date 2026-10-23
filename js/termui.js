@@ -90,7 +90,7 @@
     renderTop();
     document.querySelectorAll('#term-nav .game-tab').forEach(b => b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
     // Ein Tab kann mehrere Karten zeigen (Lage mit Nachrichten, Regierung = Kabinett + Parlament, Partei mit Laufbahn).
-    const R = { 't-lage': renderLage, 't-news': renderNews, 't-gesetze': renderLaws, 't-haushalt': renderBudget, 't-kabinett': renderCabinet, 't-parlament': renderParliament, 't-partei': renderParty, 't-laufbahn': renderCareer, 't-umfragen': renderPolls };
+    const R = { 't-lage': renderLage, 't-news': renderNews, 't-gesetze': renderLaws, 't-haushalt': renderBudget, 't-kabinett': renderCabinet, 't-parlament': renderParliament, 't-partei': renderParty, 't-laufbahn': renderCareer, 't-umfragen': renderPolls, 't-chronik': renderChronik };
     document.querySelectorAll('#screen-term .term-layout > .card').forEach(c => { c.hidden = c.dataset.tab !== tab; if (!c.hidden && R[c.id]) R[c.id](); });
   }
 
@@ -216,7 +216,8 @@
       (f.boulevard.sub ? '<div class="tf-sub">' + esc(f.boulevard.sub) + '</div>' : '') + '</div>' +
       '<div class="tf-paper tf-leit"><div class="tf-mast">Die Hauptstadt-Zeitung</div><div class="tf-date">' + esc(T.quarterLabel(t, Math.min(f.q, T.QUARTERS - 1))) + '</div><div class="tf-head">' + esc(f.leit.head) + '</div>' +
       (f.leit.sub ? '<div class="tf-sub">' + esc(f.leit.sub) + '</div>' : '') + (f.poll ? '<div class="tf-poll">' + esc(f.poll) + '</div>' : '') + '</div></div>' +
-      '<p class="muted small">Fiktive Zeitungen: ein Boulevardblatt und eine überregionale Tageszeitung.</p>';
+      ((f.comments || []).length ? '<div class="tf-comments">' + f.comments.map(c => '<blockquote class="tf-comment"><p>„' + esc(c.text) + '“</p><cite>' + esc(c.paper) + ' <span class="muted">(' + esc(c.label) + ') über ' + esc(c.about) + '</span></cite></blockquote>').join('') + '</div>' : '') +
+      '<p class="muted small">Fiktive Zeitungen mit eigener Haltung: Dieselbe Nachricht wird unterschiedlich kommentiert.</p>';
   }
   function voicesHtml(n) {
     const t = term();
@@ -565,6 +566,30 @@
     return '<p class="small">🏛️ <b>Regierungsbilanz</b>: ' + sgn(w.total) + ' Punkte im Quartal (' + (w.total >= 0 ? 'Amtsbonus' : 'Verschleiß') + '). ' +
       'Vertrag umgesetzt: ' + Math.round(w.bilanz * 100) + ' % · Gesetze in diesem Quartal: ' + w.delivered + ' · Koalitionsklima: ' + (w.unity >= 0 ? 'hilft' : 'schadet') +
       (w.idle ? ' · Stillstand seit einem Jahr kostet extra' : '') + '. Liefern, geschlossen auftreten und den Vertrag umsetzen senkt den Verschleiß.</p>';
+  }
+
+  // ---------- Chronik ----------
+  function renderChronik() {
+    const t = term();
+    const items = t.chron || [];
+    const KIND = { gesetz: 'Gesetz', entscheidung: 'Entscheidung', wahl: 'Wahl', haushalt: 'Haushalt', partei: 'Partei', konkurrenz: 'Konkurrenz' };
+    let html = '<h2>Chronik der ' + t.n + '. Legislaturperiode</h2><p class="muted small">Was in dieser Wahlperiode passiert ist – eure Entscheidungen und ihre Folgen, Gesetze, Wahlen und Personal. Neueste oben.</p>';
+    const qs = [];
+    for (let q = Math.min(t.q, T.QUARTERS - 1); q >= 0; q--) qs.push(q);
+    const hist = t.history || [];
+    qs.forEach(q => {
+      const list = items.filter(x => x.q === q).reverse();
+      // Umfragemittel am Ende des Quartals (nur für abgeschlossene Quartale).
+      const done = hist.some(x => x.q === q);
+      const now = done ? T.termAverage(g, q + 1)[g.party] : null;
+      const before = q > 0 ? T.termAverage(g, q)[g.party] : t.share0;
+      const poll = done ? ' · Umfragemittel ' + esc(short(g.party)) + ' ' + pct(now) + ' (' + signed(now - before) + ')' : '';
+      if (!list.length && !poll) return;
+      html += '<section class="chr-q"><h3>' + esc(T.quarterLabel(t, q)) + '<span class="muted small">' + poll + '</span></h3>' +
+        (list.length ? '<ul class="chr-list">' + list.map(x => '<li><span class="chr-k">' + esc(KIND[x.kind] || '') + '</span><span>' + esc(x.text) + '</span></li>').join('') + '</ul>' : '<p class="muted small">Keine besonderen Vorkommnisse.</p>') + '</section>';
+    });
+    if (!items.length) html += '<p class="muted">Noch ist nichts passiert. Die Chronik füllt sich mit jedem Quartal.</p>';
+    $('t-chronik').innerHTML = html;
   }
 
   // ---------- Haushalt & Steuern ----------
@@ -1373,6 +1398,7 @@
       '<p>Jetzt beginnt der Wahlkampf – mit dem Stand von heute in allen Ländern.</p>';
     U.openModal('Bilanz der ' + t.n + '. Legislaturperiode', s.rating, body, [
       { label: 'Zum nächsten Wahlkampf', primary: true, hint: 'Erst die Spitzenkandidatur festlegen, dann Programmparteitag und Wahlkampf', onClick: () => chooseLeaderModal(T.nextCampaign(g)) },
+      { label: 'Chronik ansehen', onClick: () => { U.closeModal(); tab = 'chronik'; render(); } },
       { label: 'Noch einmal umsehen', onClick: U.closeModal }
     ]);
   }

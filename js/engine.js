@@ -466,6 +466,7 @@
       spendWeek: 0,
       rng: (seed === undefined ? Math.floor(Math.random() * 2 ** 31) : seed) | 0
     };
+    g.seed0 = g.rng; // Startzahl: gleiche Startzahl und gleiche Entscheidungen ergeben denselben Verlauf
     CONTEST_IDS.forEach(p => { g.nat[p] = 0; g.compAdj[p] = {}; g.mob[p] = 0; });
     g.minor = {};
     MINOR_IDS.forEach(m => { g.minor[m] = { trend: 0, nat: 0, reg: {} }; });
@@ -526,6 +527,12 @@
     g.startShares = nationalShares(g);
     g.history.push({ week: 0, shares: g.startShares, real: g.startShares });
     addLog(g, 'start', (g.neuwahl ? 'Der Bundestag ist aufgelöst – Neuwahl! ' : 'Der Wahlkampf beginnt! ') + 'Noch ' + MAX_WEEKS + ' Wochen bis zur Bundestagswahl ' + (g.year || YEAR0) + '.');
+    // Start-Szenario (nur zu Beginn, nicht nach einer Legislatur): verschiebt, was die Menschen bewegt.
+    const sc = carry && carry.scenario && !g.world && D.START_SCENARIOS.find(x => x.id === carry.scenario);
+    if (sc && sc.id !== 'real') {
+      g.scenario = sc.id;
+      Object.keys(sc.sal || {}).forEach(t => changeSalience(g, t, sc.sal[t]));
+    }
     applyProgram(g, program);
     applyRecord(g);
     if (LB) LB.init(g);

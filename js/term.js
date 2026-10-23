@@ -123,6 +123,14 @@
     t.news.unshift({ q: t.q, text, kind: kind || 'info' });
     if (t.news.length > 150) t.news.length = 150;
   }
+  const scenarioOf = g => (g.scenario && (D.START_SCENARIOS || []).find(x => x.id === g.scenario)) || {};
+  // Chronik der Legislatur: Entscheidungen und ihre Folgen, Gesetze, Wahlen, Haushalte, Personal.
+  function chron(g, kind, text) {
+    const t = g.term;
+    (t.chron = t.chron || []).push({ q: t.q, kind, text });
+  }
+  // Jahreszeit eines Quartals (für Zitate und Rückblicke).
+  function seasonLabel(t, q) { const c = cal(t, q); return ['Im Winter', 'Im Frühjahr', 'Im Sommer', 'Im Herbst'][c.qn - 1] + ' ' + c.year; }
   function shareOf(g, p) { return (g.term.lastNat && g.term.lastNat[p]) || 5; }
   // Umfragewirkung in Punkten, für kleine Parteien gedämpft (wie im Wahlkampf).
   // Woher die Bewegung in euren Umfragen kommt: Jede Wirkung wird einer Ursache zugeordnet (CAT).
@@ -413,7 +421,7 @@
       policy: world ? copy(world.policy) : {},
       lage: world && world.lage ? copy(world.lage) : null,
       taxes: world ? copy(world.taxes) : {},
-      econ: world ? copy(world.econ) : Object.assign({}, TD.ECON0, { pol: { growth: 0, unemp: 0, infl: 0 } }),
+      econ: world ? copy(world.econ) : Object.assign({}, TD.ECON0, scenarioOf(g).econ || {}, { pol: { growth: 0, unemp: 0, infl: 0 } }),
       budget: world ? Object.assign({ draft: null, status: 'ok', oneoff: 0, history: [], vote: null }, copy(world.budget)) :
         { plan: {}, draft: null, status: 'ok', extra: 0, def: 0, oneoff: 0, reform: 0, notlage: false, history: [], vote: null },
       laws: [], lawSeq: 0, voteChoice: {},
@@ -618,6 +626,7 @@
     const yr = cal(t).year;
     P.leader = { name: name || newPerson(g, g.party, weightedLand(g)).full, like: like === undefined ? 0.8 : like, born: yr - Math.round(between(g, 38, 52)) };
     newLeader(g, P.leader.name, yr, P.leader.born, how).offices.push({ year: yr, office: officeName(g) });
+    chron(g, 'partei', 'Neue Spitze: ' + P.leader.name + ' folgt auf ' + old + (how ? ' (' + how + ')' : '') + '.');
     if (t.chancellor && t.chancellor.party === g.party && t.chancellor.name === old) t.chancellor.name = P.leader.name;
     Object.keys(t.cabinet).forEach(id => { const m = t.cabinet[id]; if (m.lead && m.party === g.party) m.name = P.leader.name; });
     if (t.vize && t.vize.party === g.party) t.vize.name = P.leader.name;
@@ -891,7 +900,7 @@
   function lageVal(t, x) { return x.econ ? t.econ[x.econ] : t.lage[x.id]; }
   function ensureLage(g) {
     const t = g.term;
-    if (!t.lage) { t.lage = {}; TD.LAGE.forEach(x => { if (!x.econ) t.lage[x.id] = x.start; }); }
+    if (!t.lage) { const sl = scenarioOf(g).lage || {}; t.lage = {}; TD.LAGE.forEach(x => { if (!x.econ) t.lage[x.id] = sl[x.id] !== undefined ? sl[x.id] : x.start; }); }
     if (!t.lage0) { t.lage0 = {}; TD.LAGE.forEach(x => { t.lage0[x.id] = lageVal(t, x); }); }
     if (!t.lagePrev) t.lagePrev = Object.assign({}, t.lage0);
     if (!t.policyQ) t.policyQ = {};
@@ -1044,8 +1053,31 @@
       q: t.q,
       boulevard: top ? { kicker: kicker[top.kind] || 'NEU', head: head(top.text).toUpperCase(), sub: rest(top.text) } : { kicker: 'RUHIGE ZEITEN', head: 'BERLIN MACHT PAUSE', sub: 'Ein Quartal ohne große Schlagzeilen.' },
       leit: second ? { head: head(second.text), sub: rest(second.text) || (moved && Math.abs(moved.d) > 0.05 ? 'Im Blick: ' + moved.x.name + (moved.d > 0 ? ' entwickelt sich besser' : ' entwickelt sich schlechter') + '.' : '') } : { head: 'Die Republik im Stillstand?', sub: '' },
-      poll: own !== null ? sname(g.party) + ' in der Sonntagsfrage: ' + (Math.round(own * 10) / 10).toString().replace('.', ',') + ' %' : ''
+      poll: own !== null ? sname(g.party) + ' in der Sonntagsfrage: ' + (Math.round(own * 10) / 10).toString().replace('.', ',') + ' %' : '',
+      comments: top ? papersComment(g, top, R) : []
     };
+  }
+
+  // Zwei Tageszeitungen kommentieren dieselbe Geschichte – je nach eigener Haltung und der Partei, um die es geht.
+  const PAPERS = [{ name: 'Der Morgen', lean: -0.6, label: 'links-liberal' }, { name: 'Die Hauptstadt-Zeitung', lean: 0.5, label: 'bürgerlich-konservativ' }];
+  const COMMENT = {
+    praise: ['Ein überfälliger Schritt – endlich bewegt sich etwas.', 'Das ist solides Handwerk. Mehr davon.', 'Richtig so. Wer das kritisiert, hat keine bessere Idee.'],
+    skeptic: ['Gut gemeint, aber die Rechnung zahlen am Ende andere.', 'Viel Symbolik, wenig Substanz.', 'Man muss kein Prophet sein, um die Probleme kommen zu sehen.'],
+    mild: ['Ein Rückschlag – aber kein Grund zur Panik.', 'Ärgerlich, doch die Richtung stimmt.', 'Das muss besser werden. Die Zeit dafür ist da.'],
+    harsh: ['Das Ergebnis einer Politik, die nicht zuhört.', 'Ein Armutszeugnis.', 'Wer so regiert, darf sich über die Umfragen nicht wundern.']
+  };
+  function papersComment(g, item, R) {
+    const t = g.term;
+    const subj = CONTEST.find(p => p !== OTHER && new RegExp('\\b' + sname(p) + '\\b').test(item.text)) || t.chanc;
+    const P = party(subj);
+    const leans = P && P.lean ? Object.keys(P.lean).map(k => P.lean[k]) : [0];
+    const pl = leans.reduce((x, v) => x + v, 0) / leans.length;
+    const good = item.kind === 'good' || item.kind === 'big';
+    return PAPERS.map(pp => {
+      const near = Math.abs(pp.lean - pl) < 0.6;
+      const key = good ? (near ? 'praise' : 'skeptic') : (near ? 'mild' : 'harsh');
+      return { paper: pp.name, label: pp.label, about: sname(subj), text: COMMENT[key][Math.floor(R() * COMMENT[key].length)] };
+    });
   }
 
   // ---------- Szenen je Rolle ----------
@@ -1465,8 +1497,10 @@
         const c = t.voteChoice.budget || 'nein';
         y = c === 'ja' ? s : 0;
         a = c === 'enthaltung' ? s : 0;
-      } else if (fails > 0 && p !== 'afd' && Math.abs(leanOf(g, p, 'finanzen') - leanOf(g, t.chanc, 'finanzen')) <= 1 && rand(g) < Math.min(0.8, 0.3 * fails + (t.budget.talks ? 0.3 : 0))) {
-        // Nach einem gescheiterten Haushalt verhandelt die Regierung: Gemäßigte Opposition enthält sich gegen Zugeständnisse.
+      } else if (fails > 0 && p !== 'afd' && rand(g) < (Math.abs(leanOf(g, p, 'finanzen') - leanOf(g, t.chanc, 'finanzen')) <= 1 ? Math.min(0.8, 0.3 * fails + (t.budget.talks ? 0.3 : 0))
+        : fails >= 2 ? Math.min(0.5, 0.12 * fails + (t.budget.talks ? 0.15 : 0)) : 0)) {
+        // Nach einem gescheiterten Haushalt verhandelt die Regierung: Gemäßigte Opposition enthält sich gegen Zugeständnisse;
+        // nach mehreren Anläufen auch weiter entfernte demokratische Parteien (staatspolitische Verantwortung, geschätzt).
         a = s; t.budget.oneoff += 2; deals.push(p);
       } else if (t.duldung === p) {
         y = s; // Duldung
@@ -1485,6 +1519,7 @@
     t.budget.talks = false;
     const pass = yes > no;
     t.budget.vote = { year: draft.year, yes, no, pass, detail, q: t.q };
+    chron(g, 'haushalt', 'Haushalt ' + draft.year + (pass ? ' beschlossen' : ' scheitert im Bundestag') + ' (' + yes + ' Ja, ' + no + ' Nein).');
     {
       const det = {};
       CONTEST.forEach(p => { const s = t.seats[p] || 0; det[p] = { yes: detail[p] || 0, no: s - (detail[p] || 0) - (absts[p] || 0), abst: absts[p] || 0 }; });
@@ -2169,6 +2204,7 @@
     cat('gesetz');
     law.stage = 'inkraft';
     law.q1 = t.q;
+    chron(g, 'gesetz', '„' + lawName(law) + '“ tritt in Kraft (eingebracht von ' + sname(law.by) + ').');
     t.stats.lawsTotal += 1;
     const topic = lawTopic(law);
     const L = lawLean(law);
@@ -2438,6 +2474,7 @@
     t.gov.forEach(p => { if (p !== g.party && (shares[p] || 0) < (sh[p] || 0) - 2) t.mood = clamp(t.mood - 2, 0, 100); });
     const entry = { q: t.q, land, shares, seats, gov, diff: r1(diff), inGov: gov.indexOf(g.party) !== -1, inParl: shares[g.party] >= 5, open: mine.length > 0 };
     t.ltwLog.push(entry);
+    chron(g, 'wahl', 'Landtagswahl ' + E.stateById(land).name + ': ' + sname(g.party) + ' ' + f1(shares[g.party] || 0) + ' % (' + (diff >= 0 ? '+' : '−') + f1(Math.abs(diff)) + '), Regierung: ' + gov.map(sname).join('-') + '.');
     t.stats.ltw.push(entry);
     const top = Object.keys(shares).filter(p => p !== OTHER).sort((a, b) => shares[b] - shares[a]).slice(0, 4);
     news(g, '🗳️ Landtagswahl ' + E.stateById(land).name + ': ' + top.map(p => sname(p) + ' ' + f1(shares[p]) + ' %').join(', ') +
@@ -2513,7 +2550,16 @@
       case 'lowPoll': return own < t.share0 - 4;
       case 'highPoll': return own > t.share0 + 4;
       case 'nearHurdle': return own >= 3.5 && own < 5;
-      default: return true;
+      default: {
+        // „lage:wohnen<-0.5“: Indikator hat sich seit der Wahl um mehr als eine halbe Stufe verschlechtert.
+        const m = /^lage:(\w+)([<>])(-?[\d.]+)$/.exec(req);
+        if (!m) return true;
+        ensureLage(g);
+        const x = lageDef(m[1]);
+        if (!x) return false;
+        const imp = lageImp(t, x, t.lage0);
+        return m[2] === '<' ? imp < Number(m[3]) : imp > Number(m[3]);
+      }
     }
   }
   function eventLand(g, ev) {
@@ -2600,6 +2646,7 @@
     if (fx.comp && g.competence) Object.keys(fx.comp).forEach(k => { g.competence[k] = clamp((g.competence[k] || 40) + fx.comp[k], 5, 95); });
     if (fx.debtRule) t.budget.reform = (t.budget.reform || 0) + fx.debtRule;
     if (fx.ap) t.ap = Math.max(0, t.ap + fx.ap);
+    if (fx.lage) { ensureLage(g); Object.keys(fx.lage).forEach(k => { if (k in t.lage) t.lage[k] += fx.lage[k]; }); }
     if (fx.fwLand) addCred(g, -5, 'Gespräche mit der AfD im Land geduldet');
   }
 
@@ -2673,6 +2720,7 @@
       }
       news(g, fillText(g, item, ev.title) + ': ' + c.label + '. ' + text, 'event');
       if (c.chance !== undefined || ev.big) (t.memory = t.memory || []).push({ q: t.q, title: fillText(g, item, ev.title), label: c.label, ok, role: t.role });
+      chron(g, 'entscheidung', fillText(g, item, ev.title) + ': ' + c.label + (c.chance !== undefined ? (ok ? ' – ging auf.' : ' – ging schief.') : '.'));
     } else if (item.type === 'scandal') {
       const m = t.cabinet[item.ministry];
       if (choice === 0) { // festhalten
@@ -3665,6 +3713,39 @@
   }
   function termAverage(g, q) { return E.pollAverage(termPolls(g, q)); }
 
+  // Die anderen Parteien verfolgen eigene Ziele: Nach anhaltender Schwäche wechseln sie die Spitze (kurzer Aufschwung,
+  // wie nach Vorsitzwechseln üblich – geschätzt), vorher schärfen sie ihr Profil mit ihrem Kernthema. Eigener Zufall,
+  // damit der übrige Spielverlauf nicht verschoben wird.
+  function aiParties(g) {
+    const t = g.term;
+    t.aiState = t.aiState || {};
+    CONTEST.filter(p => p !== g.party && E.isShown(g, p) && (t.start[p] || 0) >= 3).forEach((p, i) => {
+      const st = t.aiState[p] = t.aiState[p] || { low: 0, change: -9, profile: -9 };
+      const R = localRng(t.abs0 * 131 + t.q * 977 + i * 7919 + 3);
+      const drop = (t.start[p] || 0) - shareOf(g, p);
+      st.low = drop >= 3 ? st.low + 1 : 0;
+      if (st.low >= 2 && p !== t.chanc && t.q - st.change >= 6 && R() < 0.4) {
+        const old = g.rivals && g.rivals[p] ? g.rivals[p].name : null;
+        const name = newPerson(g, p, bigLand(g, p)).full;
+        if (g.rivals && g.rivals[p]) Object.assign(g.rivals[p], { name, feud: 0, since: cal(t).year });
+        if (t.vize && t.vize.party === p) t.vize.name = name;
+        Object.keys(t.cabinet).forEach(id => { const m = t.cabinet[id]; if (m.lead && m.party === p) m.name = name; });
+        st.change = t.q; st.low = 0;
+        addNat(g, p, 0.8);
+        news(g, 'Führungswechsel bei ' + sname(p) + ': ' + name + (old ? ' löst ' + old + ' ab' : ' übernimmt') + '. Die Partei hofft auf einen Neustart.', 'big');
+        chron(g, 'konkurrenz', 'Führungswechsel bei ' + sname(p) + ': ' + name + (old ? ' folgt auf ' + old : '') + '.');
+      } else if (drop >= 1.5 && t.q - st.profile >= 4 && R() < 0.3) {
+        const core = (E.partyTopics(g, p) || [])[0];
+        if (!core) return;
+        st.profile = t.q;
+        A.changeSalience(g, core, 0.008);
+        addNat(g, p, 0.25);
+        news(g, sname(p) + ' schärft das Profil: ' + E.topicById(core).name + ' rückt ins Zentrum der Kampagne.', 'info');
+        chron(g, 'konkurrenz', sname(p) + ' setzt voll auf ' + E.topicById(core).name + '.');
+      }
+    });
+  }
+
   // Wirtschaftsdaten je Quartal für die Zeitreihen.
   function econSnap(t) {
     const e = t.econ;
@@ -3703,6 +3784,7 @@
     if (t.chanc !== g.party && t.chancellor) addNat(g, t.chanc, 0.03 * (t.chancellor.like || 0));
     cat('konkurrenz');
     PIDS.forEach(p => { if (p !== g.party) addNat(g, p, between(g, -0.12, 0.12)); });
+    aiParties(g);
     // Dauerrivalen schlagen zurück: Wer sich oft mit euch angelegt hat, sucht die Gelegenheit.
     Object.keys(g.rivals || {}).forEach(p => {
       const rv = g.rivals[p];
@@ -3711,7 +3793,7 @@
         addNat(g, g.party, -0.12);
         addNat(g, p, 0.04);
         const past = (t.voteLog || []).filter(x => x.my && x.my !== 'enthaltung' && !x.gewissen)[0];
-        const quote = past && rand(g) < 0.4 ? '„' + quarterLabel(t, past.q).replace(/^\d\. Quartal /, '') + ' habt ihr ' + (past.my === 'ja' ? 'für' : 'gegen') + ' „' + past.title + '“ gestimmt – und jetzt?“' : pick(g, ['„Versagt auf ganzer Linie!“', '„Nichts als heiße Luft.“', '„Die haben das Land nicht im Griff.“', '„Wortbruch!“']);
+        const quote = past && rand(g) < 0.4 ? '„' + seasonLabel(t, past.q) + ' habt ihr ' + (past.my === 'ja' ? 'für' : 'gegen') + ' „' + past.title + '“ gestimmt – und jetzt?“' : pick(g, ['„Versagt auf ganzer Linie!“', '„Nichts als heiße Luft.“', '„Die haben das Land nicht im Griff.“', '„Wortbruch!“']);
         news(g, '🥊 ' + rv.name + ' (' + sname(p) + ') attackiert euch: ' + quote, 'warn');
       }
     });
@@ -3987,7 +4069,7 @@
 
   const TERM = {
     QUARTERS, ACTIONS, LAW_STEPS, forecast, lageBilanz, lawEffects, ensureLage, SOFORT, SHADOW_SETS, comebackBarometer, wkStatus, homeWk, termRecord, debtPath, activeMeasures, avgRate, govWear, WOBBLE, brAligned, landGovernment, dueVotes, GEWISSEN, startTerm, endQuarter, performAction, canAct, resolvePending, nameMinister, autoNames, needsNames,
-    lawOptions, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, quarterStart, quarterEnd, plenaryDate, plenaryLabel, nextSession, termPolls, termAverage, cal,
+    lawOptions, predict, bundestagVote, bundesratVote, budgetCalc, setBudgetDraft, playerDraftsBudget, calendar, quarterLabel, seasonLabel, quarterStart, quarterEnd, plenaryDate, plenaryLabel, nextSession, termPolls, termAverage, cal,
     lawName, lawTitle, leanOf, quorum, eventChoices, fillText, eventById, ministryById, taxById, areaById, nextCampaign, summary,
     MEDIA, media, actionCash, govSeats, isGov, legacy, LB, careerSnapshot, chooseLeader, leaderAge, currentLeader, MAX_AGE, sqForces, absCal, FX_NAMES, ministerFor, eventMinister, ownMinistries, endTerm, defaultVote, partyVote, mandateVote
   };

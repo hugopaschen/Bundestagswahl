@@ -246,6 +246,57 @@
    * chance: Erfolgswahrscheinlichkeit; dann gilt fx bei Erfolg, fail bei Misserfolg.
    */
   var EVENTS = [
+    // ---------- Aus der Lage im Land: kommen nur, wenn sich ein Indikator seit der Wahl verschlechtert hat ----------
+    { id: 'lage_mieten', cat: 'lage', roles: ['gov'], w: 3, req: 'lage:wohnen<-0.6', title: 'Mieterproteste in den Großstädten', text: 'Es wird immer weniger gebaut. In Berlin, München und Hamburg gehen Zehntausende gegen steigende Mieten auf die Straße. Die Opposition fordert einen Mietendeckel.',
+      choices: [
+        { label: 'Mietpreisbremse verschärfen', hint: 'Mieter jubeln, Vermieter und Bauwirtschaft warnen', fx: { gov: 0.3, sal: { wohnen: 0.01 }, growth: -0.03 } },
+        { label: 'Bau-Offensive mit Sonderabschreibung', hint: 'Teuer, wirkt erst in einigen Jahren', fx: { budget: 3, lage: { wohnen: 10 }, sal: { wohnen: 0.005 } } },
+        { label: 'Auf die Länder verweisen', hint: 'Kostet nichts – aber Vertrauen', fx: { gov: -0.5, sal: { wohnen: 0.015 } } }
+      ] },
+    { id: 'lage_kassen', cat: 'lage', roles: ['gov'], w: 3, req: 'lage:gesundheit<-0.6', title: 'Die Krankenkassen schlagen Alarm', text: 'Die gesetzlichen Kassen kündigen den nächsten Sprung beim Zusatzbeitrag an. Pflegeheime melden Insolvenzen.',
+      choices: [
+        { label: 'Bundeszuschuss erhöhen', hint: 'Beruhigt sofort, belastet den Haushalt', fx: { budget: 5, lage: { gesundheit: -0.2 }, gov: 0.2 } },
+        { label: 'Strukturreform der Kliniken beschleunigen', hint: 'Langfristig richtig, vor Ort umstritten', fx: { lage: { gesundheit: -0.1 }, gov: -0.2, mood: -3 }, chance: 0.6, okText: 'Die Reform greift, die Kassen atmen auf.', failText: 'Die Länder blockieren, der Streit zieht sich.', fail: { gov: -0.3 } },
+        { label: 'Steigende Beiträge hinnehmen', hint: 'Spart Geld – Beitragszahler sind verärgert', fx: { gov: -0.4, sal: { gesundheit: 0.015 } } }
+      ] },
+    { id: 'lage_bahn', cat: 'lage', roles: ['gov'], w: 2.5, req: 'lage:verkehr<-0.5', title: 'Bahnchaos im Winter', text: 'Weichenstörungen, gesperrte Strecken, Zugausfälle: Die Pünktlichkeit im Fernverkehr ist so schlecht wie nie. Pendler sind wütend.',
+      choices: [
+        { label: 'Sanierungsmilliarden vorziehen', hint: 'Kostet jetzt, hilft in zwei Jahren', fx: { budget: 4, lage: { verkehr: 3 } } },
+        { label: 'Bahn-Vorstand austauschen', hint: 'Zeigt Handlungsfähigkeit', fx: { like: 0.2, gov: 0.1 }, chance: 0.5, okText: 'Der neue Vorstand liefert schnelle Verbesserungen.', failText: 'Personalwechsel allein ändert nichts – die Züge bleiben zu spät.', fail: { like: -0.2 } },
+        { label: 'Auf das Wetter verweisen', hint: 'Wird euch übel genommen', fx: { gov: -0.4, sal: { verkehr: 0.01 } } }
+      ] },
+    { id: 'lage_insolvenz', cat: 'lage', roles: ['gov'], w: 3, req: 'lage:wirtschaft<-0.6', title: 'Insolvenzwelle im Mittelstand', text: 'Die Zahl der Firmenpleiten steigt auf den höchsten Stand seit über zehn Jahren. Betriebsräte und Handwerk fordern Hilfe.',
+      choices: [
+        { label: 'Überbrückungshilfen und Kurzarbeit ausweiten', hint: 'Sichert Jobs, teuer', fx: { budget: 6, unemp: -0.2, gov: 0.2 } },
+        { label: 'Bürokratie- und Energiekostenpaket', hint: 'Günstiger, wirkt langsamer', fx: { budget: 2, growth: 0.1 } },
+        { label: 'Strukturwandel laufen lassen', hint: 'Marktwirtschaftlich konsequent – aber hart', fx: { gov: -0.5, unemp: 0.1, sal: { wirtschaft: 0.015 } } }
+      ] },
+    { id: 'lage_kita', cat: 'lage', roles: ['gov'], w: 2, req: 'lage:familie<-0.5', title: 'Eltern demonstrieren für Kitaplätze', text: 'In vielen Städten fehlen Kitaplätze, Gruppen werden wegen Personalmangel geschlossen. Eltern klagen ihren Rechtsanspruch ein.',
+      choices: [
+        { label: 'Bundesprogramm für Erzieherinnen und Erzieher', hint: 'Kostet, entlastet Familien', fx: { budget: 2, lage: { familie: -20 }, gov: 0.2 } },
+        { label: 'Länder in die Pflicht nehmen', hint: 'Zuständigkeit klar – Eltern bleibt das egal', fx: { gov: -0.3, sal: { familie: 0.01 } } }
+      ] },
+    { id: 'lage_klimaziel', cat: 'lage', roles: ['gov'], w: 2, req: 'lage:klima<-0.4', title: 'Klimaziel verfehlt', text: 'Der Expertenrat für Klimafragen stellt fest: Verkehr und Gebäude reißen ihre Ziele erneut. Umweltverbände kündigen eine Klage an.',
+      choices: [
+        { label: 'Sofortprogramm für Gebäude und Verkehr', hint: 'Grüne Wähler zufrieden, kostet', fx: { budget: 3, lage: { klima: -12 }, sal: { klima: 0.01 } } },
+        { label: 'Ziele flexibler machen', hint: 'Entlastet die Wirtschaft, Klage wahrscheinlich', fx: { growth: 0.03, gov: -0.2, sal: { klima: 0.015 } } }
+      ] },
+    { id: 'lage_demokratie', cat: 'lage', roles: ['gov', 'opp'], w: 2, req: 'lage:demokratie<-0.5', title: 'Vertrauenskrise', text: 'Eine große Studie zeigt: Nur noch eine Minderheit ist mit der Demokratie zufrieden. Besonders im Osten wenden sich viele ab.',
+      choices: [
+        { label: 'Bürgerräte und Bürgerdialoge im ganzen Land', hint: 'Wirkt langsam, kostet Termine', fx: { lage: { demokratie: 2 }, ap: -1, like: 0.1 } },
+        { label: 'Klare Kante gegen Populismus', hint: 'Die eigenen Leute jubeln, die Mitte zuckt', fx: { unity: 4, own: -0.1 } }
+      ] },
+    { id: 'lage_opp_mieten', cat: 'lage', roles: ['opp', 'apo'], w: 2.5, req: 'lage:wohnen<-0.6', title: 'Mieterproteste – seid ihr dabei?', text: 'Tausende demonstrieren gegen hohe Mieten. Die Veranstalter laden euch ein, auf der Kundgebung zu sprechen.',
+      choices: [
+        { label: 'An die Spitze der Proteste', hint: 'Mobilisiert, schreckt Hausbesitzer', fx: { own: 0.4, sal: { wohnen: 0.01 }, comp: { wohnen: 2 } } },
+        { label: 'Eigenes Wohnungsbau-Konzept vorlegen', hint: 'Seriös, weniger Bilder', fx: { comp: { wohnen: 4 }, own: 0.1 } },
+        { label: 'Fernbleiben', hint: 'Kein Risiko, keine Wirkung', fx: {} }
+      ] },
+    { id: 'lage_opp_insolvenz', cat: 'lage', roles: ['opp', 'apo'], w: 2.5, req: 'lage:wirtschaft<-0.6', title: 'Werksschließung in eurem Wahlkreis', text: 'Ein großer Zulieferer schließt sein Werk, 1.800 Stellen fallen weg. Die Belegschaft bittet um Unterstützung.',
+      choices: [
+        { label: 'Solidarität vor dem Werkstor', hint: 'Starke Bilder, stärkt euch bei Arbeitern', fx: { own: 0.3, comp: { wirtschaft: 2 } } },
+        { label: 'Industriepolitisches Konzept vorstellen', hint: 'Bringt Kompetenz', fx: { comp: { wirtschaft: 4 } } }
+      ] },
     // ---------- Internationale Krisen ----------
     { id: 'ukraine_offensive', cat: 'intl', big: true, roles: ['gov'], w: 3, title: 'Neue russische Offensive', text: 'Russland startet eine Großoffensive in der Ostukraine. Kiew bittet dringend um Luftverteidigung und Munition. Washington zögert.',
       choices: [
